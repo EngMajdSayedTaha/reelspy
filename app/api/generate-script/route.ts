@@ -1,0 +1,92 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+import { generateScript } from "@/lib/ai/claude";
+
+const bodySchema = z.object({
+  reel_id: z.string().optional(),
+  caption: z.string().optional(),
+  viral_pattern: z.string().default("Tool Reveal"),
+  platform: z.string().default("Instagram Reels"),
+  tone: z.string().default("Direct"),
+  custom_context: z.string().optional(),
+});
+
+export async function POST(request: Request) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rawBody = await request.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(rawBody);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+
+  const { reel_id, caption, viral_pattern, platform, tone, custom_context } = parsed.data;
+
+  let sourceCaption = caption?.trim() ?? "";
+  let reelId: string | null = null;
+
+  if (reel_id) {
+    const { data: reel, error: reelError } = await supabase
+      .from("tracked_reels")
+      .select("id, caption")
+      .eq("id", reel_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (reelError) {
+      return NextResponse.json({ error: reelError.message }, { status: 500 });
+    }
+    if (!reel) {
+      return NextResponse.json({ error: "Reel not found." }, { status: 404 });
+    }
+
+    reelId = reel.id;
+    sourceCaption = reel.caption ?? sourceCaption;
+  }
+
+  if (!sourceCaption) {
+    return NextResponse.json({ error: "caption or reel_id is required." }, { status: 400 });
+  }
+
+  const generated = await generateScript({
+    caption: sourceCaption,
+    viralPattern: viral_pattern,
+    platform,
+    tone,
+    customContext: custom_context,
+  });
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("generated_scripts")
+    .insert({
+      user_id: user.id,
+      reel_id: reelId,
+      hook: generated.hook,
+      body: generated.body,
+      cta: generated.cta,
+      viral_pattern: generated.viral_pattern,
+      platform,
+      status: "draft",
+    })
+    .select("id, hook, body, cta, viral_pattern, status, created_at")
+    .single();
+
+  if (insertError) {
+    return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    script: inserted,
+    explanation: generated.pattern_explanation ?? null,
+  });
+}

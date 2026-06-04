@@ -1,0 +1,67 @@
+import { redirect } from "next/navigation";
+import { AccountCard } from "@/components/accounts/AccountCard";
+import { AddAccountForm } from "@/components/accounts/AddAccountForm";
+import { createClient } from "@/lib/supabase/server";
+import { addInspirationAccount, removeInspirationAccount } from "./actions";
+
+type InspirationAccount = {
+  id: string;
+  ig_username: string;
+  display_name: string | null;
+  followers_count: number | null;
+  is_active: boolean | null;
+  last_synced_at: string | null;
+};
+
+export default async function AccountsPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data, error } = await supabase
+    .from("inspiration_accounts")
+    .select("id, ig_username, display_name, followers_count, is_active, last_synced_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const accounts = (data ?? []) as InspirationAccount[];
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-3xl font-semibold text-white">Accounts</h1>
+        <p className="text-sm text-zinc-400">
+          Save inspiration accounts you want ReelSpy to track and score.
+        </p>
+      </div>
+
+      <AddAccountForm action={addInspirationAccount} />
+
+      {accounts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+          No inspiration accounts yet. Add your first account above.
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {accounts.map((account) => (
+            <AccountCard
+              key={account.id}
+              account={account}
+              removeAction={removeInspirationAccount}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
