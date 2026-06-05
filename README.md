@@ -15,23 +15,28 @@ ReelSpy is a Next.js App Router application for tracking inspiration reels, scor
 ### Reel transcripts (optional)
 
 The reel transcript feature stores and displays the spoken transcript of a tracked reel.
-All transcription keys are optional — if none are set, the UI shows a clean "transcript
-unavailable" state and never errors. Providers are tried in order; the first one that is
-configured **and** succeeds wins:
+The pipeline (`app/api/reels/[reel_id]/transcript`):
 
-1. `WAYINVIDEO_API_KEY` — [WayinVideo](https://wayin.ai/api/) transcript API (primary).
-   Submits the reel permalink and polls for the result.
-2. `GETTRANSCRIBE_API_KEY` — [GetTranscribe](https://www.gettranscribe.ai/) transcript API.
-3. `REEL_TRANSCRIPT_API_URL` (+ optional `REEL_TRANSCRIPT_API_KEY` / `REEL_TRANSCRIPT_API_HOST`)
-   — a generic configurable endpoint for any other provider (e.g. Subclip or a
-   RapidAPI-hosted API).
-4. `GROQ_API_KEY` / `HF_API_TOKEN` — Whisper (`whisper-large-v3`) on the downloaded audio.
-   Only used when a reel has a downloadable video URL, which Instagram
-   Business-Discovery reels generally do not expose — so the permalink-based
-   providers above are the primary working path.
+1. **yt-dlp** runs `--dump-single-json --skip-download` to read the reel's metadata and a
+   direct (short-lived) media URL — without downloading the video binary. The self-contained
+   `yt-dlp_linux` binary is fetched into `bin/` at install time by `scripts/fetch-ytdlp.mjs`
+   and bundled into the function via `outputFileTracingIncludes` in `next.config.ts`.
+2. **Whisper** transcribes the audio at that URL — `GROQ_API_KEY` (Groq `whisper-large-v3`,
+   free tier, primary) or `HF_API_TOKEN` (Hugging Face, fallback).
+3. The transcript + duration are stored on `tracked_reels`; only metadata/transcript are
+   persisted (the media file itself is not stored).
 
-Set at least `WAYINVIDEO_API_KEY` (in `.env.local` locally, and in the Vercel project's
-Production environment variables) for transcripts to work in production.
+Env keys (all optional — without them the UI shows a clean "transcript unavailable" state
+and never errors):
+
+- `GROQ_API_KEY` — required for transcripts to actually work (free tier available).
+- `HF_API_TOKEN` — optional Whisper fallback.
+- `YTDLP_COOKIES_B64` — optional base64-encoded `cookies.txt`; many Instagram reels require
+  authenticated cookies for yt-dlp to resolve the media URL. Generate with `base64 -w0 cookies.txt`.
+- `YTDLP_BIN` — optional path override for the yt-dlp binary.
+
+Set `GROQ_API_KEY` (and usually `YTDLP_COOKIES_B64`) in `.env.local` locally and in the
+Vercel project's Production environment variables.
 
 ## Development
 

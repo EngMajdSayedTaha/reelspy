@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "node scripts/fetch-ytdlp.mjs",
     "check:auth-setup": "node scripts/check-auth-setup.mjs"
   },
   "dependencies": {

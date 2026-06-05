@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { transcribeReel } from "@/lib/transcription";
+import { processReel } from "@/lib/media/pipeline";
 
 // Transcription providers are async and polled, so allow a generous budget.
 // Vercel clamps this to the plan's maximum function duration.
@@ -99,9 +99,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     .eq("id", reel.id)
     .eq("user_id", user.id);
 
-  // Business-Discovery reels don't store a downloadable media URL, so the
-  // permalink-based provider handles them; mediaUrl stays null for now.
-  const result = await transcribeReel({ permalink: reel.ig_permalink, mediaUrl: null });
+  // Extract reel metadata + direct media URL via yt-dlp, then transcribe with Whisper.
+  const result = await processReel(reel.ig_permalink);
 
   if (result.status !== "ready") {
     await supabase
@@ -121,6 +120,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       transcript_source: result.source,
       transcript_status: "ready",
       transcript_generated_at: new Date().toISOString(),
+      media_duration_sec: result.metadata.durationSec,
     })
     .eq("id", reel.id)
     .eq("user_id", user.id);
@@ -134,6 +134,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     status: "ready",
     source: result.source,
     language: result.language,
+    duration_sec: result.metadata.durationSec,
     cached: false,
   });
 }

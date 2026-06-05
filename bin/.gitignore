@@ -1,0 +1,3 @@
+# yt-dlp binary is downloaded here at install time (see scripts/fetch-ytdlp.mjs)
+*
+!.gitignore
