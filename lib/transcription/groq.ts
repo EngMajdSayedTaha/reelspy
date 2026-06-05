@@ -44,6 +44,12 @@ export const groqProvider: TranscriptionProvider = {
 
     if (!response.ok) {
       const body = await response.text();
+      if (response.status === 413) {
+        const mb = (blob.size / (1024 * 1024)).toFixed(1);
+        throw new Error(
+          `Groq rejected the audio as too large (${mb} MB > 25 MB free-tier limit). The reel may be too long.`
+        );
+      }
       throw new Error(`Groq API error (${response.status}): ${body.slice(0, 200)}`);
     }
 

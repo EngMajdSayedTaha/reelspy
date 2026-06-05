@@ -23,6 +23,11 @@ type YtDlpFormat = {
   acodec?: string;
   vcodec?: string;
   ext?: string;
+  protocol?: string;
+  filesize?: number;
+  filesize_approx?: number;
+  tbr?: number;
+  abr?: number;
 };
 
 type YtDlpInfo = {
@@ -74,18 +79,42 @@ async function cookieArgs(): Promise<string[]> {
   return ["--cookies", COOKIES_PATH];
 }
 
-// Picks the best format URL that includes audio (reels are usually a single
-// combined mp4; otherwise prefer a format with an audio codec).
+// Whisper only needs the audio, and Groq's free tier caps uploads at 25 MB, so
+// pick the SMALLEST format that still has an audio track: an audio-only stream
+// if one exists, otherwise the lowest-bitrate progressive video. This keeps the
+// payload well under the limit without needing ffmpeg.
+function hasAudio(f: YtDlpFormat): boolean {
+  return Boolean(f.acodec && f.acodec !== "none");
+}
+
+function isDirectHttp(f: YtDlpFormat): boolean {
+  return !f.protocol || f.protocol === "https" || f.protocol === "http";
+}
+
+function approxSize(f: YtDlpFormat): number {
+  return f.filesize ?? f.filesize_approx ?? (f.tbr ? f.tbr * 1_000 : Number.POSITIVE_INFINITY);
+}
+
+function smallest(formats: YtDlpFormat[]): YtDlpFormat | null {
+  if (formats.length === 0) return null;
+  return [...formats].sort((a, b) => approxSize(a) - approxSize(b))[0];
+}
+
 function pickMediaUrl(info: YtDlpInfo): string | null {
-  if (typeof info.url === "string" && info.url) {
-    return info.url;
-  }
-  const formats = info.formats ?? [];
-  const withAudio = [...formats].reverse().find((f) => f.url && f.acodec && f.acodec !== "none");
-  if (withAudio?.url) {
-    return withAudio.url;
-  }
-  return formats.at(-1)?.url ?? null;
+  const formats = (info.formats ?? []).filter((f) => f.url && isDirectHttp(f));
+
+  // 1) Audio-only formats — smallest possible payload.
+  const audioOnly = formats.filter((f) => hasAudio(f) && (!f.vcodec || f.vcodec === "none"));
+  const bestAudio = smallest(audioOnly);
+  if (bestAudio?.url) return bestAudio.url;
+
+  // 2) Smallest progressive format that still carries audio.
+  const progressive = formats.filter(hasAudio);
+  const smallestProgressive = smallest(progressive);
+  if (smallestProgressive?.url) return smallestProgressive.url;
+
+  // 3) Fallback to the top-level URL.
+  return info.url ?? null;
 }
 
 export type YtDlpProbe = {
