@@ -17,6 +17,7 @@ export type FeedReel = {
   viral_score: number | null;
   is_worked_on: boolean | null;
   posted_at: string | null;
+  transcript_status: string | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -86,7 +87,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, inspiration_accounts(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, inspiration_accounts(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id);

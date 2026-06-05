@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Sparkles,
   Check,
+  Captions,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ type Reel = {
   viral_score: number | null;
   is_worked_on: boolean | null;
   posted_at: string | null;
+  transcript_status: string | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -158,6 +160,17 @@ export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
               <Eye className="h-3.5 w-3.5" />
               {formatCompact(reel.view_count)} views
             </div>
+
+            {/* Transcript indicator */}
+            {reel.transcript_status === "ready" ? (
+              <div
+                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-[#F9E400] backdrop-blur-sm"
+                title="Transcript available"
+              >
+                <Captions className="h-3.5 w-3.5" />
+                Transcript
+              </div>
+            ) : null}
           </>
         )}
       </div>

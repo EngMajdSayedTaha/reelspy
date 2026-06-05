@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { ScriptGenerator } from "@/components/scripts/ScriptGenerator";
+import { TranscriptPanel } from "@/components/reels/TranscriptPanel";
 import { createClient } from "@/lib/supabase/server";
+
+type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 
 type PageProps = {
   params: Promise<{ reel_id: string }>;
@@ -20,7 +23,7 @@ export default async function GenerateScriptPage({ params }: PageProps) {
 
   const { data: reel, error } = await supabase
     .from("tracked_reels")
-    .select("id, caption, ig_permalink")
+    .select("id, caption, ig_permalink, transcript, transcript_lang, transcript_source, transcript_status")
     .eq("id", reel_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -51,6 +54,14 @@ export default async function GenerateScriptPage({ params }: PageProps) {
           Open original post
         </a>
       </div>
+
+      <TranscriptPanel
+        reelId={reel.id}
+        initialTranscript={reel.transcript ?? null}
+        initialStatus={(reel.transcript_status as TranscriptStatus | null) ?? "none"}
+        initialSource={reel.transcript_source ?? null}
+        initialLanguage={reel.transcript_lang ?? null}
+      />
 
       <ScriptGenerator reelId={reel.id} initialCaption={reel.caption ?? ""} />
     </div>

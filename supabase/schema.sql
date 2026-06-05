@@ -48,6 +48,11 @@ create table tracked_reels (
   is_worked_on boolean default false,
   worked_on_at timestamptz,
   posted_at timestamptz,
+  transcript text,
+  transcript_lang text,
+  transcript_source text,
+  transcript_status text default 'none',
+  transcript_generated_at timestamptz,
   created_at timestamptz default now()
 );
 

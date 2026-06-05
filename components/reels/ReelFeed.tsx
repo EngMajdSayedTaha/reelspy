@@ -12,6 +12,7 @@ type Reel = {
   viral_score: number | null;
   is_worked_on: boolean | null;
   posted_at: string | null;
+  transcript_status: string | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
