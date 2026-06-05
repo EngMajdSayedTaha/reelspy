@@ -88,6 +88,30 @@ function pickMediaUrl(info: YtDlpInfo): string | null {
   return formats.at(-1)?.url ?? null;
 }
 
+export type YtDlpProbe = {
+  available: boolean;
+  version: string | null;
+  binaryPath: string | null;
+  cookies: boolean;
+  error: string | null;
+};
+
+// Lightweight health check: confirms the binary resolves and runs (`--version`).
+export async function probeYtDlp(): Promise<YtDlpProbe> {
+  const cookies = Boolean(process.env.YTDLP_COOKIES_B64);
+  try {
+    const binary = await resolveBinary();
+    const { stdout } = await execFileAsync(binary, ["--version", "--no-cache-dir"], {
+      timeout: 15_000,
+      env: { ...process.env, TMPDIR: "/tmp", HOME: "/tmp" },
+    });
+    return { available: true, version: stdout.trim(), binaryPath: binary, cookies, error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "yt-dlp probe failed";
+    return { available: false, version: null, binaryPath: null, cookies, error: message.slice(0, 300) };
+  }
+}
+
 // Runs `yt-dlp --dump-single-json --skip-download` to fetch metadata + a direct
 // media URL WITHOUT downloading the video binary.
 export async function getReelMetadata(url: string): Promise<ReelMetadata> {
