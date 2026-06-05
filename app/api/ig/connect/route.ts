@@ -15,10 +15,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const appId = process.env.META_IG_APP_ID || process.env.META_APP_ID;
+  // Facebook Login flow: client_id must be the Facebook App ID.
+  const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   const redirectUri = process.env.META_REDIRECT_URI;
-  const scopes = process.env.META_IG_SCOPES?.trim() || "instagram_business_basic";
+  const scopes =
+    process.env.META_IG_SCOPES?.trim() ||
+    "instagram_basic,pages_show_list,pages_read_engagement,business_management,instagram_manage_insights";
+  // Facebook Login for Business: when set, permissions come from this configuration.
+  const configId = process.env.META_FB_CONFIG_ID?.trim() || undefined;
 
   if (!appId || !appSecret || !redirectUri) {
     return NextResponse.redirect(
@@ -33,6 +38,7 @@ export async function GET(request: Request) {
       redirectUri,
       state,
       scopes,
+      configId,
     })
   );
 

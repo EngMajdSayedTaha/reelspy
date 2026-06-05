@@ -22,12 +22,15 @@ const errorMessageMap: Record<string, string> = {
   oauth_failed: "Instagram token exchange failed. Check your Meta app settings and retry.",
   profile_update_failed: "Instagram connected, but ReelSpy could not save the token to your profile.",
   account_link_failed: "Instagram connected, but ReelSpy could not link the connected account record.",
+  no_ig_business_account:
+    "No Instagram Business account found on your Facebook Pages. Make sure your IG account is Business/Creator and linked to a Facebook Page, then reconnect.",
 };
 
 export default async function InstagramSettingsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const error = firstParam(params.error);
   const success = firstParam(params.success);
+  const detail = firstParam(params.detail);
   const errorMessage = error ? errorMessageMap[error] ?? error : null;
 
   const appId = process.env.META_APP_ID;
@@ -72,8 +75,19 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
           <p className="mt-3 text-sm text-emerald-400">Instagram connected successfully.</p>
         ) : null}
 
+        {success === "disconnected" ? (
+          <p className="mt-3 text-sm text-amber-400">Instagram disconnected. You can reconnect below.</p>
+        ) : null}
+
         {errorMessage ? (
-          <p className="mt-3 text-sm text-rose-400">Instagram error: {errorMessage}</p>
+          <div className="mt-3 space-y-1">
+            <p className="text-sm text-rose-400">Instagram error: {errorMessage}</p>
+            {detail ? (
+              <p className="rounded-md border border-rose-500/30 bg-rose-500/5 p-2 font-mono text-xs text-rose-300">
+                {detail}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {!oauthReady ? (
@@ -91,15 +105,17 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
         <div className="mt-4 flex flex-wrap gap-3">
           {oauthReady ? (
             <Button asChild>
-              <a href="/api/ig/connect">Connect Instagram</a>
+              <a href="/api/ig/connect">{isConnected ? "Reconnect Instagram" : "Connect Instagram"}</a>
             </Button>
           ) : (
             <Button disabled>Connect Instagram</Button>
           )}
 
-          <Button type="button" variant="outline" disabled>
-            Use panel below to sync
-          </Button>
+          {isConnected ? (
+            <Button asChild variant="outline">
+              <a href="/api/ig/disconnect">Disconnect</a>
+            </Button>
+          ) : null}
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   exchangeCodeForAccessToken,
   exchangeForLongLivedToken,
-  getMyProfile,
+  getInstagramBusinessAccount,
 } from "@/lib/instagram/graph-api";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
@@ -44,8 +44,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const shortToken = await exchangeCodeForAccessToken(code);
-    const longLivedToken = await exchangeForLongLivedToken(shortToken.accessToken);
-    const igProfile = await getMyProfile(shortToken.igUserId, longLivedToken);
+    const longLivedToken = await exchangeForLongLivedToken(shortToken);
+    const igAccount = await getInstagramBusinessAccount(longLivedToken);
+
+    if (!igAccount) {
+      const noAccountResponse = NextResponse.redirect(
+        new URL("/dashboard/settings/instagram?error=no_ig_business_account", request.url)
+      );
+      noAccountResponse.cookies.delete(OAUTH_STATE_COOKIE);
+      return noAccountResponse;
+    }
+
+    const igProfile = { id: igAccount.igUserId, username: igAccount.username };
 
     const { error: updateError } = await supabase
       .from("profiles")
@@ -91,9 +101,13 @@ export async function GET(request: NextRequest) {
     return successResponse;
   } catch (callbackError) {
     console.error("Instagram callback failed", callbackError);
-    const failureResponse = NextResponse.redirect(
-      new URL("/dashboard/settings/instagram?error=oauth_failed", request.url)
-    );
+    // Surface the real Meta error so the user can see what went wrong.
+    const detail =
+      callbackError instanceof Error ? callbackError.message : String(callbackError);
+    const target = new URL("/dashboard/settings/instagram", request.url);
+    target.searchParams.set("error", "oauth_failed");
+    target.searchParams.set("detail", detail.slice(0, 300));
+    const failureResponse = NextResponse.redirect(target);
     failureResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return failureResponse;
   }
