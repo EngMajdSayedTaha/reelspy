@@ -3,6 +3,7 @@ import { ReelFeed } from "@/components/reels/ReelFeed";
 import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
+import { DurationBackfill } from "@/components/reels/DurationBackfill";
 import { createClient } from "@/lib/supabase/server";
 import { markReelAsWorkedOn } from "./actions";
 
@@ -125,6 +126,14 @@ export default async function FeedPage({
 
   const hasFilters = account !== "all" || status !== "all" || q !== "";
 
+  // Reels still needing a duration probe (drives the backfill control).
+  const { count: missingDurationCount } = await supabase
+    .from("tracked_reels")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .is("media_duration_sec", null)
+    .is("duration_checked_at", null);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -135,7 +144,10 @@ export default async function FeedPage({
           </p>
         </div>
 
-        <SyncButton />
+        <div className="flex flex-col items-end gap-2">
+          <SyncButton />
+          <DurationBackfill initialMissing={missingDurationCount ?? 0} />
+        </div>
       </div>
 
       <FeedControls
