@@ -12,7 +12,6 @@ import {
   Sparkles,
   Check,
   Captions,
-  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,6 @@ type Reel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  media_duration_sec: number | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -56,15 +54,6 @@ function formatCompact(value: number | null): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}K`;
   return new Intl.NumberFormat("en-US").format(n);
-}
-
-// Formats a duration in seconds as m:ss (e.g. 95 → "1:35").
-function formatDuration(seconds: number | null): string | null {
-  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return null;
-  const total = Math.round(seconds);
-  const minutes = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${minutes}:${secs.toString().padStart(2, "0")}`;
 }
 
 // Instagram embed URL from a reel/post permalink.
@@ -107,8 +96,6 @@ export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
         year: "numeric",
       })
     : null;
-
-  const durationLabel = formatDuration(reel.media_duration_sec);
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#1f1f1f] bg-[#111111] text-zinc-100 transition-colors hover:border-[#2e2e2e]">
@@ -167,17 +154,6 @@ export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
                 {reel.is_worked_on ? "Worked On" : "New"}
               </Badge>
             </div>
-
-            {/* Duration overlay */}
-            {durationLabel ? (
-              <div
-                className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm"
-                title="Reel duration"
-              >
-                <Clock className="h-3.5 w-3.5" />
-                {durationLabel}
-              </div>
-            ) : null}
 
             {/* Views overlay (most relevant reel metric) */}
             <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">

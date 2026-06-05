@@ -23,8 +23,8 @@ The pipeline (`app/api/reels/[reel_id]/transcript`):
    and bundled into the function via `outputFileTracingIncludes` in `next.config.ts`.
 2. **Whisper** transcribes the audio at that URL — `GROQ_API_KEY` (Groq `whisper-large-v3`,
    free tier, primary) or `HF_API_TOKEN` (Hugging Face, fallback).
-3. The transcript + duration are stored on `tracked_reels`; only metadata/transcript are
-   persisted (the media file itself is not stored).
+3. The transcript is stored on `tracked_reels`; only the transcript text is persisted
+   (the media file itself is not stored).
 
 Env keys (all optional — without them the UI shows a clean "transcript unavailable" state
 and never errors):

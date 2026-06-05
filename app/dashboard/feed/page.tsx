@@ -3,7 +3,6 @@ import { ReelFeed } from "@/components/reels/ReelFeed";
 import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
-import { DurationBackfill } from "@/components/reels/DurationBackfill";
 import { createClient } from "@/lib/supabase/server";
 import { markReelAsWorkedOn } from "./actions";
 
@@ -19,7 +18,6 @@ export type FeedReel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  media_duration_sec: number | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -34,7 +32,6 @@ const SORT_COLUMNS: Record<string, string> = {
   likes: "like_count",
   comments: "comment_count",
   viral: "viral_score",
-  duration: "media_duration_sec",
 };
 
 type SearchParams = {
@@ -90,7 +87,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, media_duration_sec, inspiration_accounts(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, inspiration_accounts(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id);
@@ -126,14 +123,6 @@ export default async function FeedPage({
 
   const hasFilters = account !== "all" || status !== "all" || q !== "";
 
-  // Reels still needing a duration probe (drives the backfill control).
-  const { count: missingDurationCount } = await supabase
-    .from("tracked_reels")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .is("media_duration_sec", null)
-    .is("duration_checked_at", null);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -144,10 +133,7 @@ export default async function FeedPage({
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          <SyncButton />
-          <DurationBackfill initialMissing={missingDurationCount ?? 0} />
-        </div>
+        <SyncButton />
       </div>
 
       <FeedControls

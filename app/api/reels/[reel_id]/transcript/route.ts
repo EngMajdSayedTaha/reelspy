@@ -123,7 +123,6 @@ export async function POST(request: Request, { params }: RouteContext) {
       transcript_source: result.source,
       transcript_status: "ready",
       transcript_generated_at: new Date().toISOString(),
-      media_duration_sec: result.metadata.durationSec,
     })
     .eq("id", reel.id)
     .eq("user_id", user.id);
@@ -137,7 +136,6 @@ export async function POST(request: Request, { params }: RouteContext) {
     status: "ready",
     source: result.source,
     language: result.language,
-    duration_sec: result.metadata.durationSec,
     cached: false,
   });
 }
