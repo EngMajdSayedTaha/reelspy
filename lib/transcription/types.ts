@@ -4,7 +4,12 @@
 // transcript or a typed "unavailable" result. It never throws to the caller —
 // failures degrade gracefully, mirroring the fallback pattern in lib/ai/claude.ts.
 
-export type TranscriptionSource = "groq" | "huggingface" | "thirdparty";
+export type TranscriptionSource =
+  | "groq"
+  | "huggingface"
+  | "wayinvideo"
+  | "gettranscribe"
+  | "thirdparty";
 
 export type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 

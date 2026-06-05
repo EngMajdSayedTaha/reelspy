@@ -1,55 +1,13 @@
+import { extractTranscriptText } from "@/lib/transcription/shared";
 import type { TranscriptionProvider } from "@/lib/transcription/types";
 
 // Generic, provider-agnostic fallback that takes a reel PERMALINK and returns a
-// transcript. Many free services (often via RapidAPI) follow this shape. The
-// concrete endpoint/key are configured through env vars so the provider can be
-// swapped without code changes:
+// transcript. Useful for any service not covered by a dedicated adapter (e.g.
+// Subclip) or a RapidAPI-hosted endpoint. Configured entirely via env vars:
 //
 //   REEL_TRANSCRIPT_API_URL   (required)  POST endpoint
 //   REEL_TRANSCRIPT_API_KEY   (optional)  bearer token / RapidAPI key
 //   REEL_TRANSCRIPT_API_HOST  (optional)  set for RapidAPI-style hosts
-//
-// This is the primary working path in production, because Business-Discovery
-// reels do not expose a downloadable video for the audio-based providers.
-
-type UnknownRecord = Record<string, unknown>;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === "object" && value !== null;
-}
-
-// Best-effort extraction of a transcript string from an unknown JSON shape.
-function extractTranscript(payload: unknown): string | null {
-  if (typeof payload === "string") {
-    return payload.trim() || null;
-  }
-  if (!isRecord(payload)) {
-    return null;
-  }
-
-  const directKeys = ["transcript", "text", "result", "transcription", "caption"];
-  for (const key of directKeys) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-
-  // Nested shapes: { data: ... } / { transcript: { text } } / segment arrays.
-  if (isRecord(payload.data)) {
-    const nested = extractTranscript(payload.data);
-    if (nested) return nested;
-  }
-  if (Array.isArray(payload.segments)) {
-    const joined = payload.segments
-      .map((segment) => (isRecord(segment) && typeof segment.text === "string" ? segment.text : ""))
-      .join(" ")
-      .trim();
-    if (joined) return joined;
-  }
-
-  return null;
-}
 
 export const thirdpartyProvider: TranscriptionProvider = {
   name: "thirdparty",
@@ -87,7 +45,7 @@ export const thirdpartyProvider: TranscriptionProvider = {
     }
 
     const json = (await response.json()) as unknown;
-    const text = extractTranscript(json);
+    const text = extractTranscriptText(json);
     if (!text) {
       throw new Error("Transcript API returned no usable transcript text.");
     }

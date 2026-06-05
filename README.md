@@ -16,15 +16,22 @@ ReelSpy is a Next.js App Router application for tracking inspiration reels, scor
 
 The reel transcript feature stores and displays the spoken transcript of a tracked reel.
 All transcription keys are optional — if none are set, the UI shows a clean "transcript
-unavailable" state and never errors. Providers are tried in order:
+unavailable" state and never errors. Providers are tried in order; the first one that is
+configured **and** succeeds wins:
 
-1. `GROQ_API_KEY` — Groq `whisper-large-v3` (free tier). Only used when a reel has a
-   downloadable video URL.
-2. `HF_API_TOKEN` — Hugging Face Inference `whisper-large-v3` (free tier). Same constraint.
+1. `WAYINVIDEO_API_KEY` — [WayinVideo](https://wayin.ai/api/) transcript API (primary).
+   Submits the reel permalink and polls for the result.
+2. `GETTRANSCRIBE_API_KEY` — [GetTranscribe](https://www.gettranscribe.ai/) transcript API.
 3. `REEL_TRANSCRIPT_API_URL` (+ optional `REEL_TRANSCRIPT_API_KEY` / `REEL_TRANSCRIPT_API_HOST`)
-   — a permalink-based transcript API. This is the primary working path, because
-   Instagram Business-Discovery reels do not expose a downloadable video for the
-   audio-based providers above.
+   — a generic configurable endpoint for any other provider (e.g. Subclip or a
+   RapidAPI-hosted API).
+4. `GROQ_API_KEY` / `HF_API_TOKEN` — Whisper (`whisper-large-v3`) on the downloaded audio.
+   Only used when a reel has a downloadable video URL, which Instagram
+   Business-Discovery reels generally do not expose — so the permalink-based
+   providers above are the primary working path.
+
+Set at least `WAYINVIDEO_API_KEY` (in `.env.local` locally, and in the Vercel project's
+Production environment variables) for transcripts to work in production.
 
 ## Development
 

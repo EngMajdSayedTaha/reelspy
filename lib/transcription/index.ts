@@ -1,6 +1,8 @@
+import { gettranscribeProvider } from "@/lib/transcription/gettranscribe";
 import { groqProvider } from "@/lib/transcription/groq";
 import { huggingfaceProvider } from "@/lib/transcription/huggingface";
 import { thirdpartyProvider } from "@/lib/transcription/thirdparty";
+import { wayinvideoProvider } from "@/lib/transcription/wayinvideo";
 import type { TranscribeInput, TranscriptResult } from "@/lib/transcription/types";
 
 export type {
@@ -11,9 +13,16 @@ export type {
 } from "@/lib/transcription/types";
 
 // Providers are tried in order. Audio-based Whisper providers come first (best
-// accuracy when a real video is available); the permalink-based third-party
-// provider is the resilient fallback.
-const PROVIDERS = [groqProvider, huggingfaceProvider, thirdpartyProvider];
+// accuracy when a real video is available, but they need a downloadable URL).
+// For inspiration reels (no media URL), the permalink-based providers run:
+// WayinVideo (primary), then GetTranscribe, then a generic configurable API.
+const PROVIDERS = [
+  groqProvider,
+  huggingfaceProvider,
+  wayinvideoProvider,
+  gettranscribeProvider,
+  thirdpartyProvider,
+];
 
 export async function transcribeReel(input: TranscribeInput): Promise<TranscriptResult> {
   const configured = PROVIDERS.filter((provider) => provider.isConfigured());
@@ -22,7 +31,7 @@ export async function transcribeReel(input: TranscribeInput): Promise<Transcript
     return {
       status: "unavailable",
       reason:
-        "No transcription provider is configured. Set GROQ_API_KEY, HF_API_TOKEN, or REEL_TRANSCRIPT_API_URL.",
+        "No transcription provider is configured. Set WAYINVIDEO_API_KEY, GETTRANSCRIBE_API_KEY, REEL_TRANSCRIPT_API_URL, GROQ_API_KEY, or HF_API_TOKEN.",
     };
   }
 

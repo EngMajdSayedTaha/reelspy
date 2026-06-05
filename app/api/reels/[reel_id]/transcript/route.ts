@@ -3,9 +3,10 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { transcribeReel } from "@/lib/transcription";
 
-// Whisper/network calls can take a while; allow extra time on the route.
+// Transcription providers are async and polled, so allow a generous budget.
+// Vercel clamps this to the plan's maximum function duration.
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const bodySchema = z
   .object({
