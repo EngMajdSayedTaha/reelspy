@@ -4,7 +4,18 @@ import { fetchAccountReels } from "@/lib/instagram/graph-api";
 
 type SyncBody = {
   account_id?: string;
+  limit?: number;
 };
+
+// How many reels to pull per account. Clamped to a sane range.
+const DEFAULT_SYNC_LIMIT = 25;
+const MAX_SYNC_LIMIT = 200;
+
+function resolveLimit(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_SYNC_LIMIT;
+  return Math.min(MAX_SYNC_LIMIT, Math.max(1, Math.floor(n)));
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -35,6 +46,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as SyncBody;
+  const syncLimit = resolveLimit(body.limit);
 
   // Build query for inspiration accounts to sync
   let accountsQuery = supabase
@@ -62,14 +74,15 @@ export async function POST(request: Request) {
   }
 
   let totalInserted = 0;
-  let totalSkipped = 0;
+  let totalUpdated = 0;
   const errors: string[] = [];
 
   for (const account of accounts) {
     const { reels, error: fetchError } = await fetchAccountReels(
       profile.ig_user_id,
       profile.ig_access_token,
-      account.ig_username
+      account.ig_username,
+      syncLimit
     );
 
     if (fetchError) {
@@ -105,7 +118,7 @@ export async function POST(request: Request) {
         ig_permalink: r.permalink!,
         caption: r.caption ?? null,
         thumbnail_url: r.thumbnail_url ?? null,
-        view_count: 0,
+        view_count: r.view_count ?? 0,
         like_count: r.like_count ?? 0,
         comment_count: r.comments_count ?? 0,
         posted_at: r.timestamp ?? null,
@@ -120,7 +133,26 @@ export async function POST(request: Request) {
       totalInserted += inserts.length;
     }
 
-    totalSkipped += reels.length - inserts.length;
+    // Refresh metrics on reels we already track — counts (and views) change over
+    // time, and reels synced before view_count support need backfilling.
+    const updates = reels.filter((r) => r.id && existingIds.has(r.id));
+    for (const r of updates) {
+      const { error: updateError } = await supabase
+        .from("tracked_reels")
+        .update({
+          view_count: r.view_count ?? 0,
+          like_count: r.like_count ?? 0,
+          comment_count: r.comments_count ?? 0,
+          thumbnail_url: r.thumbnail_url ?? null,
+        })
+        .eq("user_id", user.id)
+        .eq("ig_media_id", r.id);
+      if (updateError) {
+        errors.push(`@${account.ig_username}: ${updateError.message}`);
+        break;
+      }
+    }
+    totalUpdated += updates.length;
 
     await supabase
       .from("inspiration_accounts")
@@ -130,7 +162,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     inserted: totalInserted,
-    skipped: totalSkipped,
+    updated: totalUpdated,
     errors: errors.length > 0 ? errors : undefined,
   });
 }

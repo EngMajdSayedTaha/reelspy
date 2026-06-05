@@ -8,6 +8,7 @@ type InspirationAccount = {
   id: string;
   ig_username: string;
   display_name: string | null;
+  avatar_url: string | null;
   followers_count: number | null;
   is_active: boolean | null;
   last_synced_at: string | null;
@@ -26,7 +27,7 @@ export default async function AccountsPage() {
 
   const { data, error } = await supabase
     .from("inspiration_accounts")
-    .select("id, ig_username, display_name, followers_count, is_active, last_synced_at")
+    .select("id, ig_username, display_name, avatar_url, followers_count, is_active, last_synced_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 

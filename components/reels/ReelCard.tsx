@@ -1,18 +1,35 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import {
+  Eye,
+  Heart,
+  MessageCircle,
+  Flame,
+  Play,
+  ExternalLink,
+  Sparkles,
+  Check,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 type Reel = {
   id: string;
   caption: string | null;
   ig_permalink: string;
+  thumbnail_url: string | null;
   view_count: number | null;
   like_count: number | null;
   comment_count: number | null;
   viral_score: number | null;
   is_worked_on: boolean | null;
   posted_at: string | null;
-  inspiration_accounts: { ig_username: string } | { ig_username: string }[] | null;
+  inspiration_accounts:
+    | { ig_username: string; display_name: string | null; avatar_url: string | null }
+    | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
+    | null;
 };
 
 type ReelCardProps = {
@@ -20,71 +37,220 @@ type ReelCardProps = {
   markWorkedAction: (formData: FormData) => Promise<void>;
 };
 
-function getSourceUsername(reel: Reel): string {
-  if (!reel.inspiration_accounts) {
-    return "unknown";
-  }
-
-  if (Array.isArray(reel.inspiration_accounts)) {
-    return reel.inspiration_accounts[0]?.ig_username ?? "unknown";
-  }
-
-  return reel.inspiration_accounts.ig_username;
+function getSource(reel: Reel) {
+  const acc = Array.isArray(reel.inspiration_accounts)
+    ? reel.inspiration_accounts[0]
+    : reel.inspiration_accounts;
+  return {
+    username: acc?.ig_username ?? "unknown",
+    avatar: acc?.avatar_url ?? null,
+  };
 }
 
-function formatNumber(value: number | null): string {
-  return new Intl.NumberFormat("en-US").format(value ?? 0);
+function formatCompact(value: number | null): string {
+  const n = value ?? 0;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}K`;
+  return new Intl.NumberFormat("en-US").format(n);
+}
+
+// Instagram embed URL from a reel/post permalink.
+function toEmbedUrl(permalink: string): string {
+  const base = permalink.endsWith("/") ? permalink : `${permalink}/`;
+  return `${base}embed`;
+}
+
+function Metric({
+  icon,
+  value,
+  label,
+  accent,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-1.5" title={label}>
+      <span className={accent ? "text-[#F9E400]" : "text-zinc-500"}>{icon}</span>
+      <span className={accent ? "font-semibold text-[#F9E400]" : "font-medium text-zinc-200"}>
+        {value}
+      </span>
+    </div>
+  );
 }
 
 export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
-  const sourceUsername = getSourceUsername(reel);
+  const { username, avatar } = getSource(reel);
+  const [playing, setPlaying] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const postedLabel = reel.posted_at
+    ? new Date(reel.posted_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   return (
-    <article className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-zinc-400">Source: @{sourceUsername}</p>
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#1f1f1f] bg-[#111111] text-zinc-100 transition-colors hover:border-[#2e2e2e]">
+      {/* Media */}
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#0a0a0a]">
+        {playing ? (
+          <iframe
+            src={toEmbedUrl(reel.ig_permalink)}
+            title={`Reel by @${username}`}
+            className="absolute inset-0 h-full w-full"
+            loading="lazy"
+            allow="encrypted-media; clipboard-write"
+            scrolling="no"
+          />
+        ) : (
+          <>
+            {reel.thumbnail_url && !imgError ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={reel.thumbnail_url}
+                alt={reel.caption ?? `Reel by @${username}`}
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a]">
+                <Play className="h-10 w-10 text-zinc-700" />
+              </div>
+            )}
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+
+            {/* Play to embed */}
+            <button
+              type="button"
+              onClick={() => setPlaying(true)}
+              aria-label="Play reel inline"
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-[#F9E400] group-hover:text-black">
+                <Play className="ml-0.5 h-6 w-6 fill-current" />
+              </span>
+            </button>
+
+            {/* Status badge */}
+            <div className="absolute right-2 top-2">
+              <Badge
+                variant={reel.is_worked_on ? "default" : "outline"}
+                className={
+                  reel.is_worked_on
+                    ? "bg-[#F9E400] text-black"
+                    : "border-white/20 bg-black/50 text-white backdrop-blur-sm"
+                }
+              >
+                {reel.is_worked_on ? "Worked On" : "New"}
+              </Badge>
+            </div>
+
+            {/* Views overlay (most relevant reel metric) */}
+            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+              <Eye className="h-3.5 w-3.5" />
+              {formatCompact(reel.view_count)} views
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        {/* Source */}
+        <div className="flex items-center justify-between gap-2">
           <a
-            href={reel.ig_permalink}
+            href={`https://www.instagram.com/${username}/`}
             target="_blank"
             rel="noreferrer"
-            className="text-sm font-medium text-[#F9E400] underline-offset-4 hover:underline"
+            className="flex min-w-0 items-center gap-2"
           >
-            Open Reel
+            {avatar && !avatarError ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatar}
+                alt={`@${username}`}
+                referrerPolicy="no-referrer"
+                onError={() => setAvatarError(true)}
+                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+              />
+            ) : (
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1f1f1f] text-xs font-semibold text-zinc-400 ring-1 ring-[#2e2e2e]">
+                {username.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span className="truncate text-sm font-medium text-zinc-200 hover:text-white">
+              @{username}
+            </span>
           </a>
+
+          {postedLabel ? (
+            <span className="shrink-0 text-xs text-zinc-500">{postedLabel}</span>
+          ) : null}
         </div>
 
-        <Badge variant={reel.is_worked_on ? "default" : "outline"}>
-          {reel.is_worked_on ? "Worked On" : "New"}
-        </Badge>
-      </div>
+        {/* Caption */}
+        <p className="line-clamp-2 min-h-[2.5rem] text-sm text-zinc-300">
+          {reel.caption ?? "No caption available."}
+        </p>
 
-      <p className="line-clamp-3 text-sm text-zinc-200">{reel.caption ?? "No caption available."}</p>
+        {/* Metrics */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+          <Metric icon={<Heart className="h-4 w-4" />} value={formatCompact(reel.like_count)} label="Likes" />
+          <Metric
+            icon={<MessageCircle className="h-4 w-4" />}
+            value={formatCompact(reel.comment_count)}
+            label="Comments"
+          />
+          <Metric
+            icon={<Flame className="h-4 w-4" />}
+            value={formatCompact(reel.viral_score)}
+            label="Viral score"
+            accent
+          />
+        </div>
 
-      <div className="grid gap-2 text-sm text-zinc-300 sm:grid-cols-2 lg:grid-cols-4">
-        <p>Views: {formatNumber(reel.view_count)}</p>
-        <p>Likes: {formatNumber(reel.like_count)}</p>
-        <p>Comments: {formatNumber(reel.comment_count)}</p>
-        <p>Viral Score: {formatNumber(reel.viral_score)}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button asChild variant="outline">
-          <Link href={`/dashboard/generate/${reel.id}`}>Generate Script</Link>
-        </Button>
-
-        <form action={markWorkedAction}>
-          <input type="hidden" name="reel_id" value={reel.id} />
-          <Button type="submit" variant={reel.is_worked_on ? "outline" : "default"}>
-            Mark as Worked On
+        {/* Actions */}
+        <div className="mt-auto flex items-center gap-2 pt-1">
+          <Button asChild size="sm" className="flex-1">
+            <Link href={`/dashboard/generate/${reel.id}`}>
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              Script
+            </Link>
           </Button>
-        </form>
 
-        {reel.posted_at ? (
-          <p className="text-xs text-zinc-400">
-            Posted {new Date(reel.posted_at).toLocaleDateString("en-US")}
-          </p>
-        ) : null}
+          <form action={markWorkedAction}>
+            <input type="hidden" name="reel_id" value={reel.id} />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              disabled={Boolean(reel.is_worked_on)}
+              title={reel.is_worked_on ? "Already marked" : "Mark as worked on"}
+            >
+              <Check className="h-4 w-4" />
+            </Button>
+          </form>
+
+          <Button asChild size="sm" variant="outline">
+            <a
+              href={reel.ig_permalink}
+              target="_blank"
+              rel="noreferrer"
+              title="Open in Instagram"
+              aria-label="Open in Instagram"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
       </div>
     </article>
   );

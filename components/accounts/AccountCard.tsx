@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw, Trash2, Users, AtSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -8,6 +9,7 @@ type Account = {
   id: string;
   ig_username: string;
   display_name: string | null;
+  avatar_url: string | null;
   followers_count: number | null;
   is_active: boolean | null;
   last_synced_at: string | null;
@@ -20,7 +22,7 @@ type AccountCardProps = {
 
 type SyncResult = {
   inserted?: number;
-  skipped?: number;
+  updated?: number;
   errors?: string[];
   error?: string;
 };
@@ -34,6 +36,7 @@ function formatFollowers(n: number | null): string {
 
 export function AccountCard({ account, removeAction }: AccountCardProps) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
@@ -46,15 +49,14 @@ export function AccountCard({ account, removeAction }: AccountCardProps) {
       const response = await fetch("/api/ig/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: account.id }),
+        body: JSON.stringify({ account_id: account.id, limit: 50 }),
       });
       const json = (await response.json()) as SyncResult;
 
       if (!response.ok || json.error) {
         setSyncError(json.error ?? "Sync failed.");
       } else {
-        const msg = `+${json.inserted ?? 0} new reels, ${json.skipped ?? 0} already tracked`;
-        setSyncMsg(msg);
+        setSyncMsg(`+${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
         if (json.errors?.length) {
           setSyncError(json.errors.join(" · "));
         }
@@ -67,13 +69,29 @@ export function AccountCard({ account, removeAction }: AccountCardProps) {
   };
 
   return (
-    <article className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+    <article className="space-y-4 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100 transition-colors hover:border-[#2e2e2e]">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-lg font-medium text-white">@{account.ig_username}</p>
-          {account.display_name && account.display_name !== account.ig_username ? (
-            <p className="text-sm text-zinc-400">{account.display_name}</p>
-          ) : null}
+        <div className="flex min-w-0 items-center gap-3">
+          {account.avatar_url && !avatarError ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={account.avatar_url}
+              alt={`@${account.ig_username}`}
+              referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
+              className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+            />
+          ) : (
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
+              <AtSign className="h-5 w-5 text-zinc-500" />
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-lg font-medium text-white">@{account.ig_username}</p>
+            {account.display_name && account.display_name !== account.ig_username ? (
+              <p className="truncate text-sm text-zinc-400">{account.display_name}</p>
+            ) : null}
+          </div>
         </div>
         <Badge variant={account.is_active ? "default" : "outline"}>
           {account.is_active ? "Active" : "Paused"}
@@ -81,8 +99,11 @@ export function AccountCard({ account, removeAction }: AccountCardProps) {
       </div>
 
       <div className="grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
-        <p>Followers: {formatFollowers(account.followers_count)}</p>
-        <p>
+        <p className="flex items-center gap-1.5">
+          <Users className="h-4 w-4 text-zinc-500" />
+          {formatFollowers(account.followers_count)} followers
+        </p>
+        <p className="text-zinc-400">
           Last sync:{" "}
           {account.last_synced_at
             ? new Date(account.last_synced_at).toLocaleDateString("en-US")
@@ -101,12 +122,14 @@ export function AccountCard({ account, removeAction }: AccountCardProps) {
           onClick={handleSync}
           disabled={isSyncing}
         >
-          {isSyncing ? "Syncing..." : "Sync Reels"}
+          <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
+          {isSyncing ? "Syncing…" : "Sync Reels"}
         </Button>
 
         <form action={removeAction}>
           <input type="hidden" name="account_id" value={account.id} />
           <Button type="submit" variant="outline" disabled={isSyncing}>
+            <Trash2 className="h-4 w-4" />
             Remove
           </Button>
         </form>

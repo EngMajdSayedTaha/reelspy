@@ -24,9 +24,11 @@ export type InstagramMedia = {
   caption?: string;
   permalink?: string;
   thumbnail_url?: string;
+  media_url?: string;
   timestamp?: string;
   like_count?: number;
   comments_count?: number;
+  view_count?: number;
   media_type?: string;
 };
 
@@ -213,46 +215,87 @@ export async function fetchBusinessDiscovery(
   }
 }
 
+function mapMediaItem(item: JsonRecord): InstagramMedia {
+  return {
+    id: String(item.id ?? ""),
+    caption: typeof item.caption === "string" ? item.caption : undefined,
+    permalink: typeof item.permalink === "string" ? item.permalink : undefined,
+    thumbnail_url: typeof item.thumbnail_url === "string" ? item.thumbnail_url : undefined,
+    media_url: typeof item.media_url === "string" ? item.media_url : undefined,
+    timestamp: typeof item.timestamp === "string" ? item.timestamp : undefined,
+    like_count: typeof item.like_count === "number" ? item.like_count : 0,
+    comments_count: typeof item.comments_count === "number" ? item.comments_count : 0,
+    view_count: typeof item.view_count === "number" ? item.view_count : undefined,
+    media_type: String(item.media_type ?? "VIDEO"),
+  };
+}
+
+function isReel(item: JsonRecord): boolean {
+  const type = String(item.media_type ?? "").toUpperCase();
+  const product = String(item.media_product_type ?? "").toUpperCase();
+  return type === "VIDEO" || product === "REELS";
+}
+
 // Business Discovery — read a target account's recent reels (VIDEO media).
+// Pages through the media edge with cursors until `maxReels` reels are collected
+// or the account has no more media. Instagram caps each page at 25 items.
 export async function fetchAccountReels(
   myIgUserId: string,
   token: string,
-  targetUsername: string
+  targetUsername: string,
+  maxReels = 25
 ): Promise<{ reels: InstagramMedia[]; error?: string }> {
   const mediaFields =
-    "id,caption,permalink,timestamp,comments_count,like_count,media_type,media_product_type,thumbnail_url";
-  const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
-    fields: `business_discovery.username(${targetUsername}){media.limit(25){${mediaFields}}}`,
-    access_token: token,
-  });
+    "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
+
+  const reels: InstagramMedia[] = [];
+  const seen = new Set<string>();
+  // Over-fetch raw media since non-reel posts get filtered out. Cap total pages
+  // so a feed-heavy account can't loop forever.
+  const PAGE_SIZE = 25;
+  const MAX_PAGES = Math.min(20, Math.ceil((maxReels * 3) / PAGE_SIZE) + 1);
+
+  let after: string | undefined;
 
   try {
-    const json = await fetchJson<JsonRecord>(url);
-    const discovery = json.business_discovery as JsonRecord | undefined;
-    const media = discovery?.media as JsonRecord | undefined;
-    const allMedia = (media?.data as JsonRecord[] | undefined) ?? [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const cursor = after ? `.after(${after})` : "";
+      const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
+        fields: `business_discovery.username(${targetUsername}){media.limit(${PAGE_SIZE})${cursor}{${mediaFields}}}`,
+        access_token: token,
+      });
 
-    // Keep reels: media_type VIDEO, or media_product_type REELS.
-    const reels = allMedia
-      .filter((item) => {
-        const type = String(item.media_type ?? "").toUpperCase();
-        const product = String(item.media_product_type ?? "").toUpperCase();
-        return type === "VIDEO" || product === "REELS";
-      })
-      .map((item) => ({
-        id: String(item.id ?? ""),
-        caption: typeof item.caption === "string" ? item.caption : undefined,
-        permalink: typeof item.permalink === "string" ? item.permalink : undefined,
-        thumbnail_url: typeof item.thumbnail_url === "string" ? item.thumbnail_url : undefined,
-        timestamp: typeof item.timestamp === "string" ? item.timestamp : undefined,
-        like_count: typeof item.like_count === "number" ? item.like_count : 0,
-        comments_count: typeof item.comments_count === "number" ? item.comments_count : 0,
-        media_type: String(item.media_type ?? "VIDEO"),
-      }));
+      const json = await fetchJson<JsonRecord>(url);
+      const discovery = json.business_discovery as JsonRecord | undefined;
+      const media = discovery?.media as JsonRecord | undefined;
+      const pageItems = (media?.data as JsonRecord[] | undefined) ?? [];
+
+      for (const item of pageItems) {
+        if (!isReel(item)) continue;
+        const mapped = mapMediaItem(item);
+        if (!mapped.id || seen.has(mapped.id)) continue;
+        seen.add(mapped.id);
+        reels.push(mapped);
+        if (reels.length >= maxReels) {
+          return { reels };
+        }
+      }
+
+      const paging = media?.paging as JsonRecord | undefined;
+      const cursors = paging?.cursors as JsonRecord | undefined;
+      const nextAfter = typeof cursors?.after === "string" ? cursors.after : undefined;
+      // Stop when there's no next cursor or the page came back empty.
+      if (!nextAfter || pageItems.length === 0) break;
+      after = nextAfter;
+    }
 
     return { reels };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // If we already collected some reels before the error, keep them.
+    if (reels.length > 0) {
+      return { reels };
+    }
     return { reels: [], error: message };
   }
 }

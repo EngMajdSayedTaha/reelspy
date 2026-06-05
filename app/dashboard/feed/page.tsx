@@ -1,23 +1,56 @@
 import { redirect } from "next/navigation";
 import { ReelFeed } from "@/components/reels/ReelFeed";
+import { FeedControls } from "@/components/reels/FeedControls";
+import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
 import { createClient } from "@/lib/supabase/server";
 import { markReelAsWorkedOn } from "./actions";
 
-type FeedReel = {
+export type FeedReel = {
   id: string;
   caption: string | null;
   ig_permalink: string;
+  thumbnail_url: string | null;
   view_count: number | null;
   like_count: number | null;
   comment_count: number | null;
   viral_score: number | null;
   is_worked_on: boolean | null;
   posted_at: string | null;
-  inspiration_accounts: { ig_username: string } | { ig_username: string }[] | null;
+  inspiration_accounts:
+    | { ig_username: string; display_name: string | null; avatar_url: string | null }
+    | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
+    | null;
 };
 
-export default async function FeedPage() {
+const PER_PAGE = 12;
+
+const SORT_COLUMNS: Record<string, string> = {
+  recent: "posted_at",
+  views: "view_count",
+  likes: "like_count",
+  comments: "comment_count",
+  viral: "viral_score",
+};
+
+type SearchParams = {
+  account?: string;
+  status?: string;
+  q?: string;
+  sort?: string;
+  order?: string;
+  page?: string;
+};
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const supabase = await createClient();
 
   const {
@@ -28,35 +61,89 @@ export default async function FeedPage() {
     redirect("/login");
   }
 
-  const { data, error } = await supabase
+  const params = await searchParams;
+
+  const account = first(params.account) ?? "all";
+  const status = first(params.status) ?? "all";
+  const q = (first(params.q) ?? "").trim();
+  const sort = first(params.sort) ?? "recent";
+  const order = first(params.order) === "asc" ? "asc" : "desc";
+  const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
+
+  const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
+  const ascending = order === "asc";
+
+  // Accounts for the filter dropdown.
+  const { data: accountRows } = await supabase
+    .from("inspiration_accounts")
+    .select("id, ig_username")
+    .eq("user_id", user.id)
+    .order("ig_username", { ascending: true });
+
+  const accounts = (accountRows ?? []) as { id: string; ig_username: string }[];
+
+  // Build the filtered reels query (with exact count for pagination).
+  let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, inspiration_accounts(ig_username)"
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, inspiration_accounts(ig_username, display_name, avatar_url)",
+      { count: "exact" }
     )
-    .eq("user_id", user.id)
-    .order("posted_at", { ascending: false, nullsFirst: false })
-    .limit(50);
+    .eq("user_id", user.id);
+
+  if (account !== "all") {
+    query = query.eq("account_id", account);
+  }
+
+  if (status === "new") {
+    query = query.eq("is_worked_on", false);
+  } else if (status === "worked") {
+    query = query.eq("is_worked_on", true);
+  }
+
+  if (q) {
+    query = query.ilike("caption", `%${q}%`);
+  }
+
+  const from = (page - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
+
+  const { data, error, count } = await query
+    .order(sortColumn, { ascending, nullsFirst: false })
+    .range(from, to);
 
   if (error) {
     throw new Error(error.message);
   }
 
   const reels = (data ?? []) as FeedReel[];
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+
+  const hasFilters = account !== "all" || status !== "all" || q !== "";
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-white">Feed</h1>
-          <p className="text-sm text-zinc-400">
-            Review tracked reels, score performance, and mark ideas as worked on.
+          <h1 className="text-3xl font-semibold tracking-tight text-white">Feed</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Watch tracked reels inline, score performance, and turn the best ideas into scripts.
           </p>
         </div>
 
         <SyncButton />
       </div>
 
-      <ReelFeed reels={reels} markWorkedAction={markReelAsWorkedOn} />
+      <FeedControls
+        accounts={accounts}
+        current={{ account, status, q, sort, order }}
+        total={total}
+      />
+
+      <ReelFeed reels={reels} markWorkedAction={markReelAsWorkedOn} hasFilters={hasFilters} />
+
+      <FeedPagination page={page} totalPages={totalPages} total={total} perPage={PER_PAGE} />
     </div>
   );
 }

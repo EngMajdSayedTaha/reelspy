@@ -1,15 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
+const queryErrorMap: Record<string, string> = {
+  missing_code: "Missing OAuth code. Please try signing in again.",
+  oauth_exchange_failed: "Google sign in failed. Please try again.",
+  user_not_found: "Could not load your user profile. Please retry.",
+  schema_missing: "Supabase schema is missing. Run supabase/schema.sql in SQL Editor.",
+  profile_upsert_failed: "Could not create your profile. Please retry.",
+  supabase_env_missing: "Supabase environment variables are missing.",
+};
+
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isSupabaseConfigured =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -18,23 +37,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [queryError, setQueryError] = useState<string | null>(null);
 
-  const queryErrorMap: Record<string, string> = {
-    missing_code: "Missing OAuth code. Please try signing in again.",
-    oauth_exchange_failed: "Google sign in failed. Please try again.",
-    user_not_found: "Could not load your user profile. Please retry.",
-    schema_missing: "Supabase schema is missing. Run supabase/schema.sql in SQL Editor.",
-    profile_upsert_failed: "Could not create your profile. Please retry.",
-    supabase_env_missing: "Supabase environment variables are missing.",
-  };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const authError = params.get("error");
-    const mapped = authError ? queryErrorMap[authError] : null;
-    setQueryError(mapped ?? null);
-  }, []);
+  const authError = searchParams.get("error");
+  const queryError = authError ? queryErrorMap[authError] ?? null : null;
 
   const handleOAuth = async () => {
     if (!isSupabaseConfigured) {
@@ -92,15 +97,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0d0d0d] p-6">
-      <Card className="w-full max-w-md border-[#1f1f1f] bg-[#111111] text-zinc-100">
-        <CardHeader>
-          <CardTitle className="text-center text-3xl font-semibold tracking-tight text-[#F9E400]">
-            ReelSpy
-          </CardTitle>
-        </CardHeader>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d0d0d] p-6">
+      {/* Ambient accent glow */}
+      <div className="pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[#F9E400]/5 blur-[120px]" />
 
-        <CardContent className="space-y-4">
+      <div className="relative z-10 w-full max-w-md">
+        <div className="mb-6 flex flex-col items-center gap-3 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F9E400] text-black">
+            <Clapperboard className="h-7 w-7" />
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              Reel<span className="text-[#F9E400]">Spy</span>
+            </h1>
+            <p className="mt-1 text-sm text-zinc-500">Personal content intelligence</p>
+          </div>
+        </div>
+
+        <Card className="border-[#1f1f1f] bg-[#111111] text-zinc-100">
+          <CardContent className="space-y-4 pt-6">
           <Button
             className="w-full"
             onClick={handleOAuth}
@@ -163,8 +178,9 @@ export default function LoginPage() {
           {error || queryError ? (
             <p className="text-sm text-rose-400">{error ?? queryError}</p>
           ) : null}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

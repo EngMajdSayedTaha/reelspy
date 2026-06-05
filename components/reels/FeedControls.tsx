@@ -1,0 +1,166 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, Search, X } from "lucide-react";
+
+type Account = { id: string; ig_username: string };
+
+type FeedControlsProps = {
+  accounts: Account[];
+  current: {
+    account: string;
+    status: string;
+    q: string;
+    sort: string;
+    order: string;
+  };
+  total: number;
+};
+
+const SORT_OPTIONS = [
+  { value: "recent", label: "Newest" },
+  { value: "views", label: "Most viewed" },
+  { value: "likes", label: "Most liked" },
+  { value: "comments", label: "Most comments" },
+  { value: "viral", label: "Viral score" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All reels" },
+  { value: "new", label: "New only" },
+  { value: "worked", label: "Worked on" },
+];
+
+const selectClass =
+  "h-9 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20";
+
+export function FeedControls({ accounts, current, total }: FeedControlsProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+  const [search, setSearch] = useState(current.q);
+  const [syncedQ, setSyncedQ] = useState(current.q);
+
+  // Keep the input in sync when navigation changes the query externally
+  // (e.g. browser back, Clear button) — adjust state during render, no effect.
+  if (current.q !== syncedQ) {
+    setSyncedQ(current.q);
+    setSearch(current.q);
+  }
+
+  function apply(updates: Record<string, string | null>) {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === "" || value === "all") {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    }
+    // Any filter/sort change resets pagination.
+    next.delete("page");
+    startTransition(() => {
+      router.push(`${pathname}?${next.toString()}`);
+    });
+  }
+
+  function onSearchSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    apply({ q: search.trim() });
+  }
+
+  const isFiltered =
+    current.account !== "all" || current.status !== "all" || current.q !== "";
+
+  return (
+    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <form onSubmit={onSearchSubmit} className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search captions…"
+            className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+          />
+        </form>
+
+        <select
+          aria-label="Filter by account"
+          className={selectClass}
+          value={current.account}
+          onChange={(e) => apply({ account: e.target.value })}
+        >
+          <option value="all">All accounts</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              @{a.ig_username}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="Filter by status"
+          className={selectClass}
+          value={current.status}
+          onChange={(e) => apply({ status: e.target.value })}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          aria-label="Sort by"
+          className={selectClass}
+          value={current.sort}
+          onChange={(e) => apply({ sort: e.target.value })}
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+
+        <button
+          type="button"
+          aria-label="Toggle sort direction"
+          title={current.order === "asc" ? "Ascending" : "Descending"}
+          onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+        >
+          {current.order === "asc" ? (
+            <ArrowUpWideNarrow className="h-4 w-4" />
+          ) : (
+            <ArrowDownWideNarrow className="h-4 w-4" />
+          )}
+        </button>
+
+        {isFiltered ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              apply({ account: null, status: null, q: null });
+            }}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-400 transition hover:border-rose-500/50 hover:text-rose-300"
+          >
+            <X className="h-3.5 w-3.5" />
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      <p className="mt-2 px-1 text-xs text-zinc-500">
+        {total} {total === 1 ? "reel" : "reels"}
+        {isFiltered ? " match your filters" : " tracked"}
+      </p>
+    </div>
+  );
+}
