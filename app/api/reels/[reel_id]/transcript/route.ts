@@ -103,6 +103,9 @@ export async function POST(request: Request, { params }: RouteContext) {
   const result = await processReel(reel.ig_permalink);
 
   if (result.status !== "ready") {
+    // Surface the real reason in the Vercel runtime logs for debugging.
+    console.error(`[transcript] reel=${reel.id} unavailable: ${result.reason}`);
+
     await supabase
       .from("tracked_reels")
       .update({ transcript_status: "failed" })

@@ -135,8 +135,11 @@ export async function getReelMetadata(url: string): Promise<ReelMetadata> {
       env: { ...process.env, TMPDIR: "/tmp", HOME: "/tmp" },
     }));
   } catch (error) {
-    const message = error instanceof Error ? error.message : "yt-dlp failed";
-    throw new Error(`yt-dlp extraction failed: ${message.slice(0, 300)}`);
+    // execFile errors carry yt-dlp's real complaint on stderr (e.g.
+    // "login required", "rate-limit reached", "video unavailable").
+    const err = error as { stderr?: string; message?: string };
+    const detail = (err.stderr?.trim() || err.message || "yt-dlp failed").toString();
+    throw new Error(`yt-dlp extraction failed: ${detail.slice(0, 400)}`);
   }
 
   const info = JSON.parse(stdout) as YtDlpInfo;
