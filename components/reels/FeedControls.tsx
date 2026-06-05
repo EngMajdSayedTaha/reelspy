@@ -24,6 +24,7 @@ const SORT_OPTIONS = [
   { value: "likes", label: "Most liked" },
   { value: "comments", label: "Most comments" },
   { value: "viral", label: "Viral score" },
+  { value: "duration", label: "Duration" },
 ];
 
 const STATUS_OPTIONS = [
