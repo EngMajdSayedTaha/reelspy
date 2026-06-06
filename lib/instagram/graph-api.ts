@@ -176,6 +176,23 @@ export async function getMyProfile(igUserId: string, token: string) {
 }
 
 // Business Discovery — read a public Business/Creator account's profile.
+// Extracts a human-readable message from a thrown Graph API error string
+// (which embeds Meta's JSON error body). Prefers Meta's user-facing message.
+function parseGraphError(raw: string): string | null {
+  const start = raw.indexOf("{");
+  if (start === -1) return null;
+  try {
+    const parsed = JSON.parse(raw.slice(start)) as {
+      error?: { message?: string; error_user_msg?: string; error_user_title?: string };
+    };
+    const e = parsed.error;
+    if (!e) return null;
+    return e.error_user_msg || e.message || e.error_user_title || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchBusinessDiscovery(
   myIgUserId: string,
   token: string,
@@ -205,13 +222,21 @@ export async function fetchBusinessDiscovery(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const friendly = parseGraphError(message);
+    if (friendly) {
+      return { profile: null, error: friendly };
+    }
     if (message.includes("(100)") || message.includes("does not exist")) {
       return {
         profile: null,
         error: `@${targetUsername} not found, private, or not a Business/Creator account.`,
       };
     }
-    return { profile: null, error: message };
+    // Never leak the raw API error to the UI.
+    return {
+      profile: null,
+      error: `@${targetUsername} could not be added. Check the username and try again.`,
+    };
   }
 }
 
