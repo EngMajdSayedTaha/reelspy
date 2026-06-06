@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { notifyError, requestJson } from "@/lib/utils/api";
 
 type Account = {
   id: string;
@@ -30,7 +32,6 @@ type SyncResult = {
   inserted?: number;
   updated?: number;
   errors?: string[];
-  error?: string;
 };
 
 function formatFollowers(n: number | null): string {
@@ -49,58 +50,88 @@ export function AccountCard({
 }: AccountCardProps) {
   const isActive = account.is_active !== false;
 
-  // Controlled group value so the dropdown reflects the saved group immediately
-  // (an uncontrolled select would reset/lag after the server action).
+  // Controlled group value so the dropdown reflects the saved group immediately.
   const [groupId, setGroupId] = useState(account.group_id ?? "");
   const [syncedGroupId, setSyncedGroupId] = useState(account.group_id ?? "");
-  const [isAssigning, startAssign] = useTransition();
   if ((account.group_id ?? "") !== syncedGroupId) {
     setSyncedGroupId(account.group_id ?? "");
     setGroupId(account.group_id ?? "");
   }
 
-  // Call the server action directly (not via a <form action>) so React 19's
-  // post-action form reset can't revert the controlled select to "No group".
+  const [isAssigning, startAssign] = useTransition();
+  const [isPendingAction, startAction] = useTransition();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const busy = isSyncing || isAssigning || isPendingAction;
+
+  // Server actions are invoked directly (not via <form action>) so we can show
+  // toasts and avoid React 19's post-action form reset on the controlled select.
   const onGroupChange = (value: string) => {
+    const previous = groupId;
     setGroupId(value);
     const data = new FormData();
     data.set("account_id", account.id);
     data.set("group_id", value);
     startAssign(async () => {
-      await assignGroupAction(data);
+      try {
+        await assignGroupAction(data);
+        const groupName = groups.find((g) => g.id === value)?.name;
+        toast.success(value ? `Moved to “${groupName}”` : "Removed from group");
+      } catch {
+        setGroupId(previous); // revert optimistic change
+        toast.error("Could not update the group.");
+      }
     });
   };
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
 
   const handleSync = async () => {
     setIsSyncing(true);
-    setSyncMsg(null);
-    setSyncError(null);
-
     try {
-      const response = await fetch("/api/ig/sync", {
+      const json = await requestJson<SyncResult>("/api/ig/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ account_id: account.id, limit: 50 }),
       });
-      const json = (await response.json()) as SyncResult;
-
-      if (!response.ok || json.error) {
-        setSyncError(json.error ?? "Sync failed.");
-      } else {
-        setSyncMsg(`+${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
-        if (json.errors?.length) {
-          setSyncError(json.errors.join(" · "));
-        }
+      toast.success(`@${account.ig_username}: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
+      if (json.errors?.length) {
+        toast.warning(json.errors.join(" · "));
       }
-    } catch {
-      setSyncError("Sync failed.");
+    } catch (error) {
+      notifyError(error, "Sync failed.");
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleToggleActive = () => {
+    const data = new FormData();
+    data.set("account_id", account.id);
+    data.set("is_active", isActive ? "false" : "true");
+    startAction(async () => {
+      try {
+        await toggleActiveAction(data);
+        toast.success(isActive ? `Paused @${account.ig_username}` : `Activated @${account.ig_username}`);
+      } catch {
+        toast.error("Could not update the account.");
+      }
+    });
+  };
+
+  const handleRemove = () => {
+    if (!window.confirm(`Remove @${account.ig_username}? This also deletes its tracked reels.`)) {
+      return;
+    }
+    const data = new FormData();
+    data.set("account_id", account.id);
+    startAction(async () => {
+      try {
+        await removeAction(data);
+        toast.success(`Removed @${account.ig_username}`);
+      } catch {
+        toast.error("Could not remove the account.");
+      }
+    });
   };
 
   return (
@@ -132,9 +163,7 @@ export function AccountCard({
             ) : null}
           </div>
         </div>
-        <Badge variant={isActive ? "default" : "outline"}>
-          {isActive ? "Active" : "Paused"}
-        </Badge>
+        <Badge variant={isActive ? "default" : "outline"}>{isActive ? "Active" : "Paused"}</Badge>
       </div>
 
       <div className="grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
@@ -157,7 +186,7 @@ export function AccountCard({
         </label>
         <select
           value={groupId}
-          disabled={isAssigning}
+          disabled={busy}
           onChange={(e) => onGroupChange(e.target.value)}
           className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
         >
@@ -170,42 +199,33 @@ export function AccountCard({
         </select>
       </div>
 
-      {syncMsg ? <p className="text-sm text-emerald-400">{syncMsg}</p> : null}
-      {syncError ? <p className="text-sm text-rose-400">{syncError}</p> : null}
-
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="default"
           className="flex-1 sm:flex-none"
           onClick={handleSync}
-          disabled={isSyncing}
+          disabled={busy}
         >
           <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
           {isSyncing ? "Syncing…" : "Sync Reels"}
         </Button>
 
-        <form action={toggleActiveAction}>
-          <input type="hidden" name="account_id" value={account.id} />
-          <input type="hidden" name="is_active" value={isActive ? "false" : "true"} />
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={isSyncing}
-            title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
-          >
-            <Power className="h-4 w-4" />
-            {isActive ? "Pause" : "Activate"}
-          </Button>
-        </form>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleToggleActive}
+          disabled={busy}
+          title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
+        >
+          <Power className="h-4 w-4" />
+          {isActive ? "Pause" : "Activate"}
+        </Button>
 
-        <form action={removeAction}>
-          <input type="hidden" name="account_id" value={account.id} />
-          <Button type="submit" variant="outline" disabled={isSyncing}>
-            <Trash2 className="h-4 w-4" />
-            Remove
-          </Button>
-        </form>
+        <Button type="button" variant="outline" onClick={handleRemove} disabled={busy}>
+          <Trash2 className="h-4 w-4" />
+          Remove
+        </Button>
       </div>
     </article>
   );

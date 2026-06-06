@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import { FolderPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,10 @@ function GroupChip({
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(group.name);
   const [synced, setSynced] = useState(group.name);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef(false);
 
-  // Keep local value in sync when the saved name changes (after revalidation).
   if (group.name !== synced) {
     setSynced(group.name);
     setValue(group.name);
@@ -67,23 +66,45 @@ function GroupChip({
       return;
     }
     savedRef.current = true;
-    formRef.current?.requestSubmit();
     setEditing(false);
+    const data = new FormData();
+    data.set("group_id", group.id);
+    data.set("name", name);
+    startTransition(async () => {
+      try {
+        await renameAction(data);
+        toast.success("Group renamed");
+      } catch {
+        setValue(group.name);
+        toast.error("Could not rename the group.");
+      }
+    });
+  };
+
+  const remove = () => {
+    if (!window.confirm(`Delete group “${group.name}”? Accounts in it will be ungrouped.`)) {
+      return;
+    }
+    const data = new FormData();
+    data.set("group_id", group.id);
+    startTransition(async () => {
+      try {
+        await deleteAction(data);
+        toast.success(`Deleted “${group.name}”`);
+      } catch {
+        toast.error("Could not delete the group.");
+      }
+    });
   };
 
   if (editing) {
     return (
-      <form
-        ref={formRef}
-        action={renameAction}
-        className="flex items-center rounded-full border border-[#F9E400]/40 bg-[#141414] py-0.5 pl-2 pr-1"
-      >
-        <input type="hidden" name="group_id" value={group.id} />
+      <span className="flex items-center rounded-full border border-[#F9E400]/40 bg-[#141414] py-0.5 pl-2 pr-1">
         <input
           ref={inputRef}
-          name="name"
           value={value}
           maxLength={40}
+          disabled={isPending}
           onChange={(e) => setValue(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
@@ -97,7 +118,7 @@ function GroupChip({
           }}
           className="w-28 bg-transparent text-sm text-zinc-100 outline-none"
         />
-      </form>
+      </span>
     );
   }
 
@@ -106,28 +127,52 @@ function GroupChip({
       <button
         type="button"
         onClick={startEdit}
+        disabled={isPending}
         title="Click to rename"
-        className="transition hover:text-[#F9E400]"
+        className="transition hover:text-[#F9E400] disabled:opacity-60"
       >
         {group.name}
       </button>
-      <form action={deleteAction}>
-        <input type="hidden" name="group_id" value={group.id} />
-        <button
-          type="submit"
-          aria-label={`Delete group ${group.name}`}
-          title="Delete group"
-          className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition hover:bg-rose-500/15 hover:text-rose-300"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </form>
+      <button
+        type="button"
+        onClick={remove}
+        disabled={isPending}
+        aria-label={`Delete group ${group.name}`}
+        title="Delete group"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-60"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </span>
   );
 }
 
 export function GroupsManager({ groups, createAction, deleteAction, renameAction }: GroupsManagerProps) {
-  const [state, formAction, isPending] = useActionState(createAction, {});
+  const [name, setName] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  const create = () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error("Enter a group name.");
+      return;
+    }
+    const data = new FormData();
+    data.set("name", trimmed);
+    startTransition(async () => {
+      try {
+        const result = await createAction({}, data);
+        if (result?.error) {
+          toast.error(result.error);
+          return;
+        }
+        setName("");
+        toast.success(`Created “${trimmed}”`);
+      } catch {
+        toast.error("Could not create the group.");
+      }
+    });
+  };
 
   return (
     <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
@@ -137,14 +182,30 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
         <span className="text-xs text-zinc-500">Organize accounts (e.g. Angular, Memes)</span>
       </div>
 
-      <form action={formAction} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-        <Input name="name" placeholder="New group name…" required disabled={isPending} maxLength={40} />
-        <Button type="submit" variant="default" className="md:min-w-[120px]" disabled={isPending}>
-          {isPending ? "Adding…" : "Add Group"}
+      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              create();
+            }
+          }}
+          placeholder="New group name…"
+          disabled={isPending}
+          maxLength={40}
+        />
+        <Button
+          type="button"
+          variant="default"
+          className="md:min-w-[120px]"
+          onClick={create}
+          disabled={isPending}
+        >
+          {isPending ? "Saving…" : "Add Group"}
         </Button>
-      </form>
-
-      {state.error ? <p className="mt-2 text-sm text-rose-400">{state.error}</p> : null}
+      </div>
 
       {groups.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">

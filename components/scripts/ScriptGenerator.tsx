@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { ScriptOutput } from "@/components/scripts/ScriptOutput";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { notifyError, requestJson } from "@/lib/utils/api";
 
 const VIRAL_PATTERNS = [
   "Hot Take",
@@ -52,7 +54,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-script", {
+      const json = await requestJson<GeneratedResponse>("/api/generate-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -65,16 +67,10 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
         }),
       });
 
-      const json = (await response.json()) as GeneratedResponse;
-
-      if (!response.ok || json.error) {
-        setError(json.error ?? "Failed to generate script.");
-        setResult(null);
-      } else {
-        setResult(json);
-      }
-    } catch {
-      setError("Failed to generate script.");
+      setResult(json);
+      toast.success("Script generated");
+    } catch (error) {
+      setError(notifyError(error, "Failed to generate script."));
       setResult(null);
     } finally {
       setIsLoading(false);
