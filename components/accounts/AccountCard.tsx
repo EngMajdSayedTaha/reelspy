@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,10 +53,23 @@ export function AccountCard({
   // (an uncontrolled select would reset/lag after the server action).
   const [groupId, setGroupId] = useState(account.group_id ?? "");
   const [syncedGroupId, setSyncedGroupId] = useState(account.group_id ?? "");
+  const [isAssigning, startAssign] = useTransition();
   if ((account.group_id ?? "") !== syncedGroupId) {
     setSyncedGroupId(account.group_id ?? "");
     setGroupId(account.group_id ?? "");
   }
+
+  // Call the server action directly (not via a <form action>) so React 19's
+  // post-action form reset can't revert the controlled select to "No group".
+  const onGroupChange = (value: string) => {
+    setGroupId(value);
+    const data = new FormData();
+    data.set("account_id", account.id);
+    data.set("group_id", value);
+    startAssign(async () => {
+      await assignGroupAction(data);
+    });
+  };
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -137,20 +150,16 @@ export function AccountCard({
         </p>
       </div>
 
-      <form action={assignGroupAction} className="flex items-center gap-2">
-        <input type="hidden" name="account_id" value={account.id} />
+      <div className="flex items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm text-zinc-400">
           <FolderClosed className="h-4 w-4 text-zinc-500" />
           Group
         </label>
         <select
-          name="group_id"
           value={groupId}
-          onChange={(e) => {
-            setGroupId(e.target.value);
-            e.currentTarget.form?.requestSubmit();
-          }}
-          className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+          disabled={isAssigning}
+          onChange={(e) => onGroupChange(e.target.value)}
+          className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
         >
           <option value="">No group</option>
           {groups.map((group) => (
@@ -159,7 +168,7 @@ export function AccountCard({
             </option>
           ))}
         </select>
-      </form>
+      </div>
 
       {syncMsg ? <p className="text-sm text-emerald-400">{syncMsg}</p> : null}
       {syncError ? <p className="text-sm text-rose-400">{syncError}</p> : null}
