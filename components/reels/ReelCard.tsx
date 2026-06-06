@@ -28,6 +28,7 @@ type Reel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
+  viral_pattern: string | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -208,6 +209,13 @@ export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
             <span className="shrink-0 text-xs text-zinc-500">{postedLabel}</span>
           ) : null}
         </div>
+
+        {/* Pattern */}
+        {reel.viral_pattern ? (
+          <span className="w-fit rounded-full border border-[#F9E400]/30 bg-[#F9E400]/10 px-2 py-0.5 text-xs font-medium text-[#F9E400]">
+            {reel.viral_pattern}
+          </span>
+        ) : null}
 
         {/* Caption */}
         <p className="line-clamp-2 min-h-[2.5rem] text-sm text-zinc-300">

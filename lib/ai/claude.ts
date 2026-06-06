@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { VIRAL_PATTERNS, isViralPattern } from "@/lib/viral-patterns";
 
 export type GeneratedScript = {
   hook: string;
@@ -168,5 +169,63 @@ export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNo
       "Could not generate AI notes — check your Anthropic API key.",
       "Make sure you have recent media data synced from Instagram.",
     ];
+  }
+}
+
+const PATTERN_SYSTEM_PROMPT = `You classify short-form video content (Instagram Reels) into exactly ONE viral content pattern.
+
+The allowed patterns are:
+${VIRAL_PATTERNS.map((p) => `- ${p}`).join("\n")}
+
+Read the caption and/or transcript and choose the single best-fitting pattern. If none fit well, return null.
+
+Respond ONLY with valid JSON, no markdown, no preamble:
+{ "pattern": "<one of the exact pattern names above, or null>" }`;
+
+// Detects the viral pattern of a reel from its caption and/or transcript.
+// Returns one of VIRAL_PATTERNS, or null when undetermined / no API key.
+export async function detectViralPattern(input: {
+  caption?: string | null;
+  transcript?: string | null;
+}): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return null;
+  }
+
+  const content = [
+    input.caption ? `Caption: ${input.caption}` : null,
+    input.transcript ? `Transcript: ${input.transcript.slice(0, 2000)}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!content) {
+    return null;
+  }
+
+  const anthropic = new Anthropic({ apiKey });
+
+  try {
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 40,
+      system: PATTERN_SYSTEM_PROMPT,
+      messages: [{ role: "user", content }],
+    });
+
+    const text = response.content
+      .filter((item) => item.type === "text")
+      .map((item) => item.text)
+      .join("")
+      .trim();
+
+    const clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(clean) as { pattern?: unknown };
+
+    return isViralPattern(parsed.pattern) ? parsed.pattern : null;
+  } catch (error) {
+    console.error("Claude pattern detection failed", error);
+    return null;
   }
 }

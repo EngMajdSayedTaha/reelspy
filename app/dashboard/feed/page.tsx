@@ -4,6 +4,7 @@ import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
+import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
 import { markReelAsWorkedOn } from "./actions";
 
@@ -19,6 +20,7 @@ export type FeedReel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
+  viral_pattern: string | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -65,6 +67,7 @@ const SORT_COLUMNS: Record<string, string> = {
 type SearchParams = {
   account?: string;
   group?: string;
+  pattern?: string;
   status?: string;
   q?: string;
   sort?: string;
@@ -95,6 +98,7 @@ export default async function FeedPage({
 
   const account = first(params.account) ?? "all";
   const group = first(params.group) ?? "all";
+  const pattern = first(params.pattern) ?? "all";
   const status = first(params.status) ?? "all";
   const q = (first(params.q) ?? "").trim();
   const sort = first(params.sort) ?? "recent";
@@ -126,7 +130,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, inspiration_accounts(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id);
@@ -146,6 +150,10 @@ export default async function FeedPage({
     const groupAccountIds = (groupAccounts ?? []).map((a) => a.id);
     // Empty group → no matching reels (sentinel keeps the query valid).
     query = query.in("account_id", groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID]);
+  }
+
+  if (pattern !== "all") {
+    query = query.eq("viral_pattern", pattern);
   }
 
   if (status === "new") {
@@ -173,7 +181,16 @@ export default async function FeedPage({
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
-  const hasFilters = account !== "all" || group !== "all" || status !== "all" || q !== "";
+  const hasFilters =
+    account !== "all" || group !== "all" || pattern !== "all" || status !== "all" || q !== "";
+
+  // Reels still needing pattern classification (drives the tagging control).
+  const { count: missingPatternCount } = await supabase
+    .from("tracked_reels")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .is("viral_pattern", null)
+    .is("pattern_checked_at", null);
 
   // "Rising now" rail — only on the unfiltered first page. Pull recent reels and
   // rank them by velocity in JS (no time-dependent SQL needed).
@@ -183,7 +200,7 @@ export default async function FeedPage({
     const { data: recent } = await supabase
       .from("tracked_reels")
       .select(
-        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, inspiration_accounts(ig_username, display_name, avatar_url)"
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
       .gte("posted_at", since)
@@ -203,7 +220,10 @@ export default async function FeedPage({
           </p>
         </div>
 
-        <SyncButton />
+        <div className="flex flex-col items-end gap-2">
+          <SyncButton />
+          <PatternBackfill initialMissing={missingPatternCount ?? 0} />
+        </div>
       </div>
 
       {risingReels.length > 0 ? (
@@ -213,7 +233,7 @@ export default async function FeedPage({
       <FeedControls
         accounts={accounts}
         groups={groups}
-        current={{ account, group, status, q, sort, order }}
+        current={{ account, group, pattern, status, q, sort, order }}
         total={total}
       />
 
