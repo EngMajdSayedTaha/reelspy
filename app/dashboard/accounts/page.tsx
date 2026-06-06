@@ -9,6 +9,7 @@ import {
   createAccountGroup,
   deleteAccountGroup,
   removeInspirationAccount,
+  toggleAccountActive,
 } from "./actions";
 
 type InspirationAccount = {
@@ -87,6 +88,7 @@ export default async function AccountsPage() {
               groups={groups}
               removeAction={removeInspirationAccount}
               assignGroupAction={assignAccountGroup}
+              toggleActiveAction={toggleAccountActive}
             />
           ))}
         </div>

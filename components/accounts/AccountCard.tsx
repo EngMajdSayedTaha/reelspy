@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Trash2, Users, AtSign, FolderClosed } from "lucide-react";
+import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +23,7 @@ type AccountCardProps = {
   groups: Group[];
   removeAction: (formData: FormData) => Promise<void>;
   assignGroupAction: (formData: FormData) => Promise<void>;
+  toggleActiveAction: (formData: FormData) => Promise<void>;
 };
 
 type SyncResult = {
@@ -39,7 +40,14 @@ function formatFollowers(n: number | null): string {
   return String(n);
 }
 
-export function AccountCard({ account, groups, removeAction, assignGroupAction }: AccountCardProps) {
+export function AccountCard({
+  account,
+  groups,
+  removeAction,
+  assignGroupAction,
+  toggleActiveAction,
+}: AccountCardProps) {
+  const isActive = account.is_active !== false;
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -74,7 +82,11 @@ export function AccountCard({ account, groups, removeAction, assignGroupAction }
   };
 
   return (
-    <article className="space-y-4 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100 transition-colors hover:border-[#2e2e2e]">
+    <article
+      className={`space-y-4 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100 transition-colors hover:border-[#2e2e2e] ${
+        isActive ? "" : "opacity-60"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {account.avatar_url && !avatarError ? (
@@ -98,8 +110,8 @@ export function AccountCard({ account, groups, removeAction, assignGroupAction }
             ) : null}
           </div>
         </div>
-        <Badge variant={account.is_active ? "default" : "outline"}>
-          {account.is_active ? "Active" : "Paused"}
+        <Badge variant={isActive ? "default" : "outline"}>
+          {isActive ? "Active" : "Paused"}
         </Badge>
       </div>
 
@@ -151,6 +163,20 @@ export function AccountCard({ account, groups, removeAction, assignGroupAction }
           <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
           {isSyncing ? "Syncing…" : "Sync Reels"}
         </Button>
+
+        <form action={toggleActiveAction}>
+          <input type="hidden" name="account_id" value={account.id} />
+          <input type="hidden" name="is_active" value={isActive ? "false" : "true"} />
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={isSyncing}
+            title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
+          >
+            <Power className="h-4 w-4" />
+            {isActive ? "Pause" : "Activate"}
+          </Button>
+        </form>
 
         <form action={removeAction}>
           <input type="hidden" name="account_id" value={account.id} />

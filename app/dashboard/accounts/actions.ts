@@ -197,6 +197,39 @@ export async function assignAccountGroup(formData: FormData) {
   revalidatePath("/dashboard/feed");
 }
 
+export async function toggleAccountActive(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const accountId = formData.get("account_id");
+  const desired = formData.get("is_active");
+
+  if (typeof accountId !== "string" || !accountId) {
+    throw new Error("Account id is required.");
+  }
+
+  const isActive = desired === "true";
+
+  const { error } = await supabase
+    .from("inspiration_accounts")
+    .update({ is_active: isActive })
+    .eq("id", accountId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/feed");
+}
+
 export async function removeInspirationAccount(formData: FormData) {
   const supabase = await createClient();
   const {

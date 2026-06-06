@@ -108,11 +108,12 @@ export default async function FeedPage({
   const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
   const ascending = order === "asc";
 
-  // Accounts for the filter dropdown.
+  // Accounts for the filter dropdown (active only).
   const { data: accountRows } = await supabase
     .from("inspiration_accounts")
     .select("id, ig_username")
     .eq("user_id", user.id)
+    .eq("is_active", true)
     .order("ig_username", { ascending: true });
 
   const accounts = (accountRows ?? []) as { id: string; ig_username: string }[];
@@ -130,10 +131,11 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("inspiration_accounts.is_active", true);
 
   if (account !== "all") {
     query = query.eq("account_id", account);
@@ -200,9 +202,10 @@ export default async function FeedPage({
     const { data: recent } = await supabase
       .from("tracked_reels")
       .select(
-        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts(ig_username, display_name, avatar_url)"
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
+      .eq("inspiration_accounts.is_active", true)
       .gte("posted_at", since)
       .order("posted_at", { ascending: false })
       .limit(300);
