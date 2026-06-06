@@ -3,6 +3,7 @@ import { ReelFeed } from "@/components/reels/ReelFeed";
 import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
+import { RisingNow } from "@/components/reels/RisingNow";
 import { createClient } from "@/lib/supabase/server";
 import { markReelAsWorkedOn } from "./actions";
 
@@ -28,6 +29,30 @@ const PER_PAGE = 12;
 
 // Non-existent UUID used to force an empty result set for an empty group.
 const NO_MATCH_ID = "00000000-0000-0000-0000-000000000000";
+
+const RISING_WINDOW_DAYS = 30;
+const RISING_LIMIT = 8;
+
+function risingSinceIso(): string {
+  return new Date(Date.now() - RISING_WINDOW_DAYS * 24 * 3_600_000).toISOString();
+}
+
+// Ranks reels by engagement velocity (viral_score per hour since posting), so a
+// fresh reel taking off outranks an older, already-viral one.
+function rankRising(candidates: FeedReel[], limit: number): FeedReel[] {
+  const now = Date.now();
+  return candidates
+    .map((reel) => {
+      const posted = reel.posted_at ? new Date(reel.posted_at).getTime() : now;
+      const ageHours = Math.max(0, (now - posted) / 3_600_000);
+      const velocity = (reel.viral_score ?? 0) / (ageHours + 2);
+      return { reel, velocity };
+    })
+    .filter((entry) => entry.velocity > 0)
+    .sort((a, b) => b.velocity - a.velocity)
+    .slice(0, limit)
+    .map((entry) => entry.reel);
+}
 
 const SORT_COLUMNS: Record<string, string> = {
   recent: "posted_at",
@@ -150,6 +175,24 @@ export default async function FeedPage({
 
   const hasFilters = account !== "all" || group !== "all" || status !== "all" || q !== "";
 
+  // "Rising now" rail — only on the unfiltered first page. Pull recent reels and
+  // rank them by velocity in JS (no time-dependent SQL needed).
+  let risingReels: FeedReel[] = [];
+  if (!hasFilters && page === 1) {
+    const since = risingSinceIso();
+    const { data: recent } = await supabase
+      .from("tracked_reels")
+      .select(
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, inspiration_accounts(ig_username, display_name, avatar_url)"
+      )
+      .eq("user_id", user.id)
+      .gte("posted_at", since)
+      .order("posted_at", { ascending: false })
+      .limit(300);
+
+    risingReels = rankRising((recent ?? []) as FeedReel[], RISING_LIMIT);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -162,6 +205,10 @@ export default async function FeedPage({
 
         <SyncButton />
       </div>
+
+      {risingReels.length > 0 ? (
+        <RisingNow reels={risingReels} markWorkedAction={markReelAsWorkedOn} />
+      ) : null}
 
       <FeedControls
         accounts={accounts}
