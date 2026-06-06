@@ -73,6 +73,7 @@ type SearchParams = {
   sort?: string;
   order?: string;
   page?: string;
+  rgroup?: string;
 };
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -104,6 +105,7 @@ export default async function FeedPage({
   const sort = first(params.sort) ?? "recent";
   const order = first(params.order) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
+  const risingGroup = first(params.rgroup) ?? "all";
 
   const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
   const ascending = order === "asc";
@@ -194,19 +196,35 @@ export default async function FeedPage({
     .is("viral_pattern", null)
     .is("pattern_checked_at", null);
 
-  // "Rising now" rail — only on the unfiltered first page. Pull recent reels and
-  // rank them by velocity in JS (no time-dependent SQL needed).
+  // "Rising now" rail — only on the unfiltered first page. Has its own group
+  // scope (rgroup), independent of the main feed filters. Reels are pulled
+  // recent and ranked by velocity in JS (no time-dependent SQL needed).
+  const showRising = !hasFilters && page === 1;
   let risingReels: FeedReel[] = [];
-  if (!hasFilters && page === 1) {
+  if (showRising) {
     const since = risingSinceIso();
-    const { data: recent } = await supabase
+    let recentQuery = supabase
       .from("tracked_reels")
       .select(
         "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true)
-      .gte("posted_at", since)
+      .gte("posted_at", since);
+
+    if (risingGroup !== "all") {
+      const { data: risingGroupAccounts } = await supabase
+        .from("inspiration_accounts")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .eq("group_id", risingGroup);
+
+      const ids = (risingGroupAccounts ?? []).map((a) => a.id);
+      recentQuery = recentQuery.in("account_id", ids.length ? ids : [NO_MATCH_ID]);
+    }
+
+    const { data: recent } = await recentQuery
       .order("posted_at", { ascending: false })
       .limit(300);
 
@@ -229,8 +247,13 @@ export default async function FeedPage({
         </div>
       </div>
 
-      {risingReels.length > 0 ? (
-        <RisingNow reels={risingReels} markWorkedAction={markReelAsWorkedOn} />
+      {showRising && (risingReels.length > 0 || risingGroup !== "all") ? (
+        <RisingNow
+          reels={risingReels}
+          groups={groups}
+          currentGroup={risingGroup}
+          markWorkedAction={markReelAsWorkedOn}
+        />
       ) : null}
 
       <FeedControls
