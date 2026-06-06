@@ -48,6 +48,15 @@ export function AccountCard({
   toggleActiveAction,
 }: AccountCardProps) {
   const isActive = account.is_active !== false;
+
+  // Controlled group value so the dropdown reflects the saved group immediately
+  // (an uncontrolled select would reset/lag after the server action).
+  const [groupId, setGroupId] = useState(account.group_id ?? "");
+  const [syncedGroupId, setSyncedGroupId] = useState(account.group_id ?? "");
+  if ((account.group_id ?? "") !== syncedGroupId) {
+    setSyncedGroupId(account.group_id ?? "");
+    setGroupId(account.group_id ?? "");
+  }
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -136,8 +145,11 @@ export function AccountCard({
         </label>
         <select
           name="group_id"
-          defaultValue={account.group_id ?? ""}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          value={groupId}
+          onChange={(e) => {
+            setGroupId(e.target.value);
+            e.currentTarget.form?.requestSubmit();
+          }}
           className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
         >
           <option value="">No group</option>

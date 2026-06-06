@@ -9,6 +9,7 @@ import {
   createAccountGroup,
   deleteAccountGroup,
   removeInspirationAccount,
+  renameAccountGroup,
   toggleAccountActive,
 } from "./actions";
 
@@ -73,6 +74,7 @@ export default async function AccountsPage() {
         groups={groups}
         createAction={createAccountGroup}
         deleteAction={deleteAccountGroup}
+        renameAction={renameAccountGroup}
       />
 
       {accounts.length === 0 ? (

@@ -151,6 +151,48 @@ export async function deleteAccountGroup(formData: FormData) {
   revalidatePath("/dashboard/feed");
 }
 
+export async function renameAccountGroup(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const groupId = formData.get("group_id");
+  const nameValue = formData.get("name");
+
+  if (typeof groupId !== "string" || !groupId) {
+    throw new Error("Group id is required.");
+  }
+
+  const name = typeof nameValue === "string" ? nameValue.trim() : "";
+  if (!name) {
+    throw new Error("Group name is required.");
+  }
+  if (name.length > 40) {
+    throw new Error("Group name must be 40 characters or fewer.");
+  }
+
+  const { error } = await supabase
+    .from("account_groups")
+    .update({ name })
+    .eq("id", groupId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    if (error.code === "23505") {
+      throw new Error("A group with that name already exists.");
+    }
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/feed");
+}
+
 export async function assignAccountGroup(formData: FormData) {
   const supabase = await createClient();
   const {
