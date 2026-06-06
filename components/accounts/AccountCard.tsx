@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Trash2, Users, AtSign } from "lucide-react";
+import { RefreshCw, Trash2, Users, AtSign, FolderClosed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -13,11 +13,16 @@ type Account = {
   followers_count: number | null;
   is_active: boolean | null;
   last_synced_at: string | null;
+  group_id: string | null;
 };
+
+type Group = { id: string; name: string };
 
 type AccountCardProps = {
   account: Account;
+  groups: Group[];
   removeAction: (formData: FormData) => Promise<void>;
+  assignGroupAction: (formData: FormData) => Promise<void>;
 };
 
 type SyncResult = {
@@ -34,7 +39,7 @@ function formatFollowers(n: number | null): string {
   return String(n);
 }
 
-export function AccountCard({ account, removeAction }: AccountCardProps) {
+export function AccountCard({ account, groups, removeAction, assignGroupAction }: AccountCardProps) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -110,6 +115,27 @@ export function AccountCard({ account, removeAction }: AccountCardProps) {
             : "Never"}
         </p>
       </div>
+
+      <form action={assignGroupAction} className="flex items-center gap-2">
+        <input type="hidden" name="account_id" value={account.id} />
+        <label className="flex items-center gap-1.5 text-sm text-zinc-400">
+          <FolderClosed className="h-4 w-4 text-zinc-500" />
+          Group
+        </label>
+        <select
+          name="group_id"
+          defaultValue={account.group_id ?? ""}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+        >
+          <option value="">No group</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </select>
+      </form>
 
       {syncMsg ? <p className="text-sm text-emerald-400">{syncMsg}</p> : null}
       {syncError ? <p className="text-sm text-rose-400">{syncError}</p> : null}

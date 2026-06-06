@@ -26,6 +26,9 @@ export type FeedReel = {
 
 const PER_PAGE = 12;
 
+// Non-existent UUID used to force an empty result set for an empty group.
+const NO_MATCH_ID = "00000000-0000-0000-0000-000000000000";
+
 const SORT_COLUMNS: Record<string, string> = {
   recent: "posted_at",
   views: "view_count",
@@ -36,6 +39,7 @@ const SORT_COLUMNS: Record<string, string> = {
 
 type SearchParams = {
   account?: string;
+  group?: string;
   status?: string;
   q?: string;
   sort?: string;
@@ -65,6 +69,7 @@ export default async function FeedPage({
   const params = await searchParams;
 
   const account = first(params.account) ?? "all";
+  const group = first(params.group) ?? "all";
   const status = first(params.status) ?? "all";
   const q = (first(params.q) ?? "").trim();
   const sort = first(params.sort) ?? "recent";
@@ -83,6 +88,15 @@ export default async function FeedPage({
 
   const accounts = (accountRows ?? []) as { id: string; ig_username: string }[];
 
+  // Groups for the filter dropdown.
+  const { data: groupRows } = await supabase
+    .from("account_groups")
+    .select("id, name")
+    .eq("user_id", user.id)
+    .order("name", { ascending: true });
+
+  const groups = (groupRows ?? []) as { id: string; name: string }[];
+
   // Build the filtered reels query (with exact count for pagination).
   let query = supabase
     .from("tracked_reels")
@@ -94,6 +108,19 @@ export default async function FeedPage({
 
   if (account !== "all") {
     query = query.eq("account_id", account);
+  }
+
+  if (group !== "all") {
+    // Resolve the accounts in this group, then constrain reels to them.
+    const { data: groupAccounts } = await supabase
+      .from("inspiration_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("group_id", group);
+
+    const groupAccountIds = (groupAccounts ?? []).map((a) => a.id);
+    // Empty group → no matching reels (sentinel keeps the query valid).
+    query = query.in("account_id", groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID]);
   }
 
   if (status === "new") {
@@ -121,7 +148,7 @@ export default async function FeedPage({
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
-  const hasFilters = account !== "all" || status !== "all" || q !== "";
+  const hasFilters = account !== "all" || group !== "all" || status !== "all" || q !== "";
 
   return (
     <div className="space-y-6">
@@ -138,7 +165,8 @@ export default async function FeedPage({
 
       <FeedControls
         accounts={accounts}
-        current={{ account, status, q, sort, order }}
+        groups={groups}
+        current={{ account, group, status, q, sort, order }}
         total={total}
       />
 

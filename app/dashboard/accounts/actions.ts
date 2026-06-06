@@ -82,6 +82,121 @@ export async function addInspirationAccount(
   return {};
 }
 
+export async function createAccountGroup(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized." };
+  }
+
+  const nameValue = formData.get("name");
+  if (typeof nameValue !== "string") {
+    return { error: "Group name is required." };
+  }
+
+  const name = nameValue.trim();
+  if (!name) {
+    return { error: "Group name is required." };
+  }
+  if (name.length > 40) {
+    return { error: "Group name must be 40 characters or fewer." };
+  }
+
+  const { error } = await supabase.from("account_groups").insert({ user_id: user.id, name });
+
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "A group with that name already exists." };
+    }
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/feed");
+  return {};
+}
+
+export async function deleteAccountGroup(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const groupId = formData.get("group_id");
+  if (typeof groupId !== "string" || !groupId) {
+    throw new Error("Group id is required.");
+  }
+
+  const { error } = await supabase
+    .from("account_groups")
+    .delete()
+    .eq("id", groupId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/feed");
+}
+
+export async function assignAccountGroup(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const accountId = formData.get("account_id");
+  const groupValue = formData.get("group_id");
+
+  if (typeof accountId !== "string" || !accountId) {
+    throw new Error("Account id is required.");
+  }
+
+  const groupId = typeof groupValue === "string" && groupValue ? groupValue : null;
+
+  // Only allow assigning to a group the user owns.
+  if (groupId) {
+    const { data: group } = await supabase
+      .from("account_groups")
+      .select("id")
+      .eq("id", groupId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!group) {
+      throw new Error("Group not found.");
+    }
+  }
+
+  const { error } = await supabase
+    .from("inspiration_accounts")
+    .update({ group_id: groupId })
+    .eq("id", accountId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/feed");
+}
+
 export async function removeInspirationAccount(formData: FormData) {
   const supabase = await createClient();
   const {

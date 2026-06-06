@@ -5,11 +5,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, Search, X } from "lucide-react";
 
 type Account = { id: string; ig_username: string };
+type Group = { id: string; name: string };
 
 type FeedControlsProps = {
   accounts: Account[];
+  groups: Group[];
   current: {
     account: string;
+    group: string;
     status: string;
     q: string;
     sort: string;
@@ -35,7 +38,7 @@ const STATUS_OPTIONS = [
 const selectClass =
   "h-9 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20";
 
-export function FeedControls({ accounts, current, total }: FeedControlsProps) {
+export function FeedControls({ accounts, groups, current, total }: FeedControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -72,7 +75,10 @@ export function FeedControls({ accounts, current, total }: FeedControlsProps) {
   }
 
   const isFiltered =
-    current.account !== "all" || current.status !== "all" || current.q !== "";
+    current.account !== "all" ||
+    current.group !== "all" ||
+    current.status !== "all" ||
+    current.q !== "";
 
   return (
     <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
@@ -101,6 +107,22 @@ export function FeedControls({ accounts, current, total }: FeedControlsProps) {
             </option>
           ))}
         </select>
+
+        {groups.length > 0 ? (
+          <select
+            aria-label="Filter by group"
+            className={selectClass}
+            value={current.group}
+            onChange={(e) => apply({ group: e.target.value })}
+          >
+            <option value="all">All groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
 
         <select
           aria-label="Filter by status"
@@ -147,7 +169,7 @@ export function FeedControls({ accounts, current, total }: FeedControlsProps) {
             type="button"
             onClick={() => {
               setSearch("");
-              apply({ account: null, status: null, q: null });
+              apply({ account: null, group: null, status: null, q: null });
             }}
             className="flex h-9 items-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-400 transition hover:border-rose-500/50 hover:text-rose-300"
           >

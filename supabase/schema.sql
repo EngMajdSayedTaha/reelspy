@@ -30,6 +30,22 @@ alter table inspiration_accounts enable row level security;
 create policy "Users can manage own accounts"
   on inspiration_accounts for all using (auth.uid() = user_id);
 
+-- Account groups (e.g. "Angular", "Memes")
+create table account_groups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade,
+  name text not null,
+  created_at timestamptz default now(),
+  unique(user_id, name)
+);
+
+alter table account_groups enable row level security;
+create policy "Users can manage own groups"
+  on account_groups for all using (auth.uid() = user_id);
+
+alter table inspiration_accounts
+  add column if not exists group_id uuid references account_groups(id) on delete set null;
+
 -- Tracked reels
 create table tracked_reels (
   id uuid primary key default gen_random_uuid(),
