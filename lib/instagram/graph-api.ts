@@ -193,6 +193,24 @@ function parseGraphError(raw: string): string | null {
   }
 }
 
+// Detects Meta rate-limit / throttling errors (app or user level). These are
+// hourly buckets, so the right response is to back off, not retry immediately.
+function isRateLimitError(message: string): boolean {
+  return (
+    /\(#?4\)/.test(message) ||
+    /\(#?17\)/.test(message) ||
+    /\(#?32\)/.test(message) ||
+    /\(#?613\)/.test(message) ||
+    /request limit reached/i.test(message) ||
+    /rate limit/i.test(message) ||
+    /reduce the amount of data/i.test(message)
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function fetchBusinessDiscovery(
   myIgUserId: string,
   token: string,
@@ -269,7 +287,7 @@ export async function fetchAccountReels(
   token: string,
   targetUsername: string,
   maxReels = 25
-): Promise<{ reels: InstagramMedia[]; error?: string }> {
+): Promise<{ reels: InstagramMedia[]; error?: string; rateLimited?: boolean }> {
   const mediaFields =
     "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
 
@@ -312,16 +330,29 @@ export async function fetchAccountReels(
       // Stop when there's no next cursor or the page came back empty.
       if (!nextAfter || pageItems.length === 0) break;
       after = nextAfter;
+      // Gentle pacing between pages to ease Graph API rate limits.
+      await sleep(350);
     }
 
     return { reels };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const rateLimited = isRateLimitError(message);
     // If we already collected some reels before the error, keep them.
     if (reels.length > 0) {
-      return { reels };
+      return { reels, rateLimited: rateLimited || undefined };
     }
-    return { reels: [], error: message };
+    if (rateLimited) {
+      return {
+        reels: [],
+        error: "Instagram rate limit reached. Wait about an hour, then sync fewer accounts at a time.",
+        rateLimited: true,
+      };
+    }
+    return {
+      reels: [],
+      error: parseGraphError(message) ?? "Could not fetch reels for this account.",
+    };
   }
 }
 

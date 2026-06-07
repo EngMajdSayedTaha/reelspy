@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAccountReels } from "@/lib/instagram/graph-api";
 
+// Paced requests + multi-account loops need a generous budget.
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 type SyncBody = {
   account_id?: string;
   limit?: number;
@@ -10,6 +14,10 @@ type SyncBody = {
 // How many reels to pull per account. Clamped to a sane range.
 const DEFAULT_SYNC_LIMIT = 25;
 const MAX_SYNC_LIMIT = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function resolveLimit(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);
@@ -77,13 +85,27 @@ export async function POST(request: Request) {
   let totalUpdated = 0;
   const errors: string[] = [];
 
-  for (const account of accounts) {
-    const { reels, error: fetchError } = await fetchAccountReels(
+  let rateLimitHit = false;
+
+  for (let i = 0; i < accounts.length; i++) {
+    const account = accounts[i];
+
+    // Throttle between accounts to stay under Instagram's app-level rate limit.
+    if (i > 0) {
+      await sleep(500);
+    }
+
+    const { reels, error: fetchError, rateLimited } = await fetchAccountReels(
       profile.ig_user_id,
       profile.ig_access_token,
       account.ig_username,
       syncLimit
     );
+
+    if (rateLimited && reels.length === 0) {
+      rateLimitHit = true;
+      break;
+    }
 
     if (fetchError) {
       errors.push(`@${account.ig_username}: ${fetchError}`);
@@ -158,6 +180,18 @@ export async function POST(request: Request) {
       .from("inspiration_accounts")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", account.id);
+
+    // Kept the partial reels above; stop here so we don't worsen the limit.
+    if (rateLimited) {
+      rateLimitHit = true;
+      break;
+    }
+  }
+
+  if (rateLimitHit) {
+    errors.push(
+      "Instagram's hourly rate limit was reached, so syncing stopped early. Wait about an hour and sync fewer accounts at a time."
+    );
   }
 
   return NextResponse.json({
