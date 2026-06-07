@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
+
+const TRANSCRIPT_LOADING_MESSAGES = [
+  "Fetching the reel…",
+  "Extracting the audio…",
+  "Transcribing with Whisper…",
+  "Cleaning up the text…",
+];
 
 type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 
@@ -99,7 +107,9 @@ export function TranscriptPanel({
         </Button>
       </div>
 
-      {hasTranscript ? (
+      {isLoading ? (
+        <AiThinking messages={TRANSCRIPT_LOADING_MESSAGES} className="mt-3" />
+      ) : hasTranscript ? (
         <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
           {transcript}
         </div>

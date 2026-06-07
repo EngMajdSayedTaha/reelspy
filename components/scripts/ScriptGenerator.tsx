@@ -3,10 +3,19 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { ScriptOutput } from "@/components/scripts/ScriptOutput";
+import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { notifyError, requestJson } from "@/lib/utils/api";
+
+const SCRIPT_LOADING_MESSAGES = [
+  "Reading the reel context…",
+  "Spotting the viral pattern…",
+  "Writing a scroll-stopping hook…",
+  "Shaping the script…",
+  "Adding a natural call to action…",
+];
 
 const VIRAL_PATTERNS = [
   "Hot Take",
@@ -184,6 +193,8 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
           </Button>
 
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+
+          {isLoading ? <AiThinking messages={SCRIPT_LOADING_MESSAGES} /> : null}
         </div>
       </div>
 
