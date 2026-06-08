@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { AccountCard } from "@/components/accounts/AccountCard";
+import { AccountsFilter } from "@/components/accounts/AccountsFilter";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { GroupsManager } from "@/components/accounts/GroupsManager";
+import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
 import {
   addInspirationAccount,
@@ -26,7 +28,22 @@ type InspirationAccount = {
 
 type AccountGroup = { id: string; name: string };
 
-export default async function AccountsPage() {
+const PER_PAGE = 12;
+
+type SearchParams = {
+  status?: string;
+  page?: string;
+};
+
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function AccountsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const supabase = await createClient();
 
   const {
@@ -37,19 +54,60 @@ export default async function AccountsPage() {
     redirect("/login");
   }
 
-  const { data, error } = await supabase
+  const params = await searchParams;
+  const status = first(params.status) === "paused" || first(params.status) === "active"
+    ? (first(params.status) as "active" | "paused")
+    : "all";
+  const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
+
+  // Status counts for the filter pills.
+  const baseCount = () =>
+    supabase
+      .from("inspiration_accounts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+
+  const [allRes, activeRes, pausedRes] = await Promise.all([
+    baseCount(),
+    baseCount().eq("is_active", true),
+    baseCount().eq("is_active", false),
+  ]);
+
+  const counts = {
+    all: allRes.count ?? 0,
+    active: activeRes.count ?? 0,
+    paused: pausedRes.count ?? 0,
+  };
+
+  // Paginated, filtered accounts.
+  let query = supabase
     .from("inspiration_accounts")
     .select(
-      "id, ig_username, display_name, avatar_url, followers_count, is_active, last_synced_at, group_id"
+      "id, ig_username, display_name, avatar_url, followers_count, is_active, last_synced_at, group_id",
+      { count: "exact" }
     )
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    .eq("user_id", user.id);
+
+  if (status === "active") {
+    query = query.eq("is_active", true);
+  } else if (status === "paused") {
+    query = query.eq("is_active", false);
+  }
+
+  const from = (page - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
+
+  const { data, error, count } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
   if (error) {
     throw new Error(error.message);
   }
 
   const accounts = (data ?? []) as InspirationAccount[];
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   const { data: groupRows } = await supabase
     .from("account_groups")
@@ -77,23 +135,35 @@ export default async function AccountsPage() {
         renameAction={renameAccountGroup}
       />
 
-      {accounts.length === 0 ? (
+      {counts.all === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
           No inspiration accounts yet. Add your first account above.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {accounts.map((account) => (
-            <AccountCard
-              key={account.id}
-              account={account}
-              groups={groups}
-              removeAction={removeInspirationAccount}
-              assignGroupAction={assignAccountGroup}
-              toggleActiveAction={toggleAccountActive}
-            />
-          ))}
-        </div>
+        <>
+          <AccountsFilter current={status} counts={counts} />
+
+          {accounts.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+              No {status} accounts.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {accounts.map((account) => (
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  groups={groups}
+                  removeAction={removeInspirationAccount}
+                  assignGroupAction={assignAccountGroup}
+                  toggleActiveAction={toggleAccountActive}
+                />
+              ))}
+            </div>
+          )}
+
+          <FeedPagination page={page} totalPages={totalPages} total={total} perPage={PER_PAGE} />
+        </>
       )}
     </div>
   );

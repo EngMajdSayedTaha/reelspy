@@ -136,7 +136,7 @@ export function AccountCard({
 
   return (
     <article
-      className={`space-y-4 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100 transition-colors hover:border-[#2e2e2e] ${
+      className={`space-y-3.5 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-3.5 text-zinc-100 transition-colors hover:border-[#2e2e2e] ${
         isActive ? "" : "opacity-60"
       }`}
     >
@@ -149,15 +149,15 @@ export function AccountCard({
               alt={`@${account.ig_username}`}
               referrerPolicy="no-referrer"
               onError={() => setAvatarError(true)}
-              className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+              className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
             />
           ) : (
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
               <AtSign className="h-5 w-5 text-zinc-500" />
             </span>
           )}
           <div className="min-w-0">
-            <p className="truncate text-lg font-medium text-white">@{account.ig_username}</p>
+            <p className="truncate text-base font-medium text-white">@{account.ig_username}</p>
             {account.display_name && account.display_name !== account.ig_username ? (
               <p className="truncate text-sm text-zinc-400">{account.display_name}</p>
             ) : null}
@@ -166,12 +166,12 @@ export function AccountCard({
         <Badge variant={isActive ? "default" : "outline"}>{isActive ? "Active" : "Paused"}</Badge>
       </div>
 
-      <div className="grid gap-2 text-sm text-zinc-300 sm:grid-cols-2">
+      <div className="flex flex-col gap-1 text-sm text-zinc-300">
         <p className="flex items-center gap-1.5">
           <Users className="h-4 w-4 text-zinc-500" />
           {formatFollowers(account.followers_count)} followers
         </p>
-        <p className="text-zinc-400">
+        <p className="text-xs text-zinc-500">
           Last sync:{" "}
           {account.last_synced_at
             ? new Date(account.last_synced_at).toLocaleDateString("en-US")
@@ -199,32 +199,41 @@ export function AccountCard({
         </select>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex items-center gap-2">
         <Button
           type="button"
+          size="sm"
           variant="default"
-          className="flex-1 sm:flex-none"
+          className="flex-1"
           onClick={handleSync}
           disabled={busy}
         >
           <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-          {isSyncing ? "Syncing…" : "Sync Reels"}
+          {isSyncing ? "Syncing…" : "Sync"}
         </Button>
 
         <Button
           type="button"
+          size="sm"
           variant="outline"
           onClick={handleToggleActive}
           disabled={busy}
+          aria-label={isActive ? "Pause account" : "Activate account"}
           title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
         >
           <Power className="h-4 w-4" />
-          {isActive ? "Pause" : "Activate"}
         </Button>
 
-        <Button type="button" variant="outline" onClick={handleRemove} disabled={busy}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleRemove}
+          disabled={busy}
+          aria-label="Remove account"
+          title="Remove account"
+        >
           <Trash2 className="h-4 w-4" />
-          Remove
         </Button>
       </div>
     </article>
