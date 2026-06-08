@@ -12,6 +12,8 @@ import {
   Sparkles,
   Check,
   Captions,
+  ThumbsDown,
+  RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +31,7 @@ type Reel = {
   posted_at: string | null;
   transcript_status: string | null;
   viral_pattern: string | null;
+  is_discarded: boolean | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -38,6 +41,7 @@ type Reel = {
 type ReelCardProps = {
   reel: Reel;
   markWorkedAction: (formData: FormData) => Promise<void>;
+  discardAction: (formData: FormData) => Promise<void>;
 };
 
 function getSource(reel: Reel) {
@@ -84,7 +88,7 @@ function Metric({
   );
 }
 
-export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
+export function ReelCard({ reel, markWorkedAction, discardAction }: ReelCardProps) {
   const { username, avatar } = getSource(reel);
   const [playing, setPlaying] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -257,6 +261,24 @@ export function ReelCard({ reel, markWorkedAction }: ReelCardProps) {
               title={reel.is_worked_on ? "Already marked" : "Mark as worked on"}
             >
               <Check className="h-4 w-4" />
+            </Button>
+          </form>
+
+          <form action={discardAction}>
+            <input type="hidden" name="reel_id" value={reel.id} />
+            <input type="hidden" name="discarded" value={reel.is_discarded ? "false" : "true"} />
+            <Button
+              type="submit"
+              size="sm"
+              variant="outline"
+              title={reel.is_discarded ? "Restore reel" : "Discard (don't show again)"}
+              aria-label={reel.is_discarded ? "Restore reel" : "Discard reel"}
+            >
+              {reel.is_discarded ? (
+                <RotateCcw className="h-4 w-4" />
+              ) : (
+                <ThumbsDown className="h-4 w-4" />
+              )}
             </Button>
           </form>
 

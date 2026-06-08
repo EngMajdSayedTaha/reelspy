@@ -63,6 +63,8 @@ create table tracked_reels (
   ) stored,
   is_worked_on boolean default false,
   worked_on_at timestamptz,
+  is_discarded boolean default false,
+  discarded_at timestamptz,
   posted_at timestamptz,
   transcript text,
   transcript_lang text,

@@ -6,7 +6,7 @@ import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
-import { markReelAsWorkedOn } from "./actions";
+import { markReelAsWorkedOn, setReelDiscarded } from "./actions";
 
 export type FeedReel = {
   id: string;
@@ -21,13 +21,12 @@ export type FeedReel = {
   posted_at: string | null;
   transcript_status: string | null;
   viral_pattern: string | null;
+  is_discarded: boolean | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
     | null;
 };
-
-const PER_PAGE = 12;
 
 // Non-existent UUID used to force an empty result set for an empty group.
 const NO_MATCH_ID = "00000000-0000-0000-0000-000000000000";
@@ -73,6 +72,7 @@ type SearchParams = {
   sort?: string;
   order?: string;
   page?: string;
+  pp?: string;
   rgroup?: string;
 };
 
@@ -100,11 +100,12 @@ export default async function FeedPage({
   const account = first(params.account) ?? "all";
   const group = first(params.group) ?? "all";
   const pattern = first(params.pattern) ?? "all";
-  const status = first(params.status) ?? "all";
+  const status = first(params.status) ?? "new"; // default to New only
   const q = (first(params.q) ?? "").trim();
   const sort = first(params.sort) ?? "recent";
   const order = first(params.order) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
+  const perPage = first(params.pp) === "25" ? 25 : 10; // 10 (default) or 25
   const risingGroup = first(params.rgroup) ?? "all";
 
   const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
@@ -133,7 +134,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id)
@@ -160,18 +161,24 @@ export default async function FeedPage({
     query = query.eq("viral_pattern", pattern);
   }
 
-  if (status === "new") {
-    query = query.eq("is_worked_on", false);
-  } else if (status === "worked") {
-    query = query.eq("is_worked_on", true);
+  if (status === "discarded") {
+    query = query.eq("is_discarded", true);
+  } else {
+    // Discarded reels are hidden from every other view.
+    query = query.eq("is_discarded", false);
+    if (status === "new") {
+      query = query.eq("is_worked_on", false);
+    } else if (status === "worked") {
+      query = query.eq("is_worked_on", true);
+    }
   }
 
   if (q) {
     query = query.ilike("caption", `%${q}%`);
   }
 
-  const from = (page - 1) * PER_PAGE;
-  const to = from + PER_PAGE - 1;
+  const from = (page - 1) * perPage;
+  const to = from + perPage - 1;
 
   const { data, error, count } = await query
     .order(sortColumn, { ascending, nullsFirst: false })
@@ -183,10 +190,12 @@ export default async function FeedPage({
 
   const reels = (data ?? []) as FeedReel[];
   const total = count ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
 
-  const hasFilters =
-    account !== "all" || group !== "all" || pattern !== "all" || status !== "all" || q !== "";
+  // Account/group/pattern/search filters (status excluded — its default is "new").
+  const hasContentFilters =
+    account !== "all" || group !== "all" || pattern !== "all" || q !== "";
+  const hasFilters = hasContentFilters || status !== "new";
 
   // Reels still needing pattern classification (drives the tagging control).
   const { count: missingPatternCount } = await supabase
@@ -199,17 +208,18 @@ export default async function FeedPage({
   // "Rising now" rail — only on the unfiltered first page. Has its own group
   // scope (rgroup), independent of the main feed filters. Reels are pulled
   // recent and ranked by velocity in JS (no time-dependent SQL needed).
-  const showRising = !hasFilters && page === 1;
+  const showRising = !hasContentFilters && page === 1;
   let risingReels: FeedReel[] = [];
   if (showRising) {
     const since = risingSinceIso();
     let recentQuery = supabase
       .from("tracked_reels")
       .select(
-        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true)
+      .eq("is_discarded", false)
       .gte("posted_at", since);
 
     if (risingGroup !== "all") {
@@ -253,19 +263,25 @@ export default async function FeedPage({
           groups={groups}
           currentGroup={risingGroup}
           markWorkedAction={markReelAsWorkedOn}
+          discardAction={setReelDiscarded}
         />
       ) : null}
 
       <FeedControls
         accounts={accounts}
         groups={groups}
-        current={{ account, group, pattern, status, q, sort, order }}
+        current={{ account, group, pattern, status, q, sort, order, perPage: String(perPage) }}
         total={total}
       />
 
-      <ReelFeed reels={reels} markWorkedAction={markReelAsWorkedOn} hasFilters={hasFilters} />
+      <ReelFeed
+        reels={reels}
+        markWorkedAction={markReelAsWorkedOn}
+        discardAction={setReelDiscarded}
+        hasFilters={hasFilters}
+      />
 
-      <FeedPagination page={page} totalPages={totalPages} total={total} perPage={PER_PAGE} />
+      <FeedPagination page={page} totalPages={totalPages} total={total} perPage={perPage} />
     </div>
   );
 }

@@ -62,6 +62,7 @@ export function AccountCard({
   const [isPendingAction, startAction] = useTransition();
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [syncLimit, setSyncLimit] = useState(25);
 
   const busy = isSyncing || isAssigning || isPendingAction;
 
@@ -91,7 +92,7 @@ export function AccountCard({
       const json = await requestJson<SyncResult>("/api/ig/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: account.id, limit: 50 }),
+        body: JSON.stringify({ account_id: account.id, limit: syncLimit }),
       });
       toast.success(`@${account.ig_username}: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
       if (json.errors?.length) {
@@ -200,6 +201,20 @@ export function AccountCard({
       </div>
 
       <div className="flex items-center gap-2">
+        <select
+          aria-label="Reels to sync"
+          value={syncLimit}
+          disabled={busy}
+          onChange={(e) => setSyncLimit(Number(e.target.value))}
+          className="h-9 shrink-0 rounded-lg border border-[#262626] bg-[#141414] px-1.5 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 disabled:opacity-60"
+        >
+          {[25, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+
         <Button
           type="button"
           size="sm"

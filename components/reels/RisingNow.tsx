@@ -10,9 +10,16 @@ type RisingNowProps = {
   groups: Group[];
   currentGroup: string;
   markWorkedAction: (formData: FormData) => Promise<void>;
+  discardAction: (formData: FormData) => Promise<void>;
 };
 
-export function RisingNow({ reels, groups, currentGroup, markWorkedAction }: RisingNowProps) {
+export function RisingNow({
+  reels,
+  groups,
+  currentGroup,
+  markWorkedAction,
+  discardAction,
+}: RisingNowProps) {
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -35,7 +42,11 @@ export function RisingNow({ reels, groups, currentGroup, markWorkedAction }: Ris
         <div className="flex gap-4 overflow-x-auto pb-2">
           {reels.map((reel) => (
             <div key={reel.id} className="w-[280px] shrink-0">
-              <ReelCard reel={reel} markWorkedAction={markWorkedAction} />
+              <ReelCard
+              reel={reel}
+              markWorkedAction={markWorkedAction}
+              discardAction={discardAction}
+            />
             </div>
           ))}
         </div>

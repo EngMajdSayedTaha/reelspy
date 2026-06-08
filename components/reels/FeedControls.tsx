@@ -19,6 +19,7 @@ type FeedControlsProps = {
     q: string;
     sort: string;
     order: string;
+    perPage: string;
   };
   total: number;
 };
@@ -32,10 +33,13 @@ const SORT_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: "all", label: "All reels" },
   { value: "new", label: "New only" },
+  { value: "all", label: "All reels" },
   { value: "worked", label: "Worked on" },
+  { value: "discarded", label: "Discarded" },
 ];
+
+const PER_PAGE_OPTIONS = ["10", "25"];
 
 const selectClass =
   "h-9 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20";
@@ -80,7 +84,7 @@ export function FeedControls({ accounts, groups, current, total }: FeedControlsP
     current.account !== "all" ||
     current.group !== "all" ||
     current.pattern !== "all" ||
-    current.status !== "all" ||
+    current.status !== "new" ||
     current.q !== "";
 
   return (
@@ -180,6 +184,19 @@ export function FeedControls({ accounts, groups, current, total }: FeedControlsP
             <ArrowDownWideNarrow className="h-4 w-4" />
           )}
         </button>
+
+        <select
+          aria-label="Reels per page"
+          className={selectClass}
+          value={current.perPage}
+          onChange={(e) => apply({ pp: e.target.value === "10" ? null : e.target.value })}
+        >
+          {PER_PAGE_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
 
         {isFiltered ? (
           <button
