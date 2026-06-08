@@ -106,3 +106,14 @@ select:disabled,
 [aria-disabled="true"] {
   cursor: not-allowed;
 }
+
+/* Favorite heart "pop" on toggle. */
+@keyframes favoritePop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.4); }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.favorite-pop {
+  animation: favoritePop 0.35s ease;
+}

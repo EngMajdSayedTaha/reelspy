@@ -131,6 +131,17 @@ export default async function FeedPage({
 
   const groups = (groupRows ?? []) as { id: string; name: string }[];
 
+  // Resolve group → account ids once (reused by the main query and the counts).
+  let groupAccountIds: string[] | null = null;
+  if (group !== "all") {
+    const { data: ga } = await supabase
+      .from("inspiration_accounts")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("group_id", group);
+    groupAccountIds = (ga ?? []).map((a) => a.id);
+  }
+
   // Build the filtered reels query (with exact count for pagination).
   let query = supabase
     .from("tracked_reels")
@@ -146,16 +157,9 @@ export default async function FeedPage({
   }
 
   if (group !== "all") {
-    // Resolve the accounts in this group, then constrain reels to them.
-    const { data: groupAccounts } = await supabase
-      .from("inspiration_accounts")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("group_id", group);
-
-    const groupAccountIds = (groupAccounts ?? []).map((a) => a.id);
     // Empty group → no matching reels (sentinel keeps the query valid).
-    query = query.in("account_id", groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID]);
+    const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
+    query = query.in("account_id", ids);
   }
 
   if (pattern !== "all") {
@@ -199,6 +203,40 @@ export default async function FeedPage({
   const hasContentFilters =
     account !== "all" || group !== "all" || pattern !== "all" || q !== "";
   const hasFilters = hasContentFilters || status !== "new";
+
+  // Status counts (respecting the account/group/pattern/search filters) for the
+  // filter badges.
+  const countBase = () => {
+    let qy = supabase
+      .from("tracked_reels")
+      .select("id, inspiration_accounts!inner(id)", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("inspiration_accounts.is_active", true);
+    if (account !== "all") qy = qy.eq("account_id", account);
+    if (group !== "all") {
+      const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
+      qy = qy.in("account_id", ids);
+    }
+    if (pattern !== "all") qy = qy.eq("viral_pattern", pattern);
+    if (q) qy = qy.ilike("caption", `%${q}%`);
+    return qy;
+  };
+
+  const [cAll, cNew, cWorked, cFav, cDisc] = await Promise.all([
+    countBase().eq("is_discarded", false),
+    countBase().eq("is_discarded", false).eq("is_worked_on", false),
+    countBase().eq("is_discarded", false).eq("is_worked_on", true),
+    countBase().eq("is_discarded", false).eq("is_favorite", true),
+    countBase().eq("is_discarded", true),
+  ]);
+
+  const statusCounts = {
+    all: cAll.count ?? 0,
+    new: cNew.count ?? 0,
+    worked: cWorked.count ?? 0,
+    favorites: cFav.count ?? 0,
+    discarded: cDisc.count ?? 0,
+  };
 
   // Reels still needing pattern classification (drives the tagging control).
   const { count: missingPatternCount } = await supabase
@@ -275,6 +313,7 @@ export default async function FeedPage({
         accounts={accounts}
         groups={groups}
         current={{ account, group, pattern, status, q, sort, order, perPage: String(perPage) }}
+        statusCounts={statusCounts}
         total={total}
       />
 

@@ -21,6 +21,7 @@ type FeedControlsProps = {
     order: string;
     perPage: string;
   };
+  statusCounts: Record<string, number>;
   total: number;
 };
 
@@ -45,7 +46,7 @@ const PER_PAGE_OPTIONS = ["10", "25"];
 const selectClass =
   "h-9 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20";
 
-export function FeedControls({ accounts, groups, current, total }: FeedControlsProps) {
+export function FeedControls({ accounts, groups, current, statusCounts, total }: FeedControlsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -154,7 +155,7 @@ export function FeedControls({ accounts, groups, current, total }: FeedControlsP
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {o.label} ({statusCounts[o.value] ?? 0})
             </option>
           ))}
         </select>

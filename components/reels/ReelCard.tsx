@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FavoriteButton } from "@/components/reels/FavoriteButton";
 
 type Reel = {
   id: string;
@@ -154,20 +155,13 @@ export function ReelCard({
             </button>
 
             {/* Favorite toggle */}
-            <form action={favoriteAction} className="absolute left-2 top-2 z-10">
-              <input type="hidden" name="reel_id" value={reel.id} />
-              <input type="hidden" name="favorite" value={reel.is_favorite ? "false" : "true"} />
-              <button
-                type="submit"
-                aria-label={reel.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                title={reel.is_favorite ? "Remove from favorites" : "Add to favorites"}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/20 backdrop-blur-sm transition hover:scale-110"
-              >
-                <Heart
-                  className={`h-4 w-4 ${reel.is_favorite ? "fill-rose-500 text-rose-500" : "text-white"}`}
-                />
-              </button>
-            </form>
+            <div className="absolute left-2 top-2 z-10">
+              <FavoriteButton
+                reelId={reel.id}
+                favorite={Boolean(reel.is_favorite)}
+                action={favoriteAction}
+              />
+            </div>
 
             {/* Status badge */}
             <div className="absolute right-2 top-2">
