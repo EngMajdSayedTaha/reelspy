@@ -15,6 +15,7 @@ type Reel = {
   transcript_status: string | null;
   viral_pattern: string | null;
   is_discarded: boolean | null;
+  is_favorite: boolean | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -25,10 +26,17 @@ type ReelFeedProps = {
   reels: Reel[];
   markWorkedAction: (formData: FormData) => Promise<void>;
   discardAction: (formData: FormData) => Promise<void>;
+  favoriteAction: (formData: FormData) => Promise<void>;
   hasFilters?: boolean;
 };
 
-export function ReelFeed({ reels, markWorkedAction, discardAction, hasFilters }: ReelFeedProps) {
+export function ReelFeed({
+  reels,
+  markWorkedAction,
+  discardAction,
+  favoriteAction,
+  hasFilters,
+}: ReelFeedProps) {
   if (reels.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-[#262626] bg-[#0f0f0f] px-6 py-16 text-center">
@@ -55,6 +63,7 @@ export function ReelFeed({ reels, markWorkedAction, discardAction, hasFilters }:
           reel={reel}
           markWorkedAction={markWorkedAction}
           discardAction={discardAction}
+          favoriteAction={favoriteAction}
         />
       ))}
     </div>

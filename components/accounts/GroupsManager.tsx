@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { FolderPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 
 type Group = { id: string; name: string };
@@ -37,6 +38,7 @@ function GroupChip({
   const [isPending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef(false);
+  const confirm = useConfirm();
 
   if (group.name !== synced) {
     setSynced(group.name);
@@ -81,10 +83,15 @@ function GroupChip({
     });
   };
 
-  const remove = () => {
-    if (!window.confirm(`Delete group “${group.name}”? Accounts in it will be ungrouped.`)) {
-      return;
-    }
+  const remove = async () => {
+    const ok = await confirm({
+      title: `Delete group “${group.name}”?`,
+      description: "Accounts in this group will be ungrouped (not deleted).",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+
     const data = new FormData();
     data.set("group_id", group.id);
     startTransition(async () => {

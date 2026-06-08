@@ -36,6 +36,7 @@ const STATUS_OPTIONS = [
   { value: "new", label: "New only" },
   { value: "all", label: "All reels" },
   { value: "worked", label: "Worked on" },
+  { value: "favorites", label: "Favorites" },
   { value: "discarded", label: "Discarded" },
 ];
 

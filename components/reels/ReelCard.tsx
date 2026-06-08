@@ -32,6 +32,7 @@ type Reel = {
   transcript_status: string | null;
   viral_pattern: string | null;
   is_discarded: boolean | null;
+  is_favorite: boolean | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -42,6 +43,7 @@ type ReelCardProps = {
   reel: Reel;
   markWorkedAction: (formData: FormData) => Promise<void>;
   discardAction: (formData: FormData) => Promise<void>;
+  favoriteAction: (formData: FormData) => Promise<void>;
 };
 
 function getSource(reel: Reel) {
@@ -88,7 +90,12 @@ function Metric({
   );
 }
 
-export function ReelCard({ reel, markWorkedAction, discardAction }: ReelCardProps) {
+export function ReelCard({
+  reel,
+  markWorkedAction,
+  discardAction,
+  favoriteAction,
+}: ReelCardProps) {
   const { username, avatar } = getSource(reel);
   const [playing, setPlaying] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -145,6 +152,22 @@ export function ReelCard({ reel, markWorkedAction, discardAction }: ReelCardProp
                 <Play className="ml-0.5 h-6 w-6 fill-current" />
               </span>
             </button>
+
+            {/* Favorite toggle */}
+            <form action={favoriteAction} className="absolute left-2 top-2 z-10">
+              <input type="hidden" name="reel_id" value={reel.id} />
+              <input type="hidden" name="favorite" value={reel.is_favorite ? "false" : "true"} />
+              <button
+                type="submit"
+                aria-label={reel.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                title={reel.is_favorite ? "Remove from favorites" : "Add to favorites"}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/20 backdrop-blur-sm transition hover:scale-110"
+              >
+                <Heart
+                  className={`h-4 w-4 ${reel.is_favorite ? "fill-rose-500 text-rose-500" : "text-white"}`}
+                />
+              </button>
+            </form>
 
             {/* Status badge */}
             <div className="absolute right-2 top-2">

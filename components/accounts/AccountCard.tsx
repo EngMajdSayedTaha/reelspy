@@ -5,6 +5,7 @@ import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-re
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError, requestJson } from "@/lib/utils/api";
 
 type Account = {
@@ -48,6 +49,7 @@ export function AccountCard({
   assignGroupAction,
   toggleActiveAction,
 }: AccountCardProps) {
+  const confirm = useConfirm();
   const isActive = account.is_active !== false;
 
   // Controlled group value so the dropdown reflects the saved group immediately.
@@ -119,10 +121,15 @@ export function AccountCard({
     });
   };
 
-  const handleRemove = () => {
-    if (!window.confirm(`Remove @${account.ig_username}? This also deletes its tracked reels.`)) {
-      return;
-    }
+  const handleRemove = async () => {
+    const ok = await confirm({
+      title: `Remove @${account.ig_username}?`,
+      description: "This also deletes its tracked reels. This can't be undone.",
+      confirmText: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
+
     const data = new FormData();
     data.set("account_id", account.id);
     startAction(async () => {

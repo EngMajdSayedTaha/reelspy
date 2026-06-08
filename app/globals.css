@@ -89,3 +89,20 @@ body {
   background: #383838;
   background-clip: content-box;
 }
+
+/* Interactive elements get a pointer cursor (Tailwind v4 no longer defaults this). */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+label[for],
+select:not(:disabled),
+summary,
+[data-slot="trigger"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}

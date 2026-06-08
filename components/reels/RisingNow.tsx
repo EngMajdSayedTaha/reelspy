@@ -11,6 +11,7 @@ type RisingNowProps = {
   currentGroup: string;
   markWorkedAction: (formData: FormData) => Promise<void>;
   discardAction: (formData: FormData) => Promise<void>;
+  favoriteAction: (formData: FormData) => Promise<void>;
 };
 
 export function RisingNow({
@@ -19,6 +20,7 @@ export function RisingNow({
   currentGroup,
   markWorkedAction,
   discardAction,
+  favoriteAction,
 }: RisingNowProps) {
   return (
     <section className="space-y-3">
@@ -46,6 +48,7 @@ export function RisingNow({
               reel={reel}
               markWorkedAction={markWorkedAction}
               discardAction={discardAction}
+              favoriteAction={favoriteAction}
             />
             </div>
           ))}

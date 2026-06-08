@@ -18,7 +18,7 @@ const LIMIT_OPTIONS = [25, 50, 100, 200];
 export function SyncButton() {
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [limit, setLimit] = useState(50);
+  const [limit, setLimit] = useState(25);
 
   const handleSyncAll = async () => {
     setIsSyncing(true);

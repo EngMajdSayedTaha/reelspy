@@ -6,7 +6,7 @@ import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
-import { markReelAsWorkedOn, setReelDiscarded } from "./actions";
+import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
 
 export type FeedReel = {
   id: string;
@@ -22,6 +22,7 @@ export type FeedReel = {
   transcript_status: string | null;
   viral_pattern: string | null;
   is_discarded: boolean | null;
+  is_favorite: boolean | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -134,7 +135,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id)
@@ -170,6 +171,8 @@ export default async function FeedPage({
       query = query.eq("is_worked_on", false);
     } else if (status === "worked") {
       query = query.eq("is_worked_on", true);
+    } else if (status === "favorites") {
+      query = query.eq("is_favorite", true);
     }
   }
 
@@ -215,7 +218,7 @@ export default async function FeedPage({
     let recentQuery = supabase
       .from("tracked_reels")
       .select(
-        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true)
@@ -264,6 +267,7 @@ export default async function FeedPage({
           currentGroup={risingGroup}
           markWorkedAction={markReelAsWorkedOn}
           discardAction={setReelDiscarded}
+          favoriteAction={setReelFavorited}
         />
       ) : null}
 
@@ -278,6 +282,7 @@ export default async function FeedPage({
         reels={reels}
         markWorkedAction={markReelAsWorkedOn}
         discardAction={setReelDiscarded}
+        favoriteAction={setReelFavorited}
         hasFilters={hasFilters}
       />
 

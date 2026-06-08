@@ -68,3 +68,36 @@ export async function setReelDiscarded(formData: FormData) {
 
   revalidatePath("/dashboard/feed");
 }
+
+export async function setReelFavorited(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const reelId = formData.get("reel_id");
+  if (typeof reelId !== "string" || !reelId) {
+    throw new Error("Reel id is required.");
+  }
+
+  const favorite = formData.get("favorite") === "true";
+
+  const { error } = await supabase
+    .from("tracked_reels")
+    .update({
+      is_favorite: favorite,
+      favorited_at: favorite ? new Date().toISOString() : null,
+    })
+    .eq("id", reelId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/feed");
+}
