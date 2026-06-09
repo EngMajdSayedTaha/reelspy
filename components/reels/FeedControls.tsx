@@ -73,7 +73,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
     // Any filter/sort change resets pagination.
     next.delete("page");
     startTransition(() => {
-      router.push(`${pathname}?${next.toString()}`);
+      router.push(`${pathname}?${next.toString()}`, { scroll: false });
     });
   }
 

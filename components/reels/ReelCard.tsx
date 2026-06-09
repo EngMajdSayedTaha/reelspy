@@ -120,7 +120,7 @@ export function ReelCard({
             title={`Reel by @${username}`}
             className="absolute inset-0 h-full w-full"
             loading="lazy"
-            allow="encrypted-media; clipboard-write"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
             scrolling="no"
           />
         ) : (

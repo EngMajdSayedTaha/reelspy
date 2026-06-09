@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export function AccountCard({
   assignGroupAction,
   toggleActiveAction,
 }: AccountCardProps) {
+  const router = useRouter();
   const confirm = useConfirm();
   const isActive = account.is_active !== false;
 
@@ -100,6 +102,7 @@ export function AccountCard({
       if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
       }
+      router.refresh();
     } catch (error) {
       notifyError(error, "Sync failed.");
     } finally {
