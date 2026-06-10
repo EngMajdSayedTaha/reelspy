@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAccountReels } from "@/lib/instagram/graph-api";
+import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 
 // Paced requests + multi-account loops need a generous budget.
 export const runtime = "nodejs";
@@ -81,11 +82,16 @@ export async function POST(request: Request) {
     });
   }
 
+  // Shared, app-wide guard. Business Discovery is rate-limited per Meta APP
+  // (not per user), so this protects every connected account at once.
+  const limiter = createMetaRateLimiter(supabase, user.id);
+
   let totalInserted = 0;
   let totalUpdated = 0;
   const errors: string[] = [];
 
   let rateLimitHit = false;
+  let retryAfterSeconds: number | undefined;
 
   for (let i = 0; i < accounts.length; i++) {
     const account = accounts[i];
@@ -95,12 +101,22 @@ export async function POST(request: Request) {
       await sleep(500);
     }
 
-    const { reels, error: fetchError, rateLimited } = await fetchAccountReels(
+    const {
+      reels,
+      error: fetchError,
+      rateLimited,
+      retryAfterSeconds: accountRetryAfter,
+    } = await fetchAccountReels(
       profile.ig_user_id,
       profile.ig_access_token,
       account.ig_username,
-      syncLimit
+      syncLimit,
+      limiter
     );
+
+    if (rateLimited) {
+      retryAfterSeconds = accountRetryAfter ?? retryAfterSeconds;
+    }
 
     if (rateLimited && reels.length === 0) {
       rateLimitHit = true;
@@ -189,14 +205,30 @@ export async function POST(request: Request) {
   }
 
   if (rateLimitHit) {
+    const mins = retryAfterSeconds ? Math.max(1, Math.ceil(retryAfterSeconds / 60)) : null;
     errors.push(
-      "Instagram's hourly rate limit was reached, so syncing stopped early. Wait about an hour and sync fewer accounts at a time."
+      mins
+        ? `Instagram's rate limit was reached, so syncing stopped early. Try again in about ${mins} min.`
+        : "Instagram's hourly rate limit was reached, so syncing stopped early. Wait about an hour and sync fewer accounts at a time."
     );
   }
 
-  return NextResponse.json({
+  const payload = {
     inserted: totalInserted,
     updated: totalUpdated,
+    rateLimited: rateLimitHit || undefined,
+    retryAfterSeconds: rateLimitHit ? retryAfterSeconds : undefined,
     errors: errors.length > 0 ? errors : undefined,
-  });
+  };
+
+  // Surface throttling as 429 + Retry-After so clients (and proxies) can back off
+  // properly, but only when nothing synced — partial successes stay 200.
+  if (rateLimitHit && totalInserted === 0 && totalUpdated === 0) {
+    return NextResponse.json(payload, {
+      status: 429,
+      headers: retryAfterSeconds ? { "Retry-After": String(Math.ceil(retryAfterSeconds)) } : undefined,
+    });
+  }
+
+  return NextResponse.json(payload);
 }

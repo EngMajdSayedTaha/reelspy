@@ -9,6 +9,8 @@
 //  - The Meta app has the "Facebook Login" product configured
 //  - Token is a long-lived Facebook USER token
 
+import { MetaRateLimitError, type MetaRateLimiter } from "./rate-limit";
+
 const GRAPH_VERSION = "v23.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
@@ -78,8 +80,21 @@ export function buildInstagramConnectUrl(params: FacebookConnectUrlParams) {
   return toUrl(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`, query).toString();
 }
 
-async function fetchJson<T>(url: URL, init?: RequestInit): Promise<T> {
+// When a `limiter` is supplied, every call passes through the shared app-level
+// guard: acquire() before the request (may throw MetaRateLimitError), observe()
+// after to feed Meta's usage headers back into the circuit breaker.
+async function fetchJson<T>(
+  url: URL,
+  init?: RequestInit,
+  limiter?: MetaRateLimiter
+): Promise<T> {
+  await limiter?.acquire();
+
   const response = await fetch(url, { ...init, cache: "no-store" });
+
+  if (limiter) {
+    await limiter.observe(response.headers, response.status);
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -214,15 +229,16 @@ function sleep(ms: number): Promise<void> {
 export async function fetchBusinessDiscovery(
   myIgUserId: string,
   token: string,
-  targetUsername: string
-): Promise<{ profile: BusinessDiscoveryProfile | null; error?: string }> {
+  targetUsername: string,
+  limiter?: MetaRateLimiter
+): Promise<{ profile: BusinessDiscoveryProfile | null; error?: string; rateLimited?: boolean }> {
   const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
     fields: `business_discovery.username(${targetUsername}){username,followers_count,profile_picture_url}`,
     access_token: token,
   });
 
   try {
-    const json = await fetchJson<JsonRecord>(url);
+    const json = await fetchJson<JsonRecord>(url, undefined, limiter);
     const discovery = json.business_discovery as JsonRecord | undefined;
     if (!discovery) {
       return { profile: null, error: "Account not found or not a Business/Creator account." };
@@ -239,7 +255,19 @@ export async function fetchBusinessDiscovery(
       },
     };
   } catch (err) {
+    // The shared guard deferred this call before it left our server.
+    if (err instanceof MetaRateLimitError) {
+      return { profile: null, error: err.message, rateLimited: true };
+    }
     const message = err instanceof Error ? err.message : String(err);
+    if (isRateLimitError(message)) {
+      await limiter?.recordThrottle();
+      return {
+        profile: null,
+        error: "Instagram rate limit reached. Wait a bit, then try again.",
+        rateLimited: true,
+      };
+    }
     const friendly = parseGraphError(message);
     if (friendly) {
       return { profile: null, error: friendly };
@@ -286,8 +314,14 @@ export async function fetchAccountReels(
   myIgUserId: string,
   token: string,
   targetUsername: string,
-  maxReels = 25
-): Promise<{ reels: InstagramMedia[]; error?: string; rateLimited?: boolean }> {
+  maxReels = 25,
+  limiter?: MetaRateLimiter
+): Promise<{
+  reels: InstagramMedia[];
+  error?: string;
+  rateLimited?: boolean;
+  retryAfterSeconds?: number;
+}> {
   const mediaFields =
     "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
 
@@ -308,7 +342,7 @@ export async function fetchAccountReels(
         access_token: token,
       });
 
-      const json = await fetchJson<JsonRecord>(url);
+      const json = await fetchJson<JsonRecord>(url, undefined, limiter);
       const discovery = json.business_discovery as JsonRecord | undefined;
       const media = discovery?.media as JsonRecord | undefined;
       const pageItems = (media?.data as JsonRecord[] | undefined) ?? [];
@@ -336,8 +370,23 @@ export async function fetchAccountReels(
 
     return { reels };
   } catch (err) {
+    // The shared guard deferred this call before it left our server. Keep any
+    // reels gathered on earlier pages and surface the precise retry window.
+    if (err instanceof MetaRateLimitError) {
+      return {
+        reels,
+        error: reels.length > 0 ? undefined : err.message,
+        rateLimited: true,
+        retryAfterSeconds: err.retryAfterSeconds,
+      };
+    }
+
     const message = err instanceof Error ? err.message : String(err);
     const rateLimited = isRateLimitError(message);
+    // Meta itself throttled us — trip the shared circuit so other users back off too.
+    if (rateLimited) {
+      await limiter?.recordThrottle();
+    }
     // If we already collected some reels before the error, keep them.
     if (reels.length > 0) {
       return { reels, rateLimited: rateLimited || undefined };
