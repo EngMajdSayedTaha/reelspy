@@ -39,6 +39,10 @@ const REFILL_PER_SEC = HOURLY_BUDGET / 3600;
 
 export type RateLimitReason = "circuit_open" | "user_quota" | "app_budget" | "rate_limited";
 
+// Fixed quota identity for the background snapshot worker (not a real auth user).
+// The FK from meta_api_user_usage to auth.users is dropped so this id can exist.
+export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
 function messageFor(reason: string, retryAfterSeconds: number): string {
   const mins = Math.max(1, Math.ceil(retryAfterSeconds / 60));
   switch (reason) {
@@ -109,9 +113,13 @@ export function parseUsageHeaders(headers: Headers): UsageSnapshot {
 }
 
 export class MetaRateLimiter {
+  // userCap lets the background worker spend up to the full app budget (it's not
+  // a real user that should be held to the per-user cap), while still obeying
+  // the shared token bucket and circuit breaker.
   constructor(
     private readonly supabase: SupabaseClient,
-    private readonly userId: string
+    private readonly userId: string,
+    private readonly userCap: number = USER_HOURLY_BUDGET
   ) {}
 
   // Pre-flight gate. Throws MetaRateLimitError when a call must be deferred.
@@ -121,7 +129,7 @@ export class MetaRateLimiter {
       p_cost: cost,
       p_capacity: HOURLY_BUDGET,
       p_refill_per_sec: REFILL_PER_SEC,
-      p_user_cap: USER_HOURLY_BUDGET,
+      p_user_cap: this.userCap,
     });
 
     if (error) {
@@ -179,6 +187,10 @@ export class MetaRateLimiter {
   }
 }
 
-export function createMetaRateLimiter(supabase: SupabaseClient, userId: string): MetaRateLimiter {
-  return new MetaRateLimiter(supabase, userId);
+export function createMetaRateLimiter(
+  supabase: SupabaseClient,
+  userId: string,
+  userCap?: number
+): MetaRateLimiter {
+  return new MetaRateLimiter(supabase, userId, userCap);
 }

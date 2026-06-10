@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { fetchAccountReels } from "@/lib/instagram/graph-api";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
+import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
 
 // Paced requests + multi-account loops need a generous budget.
 export const runtime = "nodejs";
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("ig_access_token, ig_user_id")
+    .select("ig_access_token, ig_user_id, ig_token_status")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -50,6 +51,15 @@ export async function POST(request: Request) {
   if (!profile?.ig_access_token || !profile.ig_user_id) {
     return NextResponse.json(
       { error: "Instagram account is not connected. Go to Settings → Instagram to connect." },
+      { status: 400 }
+    );
+  }
+
+  // Token was flagged dead by the refresh worker — tell the user to reconnect
+  // instead of letting every sync fail silently.
+  if (profile.ig_token_status === "invalid" || profile.ig_token_status === "expired") {
+    return NextResponse.json(
+      { error: "Your Instagram connection expired. Go to Settings → Instagram to reconnect." },
       { status: 400 }
     );
   }
@@ -85,6 +95,8 @@ export async function POST(request: Request) {
   // Shared, app-wide guard. Business Discovery is rate-limited per Meta APP
   // (not per user), so this protects every connected account at once.
   const limiter = createMetaRateLimiter(supabase, user.id);
+  // Admin client for the global snapshot cache (RLS-locked shared tables).
+  const admin = createAdminClient();
 
   let totalInserted = 0;
   let totalUpdated = 0;
@@ -97,111 +109,51 @@ export async function POST(request: Request) {
     const account = accounts[i];
 
     // Throttle between accounts to stay under Instagram's app-level rate limit.
+    // (Only matters when the snapshot is stale and we actually call Meta.)
     if (i > 0) {
-      await sleep(500);
+      await sleep(300);
     }
 
-    const {
-      reels,
-      error: fetchError,
-      rateLimited,
-      retryAfterSeconds: accountRetryAfter,
-    } = await fetchAccountReels(
+    // 1) Refresh the SHARED snapshot if stale — deduped across every user, and
+    //    skipped entirely (no Graph call) when the cache is still warm.
+    const snap = await refreshAccountSnapshot(
+      admin,
+      limiter,
       profile.ig_user_id,
       profile.ig_access_token,
       account.ig_username,
-      syncLimit,
-      limiter
+      { maxReels: syncLimit }
     );
 
-    if (rateLimited) {
-      retryAfterSeconds = accountRetryAfter ?? retryAfterSeconds;
-    }
-
-    if (rateLimited && reels.length === 0) {
+    if (snap.rateLimited) {
+      retryAfterSeconds = snap.retryAfterSeconds ?? retryAfterSeconds;
       rateLimitHit = true;
-      break;
     }
 
-    if (fetchError) {
-      errors.push(`@${account.ig_username}: ${fetchError}`);
-      continue;
+    if (snap.status === "error" || snap.status === "not_found") {
+      if (snap.error) errors.push(`@${account.ig_username}: ${snap.error}`);
     }
 
-    if (reels.length === 0) {
-      // Update last_synced_at even if no new reels
-      await supabase
-        .from("inspiration_accounts")
-        .update({ last_synced_at: new Date().toISOString() })
-        .eq("id", account.id);
-      continue;
-    }
-
-    const mediaIds = reels.map((r) => r.id).filter(Boolean);
-
-    const { data: existingRows } = await supabase
-      .from("tracked_reels")
-      .select("ig_media_id")
-      .eq("user_id", user.id)
-      .in("ig_media_id", mediaIds);
-
-    const existingIds = new Set((existingRows ?? []).map((row) => row.ig_media_id));
-
-    const inserts = reels
-      .filter((r) => r.id && !existingIds.has(r.id) && r.permalink)
-      .map((r) => ({
-        user_id: user.id,
-        account_id: account.id,
-        ig_media_id: r.id,
-        ig_permalink: r.permalink!,
-        caption: r.caption ?? null,
-        thumbnail_url: r.thumbnail_url ?? null,
-        view_count: r.view_count ?? 0,
-        like_count: r.like_count ?? 0,
-        comment_count: r.comments_count ?? 0,
-        posted_at: r.timestamp ?? null,
-      }));
-
-    if (inserts.length > 0) {
-      const { error: insertError } = await supabase.from("tracked_reels").insert(inserts);
-      if (insertError) {
-        errors.push(`@${account.ig_username}: ${insertError.message}`);
-        continue;
-      }
-      totalInserted += inserts.length;
-    }
-
-    // Refresh metrics on reels we already track — counts (and views) change over
-    // time, and reels synced before view_count support need backfilling.
-    const updates = reels.filter((r) => r.id && existingIds.has(r.id));
-    for (const r of updates) {
-      const { error: updateError } = await supabase
-        .from("tracked_reels")
-        .update({
-          view_count: r.view_count ?? 0,
-          like_count: r.like_count ?? 0,
-          comment_count: r.comments_count ?? 0,
-          thumbnail_url: r.thumbnail_url ?? null,
-        })
-        .eq("user_id", user.id)
-        .eq("ig_media_id", r.id);
-      if (updateError) {
-        errors.push(`@${account.ig_username}: ${updateError.message}`);
-        break;
-      }
-    }
-    totalUpdated += updates.length;
+    // 2) Materialize from the cache into this user's feed — pure DB, no quota.
+    //    Runs even when the refresh was throttled, so users still get cached reels.
+    const { inserted, updated } = await materializeForUser(
+      admin,
+      supabase,
+      user.id,
+      account.id,
+      account.ig_username,
+      syncLimit
+    );
+    totalInserted += inserted;
+    totalUpdated += updated;
 
     await supabase
       .from("inspiration_accounts")
       .update({ last_synced_at: new Date().toISOString() })
       .eq("id", account.id);
 
-    // Kept the partial reels above; stop here so we don't worsen the limit.
-    if (rateLimited) {
-      rateLimitHit = true;
-      break;
-    }
+    // Stop early on throttling so we don't worsen the app-level limit.
+    if (rateLimitHit) break;
   }
 
   if (rateLimitHit) {

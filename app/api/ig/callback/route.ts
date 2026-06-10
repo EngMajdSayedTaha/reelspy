@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const shortToken = await exchangeCodeForAccessToken(code);
-    const longLivedToken = await exchangeForLongLivedToken(shortToken);
+    const { accessToken: longLivedToken, expiresInSeconds } =
+      await exchangeForLongLivedToken(shortToken);
     const igAccount = await getInstagramBusinessAccount(longLivedToken);
 
     if (!igAccount) {
@@ -57,12 +58,19 @@ export async function GET(request: NextRequest) {
 
     const igProfile = { id: igAccount.igUserId, username: igAccount.username };
 
+    const expiresAt = expiresInSeconds
+      ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
+      : null;
+
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         ig_access_token: longLivedToken,
         ig_user_id: igProfile.id,
         username: igProfile.username,
+        ig_token_expires_at: expiresAt,
+        ig_token_status: "active",
+        ig_token_refreshed_at: new Date().toISOString(),
       })
       .eq("id", user.id);
 

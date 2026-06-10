@@ -1,0 +1,231 @@
+// Global snapshot cache — the dedup layer that makes Business Discovery scale.
+//
+// Every public account is fetched from Meta at most once per TTL and stored in
+// ig_account_snapshots / ig_reel_snapshots. N users tracking the same account
+// then share that single fetch instead of each spending app-level quota. The
+// per-user feed (tracked_reels, which also holds favorites/discards/transcripts)
+// is "materialized" from the cache with pure DB work — no Graph calls.
+//
+// All cache IO uses the service-role (admin) client because the tables are
+// RLS-locked global state; the actual Graph fetch still flows through the
+// shared MetaRateLimiter so the token bucket + circuit breaker govern it.
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAccountReels } from "./graph-api";
+import type { MetaRateLimiter } from "./rate-limit";
+
+function numEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
+const DEFAULT_MAX_REELS = numEnv("SNAPSHOT_MAX_REELS", 25);
+
+export type SnapshotResult = {
+  status: "ok" | "error" | "rate_limited" | "not_found";
+  fetched: boolean; // true if we actually called Meta this time
+  rateLimited?: boolean;
+  retryAfterSeconds?: number;
+  error?: string;
+};
+
+function normalize(username: string): string {
+  return username.trim().replace(/^@+/, "").toLowerCase();
+}
+
+// Refresh one public account's snapshot if it's stale. Deduped across all users.
+export async function refreshAccountSnapshot(
+  admin: SupabaseClient,
+  limiter: MetaRateLimiter,
+  callerIgUserId: string,
+  callerToken: string,
+  username: string,
+  opts?: { ttlSeconds?: number; maxReels?: number; force?: boolean }
+): Promise<SnapshotResult> {
+  const uname = normalize(username);
+  const ttlSeconds = opts?.ttlSeconds ?? DEFAULT_TTL_SECONDS;
+  const maxReels = opts?.maxReels ?? DEFAULT_MAX_REELS;
+
+  // Ensure the account row exists (needed for the reel FK and freshness check).
+  await admin
+    .from("ig_account_snapshots")
+    .upsert({ ig_username: uname }, { onConflict: "ig_username", ignoreDuplicates: true });
+
+  if (!opts?.force) {
+    const { data: snap } = await admin
+      .from("ig_account_snapshots")
+      .select("last_fetched_at, last_status")
+      .eq("ig_username", uname)
+      .maybeSingle();
+
+    const freshUntil = snap?.last_fetched_at
+      ? new Date(snap.last_fetched_at).getTime() + ttlSeconds * 1000
+      : 0;
+
+    if (snap?.last_status === "ok" && freshUntil > Date.now()) {
+      return { status: "ok", fetched: false };
+    }
+  }
+
+  const { reels, error, rateLimited, retryAfterSeconds } = await fetchAccountReels(
+    callerIgUserId,
+    callerToken,
+    uname,
+    maxReels,
+    limiter
+  );
+
+  // Throttled with nothing new — leave the existing cache intact and report it.
+  if (rateLimited && reels.length === 0) {
+    await admin
+      .from("ig_account_snapshots")
+      .update({ last_status: "rate_limited", last_error: error ?? "rate limited" })
+      .eq("ig_username", uname);
+    return { status: "rate_limited", fetched: false, rateLimited: true, retryAfterSeconds, error };
+  }
+
+  if (error && reels.length === 0) {
+    const notFound = /not found|private|not a business/i.test(error);
+    await admin
+      .from("ig_account_snapshots")
+      .update({ last_status: notFound ? "not_found" : "error", last_error: error })
+      .eq("ig_username", uname);
+    return { status: notFound ? "not_found" : "error", fetched: false, error };
+  }
+
+  if (reels.length > 0) {
+    const rows = reels
+      .filter((r) => r.id && r.permalink)
+      .map((r) => ({
+        ig_username: uname,
+        ig_media_id: r.id,
+        permalink: r.permalink!,
+        caption: r.caption ?? null,
+        thumbnail_url: r.thumbnail_url ?? null,
+        view_count: r.view_count ?? 0,
+        like_count: r.like_count ?? 0,
+        comment_count: r.comments_count ?? 0,
+        posted_at: r.timestamp ?? null,
+        last_seen_at: new Date().toISOString(),
+      }));
+
+    if (rows.length > 0) {
+      await admin
+        .from("ig_reel_snapshots")
+        .upsert(rows, { onConflict: "ig_username,ig_media_id" });
+    }
+  }
+
+  await admin
+    .from("ig_account_snapshots")
+    .update({ last_fetched_at: new Date().toISOString(), last_status: "ok", last_error: null })
+    .eq("ig_username", uname);
+
+  return { status: "ok", fetched: true, rateLimited: rateLimited || undefined, retryAfterSeconds };
+}
+
+// Copy shared snapshot reels into one user's personal feed. Pure DB work: no
+// Graph calls, no rate-limit cost. Inserts new reels and refreshes public
+// metrics on existing ones, preserving per-user state (favorites, discards…).
+export async function materializeForUser(
+  admin: SupabaseClient,
+  db: SupabaseClient,
+  userId: string,
+  accountId: string,
+  username: string,
+  limit?: number
+): Promise<{ inserted: number; updated: number }> {
+  const uname = normalize(username);
+
+  let query = admin
+    .from("ig_reel_snapshots")
+    .select("ig_media_id, permalink, caption, thumbnail_url, view_count, like_count, comment_count, posted_at")
+    .eq("ig_username", uname)
+    .order("posted_at", { ascending: false, nullsFirst: false });
+
+  if (limit && limit > 0) query = query.limit(limit);
+
+  const { data: snapReels } = await query;
+  const rows = snapReels ?? [];
+  if (rows.length === 0) return { inserted: 0, updated: 0 };
+
+  const mediaIds = rows.map((r) => r.ig_media_id).filter(Boolean);
+
+  const { data: existing } = await db
+    .from("tracked_reels")
+    .select("ig_media_id")
+    .eq("user_id", userId)
+    .in("ig_media_id", mediaIds);
+
+  const existingIds = new Set((existing ?? []).map((r) => r.ig_media_id));
+
+  const inserts = rows
+    .filter((r) => r.ig_media_id && r.permalink && !existingIds.has(r.ig_media_id))
+    .map((r) => ({
+      user_id: userId,
+      account_id: accountId,
+      ig_media_id: r.ig_media_id,
+      ig_permalink: r.permalink,
+      caption: r.caption,
+      thumbnail_url: r.thumbnail_url,
+      view_count: r.view_count ?? 0,
+      like_count: r.like_count ?? 0,
+      comment_count: r.comment_count ?? 0,
+      posted_at: r.posted_at,
+    }));
+
+  let inserted = 0;
+  if (inserts.length > 0) {
+    const { error } = await db.from("tracked_reels").insert(inserts);
+    if (!error) inserted = inserts.length;
+  }
+
+  let updated = 0;
+  for (const r of rows) {
+    if (!existingIds.has(r.ig_media_id)) continue;
+    const { error } = await db
+      .from("tracked_reels")
+      .update({
+        view_count: r.view_count ?? 0,
+        like_count: r.like_count ?? 0,
+        comment_count: r.comment_count ?? 0,
+        thumbnail_url: r.thumbnail_url,
+      })
+      .eq("user_id", userId)
+      .eq("ig_media_id", r.ig_media_id);
+    if (!error) updated += 1;
+  }
+
+  return { inserted, updated };
+}
+
+export type HealthyToken = { userId: string; igUserId: string; token: string };
+
+// Pick any connected creator's healthy token for the background worker. Business
+// Discovery can read any public account with any valid token, and the rate limit
+// is app-level, so one healthy token is enough; we rotate by least-recently-used
+// to surface dead tokens. Returns null when nobody has connected yet.
+export async function pickHealthyToken(admin: SupabaseClient): Promise<HealthyToken | null> {
+  const nowIso = new Date().toISOString();
+  const { data } = await admin
+    .from("profiles")
+    .select("id, ig_user_id, ig_access_token, ig_token_expires_at, ig_token_status")
+    .eq("ig_token_status", "active")
+    .not("ig_access_token", "is", null)
+    .not("ig_user_id", "is", null)
+    .order("ig_token_refreshed_at", { ascending: true, nullsFirst: true })
+    .limit(25);
+
+  for (const row of data ?? []) {
+    if (row.ig_token_expires_at && new Date(row.ig_token_expires_at).toISOString() <= nowIso) {
+      continue;
+    }
+    if (row.ig_access_token && row.ig_user_id) {
+      return { userId: row.id, igUserId: row.ig_user_id, token: row.ig_access_token };
+    }
+  }
+
+  return null;
+}

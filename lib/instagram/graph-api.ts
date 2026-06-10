@@ -125,8 +125,12 @@ export async function exchangeCodeForAccessToken(code: string): Promise<string> 
   return json.access_token;
 }
 
-// Exchange a short-lived Facebook token for a long-lived one (~60 days).
-export async function exchangeForLongLivedToken(token: string): Promise<string> {
+export type LongLivedToken = { accessToken: string; expiresInSeconds?: number };
+
+// Exchange a short-lived Facebook token for a long-lived one (~60 days). Also
+// used to REFRESH an existing long-lived token: re-running fb_exchange_token
+// before expiry returns a fresh token with a reset ~60-day window.
+export async function exchangeForLongLivedToken(token: string): Promise<LongLivedToken> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
 
@@ -141,8 +145,20 @@ export async function exchangeForLongLivedToken(token: string): Promise<string> 
     fb_exchange_token: token,
   });
 
-  const json = await fetchJson<{ access_token: string }>(url);
-  return json.access_token;
+  const json = await fetchJson<{ access_token: string; expires_in?: number }>(url);
+  return { accessToken: json.access_token, expiresInSeconds: json.expires_in };
+}
+
+// Detects a dead/invalid token (revoked, expired, password change). On these we
+// stop using the token and flag the user to reconnect, rather than retrying.
+export function isInvalidTokenError(message: string): boolean {
+  return (
+    /\(#?190\)/.test(message) ||
+    /error validating access token/i.test(message) ||
+    /session has been invalidated/i.test(message) ||
+    /access token.*expired/i.test(message) ||
+    /code\\?":\s*190/.test(message)
+  );
 }
 
 // Find the Instagram Business account linked to the user's Facebook Pages.
