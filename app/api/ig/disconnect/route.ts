@@ -14,7 +14,13 @@ export async function GET(request: Request) {
 
   await supabase
     .from("profiles")
-    .update({ ig_access_token: null, ig_user_id: null })
+    .update({
+      ig_access_token: null,
+      ig_user_id: null,
+      ig_token_expires_at: null,
+      ig_token_status: "active",
+      ig_token_refreshed_at: null,
+    })
     .eq("id", user.id);
 
   return NextResponse.redirect(

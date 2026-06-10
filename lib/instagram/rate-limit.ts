@@ -187,6 +187,60 @@ export class MetaRateLimiter {
   }
 }
 
+export type RateLimitStatus = {
+  throttled: boolean; // app-wide circuit breaker is open
+  retryAfterSeconds: number; // seconds until the circuit clears (0 if not throttled)
+  appUsagePct: number; // last observed worst-case X-App-Usage %
+  userUsed: number; // this user's calls in the current rolling hour
+  userCap: number; // per-user hourly cap
+  userResetSeconds: number; // seconds until the user's hourly window resets
+};
+
+// Read-only snapshot of the shared limiter + this user's window, for UI display.
+// Uses an admin client because the limiter tables are RLS-locked global state.
+export async function readRateLimitStatus(
+  admin: SupabaseClient,
+  userId: string
+): Promise<RateLimitStatus> {
+  const now = Date.now();
+
+  const { data: limiter } = await admin
+    .from("meta_api_limiter")
+    .select("throttled_until, app_usage_pct")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const throttledUntil = limiter?.throttled_until
+    ? new Date(limiter.throttled_until).getTime()
+    : 0;
+  const throttled = throttledUntil > now;
+
+  const { data: usage } = await admin
+    .from("meta_api_user_usage")
+    .select("window_start, call_count")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  let userUsed = 0;
+  let userResetSeconds = 0;
+  if (usage?.window_start) {
+    const ageSeconds = (now - new Date(usage.window_start).getTime()) / 1000;
+    if (ageSeconds < 3600) {
+      userUsed = usage.call_count ?? 0;
+      userResetSeconds = Math.ceil(3600 - ageSeconds);
+    }
+  }
+
+  return {
+    throttled,
+    retryAfterSeconds: throttled ? Math.ceil((throttledUntil - now) / 1000) : 0,
+    appUsagePct: limiter?.app_usage_pct ?? 0,
+    userUsed,
+    userCap: USER_HOURLY_BUDGET,
+    userResetSeconds,
+  };
+}
+
 export function createMetaRateLimiter(
   supabase: SupabaseClient,
   userId: string,

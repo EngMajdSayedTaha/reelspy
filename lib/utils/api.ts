@@ -1,12 +1,15 @@
 import { toast } from "sonner";
 
-// Typed API error carrying the HTTP status so callers can react (e.g. 401).
+// Typed API error carrying the HTTP status so callers can react (e.g. 401),
+// plus an optional retry hint (seconds) for rate-limit (429) responses.
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  retryAfterSeconds?: number;
+  constructor(message: string, status: number, retryAfterSeconds?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -37,11 +40,33 @@ export async function requestJson<T = unknown>(
     if (response.status === 401) {
       throw new ApiError("Your session has expired. Please sign in again.", 401);
     }
-    const message =
-      body && typeof body === "object" && "error" in body && typeof body.error === "string"
-        ? body.error
-        : `Request failed (${response.status}).`;
-    throw new ApiError(message, response.status);
+
+    const record = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+
+    // Prefer the API's `error`, then the first `errors[]` entry, then a default.
+    let message = `Request failed (${response.status}).`;
+    if (record && typeof record.error === "string" && record.error) {
+      message = record.error;
+    } else if (
+      record &&
+      Array.isArray(record.errors) &&
+      typeof record.errors[0] === "string"
+    ) {
+      message = record.errors[0] as string;
+    } else if (response.status === 429) {
+      message = "Instagram's request limit was reached. Please try again shortly.";
+    }
+
+    // Retry hint: body field first, then the Retry-After header.
+    let retryAfterSeconds: number | undefined;
+    if (record && typeof record.retryAfterSeconds === "number") {
+      retryAfterSeconds = record.retryAfterSeconds;
+    } else {
+      const header = Number(response.headers.get("Retry-After"));
+      if (Number.isFinite(header) && header > 0) retryAfterSeconds = header;
+    }
+
+    throw new ApiError(message, response.status, retryAfterSeconds);
   }
 
   return body as T;

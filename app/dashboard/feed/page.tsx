@@ -3,6 +3,7 @@ import { ReelFeed } from "@/components/reels/ReelFeed";
 import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
+import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
@@ -294,6 +295,7 @@ export default async function FeedPage({
 
         <div className="flex flex-col items-end gap-2">
           <SyncButton />
+          <RateLimitStatus />
           <PatternBackfill initialMissing={missingPatternCount ?? 0} />
         </div>
       </div>

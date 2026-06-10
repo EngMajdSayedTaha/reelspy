@@ -5,13 +5,23 @@ import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { notifyError, requestJson } from "@/lib/utils/api";
+import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 
 type SyncResult = {
   inserted?: number;
   updated?: number;
+  rateLimited?: boolean;
+  retryAfterSeconds?: number;
   errors?: string[];
 };
+
+function formatWindow(seconds?: number): string {
+  if (!seconds || seconds <= 0) return "about an hour";
+  const mins = Math.ceil(seconds / 60);
+  if (mins < 60) return `about ${mins} min`;
+  const hrs = Math.round(mins / 60);
+  return `about ${hrs} hr${hrs > 1 ? "s" : ""}`;
+}
 
 const LIMIT_OPTIONS = [25, 50, 100, 200];
 
@@ -31,12 +41,43 @@ export function SyncButton() {
       });
 
       toast.success(`Synced: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
-      if (json.errors?.length) {
+
+      // Partial throttle (some reels synced from cache, then we paused).
+      if (json.rateLimited) {
+        toast.warning(
+          `Instagram's hourly limit was reached — paused early. Try again in ${formatWindow(
+            json.retryAfterSeconds
+          )}.`,
+          { icon: "⏳", duration: 8000 }
+        );
+        window.dispatchEvent(
+          new CustomEvent("reelspy:ratelimit", {
+            detail: { retryAfterSeconds: json.retryAfterSeconds },
+          })
+        );
+      } else if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
       }
+
+      window.dispatchEvent(new CustomEvent("reelspy:synced"));
       router.refresh();
     } catch (error) {
-      notifyError(error, "Sync failed. Check your Instagram connection.");
+      // A full 429 (nothing synced) gets a clear, friendly message + cooldown.
+      if (error instanceof ApiError && error.status === 429) {
+        toast.error(
+          `Instagram's hourly request limit was reached. Try again in ${formatWindow(
+            error.retryAfterSeconds
+          )}.`,
+          { icon: "⏳", duration: 8000 }
+        );
+        window.dispatchEvent(
+          new CustomEvent("reelspy:ratelimit", {
+            detail: { retryAfterSeconds: error.retryAfterSeconds },
+          })
+        );
+      } else {
+        notifyError(error, "Sync failed. Check your Instagram connection.");
+      }
     } finally {
       setIsSyncing(false);
     }

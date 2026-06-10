@@ -7,10 +7,14 @@ import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
 
+  // How long toasts stay on screen. Configurable via env; defaults to 5s.
+  const duration = Number(process.env.NEXT_PUBLIC_TOAST_DURATION_MS) || 5000
+
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      duration={duration}
       icons={{
         success: (
           <CircleCheckIcon className="size-4" />

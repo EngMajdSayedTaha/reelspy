@@ -43,7 +43,9 @@ export function RisingNow({
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {reels.map((reel) => (
-            <div key={reel.id} className="w-[280px] shrink-0">
+            // Min 340px: Instagram's /embed iframe renders blank below ~326px,
+            // which is why inline play looked broken in this rail.
+            <div key={reel.id} className="w-[340px] shrink-0">
               <ReelCard
               reel={reel}
               markWorkedAction={markWorkedAction}

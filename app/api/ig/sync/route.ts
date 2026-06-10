@@ -156,13 +156,21 @@ export async function POST(request: Request) {
     if (rateLimitHit) break;
   }
 
+  // Human-readable retry window for the rate-limit message.
+  function formatRetry(seconds?: number): string {
+    if (!seconds || seconds <= 0) return "about an hour";
+    const mins = Math.ceil(seconds / 60);
+    if (mins < 60) return `about ${mins} min`;
+    const hrs = Math.round(mins / 60);
+    return `about ${hrs} hr${hrs > 1 ? "s" : ""}`;
+  }
+
+  let rateLimitMessage: string | undefined;
   if (rateLimitHit) {
-    const mins = retryAfterSeconds ? Math.max(1, Math.ceil(retryAfterSeconds / 60)) : null;
-    errors.push(
-      mins
-        ? `Instagram's rate limit was reached, so syncing stopped early. Try again in about ${mins} min.`
-        : "Instagram's hourly rate limit was reached, so syncing stopped early. Wait about an hour and sync fewer accounts at a time."
-    );
+    rateLimitMessage = `Instagram's hourly request limit was reached, so the sync paused. Try again in ${formatRetry(
+      retryAfterSeconds
+    )}.`;
+    errors.push(rateLimitMessage);
   }
 
   const payload = {
@@ -170,6 +178,8 @@ export async function POST(request: Request) {
     updated: totalUpdated,
     rateLimited: rateLimitHit || undefined,
     retryAfterSeconds: rateLimitHit ? retryAfterSeconds : undefined,
+    // `error` is what the client surfaces as the primary message.
+    error: rateLimitHit && totalInserted === 0 && totalUpdated === 0 ? rateLimitMessage : undefined,
     errors: errors.length > 0 ? errors : undefined,
   };
 
