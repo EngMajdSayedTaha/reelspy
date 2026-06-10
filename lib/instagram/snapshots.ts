@@ -13,12 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAccountReels } from "./graph-api";
 import type { MetaRateLimiter } from "./rate-limit";
-
-function numEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
+import { numEnv } from "@/lib/utils/env";
 
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
 const DEFAULT_MAX_REELS = numEnv("SNAPSHOT_MAX_REELS", 25);
@@ -182,21 +177,25 @@ export async function materializeForUser(
     if (!error) inserted = inserts.length;
   }
 
-  let updated = 0;
-  for (const r of rows) {
-    if (!existingIds.has(r.ig_media_id)) continue;
-    const { error } = await db
-      .from("tracked_reels")
-      .update({
-        view_count: r.view_count ?? 0,
-        like_count: r.like_count ?? 0,
-        comment_count: r.comment_count ?? 0,
-        thumbnail_url: r.thumbnail_url,
-      })
-      .eq("user_id", userId)
-      .eq("ig_media_id", r.ig_media_id);
-    if (!error) updated += 1;
-  }
+  // Metric refreshes are independent per reel — run them concurrently instead
+  // of serially (one round-trip each adds up fast across many accounts).
+  const updateResults = await Promise.all(
+    rows
+      .filter((r) => existingIds.has(r.ig_media_id))
+      .map((r) =>
+        db
+          .from("tracked_reels")
+          .update({
+            view_count: r.view_count ?? 0,
+            like_count: r.like_count ?? 0,
+            comment_count: r.comment_count ?? 0,
+            thumbnail_url: r.thumbnail_url,
+          })
+          .eq("user_id", userId)
+          .eq("ig_media_id", r.ig_media_id)
+      )
+  );
+  const updated = updateResults.filter((r) => !r.error).length;
 
   return { inserted, updated };
 }

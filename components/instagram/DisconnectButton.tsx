@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { notifyError, requestJson } from "@/lib/utils/api";
 
 // Disconnect needs a confirmation step — it clears the stored token and the user
-// has to re-run OAuth to reconnect. Navigates to the disconnect route on confirm.
+// has to re-run OAuth to reconnect. POSTs to the disconnect route on confirm
+// (state changes never ride on GET navigations).
 export function DisconnectButton() {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
@@ -22,7 +24,13 @@ export function DisconnectButton() {
     });
     if (!ok) return;
     setBusy(true);
-    window.location.href = "/api/ig/disconnect";
+    try {
+      await requestJson("/api/ig/disconnect", { method: "POST" });
+      window.location.href = "/dashboard/settings/instagram?success=disconnected";
+    } catch (error) {
+      notifyError(error, "Could not disconnect. Please try again.");
+      setBusy(false);
+    }
   };
 
   return (

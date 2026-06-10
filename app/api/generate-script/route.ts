@@ -3,13 +3,15 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript } from "@/lib/ai/claude";
 
+// Length caps bound what flows into the model prompt and the database — an
+// unbounded caption/context would let a single request burn arbitrary tokens.
 const bodySchema = z.object({
-  reel_id: z.string().optional(),
-  caption: z.string().optional(),
-  viral_pattern: z.string().default("Tool Reveal"),
-  platform: z.string().default("Instagram Reels"),
-  tone: z.string().default("Direct"),
-  custom_context: z.string().optional(),
+  reel_id: z.uuid().optional(),
+  caption: z.string().max(5_000).optional(),
+  viral_pattern: z.string().max(60).default("Tool Reveal"),
+  platform: z.string().max(60).default("Instagram Reels"),
+  tone: z.string().max(60).default("Direct"),
+  custom_context: z.string().max(2_000).optional(),
 });
 
 export async function POST(request: Request) {

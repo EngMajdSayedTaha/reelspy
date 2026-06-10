@@ -10,6 +10,19 @@ import { getReelMetadata, probeYtDlp } from "@/lib/media/ytdlp";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// yt-dlp will happily fetch ANY url it's given (including internal/metadata
+// endpoints), so only Instagram reel URLs are accepted here.
+function isInstagramUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:") return false;
+    const host = parsed.hostname.toLowerCase();
+    return host === "instagram.com" || host === "instagr.am" || host.endsWith(".instagram.com");
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const {
@@ -23,6 +36,10 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("url");
   const transcribe = searchParams.get("transcribe") === "1";
+
+  if (url && !isInstagramUrl(url)) {
+    return NextResponse.json({ error: "Only Instagram URLs are supported." }, { status: 400 });
+  }
 
   const ytdlp = await probeYtDlp();
 

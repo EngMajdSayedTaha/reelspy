@@ -52,6 +52,16 @@ type FacebookConnectUrlParams = {
 
 type JsonRecord = Record<string, unknown>;
 
+// Instagram usernames: letters, digits, dots, underscores, max 30 chars. The
+// username is interpolated into the Graph API `fields` expression
+// (business_discovery.username(...)), so anything outside this alphabet must be
+// rejected to prevent injecting extra fields/arguments into the query.
+const IG_USERNAME_RE = /^[a-z0-9._]{1,30}$/i;
+
+export function isValidIgUsername(username: string): boolean {
+  return IG_USERNAME_RE.test(username);
+}
+
 function toUrl(path: string, searchParams: Record<string, string>) {
   const url = new URL(path);
   for (const [key, value] of Object.entries(searchParams)) {
@@ -209,7 +219,7 @@ export async function getMyProfile(igUserId: string, token: string) {
 // Business Discovery — read a public Business/Creator account's profile.
 // Extracts a human-readable message from a thrown Graph API error string
 // (which embeds Meta's JSON error body). Prefers Meta's user-facing message.
-function parseGraphError(raw: string): string | null {
+export function parseGraphError(raw: string): string | null {
   const start = raw.indexOf("{");
   if (start === -1) return null;
   try {
@@ -248,6 +258,10 @@ export async function fetchBusinessDiscovery(
   targetUsername: string,
   limiter?: MetaRateLimiter
 ): Promise<{ profile: BusinessDiscoveryProfile | null; error?: string; rateLimited?: boolean }> {
+  if (!isValidIgUsername(targetUsername)) {
+    return { profile: null, error: "That doesn't look like a valid Instagram username." };
+  }
+
   const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
     fields: `business_discovery.username(${targetUsername}){username,followers_count,profile_picture_url}`,
     access_token: token,
@@ -338,6 +352,10 @@ export async function fetchAccountReels(
   rateLimited?: boolean;
   retryAfterSeconds?: number;
 }> {
+  if (!isValidIgUsername(targetUsername)) {
+    return { reels: [], error: "That doesn't look like a valid Instagram username." };
+  }
+
   const mediaFields =
     "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
 
@@ -377,8 +395,10 @@ export async function fetchAccountReels(
       const paging = media?.paging as JsonRecord | undefined;
       const cursors = paging?.cursors as JsonRecord | undefined;
       const nextAfter = typeof cursors?.after === "string" ? cursors.after : undefined;
-      // Stop when there's no next cursor or the page came back empty.
-      if (!nextAfter || pageItems.length === 0) break;
+      // Stop when there's no next cursor or the page came back empty. The cursor
+      // is interpolated into the fields expression, so only accept the opaque
+      // token alphabet Meta actually uses — never arbitrary characters.
+      if (!nextAfter || !/^[\w=-]+$/.test(nextAfter) || pageItems.length === 0) break;
       after = nextAfter;
       // Gentle pacing between pages to ease Graph API rate limits.
       await sleep(350);

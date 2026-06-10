@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getIgCredentials } from "@/lib/instagram/token-store";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 
 function formatNumber(n: number | null | undefined) {
@@ -22,26 +24,25 @@ export default async function MyAccountPage() {
     redirect("/login");
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
-    .select("username, ig_user_id, ig_access_token")
+    .select("username")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (profileError) {
-    throw new Error(profileError.message);
-  }
-
-  const connected = Boolean(profile?.ig_user_id && profile?.ig_access_token);
+  // Token reads go through the admin client; browser-facing roles can only see
+  // connection metadata, never the token column.
+  const credentials = await getIgCredentials(createAdminClient(), user.id).catch(() => null);
+  const connected = Boolean(credentials);
 
   let insights = null;
   let recentMedia: Awaited<ReturnType<typeof getMyRecentMedia>>["media"] = [];
   let igError: string | null = null;
 
-  if (connected && profile?.ig_user_id && profile.ig_access_token) {
+  if (credentials) {
     const [insightsResult, mediaResult] = await Promise.allSettled([
-      getMyInsights(profile.ig_user_id, profile.ig_access_token),
-      getMyRecentMedia(profile.ig_user_id, profile.ig_access_token),
+      getMyInsights(credentials.igUserId, credentials.token),
+      getMyRecentMedia(credentials.igUserId, credentials.token),
     ]);
 
     if (insightsResult.status === "fulfilled") {

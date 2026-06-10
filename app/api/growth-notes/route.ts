@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getIgCredentials } from "@/lib/instagram/token-store";
 import { generateGrowthNotes } from "@/lib/ai/claude";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 
@@ -14,13 +16,9 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("ig_access_token, ig_user_id")
-    .eq("id", user.id)
-    .maybeSingle();
+  const credentials = await getIgCredentials(createAdminClient(), user.id).catch(() => null);
 
-  if (!profile?.ig_access_token || !profile.ig_user_id) {
+  if (!credentials) {
     return NextResponse.json(
       { error: "Connect Instagram first to generate AI growth notes." },
       { status: 400 }
@@ -29,8 +27,8 @@ export async function POST() {
 
   try {
     const [insightsResult, mediaResult] = await Promise.allSettled([
-      getMyInsights(profile.ig_user_id, profile.ig_access_token),
-      getMyRecentMedia(profile.ig_user_id, profile.ig_access_token),
+      getMyInsights(credentials.igUserId, credentials.token),
+      getMyRecentMedia(credentials.igUserId, credentials.token),
     ]);
 
     const insights = insightsResult.status === "fulfilled" ? insightsResult.value : null;

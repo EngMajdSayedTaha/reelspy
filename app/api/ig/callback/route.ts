@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { storeIgToken } from "@/lib/instagram/token-store";
 import {
   exchangeCodeForAccessToken,
   exchangeForLongLivedToken,
   getInstagramBusinessAccount,
+  parseGraphError,
 } from "@/lib/instagram/graph-api";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
@@ -62,19 +65,16 @@ export async function GET(request: NextRequest) {
       ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
       : null;
 
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({
-        ig_access_token: longLivedToken,
-        ig_user_id: igProfile.id,
+    // Token writes go through the service-role client: browser-facing roles
+    // have no access to the token column (see 20260611_lock_down_ig_tokens.sql).
+    try {
+      await storeIgToken(createAdminClient(), user.id, {
+        token: longLivedToken,
+        igUserId: igProfile.id,
         username: igProfile.username,
-        ig_token_expires_at: expiresAt,
-        ig_token_status: "active",
-        ig_token_refreshed_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
-
-    if (updateError) {
+        expiresAt,
+      });
+    } catch (updateError) {
       console.error("Failed to update profile with IG token", updateError);
       const profileUpdateResponse = NextResponse.redirect(
         new URL("/dashboard/settings/instagram?error=profile_update_failed", request.url)
@@ -108,13 +108,17 @@ export async function GET(request: NextRequest) {
     successResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return successResponse;
   } catch (callbackError) {
+    // Full detail stays in the server logs; the user only sees Meta's
+    // user-facing message (never raw API bodies, which can include internal
+    // request metadata).
     console.error("Instagram callback failed", callbackError);
-    // Surface the real Meta error so the user can see what went wrong.
-    const detail =
-      callbackError instanceof Error ? callbackError.message : String(callbackError);
+    const raw = callbackError instanceof Error ? callbackError.message : String(callbackError);
+    const friendly = parseGraphError(raw);
     const target = new URL("/dashboard/settings/instagram", request.url);
     target.searchParams.set("error", "oauth_failed");
-    target.searchParams.set("detail", detail.slice(0, 300));
+    if (friendly) {
+      target.searchParams.set("detail", friendly.slice(0, 200));
+    }
     const failureResponse = NextResponse.redirect(target);
     failureResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return failureResponse;

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter, SYSTEM_USER_ID } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapshots";
+import { cronAuthorized } from "@/lib/utils/cron";
+import { numEnv } from "@/lib/utils/env";
 
 // Scheduled worker: keeps the GLOBAL snapshot cache warm so on-demand sync is
 // (almost) always a cheap DB read. It fetches the UNIQUE set of tracked public
@@ -10,25 +12,12 @@ import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapsh
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-function numEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
 const BATCH = numEnv("SNAPSHOT_REFRESH_BATCH", 50);
 const TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600);
 const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
 
-// Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is set.
-function authorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false; // refuse to run unguarded
-  return request.headers.get("authorization") === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

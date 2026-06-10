@@ -49,9 +49,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  // ig_user_id is set/cleared together with the token, so it's a safe
+  // "connected" signal without granting the page access to the token itself.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, ig_access_token")
+    .select("username, ig_user_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -73,7 +75,7 @@ export default async function DashboardPage() {
   const accountsCount = accountsCountResult.count ?? 0;
   const reelsCount = reelsCountResult.count ?? 0;
   const scriptsCount = scriptsCountResult.count ?? 0;
-  const igConnected = Boolean(profile?.ig_access_token);
+  const igConnected = Boolean(profile?.ig_user_id);
   const username = profile?.username ?? user.email ?? "creator";
 
   return (

@@ -16,12 +16,7 @@
 //      stop hammering a blocked app, which is exactly what extends the block.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-function numEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
+import { numEnv } from "@/lib/utils/env";
 
 // Effective app-wide hourly budget. Kept under Meta's 200/hour floor so a burst
 // never reaches the real ceiling. Override per-deploy via env.
