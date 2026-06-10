@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { fetchBusinessDiscovery } from "@/lib/instagram/graph-api";
+import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 
 type ActionState = { error?: string };
 
@@ -48,11 +49,14 @@ export async function addInspirationAccount(
     };
   }
 
-  // Validate account exists on Instagram via Business Discovery
+  // Validate account exists on Instagram via Business Discovery. Routed through
+  // the shared app-level guard so account-adds also respect Meta's rate limit.
+  const limiter = createMetaRateLimiter(supabase, user.id);
   const { profile: igProfile, error: discoveryError } = await fetchBusinessDiscovery(
     profile.ig_user_id,
     profile.ig_access_token,
-    igUsername
+    igUsername,
+    limiter
   );
 
   if (discoveryError || !igProfile) {
