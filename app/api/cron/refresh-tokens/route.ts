@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { exchangeForLongLivedToken, isInvalidTokenError } from "@/lib/instagram/graph-api";
+import { cronAuthorized } from "@/lib/utils/cron";
+import { numEnv } from "@/lib/utils/env";
 
 // Scheduled worker: keeps long-lived Facebook tokens alive. They last ~60 days;
 // re-running fb_exchange_token before expiry mints a fresh one. Tokens that
@@ -9,22 +11,10 @@ import { exchangeForLongLivedToken, isInvalidTokenError } from "@/lib/instagram/
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-function numEnv(name: string, fallback: number): number {
-  const raw = process.env[name];
-  const n = raw ? Number(raw) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
 const REFRESH_WINDOW_DAYS = numEnv("TOKEN_REFRESH_WINDOW_DAYS", 7);
 
-function authorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-  return request.headers.get("authorization") === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request) {
-  if (!authorized(request)) {
+  if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

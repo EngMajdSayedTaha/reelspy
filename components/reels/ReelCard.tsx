@@ -130,6 +130,8 @@ export function ReelCard({
               <img
                 src={reel.thumbnail_url}
                 alt={reel.caption ?? `Reel by @${username}`}
+                loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 onError={() => setImgError(true)}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"

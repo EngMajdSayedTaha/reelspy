@@ -7,6 +7,7 @@ ReelSpy is a Next.js App Router application for tracking inspiration reels, scor
 1. Copy `.env.example` to `.env.local` and fill all values.
 2. Run SQL from `supabase/schema.sql` in Supabase SQL Editor.
 	- For an existing database, apply the additive migrations in `supabase/migrations/` instead (e.g. `20260605_reel_transcripts.sql`).
+	- **Security:** apply `20260611_lock_down_ig_tokens.sql` — it makes the stored Instagram token unreadable from browser clients (column-level grants) and restricts the rate-limiter RPCs to the server. The app already routes all token access through the service-role client, so applying it changes no behavior.
 3. Configure Google provider in Supabase Auth.
 4. Configure Instagram app credentials (`META_APP_ID` or `META_IG_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`).
 	- If Meta Business Login provides a distinct Instagram App ID, use `META_IG_APP_ID`.

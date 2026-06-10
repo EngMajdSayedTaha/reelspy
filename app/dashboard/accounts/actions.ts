@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { fetchBusinessDiscovery } from "@/lib/instagram/graph-api";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getIgCredentials } from "@/lib/instagram/token-store";
+import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 
 type ActionState = { error?: string };
@@ -32,18 +34,16 @@ export async function addInspirationAccount(
     return { error: "Instagram username is required." };
   }
 
-  if (igUsername.length > 30) {
-    return { error: "Username must be 30 characters or fewer." };
+  if (!isValidIgUsername(igUsername)) {
+    return { error: "Usernames can only contain letters, numbers, dots and underscores (max 30)." };
   }
 
-  // Require IG connection to validate account via Business Discovery
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("ig_user_id, ig_access_token")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Require IG connection to validate account via Business Discovery. The token
+  // is only reachable via the admin client (browser roles can't read it).
+  const admin = createAdminClient();
+  const credentials = await getIgCredentials(admin, user.id).catch(() => null);
 
-  if (!profile?.ig_user_id || !profile.ig_access_token) {
+  if (!credentials) {
     return {
       error: "Connect your Instagram account first (Settings → Instagram) before adding inspiration accounts.",
     };
@@ -51,10 +51,10 @@ export async function addInspirationAccount(
 
   // Validate account exists on Instagram via Business Discovery. Routed through
   // the shared app-level guard so account-adds also respect Meta's rate limit.
-  const limiter = createMetaRateLimiter(supabase, user.id);
+  const limiter = createMetaRateLimiter(admin, user.id);
   const { profile: igProfile, error: discoveryError } = await fetchBusinessDiscovery(
-    profile.ig_user_id,
-    profile.ig_access_token,
+    credentials.igUserId,
+    credentials.token,
     igUsername,
     limiter
   );

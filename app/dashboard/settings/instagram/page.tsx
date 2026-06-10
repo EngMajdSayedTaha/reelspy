@@ -62,13 +62,15 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
     redirect("/login");
   }
 
+  // Connection metadata only — the token column is not readable by browser-
+  // facing roles, and ig_user_id is set/cleared in lockstep with it.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("ig_user_id, ig_access_token, ig_token_status, ig_token_expires_at, username")
+    .select("ig_user_id, ig_token_status, ig_token_expires_at, username")
     .eq("id", user.id)
     .maybeSingle();
 
-  const isConnected = Boolean(profile?.ig_user_id && profile?.ig_access_token);
+  const isConnected = Boolean(profile?.ig_user_id);
   const oauthReady = Boolean(igAppId && appSecret && redirectUri);
 
   const expiresAt = profile?.ig_token_expires_at ?? null;

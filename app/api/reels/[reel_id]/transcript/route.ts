@@ -92,6 +92,16 @@ export async function POST(request: Request, { params }: RouteContext) {
     });
   }
 
+  // The pipeline runs yt-dlp + Whisper (minutes of compute) — don't start a
+  // second run while one is in flight. `force` stays available as the escape
+  // hatch if a crashed run ever leaves the status stuck on pending.
+  if (!force && reel.transcript_status === "pending") {
+    return NextResponse.json(
+      { error: "A transcript is already being generated for this reel. Try again shortly.", status: "pending" },
+      { status: 409 }
+    );
+  }
+
   // Mark in-flight (best effort — failures here should not block the request).
   await supabase
     .from("tracked_reels")

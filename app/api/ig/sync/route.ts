@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
+import { getIgCredentials } from "@/lib/instagram/token-store";
 
 // Paced requests + multi-account loops need a generous budget.
 export const runtime = "nodejs";
@@ -38,17 +39,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("ig_access_token, ig_user_id, ig_token_status")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Admin client: global snapshot cache, the shared rate limiter, and the IG
+  // token (browser-facing roles can't read the token column).
+  const admin = createAdminClient();
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  let credentials;
+  try {
+    credentials = await getIgCredentials(admin, user.id);
+  } catch (credError) {
+    console.error("Failed to load IG credentials", credError);
+    return NextResponse.json({ error: "Could not load your Instagram connection." }, { status: 500 });
   }
 
-  if (!profile?.ig_access_token || !profile.ig_user_id) {
+  if (!credentials) {
     return NextResponse.json(
       { error: "Instagram account is not connected. Go to Settings → Instagram to connect." },
       { status: 400 }
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
 
   // Token was flagged dead by the refresh worker — tell the user to reconnect
   // instead of letting every sync fail silently.
-  if (profile.ig_token_status === "invalid" || profile.ig_token_status === "expired") {
+  if (credentials.status === "invalid" || credentials.status === "expired") {
     return NextResponse.json(
       { error: "Your Instagram connection expired. Go to Settings → Instagram to reconnect." },
       { status: 400 }
@@ -93,10 +96,9 @@ export async function POST(request: Request) {
   }
 
   // Shared, app-wide guard. Business Discovery is rate-limited per Meta APP
-  // (not per user), so this protects every connected account at once.
-  const limiter = createMetaRateLimiter(supabase, user.id);
-  // Admin client for the global snapshot cache (RLS-locked shared tables).
-  const admin = createAdminClient();
+  // (not per user), so this protects every connected account at once. Runs on
+  // the admin client — the limiter RPCs are revoked for browser-facing roles.
+  const limiter = createMetaRateLimiter(admin, user.id);
 
   let totalInserted = 0;
   let totalUpdated = 0;
@@ -119,8 +121,8 @@ export async function POST(request: Request) {
     const snap = await refreshAccountSnapshot(
       admin,
       limiter,
-      profile.ig_user_id,
-      profile.ig_access_token,
+      credentials.igUserId,
+      credentials.token,
       account.ig_username,
       { maxReels: syncLimit }
     );
