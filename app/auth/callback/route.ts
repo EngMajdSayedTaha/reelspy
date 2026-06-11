@@ -1,26 +1,69 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+function redirectToLogin(
+  request: NextRequest,
+  error: string,
+  reason?: string
+) {
+  const url = new URL("/login", request.url);
+  url.searchParams.set("error", error);
+  if (reason) {
+    // Keep it short so it fits comfortably in the URL / UI.
+    url.searchParams.set("reason", reason.slice(0, 180));
+  }
+  return NextResponse.redirect(url);
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+
+  // Google / Supabase can bounce back with an explicit error instead of a code
+  // (e.g. user denied consent, provider misconfiguration). Surface it instead
+  // of masquerading as "missing code".
+  const providerError = requestUrl.searchParams.get("error");
+  const providerErrorDescription =
+    requestUrl.searchParams.get("error_description") ??
+    requestUrl.searchParams.get("error_code");
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return NextResponse.redirect(new URL("/login?error=supabase_env_missing", request.url));
+    return redirectToLogin(request, "supabase_env_missing");
+  }
+
+  if (providerError) {
+    console.error("OAuth provider returned an error", {
+      error: providerError,
+      description: providerErrorDescription,
+    });
+    return redirectToLogin(
+      request,
+      "oauth_exchange_failed",
+      providerErrorDescription ?? providerError
+    );
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", request.url));
+    return redirectToLogin(request, "missing_code");
   }
 
   const supabase = await createClient();
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
-    return NextResponse.redirect(new URL("/login?error=oauth_exchange_failed", request.url));
+    // The real reason almost always points at config (Supabase redirect-URL
+    // allowlist / Site URL, a stale PKCE code-verifier cookie, or a mismatched
+    // Google client secret). Log it server-side and pass a short hint to the UI.
+    console.error("exchangeCodeForSession failed", {
+      name: exchangeError.name,
+      status: exchangeError.status,
+      code: exchangeError.code,
+      message: exchangeError.message,
+    });
+    return redirectToLogin(request, "oauth_exchange_failed", exchangeError.message);
   }
 
   const {
@@ -29,7 +72,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return NextResponse.redirect(new URL("/login?error=user_not_found", request.url));
+    return redirectToLogin(request, "user_not_found", userError?.message);
   }
 
   const { error: profileError } = await supabase.from("profiles").upsert(
@@ -49,10 +92,10 @@ export async function GET(request: NextRequest) {
     });
 
     if (profileError.code === "PGRST205") {
-      return NextResponse.redirect(new URL("/login?error=schema_missing", request.url));
+      return redirectToLogin(request, "schema_missing", profileError.message);
     }
 
-    return NextResponse.redirect(new URL("/login?error=profile_upsert_failed", request.url));
+    return redirectToLogin(request, "profile_upsert_failed", profileError.message);
   }
 
   return NextResponse.redirect(new URL("/dashboard", request.url));

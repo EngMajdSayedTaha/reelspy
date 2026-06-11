@@ -39,7 +39,13 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
 
   const authError = searchParams.get("error");
-  const queryError = authError ? queryErrorMap[authError] ?? null : null;
+  const authReason = searchParams.get("reason");
+  const baseQueryError = authError ? queryErrorMap[authError] ?? null : null;
+  const queryError = baseQueryError
+    ? authReason
+      ? `${baseQueryError} (${authReason})`
+      : baseQueryError
+    : null;
 
   const handleOAuth = async () => {
     if (!isSupabaseConfigured) {
