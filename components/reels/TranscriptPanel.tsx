@@ -143,7 +143,7 @@ export function TranscriptPanel({
       {isLoading ? (
         <AiThinking messages={TRANSCRIPT_LOADING_MESSAGES} className="mt-3" />
       ) : hasTranscript ? (
-        <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
+        <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
           {transcript}
         </div>
       ) : status === "failed" ? (

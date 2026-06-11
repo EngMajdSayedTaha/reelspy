@@ -40,8 +40,8 @@ export function ScriptOutput({ script, explanation }: ScriptOutputProps) {
 
   return (
     <div className="space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-zinc-300">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-medium text-zinc-300">
           Pattern: <span className="text-[#F9E400]">{script.viral_pattern}</span>
         </p>
         <CopyButton text={fullScript} label="Copy All" />
@@ -54,7 +54,7 @@ export function ScriptOutput({ script, explanation }: ScriptOutputProps) {
             <p className="text-xs uppercase tracking-wide text-zinc-500">Hook</p>
             <CopyButton text={script.hook} />
           </div>
-          <p className="mt-1 text-sm text-white">{script.hook}</p>
+          <p className="mt-1 text-sm text-white break-words">{script.hook}</p>
         </div>
 
         {/* Body */}
@@ -63,7 +63,7 @@ export function ScriptOutput({ script, explanation }: ScriptOutputProps) {
             <p className="text-xs uppercase tracking-wide text-zinc-500">Body</p>
             <CopyButton text={script.body} />
           </div>
-          <p className="mt-1 whitespace-pre-line text-sm text-white">{script.body}</p>
+          <p className="mt-1 whitespace-pre-line break-words text-sm text-white">{script.body}</p>
         </div>
 
         {/* CTA */}
@@ -72,14 +72,14 @@ export function ScriptOutput({ script, explanation }: ScriptOutputProps) {
             <p className="text-xs uppercase tracking-wide text-zinc-500">CTA</p>
             <CopyButton text={script.cta} />
           </div>
-          <p className="mt-1 text-sm text-white">{script.cta}</p>
+          <p className="mt-1 text-sm text-white break-words">{script.cta}</p>
         </div>
       </div>
 
       {explanation ? (
         <div className="rounded-md border border-zinc-800 bg-[#0c0c0c] p-3">
           <p className="text-xs uppercase tracking-wide text-zinc-500">Why this pattern works</p>
-          <p className="mt-1 text-sm text-zinc-300">{explanation}</p>
+          <p className="mt-1 text-sm text-zinc-300 break-words">{explanation}</p>
         </div>
       ) : null}
 
