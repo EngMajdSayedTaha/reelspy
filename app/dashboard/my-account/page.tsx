@@ -123,7 +123,7 @@ export default async function MyAccountPage() {
       </section>
 
       {/* Own reels + full insights (separate sync, doesn't touch the shared budget) */}
-      <MyReelsInsights connected={connected} />
+      <MyReelsInsights connected={connected} userId={user.id} />
 
       {/* AI growth notes from your recent posts */}
       <GrowthNotes connected={connected} />

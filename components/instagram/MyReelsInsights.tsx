@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InsightsCharts } from "@/components/instagram/InsightsCharts";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 
 type MediaInsights = {
@@ -67,6 +68,36 @@ function formatCompact(value: number | null | undefined): string {
   return new Intl.NumberFormat("en-US").format(n);
 }
 
+// The Instagram sync walks up to 60 media + 30 insight calls and takes a
+// while, so the result is cached locally: revisits render instantly from the
+// last sync, and "Sync my reels" refreshes on demand. Keyed per user so a
+// different login on the same browser never sees someone else's data.
+function cacheKey(userId: string) {
+  return `reelspy:my-reels:v1:${userId}`;
+}
+
+type CachedSync = { savedAt: number; data: MyReelsResponse };
+
+function readSyncCache(userId: string): CachedSync | null {
+  try {
+    const raw = localStorage.getItem(cacheKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedSync;
+    if (!parsed || typeof parsed.savedAt !== "number" || !parsed.data) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeSyncCache(userId: string, data: MyReelsResponse) {
+  try {
+    localStorage.setItem(cacheKey(userId), JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {
+    // Storage full or unavailable — caching is best-effort.
+  }
+}
+
 function isReel(item: MediaItem): boolean {
   return (
     String(item.media_product_type ?? "").toUpperCase() === "REELS" ||
@@ -95,10 +126,11 @@ function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; 
   );
 }
 
-export function MyReelsInsights({ connected }: { connected: boolean }) {
+export function MyReelsInsights({ connected, userId }: { connected: boolean; userId: string }) {
   const [data, setData] = useState<MyReelsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(connected);
   const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -106,6 +138,8 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
     try {
       const json = await requestJson<MyReelsResponse>("/api/ig/my-reels", { cache: "no-store" });
       setData(json);
+      setSyncedAt(Date.now());
+      writeSyncCache(userId, json);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -116,14 +150,22 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
-    if (connected) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off the initial async fetch
+    if (!connected) return;
+    // Serve the last sync instantly when we have one; only the very first
+    // visit (no cache yet) syncs automatically.
+    const cached = readSyncCache(userId);
+    if (cached) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrates from localStorage, which isn't readable during SSR render
+      setData(cached.data);
+      setSyncedAt(cached.savedAt);
+      setIsLoading(false);
+    } else {
       load();
     }
-  }, [connected, load]);
+  }, [connected, userId, load]);
 
   if (!connected) return null;
 
@@ -153,10 +195,23 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
             watch time.
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={load} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          {isLoading ? "Syncing…" : "Sync my reels"}
-        </Button>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <Button type="button" variant="outline" onClick={load} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Syncing…" : "Sync my reels"}
+          </Button>
+          {syncedAt && !isLoading ? (
+            <p className="text-xs text-zinc-500">
+              Last synced{" "}
+              {new Date(syncedAt).toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {data?.partial ? (
@@ -207,6 +262,9 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
           Totals across your {totals.analyzed} most recent posts with full insights.
         </p>
       ) : null}
+
+      {/* Bigger-picture trends across the analyzed posts. */}
+      {media.length > 0 ? <InsightsCharts media={media} /> : null}
 
       {!isLoading && media.length === 0 && !error ? (
         <div className="rounded-xl border border-dashed border-zinc-700 p-5 text-center text-sm text-zinc-400">

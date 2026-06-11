@@ -93,7 +93,7 @@ export function TranscriptPanel({
 
   return (
     <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-sm text-zinc-300">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="h-4 w-4 shrink-0 text-[#F9E400]" />
           <p className="font-medium text-zinc-100">Reel Transcript</p>
@@ -143,7 +143,7 @@ export function TranscriptPanel({
       {isLoading ? (
         <AiThinking messages={TRANSCRIPT_LOADING_MESSAGES} className="mt-3" />
       ) : hasTranscript ? (
-        <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
+        <div className="mt-3 max-h-72 overflow-y-auto break-words whitespace-pre-wrap rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
           {transcript}
         </div>
       ) : status === "failed" ? (

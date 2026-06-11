@@ -106,6 +106,13 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
 
   const username = profile?.username ?? null;
 
+  // Google OAuth stores the photo in user_metadata (avatar_url or picture);
+  // email/password accounts have neither and keep the icon fallback.
+  const avatarUrl =
+    (user.user_metadata?.avatar_url as string | undefined) ??
+    (user.user_metadata?.picture as string | undefined) ??
+    null;
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -143,9 +150,19 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
       <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F9E400]/20 to-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-              <AtSign className="h-6 w-6 text-[#F9E400]" />
-            </span>
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt="Your profile photo"
+                referrerPolicy="no-referrer"
+                className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+              />
+            ) : (
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F9E400]/20 to-[#1a1a1a] ring-1 ring-[#2e2e2e]">
+                <AtSign className="h-6 w-6 text-[#F9E400]" />
+              </span>
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-white">

@@ -111,7 +111,12 @@ function ScriptCard({
   };
 
   return (
-    <article className="space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+    // Anchor target for calendar "Open script" links: scrolls clear of the
+    // sticky top bar and lights up when it's the URL hash.
+    <article
+      id={`script-${script.id}`}
+      className="scroll-mt-24 space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 target:border-[#F9E400]/60 target:ring-2 target:ring-[#F9E400]/20"
+    >
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">

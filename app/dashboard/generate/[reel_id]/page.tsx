@@ -52,8 +52,9 @@ export default async function GenerateScriptPage({ params }: PageProps) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr] lg:items-start">
-        {/* Source reel — same card as the feed, watchable inline. */}
-        <div className="space-y-2 lg:sticky lg:top-20">
+        {/* Source reel — same card as the feed, watchable inline. Capped at
+            the rail width from `sm` up so it doesn't balloon on tablets. */}
+        <div className="space-y-2 sm:max-w-[340px] lg:sticky lg:top-20">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source reel</p>
           <ReelCard
             reel={reel}

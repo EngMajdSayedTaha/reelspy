@@ -63,7 +63,7 @@ export function ScriptOutput({ script, explanation }: ScriptOutputProps) {
             <p className="text-xs uppercase tracking-wide text-zinc-500">Body</p>
             <CopyButton text={script.body} />
           </div>
-          <p className="mt-1 whitespace-pre-line text-sm text-white">{script.body}</p>
+          <p className="mt-1 break-words whitespace-pre-line text-sm text-white">{script.body}</p>
         </div>
 
         {/* CTA */}

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { CalendarPlus, GripVertical, Inbox, X } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { ArrowUpRight, CalendarPlus, GripVertical, Inbox, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,18 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [placingId, setPlacingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Tap-to-place entry point. On phones the tray sits below the calendar, so
+  // picking a script also scrolls the calendar (and its banner) into view —
+  // otherwise nothing visible happens and the flow feels dead.
+  const startPlacing = (id: string) => {
+    const isDeselect = placingId === id;
+    setPlacingId(isDeselect ? null : id);
+    if (!isDeselect && typeof window !== "undefined" && window.innerWidth < 1024) {
+      calendarRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   const scheduled = scripts.filter((s) => s.scheduled_date);
   const unscheduled = scripts.filter((s) => !s.scheduled_date);
@@ -143,7 +156,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-start">
-      <div className="space-y-4">
+      <div ref={calendarRef} className="scroll-mt-20 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">
@@ -160,7 +173,9 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
         </div>
 
         {placingScript ? (
-          <div className="flex items-center justify-between gap-2 rounded-lg border border-[#F9E400]/40 bg-[#F9E400]/10 px-3 py-2 text-sm text-[#F9E400]">
+          // Sticky below the top bar on phones so the instruction stays
+          // visible while scrolling to the target day (solid bg, no see-through).
+          <div className="sticky top-[60px] z-10 flex items-center justify-between gap-2 rounded-lg border border-[#F9E400]/40 bg-[#242203] px-3 py-2 text-sm text-[#F9E400] lg:static">
             <span className="truncate">
               Pick a day for “{placingScript.hook?.slice(0, 40) ?? "script"}”
             </span>
@@ -247,11 +262,22 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                       }}
                       onClick={(e) => e.stopPropagation()}
                       title={`${s.hook ?? "Script"} — drag to another day`}
-                      className={`cursor-grab truncate rounded px-1 py-0.5 text-[10px] leading-tight text-white active:cursor-grabbing ${
+                      className={`group/chip flex cursor-grab items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-tight text-white active:cursor-grabbing ${
                         STATUS_COLORS[s.status ?? "draft"] ?? STATUS_COLORS.draft
                       }`}
                     >
-                      {s.hook?.slice(0, 25) ?? "Script"}
+                      <span className="min-w-0 flex-1 truncate">
+                        {s.hook?.slice(0, 25) ?? "Script"}
+                      </span>
+                      <Link
+                        href={`/dashboard/scripts#script-${s.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Open in Scripts"
+                        aria-label="Open script"
+                        className="shrink-0 opacity-60 transition hover:opacity-100 group-hover/chip:opacity-100"
+                      >
+                        <ArrowUpRight className="h-3 w-3" />
+                      </Link>
                     </div>
                   ))}
                   {dayScripts.length > 2 ? (
@@ -296,14 +322,23 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                         {s.viral_pattern}
                       </Badge>
                     ) : null}
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      onClick={() => unschedule(s.id)}
-                      className="ml-auto text-xs text-zinc-500 transition hover:text-rose-400 disabled:opacity-50"
-                    >
-                      Unschedule
-                    </button>
+                    <div className="ml-auto flex items-center gap-3">
+                      <Link
+                        href={`/dashboard/scripts#script-${s.id}`}
+                        className="flex items-center gap-0.5 text-xs text-[#F9E400]/80 transition hover:text-[#F9E400]"
+                      >
+                        Open script
+                        <ArrowUpRight className="h-3 w-3" />
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => unschedule(s.id)}
+                        className="text-xs text-zinc-500 transition hover:text-rose-400 disabled:opacity-50"
+                      >
+                        Unschedule
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-2 text-sm text-zinc-200">{s.hook ?? "No hook"}</p>
                 </div>
@@ -356,7 +391,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                   e.dataTransfer.setData("text/plain", s.id);
                   e.dataTransfer.effectAllowed = "move";
                 }}
-                onClick={() => setPlacingId((prev) => (prev === s.id ? null : s.id))}
+                onClick={() => startPlacing(s.id)}
                 title="Drag onto a day, or tap then tap a day"
                 className={`flex cursor-grab items-start gap-1.5 rounded-lg border p-2 text-xs transition active:cursor-grabbing ${
                   placingId === s.id
@@ -365,7 +400,16 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                 }`}
               >
                 <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                <span className="line-clamp-2">{s.hook ?? "Untitled script"}</span>
+                <span className="min-w-0 flex-1 line-clamp-2">{s.hook ?? "Untitled script"}</span>
+                <Link
+                  href={`/dashboard/scripts#script-${s.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open in Scripts"
+                  aria-label="Open script"
+                  className="mt-0.5 shrink-0 text-zinc-500 transition hover:text-[#F9E400]"
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
             ))}
           </div>
