@@ -156,7 +156,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-start">
-      <div ref={calendarRef} className="scroll-mt-20 space-y-4">
+      <div ref={calendarRef} className="min-w-0 scroll-mt-20 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">
@@ -360,7 +360,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
           const script = scripts.find((s) => s.id === scriptId);
           if (script?.scheduled_date) unschedule(scriptId);
         }}
-        className="space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4"
+        className="min-w-0 space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4"
       >
         <div className="flex items-center gap-2">
           <CalendarPlus className="h-4 w-4 text-[#F9E400]" />
