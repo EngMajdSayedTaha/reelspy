@@ -15,43 +15,6 @@ function redirectToLogin(
   return NextResponse.redirect(url);
 }
 
-// Project ref is the first label of the Supabase URL host
-// (e.g. https://abcdef.supabase.co -> "abcdef"). The PKCE verifier cookie is
-// named sb-<ref>-auth-token-code-verifier, so the ref the SERVER computes at
-// runtime must match the ref baked into the BROWSER bundle that wrote the
-// cookie — otherwise the server looks for a cookie that doesn't exist.
-function projectRef(supabaseUrl: string): string {
-  try {
-    return new URL(supabaseUrl).hostname.split(".")[0] ?? "unknown";
-  } catch {
-    return "unparseable";
-  }
-}
-
-// Compact, value-free snapshot of the cookies that actually reached the server,
-// so we can see whether the PKCE verifier survived the OAuth round-trip and
-// whether the cookie's project-ref matches the server's runtime ref.
-function cookieDiagnostics(request: NextRequest, supabaseUrl: string): string {
-  const all = request.cookies.getAll();
-  const names = all.map((c) => c.name);
-  const verifier = names.find((n) => n.includes("-code-verifier"));
-  const refsInCookies = Array.from(
-    new Set(
-      names
-        .map((n) => /^sb-(.+?)-auth-token/.exec(n)?.[1])
-        .filter((r): r is string => Boolean(r))
-    )
-  );
-  const runtimeRef = projectRef(supabaseUrl);
-  return [
-    `verifier=${verifier ? "present" : "MISSING"}`,
-    `runtimeRef=${runtimeRef}`,
-    `cookieRefs=[${refsInCookies.join(",") || "none"}]`,
-    `refMatch=${refsInCookies.length === 0 ? "n/a" : refsInCookies.includes(runtimeRef)}`,
-    `totalCookies=${names.length}`,
-  ].join(" | ");
-}
-
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -89,8 +52,6 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
-  const diagnostics = cookieDiagnostics(request, supabaseUrl);
-
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
     // The real reason almost always points at config (Supabase redirect-URL
@@ -101,13 +62,8 @@ export async function GET(request: NextRequest) {
       status: exchangeError.status,
       code: exchangeError.code,
       message: exchangeError.message,
-      diagnostics,
     });
-    return redirectToLogin(
-      request,
-      "oauth_exchange_failed",
-      `${exchangeError.message} [${diagnostics}]`
-    );
+    return redirectToLogin(request, "oauth_exchange_failed", exchangeError.message);
   }
 
   const {
@@ -124,7 +80,14 @@ export async function GET(request: NextRequest) {
       id: user.id,
       username: user.email,
     },
-    { onConflict: "id" }
+    // Insert-or-ignore: we only need the row to EXIST so other tables can FK to
+    // it. Using ignoreDuplicates emits `ON CONFLICT DO NOTHING`, which requires
+    // only the INSERT(id, username) privilege granted to `authenticated`. A
+    // merge upsert would emit `DO UPDATE SET id=…`, and Postgres checks UPDATE
+    // privilege on every SET column at plan time — but `id` has no UPDATE grant
+    // (see 20260611_lock_down_ig_tokens.sql), so it fails with
+    // "permission denied for table profiles" for every user, new or returning.
+    { onConflict: "id", ignoreDuplicates: true }
   );
 
   if (profileError) {
