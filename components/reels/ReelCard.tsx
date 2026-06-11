@@ -241,7 +241,7 @@ export function ReelCard({
         ) : null}
 
         {/* Caption */}
-        <p className="line-clamp-2 min-h-[2.5rem] text-sm text-zinc-300">
+        <p className="line-clamp-2 min-h-[2.5rem] break-words text-sm text-zinc-300">
           {reel.caption ?? "No caption available."}
         </p>
 

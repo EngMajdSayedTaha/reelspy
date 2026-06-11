@@ -52,8 +52,9 @@ export default async function GenerateScriptPage({ params }: PageProps) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr] lg:items-start">
-        {/* Source reel — same card as the feed, watchable inline. */}
-        <div className="space-y-2 lg:sticky lg:top-20">
+        {/* Source reel — same card as the feed, watchable inline. Capped and
+            centered below lg so it doesn't blow up to full-bleed on phones. */}
+        <div className="mx-auto w-full min-w-0 max-w-sm space-y-2 lg:mx-0 lg:max-w-none lg:sticky lg:top-20">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source reel</p>
           <ReelCard
             reel={reel}
@@ -63,7 +64,7 @@ export default async function GenerateScriptPage({ params }: PageProps) {
           />
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <TranscriptPanel
             reelId={reel.id}
             initialTranscript={reel.transcript ?? null}
