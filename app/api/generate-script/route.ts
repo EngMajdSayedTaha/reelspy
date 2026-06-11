@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript } from "@/lib/ai/claude";
@@ -86,6 +87,11 @@ export async function POST(request: Request) {
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
+
+  // Keep counters and lists in step everywhere a script shows up — otherwise
+  // the dashboard's "Scripts Generated" stat can lag behind reality.
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/scripts");
 
   return NextResponse.json({
     script: inserted,

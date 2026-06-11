@@ -16,6 +16,25 @@ const bodySchema = z
 
 type RouteContext = { params: Promise<{ reel_id: string }> };
 
+// Map internal failure reasons to user-friendly copy without leaking which
+// tools/providers run under the hood.
+function friendlyTranscriptError(reason: string): string {
+  const r = reason.toLowerCase();
+  if (r.includes("too large") || r.includes("25 mb")) {
+    return "This reel's audio is too long to transcribe. Shorter reels work best.";
+  }
+  if (r.includes("private") || r.includes("login") || r.includes("cookies")) {
+    return "This reel couldn't be accessed — it may be private or restricted.";
+  }
+  if (r.includes("rate") && r.includes("limit")) {
+    return "Transcription is busy right now. Please try again in a few minutes.";
+  }
+  if (r.includes("no transcription provider")) {
+    return "Transcription isn't set up on the server yet.";
+  }
+  return "We couldn't transcribe this reel right now. Please try again shortly.";
+}
+
 export async function GET(_request: Request, { params }: RouteContext) {
   const { reel_id } = await params;
   const supabase = await createClient();
@@ -113,7 +132,8 @@ export async function POST(request: Request, { params }: RouteContext) {
   const result = await processReel(reel.ig_permalink);
 
   if (result.status !== "ready") {
-    // Surface the real reason in the Vercel runtime logs for debugging.
+    // The raw reason (provider names, API bodies) stays in the server logs;
+    // the UI gets a friendly, tool-agnostic message.
     console.error(`[transcript] reel=${reel.id} unavailable: ${result.reason}`);
 
     await supabase
@@ -122,7 +142,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       .eq("id", reel.id)
       .eq("user_id", user.id);
 
-    return NextResponse.json({ error: result.reason, status: "failed" }, { status: 502 });
+    return NextResponse.json(
+      { error: friendlyTranscriptError(result.reason), status: "failed" },
+      { status: 502 }
+    );
   }
 
   const { error: updateError } = await supabase

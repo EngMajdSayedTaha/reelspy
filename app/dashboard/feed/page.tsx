@@ -1,12 +1,13 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ReelFeed } from "@/components/reels/ReelFeed";
 import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
-import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
 
 export type FeedReel = {
@@ -98,6 +99,7 @@ export default async function FeedPage({
   }
 
   const params = await searchParams;
+  const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
 
   const account = first(params.account) ?? "all";
   const group = first(params.group) ?? "all";
@@ -107,7 +109,9 @@ export default async function FeedPage({
   const sort = first(params.sort) ?? "recent";
   const order = first(params.order) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
-  const perPage = first(params.pp) === "25" ? 25 : 10; // 10 (default) or 25
+  // Explicit ?pp= wins, then the user's saved preference (Settings), then 10.
+  const ppParam = first(params.pp);
+  const perPage = ppParam === "25" ? 25 : ppParam === "10" ? 10 : prefs.feedPerPage;
   const risingGroup = first(params.rgroup) ?? "all";
 
   const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
@@ -262,6 +266,8 @@ export default async function FeedPage({
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true)
       .eq("is_discarded", false)
+      // Already worked-on reels are done — the rail is for fresh opportunities.
+      .eq("is_worked_on", false)
       .gte("posted_at", since);
 
     if (risingGroup !== "all") {
@@ -295,7 +301,6 @@ export default async function FeedPage({
 
         <div className="flex flex-col items-end gap-2">
           <SyncButton />
-          <RateLimitStatus />
           <PatternBackfill initialMissing={missingPatternCount ?? 0} />
         </div>
       </div>

@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ReelSpy",
-  description: "Personal content intelligence app",
+  title: "ReelSpy — Content Intelligence",
+  description: "Track inspiration reels, spot what's rising, and turn the best ideas into scripts.",
 };
 
 export default function RootLayout({

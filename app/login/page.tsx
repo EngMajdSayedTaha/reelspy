@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Clapperboard } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -103,9 +103,7 @@ function LoginForm() {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F9E400] text-black">
-            <Clapperboard className="h-7 w-7" />
-          </span>
+          <LogoMark size={48} />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">
               Reel<span className="text-[#F9E400]">Spy</span>

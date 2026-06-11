@@ -47,6 +47,8 @@ export async function deleteScript(formData: FormData) {
 }
 
 export async function scheduleScript(scriptId: string, date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Invalid date.");
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -57,6 +59,26 @@ export async function scheduleScript(scriptId: string, date: string) {
   const { error } = await supabase
     .from("generated_scripts")
     .update({ scheduled_date: date })
+    .eq("id", scriptId)
+    .eq("user_id", user.id);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/scripts");
+  revalidatePath("/dashboard/calendar");
+}
+
+export async function unscheduleScript(scriptId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("Unauthorized");
+
+  const { error } = await supabase
+    .from("generated_scripts")
+    .update({ scheduled_date: null })
     .eq("id", scriptId)
     .eq("user_id", user.id);
 

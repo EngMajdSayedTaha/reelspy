@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowDownWideNarrow, ArrowUpWideNarrow, Search, X } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Search, X } from "lucide-react";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { VIRAL_PATTERNS } from "@/lib/viral-patterns";
 
 type Account = { id: string; ig_username: string };
@@ -50,7 +51,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState(current.q);
   const [syncedQ, setSyncedQ] = useState(current.q);
 
@@ -90,32 +91,47 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
     current.q !== "";
 
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+    <div className="relative overflow-hidden rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+      {/* Thin progress bar while the filtered feed is loading. */}
+      {isPending ? (
+        <span className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-[#F9E400]" />
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={onSearchSubmit} className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search captions…"
-            className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
-          />
+        <form onSubmit={onSearchSubmit} className="flex min-w-[230px] flex-1 gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search captions…"
+              className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-[#F9E400] px-3 text-sm font-medium text-black transition hover:bg-[#F9E400]/90 disabled:opacity-60"
+          >
+            {isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            {isPending ? "Searching…" : "Search"}
+          </button>
         </form>
 
-        <select
-          aria-label="Filter by account"
-          className={selectClass}
+        <SearchableSelect
+          ariaLabel="Filter by account"
+          className="w-44"
           value={current.account}
-          onChange={(e) => apply({ account: e.target.value })}
-        >
-          <option value="all">All accounts</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>
-              @{a.ig_username}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => apply({ account: value })}
+          allOption={{ value: "all", label: "All accounts" }}
+          options={accounts.map((a) => ({ value: a.id, label: `@${a.ig_username}` }))}
+          placeholder="Search accounts…"
+        />
 
         {groups.length > 0 ? (
           <select
@@ -191,7 +207,9 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
           aria-label="Reels per page"
           className={selectClass}
           value={current.perPage}
-          onChange={(e) => apply({ pp: e.target.value === "10" ? null : e.target.value })}
+          // Always set pp explicitly: the page-level default comes from the
+          // user's saved preference now, so "no param" no longer means 10.
+          onChange={(e) => apply({ pp: e.target.value })}
         >
           {PER_PAGE_OPTIONS.map((n) => (
             <option key={n} value={n}>

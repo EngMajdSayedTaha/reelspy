@@ -1,13 +1,16 @@
 import { redirect } from "next/navigation";
 import { AccountCard } from "@/components/accounts/AccountCard";
 import { AccountsFilter } from "@/components/accounts/AccountsFilter";
+import { AccountsSearch } from "@/components/accounts/AccountsSearch";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
 import { GroupsManager } from "@/components/accounts/GroupsManager";
+import { ImportFollowing } from "@/components/accounts/ImportFollowing";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
 import {
   addInspirationAccount,
   assignAccountGroup,
+  bulkAddInspirationAccounts,
   createAccountGroup,
   deleteAccountGroup,
   removeInspirationAccount,
@@ -33,7 +36,13 @@ const PER_PAGE = 12;
 type SearchParams = {
   status?: string;
   page?: string;
+  q?: string;
 };
+
+// Escape LIKE wildcards so a search for "100%" doesn't match everything.
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, (c) => `\\${c}`);
+}
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -59,13 +68,22 @@ export default async function AccountsPage({
     ? (first(params.status) as "active" | "paused")
     : "all";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
+  // Commas/parens would break PostgREST's or() filter syntax — drop them, they
+  // can't appear in usernames anyway.
+  const q = (first(params.q) ?? "").trim().replace(/[,()]/g, "");
+  const search = q ? `%${escapeLike(q.replace(/^@+/, ""))}%` : null;
 
-  // Status counts for the filter pills.
-  const baseCount = () =>
-    supabase
+  // Status counts for the filter pills (search-aware so the pills match the list).
+  const baseCount = () => {
+    let query = supabase
       .from("inspiration_accounts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
+    if (search) {
+      query = query.or(`ig_username.ilike.${search},display_name.ilike.${search}`);
+    }
+    return query;
+  };
 
   const [allRes, activeRes, pausedRes] = await Promise.all([
     baseCount(),
@@ -92,6 +110,10 @@ export default async function AccountsPage({
     query = query.eq("is_active", true);
   } else if (status === "paused") {
     query = query.eq("is_active", false);
+  }
+
+  if (search) {
+    query = query.or(`ig_username.ilike.${search},display_name.ilike.${search}`);
   }
 
   const from = (page - 1) * PER_PAGE;
@@ -126,7 +148,9 @@ export default async function AccountsPage({
         </p>
       </div>
 
-      <AddAccountForm action={addInspirationAccount} />
+      <AddAccountForm action={addInspirationAccount} groups={groups} />
+
+      <ImportFollowing groups={groups} bulkAddAction={bulkAddInspirationAccounts} />
 
       <GroupsManager
         groups={groups}
@@ -135,17 +159,20 @@ export default async function AccountsPage({
         renameAction={renameAccountGroup}
       />
 
-      {counts.all === 0 ? (
+      {counts.all === 0 && !q ? (
         <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
           No inspiration accounts yet. Add your first account above.
         </div>
       ) : (
         <>
-          <AccountsFilter current={status} counts={counts} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <AccountsFilter current={status} counts={counts} />
+            <AccountsSearch current={q} />
+          </div>
 
           {accounts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
-              No {status} accounts.
+              {q ? `No accounts match “${q}”.` : `No ${status} accounts.`}
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

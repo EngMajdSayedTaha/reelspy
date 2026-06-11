@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 
 const TRANSCRIPT_LOADING_MESSAGES = [
   "Fetching the reel…",
-  "Extracting the audio…",
-  "Transcribing with Whisper…",
+  "Listening to the audio…",
+  "Writing down every word…",
+  "Catching the hook and pacing…",
   "Cleaning up the text…",
+  "Almost there…",
 ];
 
 type TranscriptStatus = "none" | "pending" | "ready" | "failed";
@@ -84,8 +86,7 @@ export function TranscriptPanel({
           <p className="font-medium text-zinc-100">Reel Transcript</p>
           {hasTranscript && source ? (
             <span className="truncate text-xs text-zinc-500">
-              via {source}
-              {language ? ` · ${language}` : ""}
+              AI transcription{language ? ` · ${language}` : ""}
             </span>
           ) : null}
         </div>
@@ -115,7 +116,8 @@ export function TranscriptPanel({
         </div>
       ) : status === "failed" ? (
         <p className="mt-3 text-zinc-500">
-          Transcript unavailable for this reel. Make sure a transcription provider is configured, then try again.
+          We couldn&apos;t transcribe this reel. It may be private, very long, or temporarily
+          unavailable — try again in a bit.
         </p>
       ) : (
         <p className="mt-3 text-zinc-500">

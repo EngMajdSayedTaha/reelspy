@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { ScriptGenerator } from "@/components/scripts/ScriptGenerator";
 import { TranscriptPanel } from "@/components/reels/TranscriptPanel";
+import { ReelCard } from "@/components/reels/ReelCard";
 import { createClient } from "@/lib/supabase/server";
+import {
+  markReelAsWorkedOn,
+  setReelDiscarded,
+  setReelFavorited,
+} from "@/app/dashboard/feed/actions";
 
 type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 
@@ -23,7 +29,9 @@ export default async function GenerateScriptPage({ params }: PageProps) {
 
   const { data: reel, error } = await supabase
     .from("tracked_reels")
-    .select("id, caption, ig_permalink, transcript, transcript_lang, transcript_source, transcript_status")
+    .select(
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript, transcript_lang, transcript_source, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts(ig_username, display_name, avatar_url)"
+    )
     .eq("id", reel_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -43,27 +51,30 @@ export default async function GenerateScriptPage({ params }: PageProps) {
         <p className="text-sm text-zinc-400">Create an original script from this reel inspiration.</p>
       </div>
 
-      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-sm text-zinc-300">
-        <p className="text-zinc-400">Source Reel</p>
-        <a
-          href={reel.ig_permalink}
-          target="_blank"
-          rel="noreferrer"
-          className="text-[#F9E400] underline-offset-4 hover:underline"
-        >
-          Open original post
-        </a>
+      <div className="grid gap-6 lg:grid-cols-[340px_1fr] lg:items-start">
+        {/* Source reel — same card as the feed, watchable inline. */}
+        <div className="space-y-2 lg:sticky lg:top-20">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source reel</p>
+          <ReelCard
+            reel={reel}
+            markWorkedAction={markReelAsWorkedOn}
+            discardAction={setReelDiscarded}
+            favoriteAction={setReelFavorited}
+          />
+        </div>
+
+        <div className="space-y-6">
+          <TranscriptPanel
+            reelId={reel.id}
+            initialTranscript={reel.transcript ?? null}
+            initialStatus={(reel.transcript_status as TranscriptStatus | null) ?? "none"}
+            initialSource={reel.transcript_source ?? null}
+            initialLanguage={reel.transcript_lang ?? null}
+          />
+
+          <ScriptGenerator reelId={reel.id} initialCaption={reel.caption ?? ""} />
+        </div>
       </div>
-
-      <TranscriptPanel
-        reelId={reel.id}
-        initialTranscript={reel.transcript ?? null}
-        initialStatus={(reel.transcript_status as TranscriptStatus | null) ?? "none"}
-        initialSource={reel.transcript_source ?? null}
-        initialLanguage={reel.transcript_lang ?? null}
-      />
-
-      <ScriptGenerator reelId={reel.id} initialCaption={reel.caption ?? ""} />
     </div>
   );
 }

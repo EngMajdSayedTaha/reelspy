@@ -1,0 +1,39 @@
+"use server";
+
+import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
+import {
+  DEFAULT_PREFS,
+  FEED_PER_PAGE_OPTIONS,
+  PREFS_COOKIE,
+  SYNC_LIMIT_OPTIONS,
+  TOAST_MS_OPTIONS,
+  serializePrefs,
+  type UserPrefs,
+} from "@/lib/prefs";
+
+function pick<T extends number>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T {
+  const n = Number(value);
+  return (allowed as readonly number[]).includes(n) ? (n as T) : fallback;
+}
+
+export async function savePreferences(formData: FormData): Promise<void> {
+  const prefs: UserPrefs = {
+    toastMs: pick(formData.get("toastMs"), TOAST_MS_OPTIONS, DEFAULT_PREFS.toastMs),
+    syncLimit: pick(formData.get("syncLimit"), SYNC_LIMIT_OPTIONS, DEFAULT_PREFS.syncLimit),
+    feedPerPage: pick(formData.get("feedPerPage"), FEED_PER_PAGE_OPTIONS, DEFAULT_PREFS.feedPerPage),
+  };
+
+  const cookieStore = await cookies();
+  cookieStore.set(PREFS_COOKIE, serializePrefs(prefs), {
+    // Readable by client widgets (toast duration, sync defaults) — UI tuning
+    // only, nothing sensitive, so httpOnly stays off.
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
+
+  revalidatePath("/dashboard", "layout");
+}

@@ -200,20 +200,123 @@ export async function getInstagramBusinessAccount(token: string): Promise<{
   return null;
 }
 
-export async function getMyProfile(igUserId: string, token: string) {
-  const url = toUrl(`${GRAPH_BASE}/${igUserId}`, {
-    fields: "id,username,profile_picture_url",
+// ── Own-account media + insights (My IG page) ───────────────────────────────
+// These read the CONNECTED creator's media — not Business Discovery — so they
+// don't consume the shared discovery budget, but they still count toward Meta's
+// app usage, hence the pacing in the route that calls them.
+
+export type MyMediaItem = {
+  id: string;
+  caption?: string;
+  media_type?: string;
+  media_product_type?: string;
+  permalink?: string;
+  thumbnail_url?: string;
+  media_url?: string;
+  timestamp?: string;
+  like_count?: number;
+  comments_count?: number;
+};
+
+// Pages through /{ig-user-id}/media until `maxItems` items are collected.
+export async function getMyMediaPaged(
+  igUserId: string,
+  token: string,
+  maxItems = 60
+): Promise<MyMediaItem[]> {
+  const items: MyMediaItem[] = [];
+  let url: URL | null = toUrl(`${GRAPH_BASE}/${igUserId}/media`, {
+    fields:
+      "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count",
     access_token: token,
+    limit: "50",
   });
 
-  const json = await fetchJson<JsonRecord>(url);
+  while (url && items.length < maxItems) {
+    const json: { data?: MyMediaItem[]; paging?: { next?: string } } = await fetchJson(url);
+    for (const item of json.data ?? []) {
+      if (item?.id) items.push(item);
+      if (items.length >= maxItems) break;
+    }
+    url = json.paging?.next && items.length < maxItems ? new URL(json.paging.next) : null;
+  }
 
-  return {
-    id: String(json.id ?? igUserId),
-    username: String(json.username ?? "unknown"),
-    profile_picture_url:
-      typeof json.profile_picture_url === "string" ? json.profile_picture_url : undefined,
-  } satisfies InstagramProfile;
+  return items;
+}
+
+export type MediaInsights = {
+  views?: number;
+  reach?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saved?: number;
+  total_interactions?: number;
+  /** Average watch time in milliseconds (reels only). */
+  avg_watch_time_ms?: number;
+};
+
+const REEL_INSIGHT_METRICS =
+  "views,reach,likes,comments,shares,saved,total_interactions,ig_reels_avg_watch_time";
+const POST_INSIGHT_METRICS = "views,reach,likes,comments,shares,saved,total_interactions";
+
+type InsightEntry = { name?: string; values?: Array<{ value?: number }> };
+
+function mapInsights(entries: InsightEntry[]): MediaInsights {
+  const out: MediaInsights = {};
+  for (const entry of entries) {
+    const value = entry.values?.[0]?.value;
+    if (typeof value !== "number") continue;
+    switch (entry.name) {
+      case "views": out.views = value; break;
+      case "reach": out.reach = value; break;
+      case "likes": out.likes = value; break;
+      case "comments": out.comments = value; break;
+      case "shares": out.shares = value; break;
+      case "saved": out.saved = value; break;
+      case "total_interactions": out.total_interactions = value; break;
+      case "ig_reels_avg_watch_time": out.avg_watch_time_ms = value; break;
+    }
+  }
+  return out;
+}
+
+// Per-media insights (views, reach, saves, shares, watch time…). Returns null
+// when Meta declines (too old, unsupported type, missing permission) — the
+// caller degrades to the basic like/comment counts. Throws on rate limits so
+// the caller can stop the loop.
+export async function getMediaInsights(
+  mediaId: string,
+  token: string,
+  isReel: boolean
+): Promise<MediaInsights | null> {
+  const attempt = async (metrics: string) => {
+    const url = toUrl(`${GRAPH_BASE}/${mediaId}/insights`, {
+      metric: metrics,
+      access_token: token,
+    });
+    const json = await fetchJson<{ data?: InsightEntry[] }>(url);
+    return mapInsights(json.data ?? []);
+  };
+
+  try {
+    return await attempt(isReel ? REEL_INSIGHT_METRICS : POST_INSIGHT_METRICS);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isRateLimitError(message)) throw err;
+    // Some metrics aren't supported on every media generation — retry lean.
+    try {
+      return await attempt("reach,total_interactions");
+    } catch (retryErr) {
+      const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+      if (isRateLimitError(retryMessage)) throw retryErr;
+      return null;
+    }
+  }
+}
+
+export function isMetaRateLimitMessage(message: string): boolean {
+  return isRateLimitError(message);
 }
 
 // Business Discovery — read a public Business/Creator account's profile.

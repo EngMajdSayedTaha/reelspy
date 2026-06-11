@@ -9,6 +9,9 @@ import {
   Sparkles,
   RefreshCw,
   AlertTriangle,
+  CalendarCheck,
+  CheckCircle2,
+  Heart,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -57,7 +60,14 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const [accountsCountResult, reelsCountResult, scriptsCountResult] = await Promise.all([
+  const [
+    accountsCountResult,
+    reelsCountResult,
+    scriptsCountResult,
+    workedCountResult,
+    favoritesCountResult,
+    scheduledCountResult,
+  ] = await Promise.all([
     supabase
       .from("inspiration_accounts")
       .select("id", { count: "exact", head: true })
@@ -70,11 +80,29 @@ export default async function DashboardPage() {
       .from("generated_scripts")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id),
+    supabase
+      .from("tracked_reels")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_worked_on", true),
+    supabase
+      .from("tracked_reels")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("is_favorite", true),
+    supabase
+      .from("generated_scripts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .not("scheduled_date", "is", null),
   ]);
 
   const accountsCount = accountsCountResult.count ?? 0;
   const reelsCount = reelsCountResult.count ?? 0;
   const scriptsCount = scriptsCountResult.count ?? 0;
+  const workedCount = workedCountResult.count ?? 0;
+  const favoritesCount = favoritesCountResult.count ?? 0;
+  const scheduledCount = scheduledCountResult.count ?? 0;
   const igConnected = Boolean(profile?.ig_user_id);
   const username = profile?.username ?? user.email ?? "creator";
 
@@ -133,6 +161,24 @@ export default async function DashboardPage() {
           value={igConnected ? "Connected" : "Offline"}
           icon={Plug}
           href="/dashboard/settings/instagram"
+        />
+        <StatCard
+          label="Reels Worked On"
+          value={String(workedCount)}
+          icon={CheckCircle2}
+          href="/dashboard/feed?status=worked"
+        />
+        <StatCard
+          label="Favorites"
+          value={String(favoritesCount)}
+          icon={Heart}
+          href="/dashboard/feed?status=favorites"
+        />
+        <StatCard
+          label="Scheduled Scripts"
+          value={String(scheduledCount)}
+          icon={CalendarCheck}
+          href="/dashboard/calendar"
         />
       </div>
 

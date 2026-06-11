@@ -107,6 +107,39 @@ select:disabled,
   cursor: not-allowed;
 }
 
+/* Brand logo animations (components/brand/Logo.tsx) */
+@keyframes logoScan {
+  0% { transform: translateY(-15px); opacity: 0; }
+  12% { opacity: 0.55; }
+  50% { transform: translateY(15px); opacity: 0.55; }
+  62% { opacity: 0; }
+  100% { transform: translateY(-15px); opacity: 0; }
+}
+.logo-scan {
+  animation: logoScan 3.2s ease-in-out infinite;
+}
+
+@keyframes logoFocus {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.logo-focus {
+  animation: logoFocus 3.2s ease-in-out infinite;
+}
+
+@keyframes logoPlayPop {
+  0%, 88%, 100% { transform: scale(1); }
+  94% { transform: scale(0.92); }
+}
+.logo-play {
+  animation: logoPlayPop 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-scan { display: none; }
+  .logo-focus, .logo-play { animation: none; }
+}
+
 /* Favorite heart "pop" on toggle. */
 @keyframes favoritePop {
   0% { transform: scale(1); }

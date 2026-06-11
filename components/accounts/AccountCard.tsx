@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { RefreshCw, Trash2, Users, AtSign, FolderClosed, Power } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { getClientPrefs } from "@/lib/prefs";
 import { notifyError, requestJson } from "@/lib/utils/api";
 
 type Account = {
@@ -65,6 +66,12 @@ export function AccountCard({
   const [isSyncing, setIsSyncing] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [syncLimit, setSyncLimit] = useState(25);
+
+  // Default sync depth comes from the user's saved preference (Settings).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time cookie read after mount
+    setSyncLimit(Math.min(100, getClientPrefs().syncLimit));
+  }, []);
 
   const busy = isSyncing || isAssigning || isPendingAction;
 
@@ -144,10 +151,20 @@ export function AccountCard({
 
   return (
     <article
-      className={`space-y-3.5 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-3.5 text-zinc-100 transition-colors hover:border-[#2e2e2e] ${
-        isActive ? "" : "opacity-60"
+      className={`space-y-3.5 rounded-2xl border p-3.5 text-zinc-100 transition-colors ${
+        isActive
+          ? "border-[#1f1f1f] bg-[#111111] hover:border-[#2e2e2e]"
+          : "border-amber-500/40 border-dashed bg-[#0d0d0d] opacity-80"
       }`}
     >
+      {/* Loud, unambiguous "this account is OFF" banner. */}
+      {!isActive ? (
+        <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-300">
+          <PauseCircle className="h-4 w-4 shrink-0" />
+          Paused — hidden from the feed and skipped by syncs
+        </div>
+      ) : null}
+
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {account.avatar_url && !avatarError ? (
@@ -157,7 +174,9 @@ export function AccountCard({
               alt={`@${account.ig_username}`}
               referrerPolicy="no-referrer"
               onError={() => setAvatarError(true)}
-              className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+              className={`h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e] ${
+                isActive ? "" : "grayscale"
+              }`}
             />
           ) : (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
@@ -165,13 +184,20 @@ export function AccountCard({
             </span>
           )}
           <div className="min-w-0">
-            <p className="truncate text-base font-medium text-white">@{account.ig_username}</p>
+            <p className={`truncate text-base font-medium ${isActive ? "text-white" : "text-zinc-400"}`}>
+              @{account.ig_username}
+            </p>
             {account.display_name && account.display_name !== account.ig_username ? (
               <p className="truncate text-sm text-zinc-400">{account.display_name}</p>
             ) : null}
           </div>
         </div>
-        <Badge variant={isActive ? "default" : "outline"}>{isActive ? "Active" : "Paused"}</Badge>
+        <Badge
+          variant={isActive ? "default" : "outline"}
+          className={isActive ? "" : "border-amber-500/50 bg-amber-500/15 text-amber-300"}
+        >
+          {isActive ? "Active" : "Paused"}
+        </Badge>
       </div>
 
       <div className="flex flex-col gap-1 text-sm text-zinc-300">
@@ -195,6 +221,7 @@ export function AccountCard({
         <select
           value={groupId}
           disabled={busy}
+          aria-label="Assign group"
           onChange={(e) => onGroupChange(e.target.value)}
           className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
         >
@@ -242,8 +269,10 @@ export function AccountCard({
           disabled={busy}
           aria-label={isActive ? "Pause account" : "Activate account"}
           title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
+          className={isActive ? "" : "border-amber-500/50 text-amber-300 hover:bg-amber-500/10"}
         >
           <Power className="h-4 w-4" />
+          {!isActive ? "Resume" : null}
         </Button>
 
         <Button

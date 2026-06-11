@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { getClientPrefs } from "@/lib/prefs";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 
 type SyncResult = {
   inserted?: number;
   updated?: number;
+  skippedFresh?: number;
   rateLimited?: boolean;
   retryAfterSeconds?: number;
   errors?: string[];
@@ -30,6 +32,12 @@ export function SyncButton() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [limit, setLimit] = useState(25);
 
+  // Default sync depth comes from the user's saved preference (Settings).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time cookie read after mount
+    setLimit(getClientPrefs().syncLimit);
+  }, []);
+
   const handleSyncAll = async () => {
     setIsSyncing(true);
 
@@ -40,7 +48,12 @@ export function SyncButton() {
         body: JSON.stringify({ limit }),
       });
 
-      toast.success(`Synced: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
+      const skipped = json.skippedFresh ?? 0;
+      toast.success(
+        `Synced: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed${
+          skipped > 0 ? ` · ${skipped} already up to date` : ""
+        }`
+      );
 
       // Partial throttle (some reels synced from cache, then we paused).
       if (json.rateLimited) {

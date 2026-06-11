@@ -14,6 +14,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 
 type NavLink = { href: string; label: string; icon: LucideIcon };
@@ -59,13 +60,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         }`}
       >
         <div className="mb-8 flex items-center justify-between px-2">
-          <Link href="/dashboard" className="flex items-center gap-2" onClick={onClose}>
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F9E400] text-black">
-              <Clapperboard className="h-5 w-5" />
-            </span>
-            <span className="text-xl font-semibold tracking-tight text-white">
-              Reel<span className="text-[#F9E400]">Spy</span>
-            </span>
+          <Link href="/dashboard" onClick={onClose}>
+            <Logo size={32} />
           </Link>
           <button
             type="button"

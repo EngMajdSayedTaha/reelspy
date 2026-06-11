@@ -9,12 +9,16 @@ import { Label } from "@/components/ui/label";
 type ActionState = { error?: string };
 type ActionFn = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
 
+type Group = { id: string; name: string };
+
 type AddAccountFormProps = {
   action: ActionFn;
+  groups: Group[];
 };
 
-export function AddAccountForm({ action }: AddAccountFormProps) {
+export function AddAccountForm({ action, groups }: AddAccountFormProps) {
   const [username, setUsername] = useState("");
+  const [groupId, setGroupId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -28,6 +32,7 @@ export function AddAccountForm({ action }: AddAccountFormProps) {
 
     const data = new FormData();
     data.set("ig_username", handle);
+    if (groupId) data.set("group_id", groupId);
 
     startTransition(async () => {
       try {
@@ -38,7 +43,10 @@ export function AddAccountForm({ action }: AddAccountFormProps) {
           return;
         }
         setUsername("");
-        toast.success(`Added @${handle.toLowerCase()}`);
+        const groupName = groups.find((g) => g.id === groupId)?.name;
+        toast.success(
+          `Added @${handle.toLowerCase()}${groupName ? ` to “${groupName}”` : ""}`
+        );
       } catch {
         const message = "Could not add the account. Please try again.";
         setError(message);
@@ -49,7 +57,7 @@ export function AddAccountForm({ action }: AddAccountFormProps) {
 
   return (
     <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
-      <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
         <div className="space-y-2">
           <Label htmlFor="ig_username">Instagram Username</Label>
           <Input
@@ -67,6 +75,27 @@ export function AddAccountForm({ action }: AddAccountFormProps) {
             disabled={isPending}
           />
         </div>
+
+        {groups.length > 0 ? (
+          <div className="space-y-2">
+            <Label htmlFor="add_group">Group</Label>
+            <select
+              id="add_group"
+              aria-label="Group for the new account"
+              value={groupId}
+              disabled={isPending}
+              onChange={(e) => setGroupId(e.target.value)}
+              className="block h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60 md:w-44"
+            >
+              <option value="">No group</option>
+              {groups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
 
         <Button
           type="button"

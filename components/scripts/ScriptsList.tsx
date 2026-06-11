@@ -1,10 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { ExternalLink, History, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-type ScriptRow = {
+type SourceAccount = { ig_username: string; avatar_url: string | null };
+
+type SourceReel = {
+  id: string;
+  thumbnail_url: string | null;
+  ig_permalink: string;
+  inspiration_accounts: SourceAccount | SourceAccount[] | null;
+};
+
+export type ScriptRow = {
   id: string;
   hook: string | null;
   body: string | null;
@@ -14,7 +25,22 @@ type ScriptRow = {
   status: string | null;
   scheduled_date: string | null;
   created_at: string;
+  tracked_reels?: SourceReel | SourceReel[] | null;
 };
+
+function sourceReelOf(script: ScriptRow): SourceReel | null {
+  const reel = Array.isArray(script.tracked_reels)
+    ? script.tracked_reels[0]
+    : script.tracked_reels;
+  return reel ?? null;
+}
+
+function sourceAccountOf(reel: SourceReel): SourceAccount | null {
+  const acc = Array.isArray(reel.inspiration_accounts)
+    ? reel.inspiration_accounts[0]
+    : reel.inspiration_accounts;
+  return acc ?? null;
+}
 
 type ScriptsListProps = {
   scripts: ScriptRow[];
@@ -64,6 +90,8 @@ function ScriptCard({
   const [isPending, startTransition] = useTransition();
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(script.scheduled_date ?? "");
+  const sourceReel = sourceReelOf(script);
+  const sourceAccount = sourceReel ? sourceAccountOf(sourceReel) : null;
 
   const status = (script.status ?? "draft") as "draft" | "ready" | "published";
   const fullScript = `[HOOK]\n${script.hook ?? ""}\n\n[BODY]\n${script.body ?? ""}\n\n[CTA]\n${script.cta ?? ""}`;
@@ -113,6 +141,43 @@ function ScriptCard({
         </p>
       </div>
 
+      {/* Source reel this script was generated from */}
+      {sourceReel ? (
+        <div className="flex items-center gap-2.5 rounded-lg border border-[#262626] bg-[#0d0d0d] p-2">
+          {sourceReel.thumbnail_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={sourceReel.thumbnail_url}
+              alt="Source reel"
+              referrerPolicy="no-referrer"
+              className="h-12 w-9 shrink-0 rounded-md object-cover"
+            />
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wide text-zinc-600">Source reel</p>
+            <p className="truncate text-xs text-zinc-300">
+              {sourceAccount ? `@${sourceAccount.ig_username}` : "Tracked reel"}
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/generate/${sourceReel.id}`}
+            className="shrink-0 text-xs text-[#F9E400] underline-offset-4 hover:underline"
+          >
+            Open
+          </Link>
+          <a
+            href={sourceReel.ig_permalink}
+            target="_blank"
+            rel="noreferrer"
+            title="Open on Instagram"
+            aria-label="Open on Instagram"
+            className="shrink-0 text-zinc-500 transition hover:text-[#F9E400]"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      ) : null}
+
       {/* Hook always visible */}
       <div>
         <p className="text-xs uppercase tracking-wide text-zinc-600">Hook</p>
@@ -138,6 +203,7 @@ function ScriptCard({
         <div className="flex gap-2">
           <input
             type="date"
+            aria-label="Publish date"
             value={scheduleDate}
             onChange={(e) => setScheduleDate(e.target.value)}
             className="rounded-md border border-zinc-700 bg-[#0d0d0d] px-2 py-1 text-sm text-zinc-100"
@@ -201,32 +267,63 @@ function ScriptCard({
 
 export function ScriptsList({ scripts, deleteAction, updateStatusAction, scheduleAction }: ScriptsListProps) {
   const [filter, setFilter] = useState<"all" | "draft" | "ready" | "published">("all");
+  const [query, setQuery] = useState("");
 
-  const filtered = filter === "all" ? scripts : scripts.filter((s) => s.status === filter);
+  const filtered = useMemo(() => {
+    const byStatus = filter === "all" ? scripts : scripts.filter((s) => s.status === filter);
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter((s) =>
+      [s.hook, s.body, s.cta, s.viral_pattern, s.platform]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(q))
+    );
+  }, [scripts, filter, query]);
 
   return (
     <div className="space-y-4">
-      {/* Filter tabs */}
-      <div className="flex gap-2 border-b border-zinc-800 pb-2">
-        {FILTER_OPTIONS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`text-sm capitalize transition ${
-              filter === f ? "text-[#F9E400]" : "text-zinc-500 hover:text-zinc-200"
-            }`}
-          >
-            {f} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})
-          </button>
-        ))}
+      {/* History header: status tabs + search across everything generated */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-2">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+            <History className="h-4 w-4 text-[#F9E400]" />
+            History
+          </span>
+          <div className="flex gap-2">
+            {FILTER_OPTIONS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
+                className={`text-sm capitalize transition ${
+                  filter === f ? "text-[#F9E400]" : "text-zinc-500 hover:text-zinc-200"
+                }`}
+              >
+                {f} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search scripts…"
+            className="h-8 w-48 rounded-lg border border-[#262626] bg-[#141414] pl-8 pr-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60"
+          />
+        </div>
       </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
-          {filter === "all"
-            ? "No scripts yet. Generate one above or from the Feed page."
-            : `No ${filter} scripts.`}
+          {query
+            ? `No scripts match “${query}”.`
+            : filter === "all"
+              ? "No scripts yet. Generate one above or from the Feed page."
+              : `No ${filter} scripts.`}
         </div>
       ) : (
         <div className="grid gap-3">

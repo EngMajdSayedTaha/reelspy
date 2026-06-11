@@ -1,10 +1,12 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckCircle2, AlertTriangle, AtSign, Link2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { GrowthNotes } from "@/components/instagram/GrowthNotes";
-import { InsightsPanel } from "@/components/instagram/InsightsPanel";
 import { DisconnectButton } from "@/components/instagram/DisconnectButton";
+import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { savePreferences } from "../actions";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -40,6 +42,17 @@ function formatDate(value: string | null | undefined): string | null {
   });
 }
 
+function formatDateTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default async function InstagramSettingsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const error = firstParam(params.error);
@@ -66,9 +79,11 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
   // facing roles, and ig_user_id is set/cleared in lockstep with it.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("ig_user_id, ig_token_status, ig_token_expires_at, username")
+    .select("ig_user_id, ig_token_status, ig_token_expires_at, ig_token_refreshed_at, username")
     .eq("id", user.id)
     .maybeSingle();
+
+  const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
 
   const isConnected = Boolean(profile?.ig_user_id);
   const oauthReady = Boolean(igAppId && appSecret && redirectUri);
@@ -151,6 +166,14 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
                       : "Connection active."
                     : "Not connected yet."}
               </p>
+              {isConnected && profile?.ig_token_refreshed_at ? (
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Last reconnect / token renewal:{" "}
+                  <span className="text-zinc-300">
+                    {formatDateTime(profile.ig_token_refreshed_at)}
+                  </span>
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -210,8 +233,7 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
         </details>
       ) : null}
 
-      <InsightsPanel connected={isConnected} />
-      <GrowthNotes connected={isConnected} />
+      <PreferencesForm initial={prefs} action={savePreferences} />
     </div>
   );
 }

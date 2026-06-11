@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
+import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
 
 const TITLES: { match: (p: string) => boolean; label: string }[] = [
   { match: (p) => p === "/dashboard", label: "Dashboard" },
@@ -38,9 +39,10 @@ export function TopBar({ onMenu }: TopBarProps) {
         <span className="hidden text-zinc-700 sm:inline">/</span>
         <span className="truncate font-medium text-zinc-200">{current}</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-[#F9E400]" />
-        <span className="hidden font-mono text-xs text-zinc-500 sm:inline">command center</span>
+      <div className="flex min-w-0 items-center gap-3">
+        {/* Global Instagram sync budget — visible on every page. */}
+        <RateLimitStatus />
+        <span className="hidden h-2 w-2 animate-pulse rounded-full bg-[#F9E400] sm:inline" />
       </div>
     </header>
   );

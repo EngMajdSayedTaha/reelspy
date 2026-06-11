@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
+import { fetchBusinessDiscovery } from "@/lib/instagram/graph-api";
 import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
 import { getIgCredentials } from "@/lib/instagram/token-store";
+import { numEnv } from "@/lib/utils/env";
 
 // Paced requests + multi-account loops need a generous budget.
 export const runtime = "nodejs";
@@ -12,11 +14,16 @@ export const maxDuration = 300;
 type SyncBody = {
   account_id?: string;
   limit?: number;
+  force?: boolean;
 };
 
 // How many reels to pull per account. Clamped to a sane range.
 const DEFAULT_SYNC_LIMIT = 25;
 const MAX_SYNC_LIMIT = 200;
+
+// "Sync All" skips accounts synced more recently than this — an account you
+// just synced individually has nothing new, so re-syncing it is double work.
+const SKIP_FRESH_SECONDS = numEnv("SYNC_SKIP_FRESH_SECONDS", 1800);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,7 +80,7 @@ export async function POST(request: Request) {
   // Build query for inspiration accounts to sync
   let accountsQuery = supabase
     .from("inspiration_accounts")
-    .select("id, ig_username")
+    .select("id, ig_username, last_synced_at, avatar_url, display_name, followers_count")
     .eq("user_id", user.id)
     .eq("is_active", true);
 
@@ -81,17 +88,39 @@ export async function POST(request: Request) {
     accountsQuery = accountsQuery.eq("id", body.account_id);
   }
 
-  const { data: accounts, error: accountsError } = await accountsQuery;
+  const { data: allAccounts, error: accountsError } = await accountsQuery;
 
   if (accountsError) {
     return NextResponse.json({ error: accountsError.message }, { status: 500 });
   }
 
-  if (!accounts || accounts.length === 0) {
+  if (!allAccounts || allAccounts.length === 0) {
     return NextResponse.json({
       inserted: 0,
-      skipped: 0,
+      updated: 0,
+      skippedFresh: 0,
       errors: body.account_id ? ["Account not found."] : ["No active inspiration accounts. Add some on the Accounts page."],
+    });
+  }
+
+  // No double work: a bulk "Sync All" skips accounts that were synced moments
+  // ago (e.g. individually from their card). Explicit single-account syncs and
+  // `force` always run.
+  const skipBefore = Date.now() - SKIP_FRESH_SECONDS * 1000;
+  const isBulk = !body.account_id && !body.force;
+  const accounts = isBulk
+    ? allAccounts.filter(
+        (a) => !a.last_synced_at || new Date(a.last_synced_at).getTime() < skipBefore
+      )
+    : allAccounts;
+  const skippedFresh = allAccounts.length - accounts.length;
+
+  if (accounts.length === 0) {
+    return NextResponse.json({
+      inserted: 0,
+      updated: 0,
+      skippedFresh,
+      message: "Everything is already up to date — nothing to sync.",
     });
   }
 
@@ -136,6 +165,66 @@ export async function POST(request: Request) {
       if (snap.error) errors.push(`@${account.ig_username}: ${snap.error}`);
     }
 
+    // 1b) Backfill missing profile data (avatar/followers) — accounts added in
+    //     bulk (e.g. the following import) skip Business Discovery validation,
+    //     so their first sync enriches them here. Cached in the shared snapshot
+    //     row so N users tracking the same account pay for one fetch. Gated on
+    //     a healthy snapshot: if Business Discovery can't read the account at
+    //     all (private / not Business), retrying the profile fetch every sync
+    //     would burn budget forever.
+    if (!account.avatar_url && !rateLimitHit && snap.status === "ok") {
+      const uname = account.ig_username.toLowerCase();
+      const { data: snapProfile } = await admin
+        .from("ig_account_snapshots")
+        .select("display_name, followers_count, avatar_url")
+        .eq("ig_username", uname)
+        .maybeSingle();
+
+      let profile: {
+        username: string;
+        followers_count?: number;
+        profile_picture_url?: string;
+      } | null = snapProfile?.avatar_url
+        ? {
+            username: snapProfile.display_name ?? account.ig_username,
+            followers_count: snapProfile.followers_count ?? undefined,
+            profile_picture_url: snapProfile.avatar_url,
+          }
+        : null;
+
+      if (!profile) {
+        const discovery = await fetchBusinessDiscovery(
+          credentials.igUserId,
+          credentials.token,
+          uname,
+          limiter
+        );
+        if (discovery.rateLimited) rateLimitHit = true;
+        profile = discovery.profile;
+        if (profile) {
+          await admin
+            .from("ig_account_snapshots")
+            .update({
+              display_name: profile.username,
+              followers_count: profile.followers_count ?? null,
+              avatar_url: profile.profile_picture_url ?? null,
+            })
+            .eq("ig_username", uname);
+        }
+      }
+
+      if (profile) {
+        await supabase
+          .from("inspiration_accounts")
+          .update({
+            display_name: profile.username,
+            followers_count: profile.followers_count ?? null,
+            avatar_url: profile.profile_picture_url ?? null,
+          })
+          .eq("id", account.id);
+      }
+    }
+
     // 2) Materialize from the cache into this user's feed — pure DB, no quota.
     //    Runs even when the refresh was throttled, so users still get cached reels.
     const { inserted, updated } = await materializeForUser(
@@ -149,10 +238,14 @@ export async function POST(request: Request) {
     totalInserted += inserted;
     totalUpdated += updated;
 
-    await supabase
-      .from("inspiration_accounts")
-      .update({ last_synced_at: new Date().toISOString() })
-      .eq("id", account.id);
+    // Don't stamp a throttled refresh as "synced" — the bulk-sync freshness
+    // skip would then wrongly pass over this account on the next attempt.
+    if (!snap.rateLimited) {
+      await supabase
+        .from("inspiration_accounts")
+        .update({ last_synced_at: new Date().toISOString() })
+        .eq("id", account.id);
+    }
 
     // Stop early on throttling so we don't worsen the app-level limit.
     if (rateLimitHit) break;
@@ -178,6 +271,7 @@ export async function POST(request: Request) {
   const payload = {
     inserted: totalInserted,
     updated: totalUpdated,
+    skippedFresh: skippedFresh || undefined,
     rateLimited: rateLimitHit || undefined,
     retryAfterSeconds: rateLimitHit ? retryAfterSeconds : undefined,
     // `error` is what the client surfaces as the primary message.
