@@ -15,6 +15,22 @@ function redirectToLogin(
   return NextResponse.redirect(url);
 }
 
+// Value-free snapshot of the cookies/host that reached the server, so the next
+// failed attempt tells us WHY the PKCE verifier was missing instead of guessing.
+function diagnostics(request: NextRequest): string {
+  const names = request.cookies.getAll().map((c) => c.name);
+  const hasVerifier = names.some((n) => n.includes("-code-verifier"));
+  const hasSession = names.some(
+    (n) => /^sb-.+-auth-token(\.\d+)?$/.test(n) && !n.includes("-code-verifier")
+  );
+  return [
+    `host=${request.nextUrl.host}`,
+    `verifier=${hasVerifier ? "present" : "MISSING"}`,
+    `session=${hasSession ? "present" : "none"}`,
+    `cookies=${names.length}`,
+  ].join(" | ");
+}
+
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -54,16 +70,31 @@ export async function GET(request: NextRequest) {
 
   const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
   if (exchangeError) {
-    // The real reason almost always points at config (Supabase redirect-URL
-    // allowlist / Site URL, a stale PKCE code-verifier cookie, or a mismatched
-    // Google client secret). Log it server-side and pass a short hint to the UI.
+    // The callback can be hit twice (browser prefetch, a refresh, or a double
+    // navigation). The first hit consumes the single-use code AND deletes the
+    // PKCE verifier, so the second hit fails with "verifier not found" even
+    // though the user is already signed in. If a valid session exists, treat
+    // this as success rather than bouncing an authenticated user to /login.
+    const {
+      data: { user: existingUser },
+    } = await supabase.auth.getUser();
+    if (existingUser) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    const diag = diagnostics(request);
     console.error("exchangeCodeForSession failed", {
       name: exchangeError.name,
       status: exchangeError.status,
       code: exchangeError.code,
       message: exchangeError.message,
+      diagnostics: diag,
     });
-    return redirectToLogin(request, "oauth_exchange_failed", exchangeError.message);
+    return redirectToLogin(
+      request,
+      "oauth_exchange_failed",
+      `${exchangeError.message} [${diag}]`
+    );
   }
 
   const {
