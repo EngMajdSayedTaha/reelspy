@@ -109,7 +109,7 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold text-white">Instagram</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Instagram</h1>
         <p className="text-sm text-zinc-400">
           Connect your Instagram to sync reels from the accounts you track.
         </p>

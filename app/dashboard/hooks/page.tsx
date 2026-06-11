@@ -73,7 +73,7 @@ export default async function HooksPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold text-white">Hook Library</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Hook Library</h1>
         <p className="text-sm text-zinc-400">
           The opening lines of every reel you&apos;ve transcribed — search, steal the structure, remix.
         </p>

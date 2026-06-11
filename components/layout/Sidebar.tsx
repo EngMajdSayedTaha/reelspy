@@ -82,7 +82,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 key={link.href}
                 href={link.href}
                 onClick={onClose}
-                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition lg:py-2 ${
                   active
                     ? "bg-[#F9E400]/10 text-[#F9E400]"
                     : "text-zinc-400 hover:bg-[#1a1a1a] hover:text-zinc-100"
@@ -91,7 +91,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 {active ? (
                   <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-[#F9E400]" />
                 ) : null}
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
                 {link.label}
               </Link>
             );

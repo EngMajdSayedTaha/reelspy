@@ -105,9 +105,9 @@ function LoginForm() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d0d0d] p-6">
       {/* Ambient accent glow */}
-      <div className="pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[#F9E400]/5 blur-[120px]" />
+      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[#F9E400]/5 blur-[120px]" />
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <LogoMark size={48} />
           <div>

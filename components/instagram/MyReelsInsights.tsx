@@ -174,7 +174,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
 
       {isLoading && !data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-20 rounded-xl" />
             ))}
@@ -188,7 +188,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       ) : null}
 
       {totals && totals.analyzed > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <StatBox icon={<Eye className="h-3.5 w-3.5" />} label="Views" value={formatCompact(totals.views)} />
           <StatBox icon={<Users className="h-3.5 w-3.5" />} label="Reach" value={formatCompact(totals.reach)} />
           <StatBox icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={formatCompact(totals.likes)} />
@@ -215,7 +215,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       ) : null}
 
       {media.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {media.map((item) => {
             const ins = item.insights;
             const isTop = top != null && item.id === top.id;

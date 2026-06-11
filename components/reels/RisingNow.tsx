@@ -41,11 +41,13 @@ export function RisingNow({
           No rising reels in this group yet.
         </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        // Bleeds to the screen edge on phones so the 340px cards fit and
+        // scroll-snap one at a time.
+        <div className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:snap-none sm:px-0">
           {reels.map((reel) => (
             // Min 340px: Instagram's /embed iframe renders blank below ~326px,
             // which is why inline play looked broken in this rail.
-            <div key={reel.id} className="w-[340px] shrink-0">
+            <div key={reel.id} className="w-[340px] shrink-0 snap-center sm:snap-align-none">
               <ReelCard
               reel={reel}
               markWorkedAction={markWorkedAction}

@@ -142,7 +142,7 @@ export default async function AccountsPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold text-white">Accounts</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Accounts</h1>
         <p className="text-sm text-zinc-400">
           Save inspiration accounts you want ReelSpy to track and score.
         </p>
@@ -175,7 +175,7 @@ export default async function AccountsPage({
               {q ? `No accounts match “${q}”.` : `No ${status} accounts.`}
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {accounts.map((account) => (
                 <AccountCard
                   key={account.id}

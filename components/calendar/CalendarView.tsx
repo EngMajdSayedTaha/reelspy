@@ -188,7 +188,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
         <div className={`grid grid-cols-7 gap-1 ${isPending ? "opacity-70" : ""}`}>
           {cells.map((day, i) => {
             if (day === null) {
-              return <div key={`blank-${i}`} className="min-h-[84px] rounded-md" />;
+              return <div key={`blank-${i}`} className="min-h-[52px] rounded-md sm:min-h-[84px]" />;
             }
 
             const dateStr = toDateStr(year, month, day);
@@ -207,7 +207,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                 }}
                 onDragLeave={() => setDragOverDate((d) => (d === dateStr ? null : d))}
                 onDrop={(e) => onDrop(e, dateStr)}
-                className={`min-h-[84px] rounded-md border p-1.5 transition ${
+                className={`min-h-[52px] rounded-md border p-1 transition sm:min-h-[84px] sm:p-1.5 ${
                   isDragOver
                     ? "border-[#F9E400] bg-[#F9E400]/10"
                     : isToday
@@ -218,7 +218,25 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                 <p className={`text-xs font-medium ${isToday ? "text-[#F9E400]" : "text-zinc-400"}`}>
                   {day}
                 </p>
-                <div className="mt-1 space-y-0.5">
+                {/* Phones: text chips are unreadable in ~45px cells, so show
+                    status dots instead — tapping the day opens the detail. */}
+                <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                  {dayScripts.slice(0, 4).map((s) => (
+                    <span
+                      key={s.id}
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        STATUS_COLORS[s.status ?? "draft"] ?? STATUS_COLORS.draft
+                      }`}
+                    />
+                  ))}
+                  {dayScripts.length > 4 ? (
+                    <span className="text-[9px] leading-none text-zinc-500">
+                      +{dayScripts.length - 4}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-1 hidden space-y-0.5 sm:block">
                   {dayScripts.slice(0, 2).map((s) => (
                     <div
                       key={s.id}

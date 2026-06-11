@@ -47,7 +47,7 @@ export default async function GenerateScriptPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold text-white">Generate Script</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Generate Script</h1>
         <p className="text-sm text-zinc-400">Create an original script from this reel inspiration.</p>
       </div>
 
