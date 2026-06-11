@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Loader2, RefreshCw } from "lucide-react";
+import { Check, Copy, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,21 @@ export function TranscriptPanel({
   const [source, setSource] = useState<string | null>(initialSource);
   const [language, setLanguage] = useState<string | null>(initialLanguage);
   const [isLoading, setIsLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const hasTranscript = Boolean(transcript && status === "ready");
+
+  const copyTranscript = async () => {
+    if (!transcript) return;
+    try {
+      await navigator.clipboard.writeText(transcript);
+      setCopied(true);
+      toast.success("Transcript copied.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy transcript.");
+    }
+  };
 
   const generate = async () => {
     setIsLoading(true);
@@ -91,21 +104,40 @@ export function TranscriptPanel({
           ) : null}
         </div>
 
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={generate}
-          disabled={isLoading}
-          className="shrink-0"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : hasTranscript ? (
-            <RefreshCw className="h-4 w-4" />
-          ) : null}
-          {isLoading ? "Transcribing…" : hasTranscript ? "Regenerate" : "Generate transcript"}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {hasTranscript && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={copyTranscript}
+              className="shrink-0"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {copied ? "Copied!" : "Copy"}
+            </Button>
+          )}
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={generate}
+            disabled={isLoading}
+            className="shrink-0"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : hasTranscript ? (
+              <RefreshCw className="h-4 w-4" />
+            ) : null}
+            {isLoading ? "Transcribing…" : hasTranscript ? "Regenerate" : "Generate transcript"}
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
