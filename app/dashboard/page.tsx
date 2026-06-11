@@ -28,15 +28,15 @@ function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
   return (
     <Link
       href={href}
-      className="group rounded-2xl border border-[#1f1f1f] bg-[#111111] p-5 transition-colors hover:border-[#2e2e2e]"
+      className="group sheen rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#2e2e2e] hover:shadow-lg hover:shadow-black/40 sm:p-5"
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-zinc-400">{label}</p>
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1a1a1a] text-zinc-400 transition group-hover:bg-[#F9E400]/10 group-hover:text-[#F9E400]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1a1a1a] text-zinc-400 transition group-hover:bg-[#F9E400]/10 group-hover:text-[#F9E400]">
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+      <p className="mt-3 text-2xl font-semibold text-white sm:text-3xl">{value}</p>
     </Link>
   );
 }
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">
+        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           Welcome back, {username}
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
@@ -137,7 +137,7 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="Inspiration Accounts"
           value={String(accountsCount)}
@@ -225,7 +225,7 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-xl border border-[#1f1f1f] bg-[#141414] p-4 transition-colors hover:border-[#F9E400]/40"
+      className="group flex items-center gap-3 rounded-xl border border-[#1f1f1f] bg-[#141414] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#F9E400]/40"
     >
       <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1a1a1a] text-zinc-300 transition group-hover:bg-[#F9E400]/10 group-hover:text-[#F9E400]">
         <Icon className="h-5 w-5" />

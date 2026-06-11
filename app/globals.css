@@ -56,6 +56,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Snappier taps on touch devices (no double-tap zoom delay on controls). */
+button,
+a,
+select,
+input,
+textarea,
+label {
+  touch-action: manipulation;
+}
+
+/* iOS Safari zooms the page when a focused control's font is below 16px.
+   Bump form controls to 16px on phones so focusing never zooms. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 ::selection {
@@ -149,4 +170,79 @@ select:disabled,
 }
 .favorite-pop {
   animation: favoritePop 0.35s ease;
+}
+
+/* Page/content entrance — transform + opacity only, so it stays on the
+   compositor and never causes layout work. */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise {
+  animation: riseIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance for card grids: each child fades up slightly after the
+   previous one. Delays cap at the 12th child so long lists don't crawl in. */
+.stagger > * {
+  animation: riseIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.03s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.09s; }
+.stagger > *:nth-child(4) { animation-delay: 0.12s; }
+.stagger > *:nth-child(5) { animation-delay: 0.15s; }
+.stagger > *:nth-child(6) { animation-delay: 0.18s; }
+.stagger > *:nth-child(7) { animation-delay: 0.21s; }
+.stagger > *:nth-child(8) { animation-delay: 0.24s; }
+.stagger > *:nth-child(9) { animation-delay: 0.27s; }
+.stagger > *:nth-child(10) { animation-delay: 0.3s; }
+.stagger > *:nth-child(11) { animation-delay: 0.33s; }
+.stagger > *:nth-child(n + 12) { animation-delay: 0.36s; }
+
+/* Hover sheen — a soft light sweep across a card. Pointer-hover devices
+   only, and the pseudo-element animates transform alone (GPU-composited). */
+@media (hover: hover) {
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(249, 228, 0, 0.06) 50%,
+      rgba(255, 255, 255, 0.05) 55%,
+      transparent 65%
+    );
+    transform: translateX(-110%);
+  }
+  .sheen:hover::after {
+    transition: transform 0.7s ease;
+    transform: translateX(110%);
+  }
+}
+
+/* Slow ambient drift for the login page glow. */
+@keyframes glowDrift {
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  50% { transform: translateX(-46%) translateY(18px) scale(1.06); }
+}
+.glow-drift {
+  animation: glowDrift 9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .stagger > *,
+  .glow-drift {
+    animation: none;
+  }
+  .sheen::after {
+    display: none;
+  }
 }

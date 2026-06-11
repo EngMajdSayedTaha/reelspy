@@ -53,7 +53,7 @@ export default async function MyAccountPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold text-white">My IG</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white">My IG</h1>
         <p className="text-sm text-zinc-400">
           Your Instagram account — full reel history, performance and insights.
         </p>

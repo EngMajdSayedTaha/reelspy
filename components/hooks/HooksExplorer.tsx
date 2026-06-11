@@ -93,7 +93,7 @@ export function HooksExplorer({ hooks }: HooksExplorerProps) {
         {query ? " match your search" : ""}
       </p>
 
-      <div className="grid gap-3">
+      <div className="stagger grid gap-3">
         {filtered.map((item) => (
           <HookRow key={item.reelId} item={item} />
         ))}

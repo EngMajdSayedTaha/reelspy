@@ -45,7 +45,7 @@ const STATUS_OPTIONS = [
 const PER_PAGE_OPTIONS = ["10", "25"];
 
 const selectClass =
-  "h-9 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20";
+  "h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 sm:w-auto";
 
 export function FeedControls({ accounts, groups, current, statusCounts, total }: FeedControlsProps) {
   const router = useRouter();
@@ -91,14 +91,16 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
     current.q !== "";
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
-      {/* Thin progress bar while the filtered feed is loading. */}
+    <div className="relative rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+      {/* Thin progress bar while the filtered feed is loading. Rounded ends
+          stand in for the parent's old overflow-hidden, which clipped the
+          account dropdown panel. */}
       {isPending ? (
-        <span className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-[#F9E400]" />
+        <span className="absolute inset-x-2 top-0 h-0.5 animate-pulse rounded-full bg-[#F9E400]" />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <form onSubmit={onSearchSubmit} className="flex min-w-[230px] flex-1 gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <form onSubmit={onSearchSubmit} className="flex w-full gap-2 sm:w-auto sm:min-w-[230px] sm:flex-1">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
@@ -123,9 +125,12 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
           </button>
         </form>
 
+        {/* On phones the filters form a 2-column grid; from `sm` up the
+            wrapper dissolves (display: contents) into the flex-wrap row. */}
+        <div className="grid grid-cols-2 gap-2 sm:contents">
         <SearchableSelect
           ariaLabel="Filter by account"
-          className="w-44"
+          className="w-full sm:w-44"
           value={current.account}
           onChange={(value) => apply({ account: value })}
           allOption={{ value: "all", label: "All accounts" }}
@@ -176,32 +181,35 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
           ))}
         </select>
 
-        <select
-          aria-label="Sort by"
-          className={selectClass}
-          value={current.sort}
-          onChange={(e) => apply({ sort: e.target.value })}
-        >
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        {/* Sort + direction share one grid cell on phones. */}
+        <div className="flex gap-2 sm:contents">
+          <select
+            aria-label="Sort by"
+            className={selectClass}
+            value={current.sort}
+            onChange={(e) => apply({ sort: e.target.value })}
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
 
-        <button
-          type="button"
-          aria-label="Toggle sort direction"
-          title={current.order === "asc" ? "Ascending" : "Descending"}
-          onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
-        >
-          {current.order === "asc" ? (
-            <ArrowUpWideNarrow className="h-4 w-4" />
-          ) : (
-            <ArrowDownWideNarrow className="h-4 w-4" />
-          )}
-        </button>
+          <button
+            type="button"
+            aria-label="Toggle sort direction"
+            title={current.order === "asc" ? "Ascending" : "Descending"}
+            onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+          >
+            {current.order === "asc" ? (
+              <ArrowUpWideNarrow className="h-4 w-4" />
+            ) : (
+              <ArrowDownWideNarrow className="h-4 w-4" />
+            )}
+          </button>
+        </div>
 
         <select
           aria-label="Reels per page"
@@ -225,12 +233,13 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
               setSearch("");
               apply({ account: null, group: null, pattern: null, status: null, q: null });
             }}
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-400 transition hover:border-rose-500/50 hover:text-rose-300"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-400 transition hover:border-rose-500/50 hover:text-rose-300"
           >
             <X className="h-3.5 w-3.5" />
             Clear
           </button>
         ) : null}
+        </div>
       </div>
 
       <p className="mt-2 px-1 text-xs text-zinc-500">

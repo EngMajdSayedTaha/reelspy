@@ -111,7 +111,7 @@ export function ReelCard({
     : null;
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#1f1f1f] bg-[#111111] text-zinc-100 transition-colors hover:border-[#2e2e2e]">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#1f1f1f] bg-[#111111] text-zinc-100 transition duration-200 hover:-translate-y-1 hover:border-[#2e2e2e] hover:shadow-xl hover:shadow-black/40">
       {/* Media */}
       <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#0a0a0a]">
         {playing ? (
