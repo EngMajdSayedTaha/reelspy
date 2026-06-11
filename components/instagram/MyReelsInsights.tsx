@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Bookmark,
   Clapperboard,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Eye,
   Heart,
@@ -15,7 +17,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InsightsCharts } from "@/components/instagram/InsightsCharts";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
+
+const INITIAL_REELS = 6;
 
 type MediaInsights = {
   views?: number;
@@ -99,6 +104,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
   const [data, setData] = useState<MyReelsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(connected);
   const [error, setError] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -208,6 +214,10 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
         </p>
       ) : null}
 
+      {totals && totals.analyzed > 0 ? (
+        <InsightsCharts reels={reels} totals={totals} />
+      ) : null}
+
       {!isLoading && media.length === 0 && !error ? (
         <div className="rounded-xl border border-dashed border-zinc-700 p-5 text-center text-sm text-zinc-400">
           No posts found on your account yet. Post a reel, then sync again.
@@ -216,7 +226,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
 
       {media.length > 0 ? (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {media.map((item) => {
+          {(showAll ? media : media.slice(0, INITIAL_REELS)).map((item) => {
             const ins = item.insights;
             const isTop = top != null && item.id === top.id;
             const posted = item.timestamp
@@ -310,6 +320,24 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
               </article>
             );
           })}
+        </div>
+      ) : null}
+
+      {media.length > INITIAL_REELS ? (
+        <div className="flex justify-center pt-1">
+          <Button type="button" variant="outline" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Show less
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Show all {media.length} posts
+              </>
+            )}
+          </Button>
         </div>
       ) : null}
     </section>
