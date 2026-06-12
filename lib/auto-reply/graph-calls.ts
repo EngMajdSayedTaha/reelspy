@@ -73,17 +73,54 @@ export async function sendPrivateReply(
 
 // Page-level app subscription — without it Meta delivers NO Instagram webhooks
 // for this account, even when the app-level webhook is configured. The
-// `comments` field itself is selected on the Instagram object in the App
-// Dashboard; `subscribed_fields` here only accepts Page fields, so `feed` is
-// the conventional minimal value.
+// `comments`/`messages` fields themselves are selected on the Instagram object
+// in the App Dashboard; `subscribed_fields` here only accepts Page fields:
+// `feed` covers the comment webhooks, `messages` unlocks Instagram Messaging
+// (DM) webhook delivery.
 export async function subscribePageToWebhooks(
   pageId: string,
   pageToken: string
 ): Promise<void> {
   await postJson(`${GRAPH_BASE}/${pageId}/subscribed_apps`, {
-    subscribed_fields: "feed",
+    subscribed_fields: "feed,messages",
     access_token: pageToken,
   });
+}
+
+// Plain DM to an Instagram-scoped user id (the `sender.id` from a messaging
+// webhook). Uses the PAGE token. Replying to a just-received message is always
+// inside Meta's 24-hour messaging window.
+export async function sendDirectMessage(
+  pageId: string,
+  recipientId: string,
+  text: string,
+  pageToken: string
+): Promise<string | null> {
+  const json = await postJson<{ message_id?: string }>(`${GRAPH_BASE}/${pageId}/messages`, {
+    recipient: { id: recipientId },
+    message: { text },
+    access_token: pageToken,
+  });
+  return json.message_id ?? null;
+}
+
+// Best-effort username lookup for the event log (messaging webhooks only carry
+// the Instagram-scoped id, not the handle). Callers must tolerate null.
+export async function getIgUsernameById(
+  igScopedId: string,
+  pageToken: string
+): Promise<string | null> {
+  try {
+    const url = new URL(`${GRAPH_BASE}/${igScopedId}`);
+    url.searchParams.set("fields", "username");
+    url.searchParams.set("access_token", pageToken);
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return null;
+    const json = (await response.json()) as { username?: string };
+    return typeof json.username === "string" ? json.username : null;
+  } catch {
+    return null;
+  }
 }
 
 export type RecentComment = {

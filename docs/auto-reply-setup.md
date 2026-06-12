@@ -7,6 +7,11 @@ follower comments a matching keyword, ReelSpy:
 2. posts a **public reply** under the comment (rotating templates, e.g. "Check your DMs 📩"), and
 3. sends the follower a **private reply DM** with your message + link.
 
+It also supports **DM keyword automations**: when someone sends your account a
+direct message matching your keywords (or any message, with a once-per-24h
+per-person cooldown), they get an automatic reply + link. Story replies are
+deliberately ignored. Requires the `messages` webhook field (setup step 6).
+
 > **Note on likes:** Meta only added comment-liking to the official API in
 > 2026 and its documentation is thin. The like step is therefore best-effort:
 > if Meta rejects it, the Activity log shows the like as `failed` with Meta's
@@ -52,6 +57,9 @@ Deploy so the webhook endpoint (`/api/ig/webhooks`) is live before step 3.
    Verify Token: the `META_WEBHOOK_VERIFY_TOKEN` value.
 4. Click **Verify and Save** — Meta calls the endpoint's GET handler.
 5. **Subscribe to the `comments` field** on the Instagram object.
+6. For **DM keyword automations**, also subscribe to the **`messages`** field
+   on the Instagram object, then reconnect Instagram in ReelSpy once (the
+   page-level subscription now includes `messages`; reconnecting refreshes it).
 
 ### 4. Permissions
 

@@ -180,6 +180,197 @@ export async function updateAutomation(
   return {};
 }
 
+// ── DM keyword automations ────────────────────────────────────────────────────
+
+type ParsedDmAutomation = {
+  keywords: string[];
+  match_mode: MatchMode;
+  reply_message: string;
+  reply_link: string | null;
+};
+
+function parseDmAutomationFields(formData: FormData): ParsedDmAutomation | { error: string } {
+  const modeRaw = formData.get("match_mode");
+  const match_mode: MatchMode =
+    modeRaw === "exact" ? "exact" : modeRaw === "any" ? "any" : "contains";
+
+  const keywordsRaw = formData.get("keywords");
+  const keywords =
+    match_mode === "any"
+      ? []
+      : Array.from(
+          new Set(
+            (typeof keywordsRaw === "string" ? keywordsRaw : "")
+              .split(/[,\n]+/)
+              .map((k) => k.trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+  if (match_mode !== "any") {
+    if (keywords.length === 0) {
+      return { error: "At least one keyword is required." };
+    }
+    if (keywords.length > MAX_KEYWORDS) {
+      return { error: `Use up to ${MAX_KEYWORDS} keywords.` };
+    }
+    if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
+      return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
+    }
+  }
+
+  const replyRaw = formData.get("reply_message");
+  const reply_message = typeof replyRaw === "string" ? replyRaw.trim() : "";
+  if (!reply_message) {
+    return { error: "The reply message is required." };
+  }
+  if (reply_message.length > MAX_DM_LENGTH) {
+    return { error: `The reply message must be ${MAX_DM_LENGTH} characters or fewer.` };
+  }
+
+  const linkRaw = formData.get("reply_link");
+  let reply_link: string | null = null;
+  if (typeof linkRaw === "string" && linkRaw.trim()) {
+    try {
+      const parsed = new URL(linkRaw.trim());
+      if (parsed.protocol !== "https:") {
+        return { error: "The link must start with https://." };
+      }
+      reply_link = parsed.toString();
+    } catch {
+      return { error: "That doesn't look like a valid link." };
+    }
+  }
+
+  return { keywords, match_mode, reply_message, reply_link };
+}
+
+export async function createDmAutomation(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized." };
+  }
+
+  const parsed = parseDmAutomationFields(formData);
+  if ("error" in parsed) {
+    return { error: parsed.error };
+  }
+
+  const { error } = await supabase
+    .from("dm_automations")
+    .insert({ user_id: user.id, ...parsed });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/automations");
+  return {};
+}
+
+export async function updateDmAutomation(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Unauthorized." };
+  }
+
+  const automationId = formData.get("automation_id");
+  if (typeof automationId !== "string" || !automationId) {
+    return { error: "Automation id is required." };
+  }
+
+  const parsed = parseDmAutomationFields(formData);
+  if ("error" in parsed) {
+    return { error: parsed.error };
+  }
+
+  const { error } = await supabase
+    .from("dm_automations")
+    .update({ ...parsed, updated_at: new Date().toISOString() })
+    .eq("id", automationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/dashboard/automations");
+  return {};
+}
+
+export async function toggleDmAutomationActive(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const automationId = formData.get("automation_id");
+  const desired = formData.get("is_active");
+
+  if (typeof automationId !== "string" || !automationId) {
+    throw new Error("Automation id is required.");
+  }
+
+  const { error } = await supabase
+    .from("dm_automations")
+    .update({ is_active: desired === "true", updated_at: new Date().toISOString() })
+    .eq("id", automationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/automations");
+}
+
+export async function deleteDmAutomation(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Unauthorized");
+  }
+
+  const automationId = formData.get("automation_id");
+
+  if (typeof automationId !== "string" || !automationId) {
+    throw new Error("Automation id is required.");
+  }
+
+  const { error } = await supabase
+    .from("dm_automations")
+    .delete()
+    .eq("id", automationId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/dashboard/automations");
+}
+
 export async function toggleAutomationActive(formData: FormData) {
   const supabase = await createClient();
   const {
