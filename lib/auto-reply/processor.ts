@@ -16,8 +16,13 @@ import {
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
 import { matchKeyword } from "./keyword-match";
-import { replyToComment, sendPrivateReply } from "./graph-calls";
+import { likeComment, replyToComment, sendPrivateReply } from "./graph-calls";
 import type { CommentWebhookValue, ReelAutomation } from "./types";
+
+// Kill switch for the comment-like step: Meta's comment-like endpoint is new
+// (2026) and thinly documented — if it misbehaves, set AUTO_REPLY_LIKE_DISABLED=1
+// to skip likes without redeploying any other behavior.
+const LIKE_DISABLED = process.env.AUTO_REPLY_LIKE_DISABLED === "1";
 
 export type ProcessResult =
   | "processed"
@@ -125,8 +130,24 @@ export async function processCommentChange(
 
   const credentials = await getIgCredentials(admin, profile.id).catch(() => null);
 
-  // Public reply (user token). A failure here does NOT block the DM — the DM
-  // is the point of the feature.
+  // Step 1 — like (heart) the comment. Purely best-effort: a failure (or the
+  // endpoint being unavailable) never blocks the reply or the DM.
+  if (!credentials || LIKE_DISABLED) {
+    update.like_status = "skipped";
+    if (LIKE_DISABLED) update.like_error = "Disabled via AUTO_REPLY_LIKE_DISABLED.";
+  } else {
+    try {
+      await likeComment(value.id, credentials.token);
+      update.like_status = "sent";
+    } catch (err) {
+      update.like_status = "failed";
+      update.like_error = errorText(err);
+      await handleGraphFailure(admin, profile.id, err);
+    }
+  }
+
+  // Step 2 — public reply (user token). A failure here does NOT block the DM —
+  // the DM is the point of the feature.
   if (credentials) {
     try {
       const template = pickTemplate(automation.public_reply_templates);
@@ -142,7 +163,7 @@ export async function processCommentChange(
     update.public_reply_error = "Instagram not connected.";
   }
 
-  // Private reply DM (page token).
+  // Step 3 — private reply DM (page token).
   const page = await getPageCredentials(admin, profile.id).catch(() => null);
   if (page) {
     try {

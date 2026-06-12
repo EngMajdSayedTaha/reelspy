@@ -50,7 +50,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
 
   const [mediaId, setMediaId] = useState("");
   const [keywords, setKeywords] = useState("");
-  const [matchMode, setMatchMode] = useState<"contains" | "exact">("contains");
+  const [matchMode, setMatchMode] = useState<"contains" | "exact" | "any">("contains");
   const [templates, setTemplates] = useState("Check your DMs 📩");
   const [dmMessage, setDmMessage] = useState("");
   const [dmLink, setDmLink] = useState("");
@@ -95,7 +95,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
       setError("Pick one of your reels first.");
       return;
     }
-    if (!keywords.trim()) {
+    if (matchMode !== "any" && !keywords.trim()) {
       setError("At least one keyword is required.");
       return;
     }
@@ -190,29 +190,42 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="automation_keywords">Keywords (comma separated)</Label>
-            <Input
-              id="automation_keywords"
-              placeholder="link, guide, free"
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="automation_match_mode">Match</Label>
             <select
               id="automation_match_mode"
               value={matchMode}
               disabled={isPending}
-              onChange={(e) => setMatchMode(e.target.value === "exact" ? "exact" : "contains")}
+              onChange={(e) =>
+                setMatchMode(
+                  e.target.value === "exact" ? "exact" : e.target.value === "any" ? "any" : "contains"
+                )
+              }
               className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
             >
               <option value="contains">Comment contains a keyword</option>
               <option value="exact">Comment is exactly a keyword</option>
+              <option value="any">Any comment (no keywords needed)</option>
             </select>
           </div>
+
+          {matchMode === "any" ? (
+            <p className="rounded-lg bg-[#F9E400]/5 px-3 py-2 text-xs text-zinc-400">
+              Every comment on this reel gets the reply + DM (your own comments and the bot&apos;s
+              replies are always ignored). Great for &ldquo;comment anything and I&apos;ll DM you the
+              link&rdquo; CTAs — just mind Meta&apos;s ~200 calls/hour limit if the reel goes viral.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="automation_keywords">Keywords (comma separated)</Label>
+              <Input
+                id="automation_keywords"
+                placeholder="link, guide, free"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">

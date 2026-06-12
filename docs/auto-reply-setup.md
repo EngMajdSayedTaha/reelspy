@@ -3,8 +3,15 @@
 The Auto-Reply module links one of **your own reels** to keywords. When a
 follower comments a matching keyword, ReelSpy:
 
-1. posts a **public reply** under the comment (rotating templates, e.g. "Check your DMs 📩"), and
-2. sends the follower a **private reply DM** with your message + link.
+1. **likes (hearts)** the comment — best-effort; see note below,
+2. posts a **public reply** under the comment (rotating templates, e.g. "Check your DMs 📩"), and
+3. sends the follower a **private reply DM** with your message + link.
+
+> **Note on likes:** Meta only added comment-liking to the official API in
+> 2026 and its documentation is thin. The like step is therefore best-effort:
+> if Meta rejects it, the Activity log shows the like as `failed` with Meta's
+> message while the reply and DM proceed normally. To turn likes off without
+> a code change, set `AUTO_REPLY_LIKE_DISABLED=1` in the environment.
 
 Everything runs on Meta's official Graph API — 100% free. Because only your
 own account uses the app (you are the app admin), **Standard Access is enough:

@@ -40,7 +40,7 @@ export default async function AutomationsPage() {
       supabase
         .from("automation_events")
         .select(
-          "id, automation_id, comment_id, ig_media_id, comment_text, commenter_id, commenter_username, matched_keyword, public_reply_status, public_reply_error, dm_status, dm_error, created_at, processed_at"
+          "id, automation_id, comment_id, ig_media_id, comment_text, commenter_id, commenter_username, matched_keyword, like_status, like_error, public_reply_status, public_reply_error, dm_status, dm_error, created_at, processed_at"
         )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
