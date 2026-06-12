@@ -281,38 +281,98 @@ function mapInsights(entries: InsightEntry[]): MediaInsights {
   return out;
 }
 
-// Per-media insights (views, reach, saves, shares, watch time…). Returns null
-// when Meta declines (too old, unsupported type, missing permission) — the
-// caller degrades to the basic like/comment counts. Throws on rate limits so
-// the caller can stop the loop.
-export async function getMediaInsights(
-  mediaId: string,
-  token: string,
-  isReel: boolean
-): Promise<MediaInsights | null> {
-  const attempt = async (metrics: string) => {
-    const url = toUrl(`${GRAPH_BASE}/${mediaId}/insights`, {
-      metric: metrics,
-      access_token: token,
-    });
-    const json = await fetchJson<{ data?: InsightEntry[] }>(url);
-    return mapInsights(json.data ?? []);
-  };
+// Some metrics aren't supported on every media generation — failed items are
+// retried with this lean set before degrading to basic like/comment counts.
+const LEAN_INSIGHT_METRICS = "reach,total_interactions";
 
-  try {
-    return await attempt(isReel ? REEL_INSIGHT_METRICS : POST_INSIGHT_METRICS);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (isRateLimitError(message)) throw err;
-    // Some metrics aren't supported on every media generation — retry lean.
-    try {
-      return await attempt("reach,total_interactions");
-    } catch (retryErr) {
-      const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
-      if (isRateLimitError(retryMessage)) throw retryErr;
-      return null;
+export type BatchInsightsResult = {
+  /** mediaId → insights, or null when Meta declined for that item. */
+  insights: Map<string, MediaInsights | null>;
+  /** True when Meta started throttling partway through — results are partial. */
+  rateLimited: boolean;
+};
+
+// Per-media insights for MANY items in one round-trip via the Graph batch
+// endpoint (up to 50 sub-requests per HTTP call). This replaces N sequential
+// /insights calls — same quota cost per sub-request, but latency collapses
+// from ~N×500ms to one or two round-trips. Items whose full metric set is
+// rejected (older media generations) are retried once with the lean set.
+export async function getMediaInsightsBatch(
+  items: Array<{ id: string; isReel: boolean }>,
+  token: string
+): Promise<BatchInsightsResult> {
+  const insights = new Map<string, MediaInsights | null>();
+  let rateLimited = false;
+
+  const BATCH_LIMIT = 50;
+
+  let pending = items.map((item) => ({
+    id: item.id,
+    metrics: item.isReel ? REEL_INSIGHT_METRICS : POST_INSIGHT_METRICS,
+  }));
+
+  // Pass 0: full metrics. Pass 1: lean retry for the items pass 0 rejected.
+  for (let pass = 0; pass < 2 && pending.length > 0 && !rateLimited; pass++) {
+    const failed: typeof pending = [];
+
+    for (let i = 0; i < pending.length && !rateLimited; i += BATCH_LIMIT) {
+      const chunk = pending.slice(i, i + BATCH_LIMIT);
+      const batch = chunk.map((p) => ({
+        method: "GET",
+        relative_url: `${p.id}/insights?metric=${p.metrics}`,
+      }));
+
+      const response = await fetch(`${GRAPH_BASE}/`, {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          access_token: token,
+          include_headers: "false",
+          batch: JSON.stringify(batch),
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        if (isRateLimitError(body)) {
+          rateLimited = true;
+          break;
+        }
+        throw new Error(`Instagram API error (${response.status}): ${body}`);
+      }
+
+      // Each sub-response carries its own status; null means it timed out.
+      const results = (await response.json()) as Array<{ code?: number; body?: string } | null>;
+
+      for (let j = 0; j < chunk.length; j++) {
+        const sub = results[j];
+        if (sub?.code === 200 && sub.body) {
+          try {
+            const parsed = JSON.parse(sub.body) as { data?: InsightEntry[] };
+            insights.set(chunk[j].id, mapInsights(parsed.data ?? []));
+            continue;
+          } catch {
+            // Unparseable body — treat as failed below.
+          }
+        }
+        if (sub?.body && isRateLimitError(sub.body)) {
+          rateLimited = true;
+        } else {
+          failed.push({ id: chunk[j].id, metrics: LEAN_INSIGHT_METRICS });
+        }
+      }
     }
+
+    pending = rateLimited ? [] : failed;
   }
+
+  // Anything still unresolved degrades to the basic like/comment counts.
+  for (const item of items) {
+    if (!insights.has(item.id)) insights.set(item.id, null);
+  }
+
+  return { insights, rateLimited };
 }
 
 export function isMetaRateLimitMessage(message: string): boolean {

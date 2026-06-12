@@ -46,8 +46,17 @@ type MyReelsResponse = {
   media?: MediaItem[];
   totals?: Totals;
   partial?: boolean;
+  synced_at?: string;
   error?: string;
 };
+
+function timeAgo(iso: string): string {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
 
 const SORTS = [
   { key: "recent", label: "Newest" },
@@ -202,11 +211,14 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
   const [sort, setSort] = useState<SortKey>("recent");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      const json = await requestJson<MyReelsResponse>("/api/ig/my-reels", { cache: "no-store" });
+      const json = await requestJson<MyReelsResponse>(
+        force ? "/api/ig/my-reels?refresh=1" : "/api/ig/my-reels",
+        { cache: "no-store" }
+      );
       setData(json);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -264,12 +276,17 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
             watch time.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {media.length > 0 ? <ExportMenu profile={profile} totals={totals} media={media} /> : null}
-          <Button type="button" variant="outline" onClick={load} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            {isLoading ? "Syncing…" : "Sync my reels"}
-          </Button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            {media.length > 0 ? <ExportMenu profile={profile} totals={totals} media={media} /> : null}
+            <Button type="button" variant="outline" onClick={() => load(true)} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              {isLoading ? "Syncing…" : "Sync my reels"}
+            </Button>
+          </div>
+          {data?.synced_at ? (
+            <p className="text-[11px] text-zinc-600">Updated {timeAgo(data.synced_at)}</p>
+          ) : null}
         </div>
       </div>
 

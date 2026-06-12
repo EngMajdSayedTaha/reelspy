@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { getMyInsights } from "@/lib/instagram/graph-api";
+import { readMyInsightsCache, type MyInsightsProfile } from "@/lib/instagram/my-insights";
 
 function formatNumber(n: number | null | undefined) {
   if (!n) return "0";
@@ -35,18 +36,26 @@ export default async function MyAccountPage() {
 
   // Token reads go through the admin client; browser-facing roles can only see
   // connection metadata, never the token column.
-  const credentials = await getIgCredentials(createAdminClient(), user.id).catch(() => null);
+  const admin = createAdminClient();
+  const credentials = await getIgCredentials(admin, user.id).catch(() => null);
   const connected = Boolean(credentials);
 
-  let insights = null;
+  let insights: MyInsightsProfile | null = null;
   let igError: string | null = null;
 
   if (credentials) {
-    try {
-      insights = await getMyInsights(credentials.igUserId, credentials.token);
-    } catch {
-      igError =
-        "Could not load Instagram insights. Your token may have expired — reconnect in Settings.";
+    // The header reads from the same per-user cache as the insights section, so
+    // page renders don't block on a Graph call once a first sync has happened.
+    const cached = await readMyInsightsCache(admin, user.id).catch(() => null);
+    if (cached) {
+      insights = cached.payload.profile;
+    } else {
+      try {
+        insights = await getMyInsights(credentials.igUserId, credentials.token);
+      } catch {
+        igError =
+          "Could not load Instagram insights. Your token may have expired — reconnect in Settings.";
+      }
     }
   }
 

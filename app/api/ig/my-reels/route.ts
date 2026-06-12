@@ -1,42 +1,31 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { getIgCredentials } from "@/lib/instagram/token-store";
+import { isMetaRateLimitMessage } from "@/lib/instagram/graph-api";
 import {
-  getMediaInsights,
-  getMyInsights,
-  getMyMediaPaged,
-  isMetaRateLimitMessage,
-  type MediaInsights,
-  type MyMediaItem,
-} from "@/lib/instagram/graph-api";
+  readMyInsightsCache,
+  revalidateMyInsights,
+  syncMyInsights,
+  type MyInsightsPayload,
+} from "@/lib/instagram/my-insights";
 
-// Dedicated sync for the user's OWN reels: profile, full media history, and
-// per-reel insights (views, reach, saves, shares, watch time). These calls read
-// the connected account directly — they do not touch the shared Business
-// Discovery budget — but they're paced anyway to be gentle on Meta's app limit.
+// The user's OWN reels + insights, served cache-first:
+//   - fresh cache  → instant Postgres read, zero Graph calls
+//   - stale cache  → served instantly, revalidated in the background (after())
+//   - no cache, or ?refresh=1 ("Sync my reels") → live batched sync
+// The live sync reads the connected account directly — it does not touch the
+// shared Business Discovery budget — but Meta throttling is app-wide, so when
+// it happens here we open the shared circuit breaker too.
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
-const MAX_MEDIA = 60;
-const MAX_INSIGHTS = 30;
-const PACE_MS = 120;
-
-type EnrichedMedia = MyMediaItem & { insights: MediaInsights | null };
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function respond(payload: MyInsightsPayload, syncedAt: string) {
+  return NextResponse.json({ connected: true, synced_at: syncedAt, ...payload });
 }
 
-function isReelItem(item: MyMediaItem): boolean {
-  return (
-    String(item.media_product_type ?? "").toUpperCase() === "REELS" ||
-    String(item.media_type ?? "").toUpperCase() === "VIDEO"
-  );
-}
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   const {
@@ -54,81 +43,43 @@ export async function GET() {
     return NextResponse.json({ connected: false });
   }
 
-  // Own-media reads don't consume the shared Business Discovery budget, but
-  // Meta throttling is app-wide — so when it happens here, open the shared
-  // circuit breaker too instead of letting other syncs keep hammering.
+  const force = request.nextUrl.searchParams.get("refresh") === "1";
+  const cached = await readMyInsightsCache(admin, user.id);
+
+  if (cached && !force) {
+    if (!cached.fresh) {
+      // Stale-while-revalidate: the response goes out now; the refresh runs
+      // after it, so the next visit picks up the new data.
+      after(async () => {
+        try {
+          await revalidateMyInsights(admin, user.id, credentials);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (isMetaRateLimitMessage(message)) {
+            await createMetaRateLimiter(admin, user.id).recordThrottle();
+          }
+          console.error("My IG background revalidation failed", error);
+        }
+      });
+    }
+    return respond(cached.payload, cached.fetchedAt);
+  }
+
   const limiter = createMetaRateLimiter(admin, user.id);
 
   try {
-    const [profile, media] = await Promise.all([
-      getMyInsights(credentials.igUserId, credentials.token),
-      getMyMediaPaged(credentials.igUserId, credentials.token, MAX_MEDIA),
-    ]);
-
-    // Per-media insights for the most recent items. Sequential + paced; stop
-    // immediately if Meta starts throttling and return what we have.
-    const enriched: EnrichedMedia[] = [];
-    let insightsFetched = 0;
-    let partial = false;
-
-    for (const item of media) {
-      if (insightsFetched >= MAX_INSIGHTS || partial) {
-        enriched.push({ ...item, insights: null });
-        continue;
-      }
-      try {
-        const insights = await getMediaInsights(item.id, credentials.token, isReelItem(item));
-        enriched.push({ ...item, insights });
-        insightsFetched += 1;
-        await sleep(PACE_MS);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (isMetaRateLimitMessage(message)) {
-          partial = true;
-          await limiter.recordThrottle();
-          enriched.push({ ...item, insights: null });
-        } else {
-          enriched.push({ ...item, insights: null });
-          insightsFetched += 1;
-        }
-      }
-    }
-
-    // Aggregate totals across the items that actually returned insights.
-    const totals = enriched.reduce(
-      (acc, item) => {
-        const ins = item.insights;
-        if (!ins) return acc;
-        acc.analyzed += 1;
-        acc.views += ins.views ?? 0;
-        acc.reach += ins.reach ?? 0;
-        acc.likes += ins.likes ?? item.like_count ?? 0;
-        acc.comments += ins.comments ?? item.comments_count ?? 0;
-        acc.saved += ins.saved ?? 0;
-        acc.shares += ins.shares ?? 0;
-        return acc;
-      },
-      { analyzed: 0, views: 0, reach: 0, likes: 0, comments: 0, saved: 0, shares: 0 }
-    );
-
-    return NextResponse.json({
-      connected: true,
-      profile: {
-        username: profile.username,
-        followers_count: profile.followers_count,
-        media_count: profile.media_count,
-        biography: profile.biography,
-        profile_picture_url: profile.profile_picture_url,
-      },
-      media: enriched,
-      totals,
-      partial: partial || undefined,
-    });
+    const payload = await syncMyInsights(admin, user.id, credentials);
+    return respond(payload, new Date().toISOString());
   } catch (error) {
     console.error("My IG sync failed", error);
     const message = error instanceof Error ? error.message : String(error);
     if (isMetaRateLimitMessage(message)) {
       await limiter.recordThrottle();
+      // A forced sync that hit the wall still has yesterday's numbers to show;
+      // the partial flag tells the UI this isn't a fresh sync.
+      if (cached) {
+        return respond({ ...cached.payload, partial: true }, cached.fetchedAt);
+      }
       return NextResponse.json(
         { error: "Instagram is rate-limiting requests right now. Try again in a bit." },
         { status: 429 }
