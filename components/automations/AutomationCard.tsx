@@ -151,15 +151,17 @@ export function AutomationCard({
 
       {editing ? (
         <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor={`keywords_${automation.id}`}>Keywords (comma separated)</Label>
-            <Input
-              id={`keywords_${automation.id}`}
-              value={keywords}
-              onChange={(e) => setKeywords(e.target.value)}
-              disabled={isPending}
-            />
-          </div>
+          {automation.match_mode !== "any" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={`keywords_${automation.id}`}>Keywords (comma separated)</Label>
+              <Input
+                id={`keywords_${automation.id}`}
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor={`templates_${automation.id}`}>Public replies (one per line)</Label>
             <Textarea
@@ -207,11 +209,17 @@ export function AutomationCard({
       ) : (
         <>
           <div className="flex flex-wrap gap-1.5">
-            {automation.keywords.map((keyword) => (
-              <Badge key={keyword} variant="outline" className="border-[#2e2e2e] text-zinc-300">
-                {keyword}
+            {automation.match_mode === "any" ? (
+              <Badge variant="outline" className="border-[#F9E400]/40 bg-[#F9E400]/10 text-[#F9E400]">
+                Any comment
               </Badge>
-            ))}
+            ) : (
+              automation.keywords.map((keyword) => (
+                <Badge key={keyword} variant="outline" className="border-[#2e2e2e] text-zinc-300">
+                  {keyword}
+                </Badge>
+              ))
+            )}
           </div>
 
           <p className="line-clamp-2 text-xs text-zinc-500">

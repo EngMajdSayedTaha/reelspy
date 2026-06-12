@@ -12,6 +12,7 @@ function escapeRegExp(value: string): string {
 // matches "send LINK please" but not "linkedin" — using Unicode-aware
 // boundaries so keywords next to emoji/Arabic/punctuation still match.
 // `exact` requires the whole (trimmed) comment to equal the keyword.
+// `any` matches every non-empty comment regardless of keywords ("*").
 export function matchKeyword(
   text: string | null | undefined,
   keywords: string[],
@@ -19,6 +20,8 @@ export function matchKeyword(
 ): string | null {
   const haystack = (text ?? "").trim().toLowerCase();
   if (!haystack) return null;
+
+  if (mode === "any") return "*";
 
   for (const raw of keywords) {
     const keyword = raw.trim().toLowerCase();

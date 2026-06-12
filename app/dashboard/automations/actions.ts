@@ -24,32 +24,35 @@ type ParsedAutomation = {
 
 // Shared validation for create + update. Returns the row fields or an error.
 function parseAutomationFields(formData: FormData): ParsedAutomation | { error: string } {
-  const keywordsRaw = formData.get("keywords");
-  if (typeof keywordsRaw !== "string" || !keywordsRaw.trim()) {
-    return { error: "At least one keyword is required." };
-  }
-
-  const keywords = Array.from(
-    new Set(
-      keywordsRaw
-        .split(/[,\n]+/)
-        .map((k) => k.trim().toLowerCase())
-        .filter(Boolean)
-    )
-  );
-
-  if (keywords.length === 0) {
-    return { error: "At least one keyword is required." };
-  }
-  if (keywords.length > MAX_KEYWORDS) {
-    return { error: `Use up to ${MAX_KEYWORDS} keywords per reel.` };
-  }
-  if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
-    return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
-  }
-
   const modeRaw = formData.get("match_mode");
-  const match_mode: MatchMode = modeRaw === "exact" ? "exact" : "contains";
+  const match_mode: MatchMode =
+    modeRaw === "exact" ? "exact" : modeRaw === "any" ? "any" : "contains";
+
+  // "any" mode triggers on every comment — keywords are ignored and stored empty.
+  const keywordsRaw = formData.get("keywords");
+  const keywords =
+    match_mode === "any"
+      ? []
+      : Array.from(
+          new Set(
+            (typeof keywordsRaw === "string" ? keywordsRaw : "")
+              .split(/[,\n]+/)
+              .map((k) => k.trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+  if (match_mode !== "any") {
+    if (keywords.length === 0) {
+      return { error: "At least one keyword is required." };
+    }
+    if (keywords.length > MAX_KEYWORDS) {
+      return { error: `Use up to ${MAX_KEYWORDS} keywords per reel.` };
+    }
+    if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
+      return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
+    }
+  }
 
   const templatesRaw = formData.get("public_reply_templates");
   const public_reply_templates =

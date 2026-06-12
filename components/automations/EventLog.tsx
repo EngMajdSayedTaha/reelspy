@@ -65,7 +65,7 @@ export function EventLog({ events }: EventLogProps) {
               <td className="whitespace-nowrap px-4 py-3">
                 {event.matched_keyword ? (
                   <Badge variant="outline" className="border-[#2e2e2e] text-zinc-300">
-                    {event.matched_keyword}
+                    {event.matched_keyword === "*" ? "any" : event.matched_keyword}
                   </Badge>
                 ) : (
                   "—"

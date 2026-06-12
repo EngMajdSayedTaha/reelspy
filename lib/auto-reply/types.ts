@@ -1,6 +1,6 @@
 // Shared types for the Auto-Reply module (keyword-triggered comment-to-DM).
 
-export type MatchMode = "contains" | "exact";
+export type MatchMode = "contains" | "exact" | "any";
 
 export type ReelAutomation = {
   id: string;
