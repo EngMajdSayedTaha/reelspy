@@ -9,6 +9,7 @@ import {
   ScrollText,
   Quote,
   Camera,
+  MessageCircleReply,
   Calendar,
   Settings,
   X,
@@ -26,6 +27,7 @@ const links: NavLink[] = [
   { href: "/dashboard/hooks", label: "Hooks", icon: Quote },
   { href: "/dashboard/scripts", label: "Scripts", icon: ScrollText },
   { href: "/dashboard/my-account", label: "My IG", icon: Camera },
+  { href: "/dashboard/automations", label: "Auto-Reply", icon: MessageCircleReply },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/settings/instagram", label: "Settings", icon: Settings },
 ];

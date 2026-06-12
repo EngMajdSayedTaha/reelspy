@@ -172,13 +172,19 @@ export function isInvalidTokenError(message: string): boolean {
 }
 
 // Find the Instagram Business account linked to the user's Facebook Pages.
+// Also returns the linking Page's credentials: private replies (Auto-Reply
+// module) are sent with the PAGE token, not the user token. A page token
+// derived from a long-lived user token does not expire on its own.
 export async function getInstagramBusinessAccount(token: string): Promise<{
   igUserId: string;
   username: string;
   profilePictureUrl?: string;
+  pageId?: string;
+  pageName?: string;
+  pageAccessToken?: string;
 } | null> {
   const url = toUrl(`${GRAPH_BASE}/me/accounts`, {
-    fields: "instagram_business_account{id,username,profile_picture_url}",
+    fields: "id,name,access_token,instagram_business_account{id,username,profile_picture_url}",
     access_token: token,
   });
 
@@ -193,6 +199,9 @@ export async function getInstagramBusinessAccount(token: string): Promise<{
         username: String(iga.username ?? "unknown"),
         profilePictureUrl:
           typeof iga.profile_picture_url === "string" ? iga.profile_picture_url : undefined,
+        pageId: typeof page.id === "string" ? page.id : undefined,
+        pageName: typeof page.name === "string" ? page.name : undefined,
+        pageAccessToken: typeof page.access_token === "string" ? page.access_token : undefined,
       };
     }
   }
