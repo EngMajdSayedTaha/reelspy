@@ -59,5 +59,52 @@ export type InstagramWebhookPayload = {
     id?: string;
     time?: number;
     changes?: Array<{ field?: string; value?: CommentWebhookValue }>;
+    /** Instagram Messaging events (DMs) arrive here, not in `changes`. */
+    messaging?: MessagingWebhookEvent[];
   }>;
+};
+
+// ── DM keyword automations ────────────────────────────────────────────────────
+
+export type DmAutomation = {
+  id: string;
+  user_id: string;
+  keywords: string[];
+  match_mode: MatchMode;
+  reply_message: string;
+  reply_link: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DmAutomationEvent = {
+  id: string;
+  automation_id: string | null;
+  message_id: string;
+  sender_id: string | null;
+  sender_username: string | null;
+  message_text: string | null;
+  matched_keyword: string | null;
+  reply_status: AutomationEventStatus;
+  reply_error: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
+
+// Subset of Meta's Instagram Messaging webhook event used by the DM processor.
+// https://developers.facebook.com/docs/messenger-platform/instagram → webhooks
+export type MessagingWebhookEvent = {
+  sender?: { id?: string };
+  recipient?: { id?: string };
+  timestamp?: number;
+  message?: {
+    mid?: string;
+    text?: string;
+    /** True for messages SENT BY the connected account (incl. our own bot replies). */
+    is_echo?: boolean;
+    /** Present when the message is a reply to a story — deliberately not handled. */
+    reply_to?: { story?: { id?: string; url?: string }; mid?: string };
+    attachments?: Array<{ type?: string }>;
+  };
 };

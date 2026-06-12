@@ -2,9 +2,15 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processCommentChange } from "@/lib/auto-reply/processor";
-import type { CommentWebhookValue, InstagramWebhookPayload } from "@/lib/auto-reply/types";
+import { processDirectMessage } from "@/lib/auto-reply/dm-processor";
+import type {
+  CommentWebhookValue,
+  InstagramWebhookPayload,
+  MessagingWebhookEvent,
+} from "@/lib/auto-reply/types";
 
-// Meta webhook endpoint for the Auto-Reply module (Instagram `comments` field).
+// Meta webhook endpoint for the Auto-Reply module (Instagram `comments` and
+// `messages` fields).
 //
 // GET  → one-time subscription verification handshake (App Dashboard setup).
 // POST → comment notifications. Meta expects a fast 200 and retries on
@@ -62,8 +68,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ignored: true });
   }
 
-  // Meta batches: one POST can carry several entries, each with several changes.
+  // Meta batches: one POST can carry several entries, each with several
+  // comment changes and/or messaging (DM) events.
   const changes: Array<{ igAccountId: string; value: CommentWebhookValue }> = [];
+  const messages: Array<{ igAccountId: string; event: MessagingWebhookEvent }> = [];
   for (const entry of payload.entry ?? []) {
     if (!entry.id) continue;
     for (const change of entry.changes ?? []) {
@@ -71,9 +79,14 @@ export async function POST(request: Request) {
         changes.push({ igAccountId: entry.id, value: change.value });
       }
     }
+    for (const event of entry.messaging ?? []) {
+      if (event.message?.mid) {
+        messages.push({ igAccountId: entry.id, event });
+      }
+    }
   }
 
-  if (changes.length > 0) {
+  if (changes.length > 0 || messages.length > 0) {
     after(async () => {
       const admin = createAdminClient();
       for (const change of changes) {
@@ -83,6 +96,13 @@ export async function POST(request: Request) {
           // Swallow per-change failures: Meta will redeliver, and the dedupe
           // insert keeps redelivery safe.
           console.error("Auto-reply: comment processing failed", error);
+        }
+      }
+      for (const message of messages) {
+        try {
+          await processDirectMessage(admin, message.igAccountId, message.event);
+        } catch (error) {
+          console.error("Auto-reply: DM processing failed", error);
         }
       }
     });
