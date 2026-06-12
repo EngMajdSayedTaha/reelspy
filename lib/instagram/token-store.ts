@@ -70,7 +70,72 @@ export async function clearIgToken(admin: SupabaseClient, userId: string): Promi
       ig_token_expires_at: null,
       ig_token_status: "active",
       ig_token_refreshed_at: null,
+      fb_page_id: null,
+      fb_page_name: null,
+      fb_page_access_token: null,
+      webhook_subscribed_at: null,
     })
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+}
+
+// ── Facebook Page credentials (Auto-Reply module) ────────────────────────────
+// Private replies (comment-to-DM) are sent with a PAGE access token. It's
+// derived from the long-lived user token, so it gets the same treatment: only
+// readable/writable through the service-role client (columns excluded from the
+// client grants, see 20260613_auto_reply.sql).
+
+export type PageCredentials = {
+  pageId: string;
+  pageName: string | null;
+  pageToken: string;
+};
+
+export async function getPageCredentials(
+  admin: SupabaseClient,
+  userId: string
+): Promise<PageCredentials | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("fb_page_id, fb_page_name, fb_page_access_token")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.fb_page_id || !data.fb_page_access_token) return null;
+
+  return {
+    pageId: data.fb_page_id,
+    pageName: data.fb_page_name ?? null,
+    pageToken: data.fb_page_access_token,
+  };
+}
+
+export async function storePageCredentials(
+  admin: SupabaseClient,
+  userId: string,
+  params: { pageId: string; pageName?: string | null; pageToken: string }
+): Promise<void> {
+  const { error } = await admin
+    .from("profiles")
+    .update({
+      fb_page_id: params.pageId,
+      fb_page_name: params.pageName ?? null,
+      fb_page_access_token: params.pageToken,
+    })
+    .eq("id", userId);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function markWebhookSubscribed(
+  admin: SupabaseClient,
+  userId: string
+): Promise<void> {
+  const { error } = await admin
+    .from("profiles")
+    .update({ webhook_subscribed_at: new Date().toISOString() })
     .eq("id", userId);
 
   if (error) throw new Error(error.message);

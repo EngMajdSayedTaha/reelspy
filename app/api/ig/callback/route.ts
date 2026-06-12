@@ -2,13 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { storeIgToken } from "@/lib/instagram/token-store";
+import {
+  markWebhookSubscribed,
+  storeIgToken,
+  storePageCredentials,
+} from "@/lib/instagram/token-store";
 import {
   exchangeCodeForAccessToken,
   exchangeForLongLivedToken,
   getInstagramBusinessAccount,
   parseGraphError,
 } from "@/lib/instagram/graph-api";
+import { subscribePageToWebhooks } from "@/lib/auto-reply/graph-calls";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
 
@@ -67,8 +72,9 @@ export async function GET(request: NextRequest) {
 
     // Token writes go through the service-role client: browser-facing roles
     // have no access to the token column (see 20260611_lock_down_ig_tokens.sql).
+    const admin = createAdminClient();
     try {
-      await storeIgToken(createAdminClient(), user.id, {
+      await storeIgToken(admin, user.id, {
         token: longLivedToken,
         igUserId: igProfile.id,
         username: igProfile.username,
@@ -81,6 +87,28 @@ export async function GET(request: NextRequest) {
       );
       profileUpdateResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return profileUpdateResponse;
+    }
+
+    // Auto-Reply module: private replies need the PAGE token, and Meta only
+    // delivers Instagram webhooks once the page is subscribed to the app.
+    // Both are best-effort — a failure must not break the connect flow, the
+    // Automations page surfaces a "reconnect" banner instead.
+    let webhookWarning: string | null = null;
+    if (igAccount.pageId && igAccount.pageAccessToken) {
+      try {
+        await storePageCredentials(admin, user.id, {
+          pageId: igAccount.pageId,
+          pageName: igAccount.pageName ?? null,
+          pageToken: igAccount.pageAccessToken,
+        });
+        await subscribePageToWebhooks(igAccount.pageId, igAccount.pageAccessToken);
+        await markWebhookSubscribed(admin, user.id);
+      } catch (subscribeError) {
+        console.error("Auto-reply webhook subscription failed", subscribeError);
+        webhookWarning = "webhook_subscribe_failed";
+      }
+    } else {
+      webhookWarning = "page_token_missing";
     }
 
     const { error: accountError } = await supabase.from("inspiration_accounts").upsert(
@@ -102,9 +130,11 @@ export async function GET(request: NextRequest) {
       return accountResponse;
     }
 
-    const successResponse = NextResponse.redirect(
-      new URL("/dashboard/settings/instagram?success=connected", request.url)
-    );
+    const successUrl = new URL("/dashboard/settings/instagram?success=connected", request.url);
+    if (webhookWarning) {
+      successUrl.searchParams.set("warning", webhookWarning);
+    }
+    const successResponse = NextResponse.redirect(successUrl);
     successResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return successResponse;
   } catch (callbackError) {

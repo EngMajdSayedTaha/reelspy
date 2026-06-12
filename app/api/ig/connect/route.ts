@@ -19,9 +19,14 @@ export async function GET(request: Request) {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   const redirectUri = process.env.META_REDIRECT_URI;
+  // The last four scopes power the Auto-Reply module (comment replies, private
+  // reply DMs, page webhook subscription). NOTE: META_IG_SCOPES overrides this
+  // list, and with META_FB_CONFIG_ID the permissions come from the Facebook
+  // Login for Business configuration in the Meta dashboard instead.
   const scopes =
     process.env.META_IG_SCOPES?.trim() ||
-    "instagram_basic,pages_show_list,pages_read_engagement,business_management,instagram_manage_insights";
+    "instagram_basic,pages_show_list,pages_read_engagement,business_management,instagram_manage_insights," +
+      "instagram_manage_comments,instagram_manage_messages,pages_manage_metadata,pages_messaging";
   // Facebook Login for Business: when set, permissions come from this configuration.
   const configId = process.env.META_FB_CONFIG_ID?.trim() || undefined;
 

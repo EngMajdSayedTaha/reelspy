@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { exchangeForLongLivedToken, isInvalidTokenError } from "@/lib/instagram/graph-api";
+import {
+  exchangeForLongLivedToken,
+  getInstagramBusinessAccount,
+  isInvalidTokenError,
+} from "@/lib/instagram/graph-api";
+import { storePageCredentials } from "@/lib/instagram/token-store";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { numEnv } from "@/lib/utils/env";
 
@@ -53,6 +58,22 @@ export async function GET(request: Request) {
         })
         .eq("id", profile.id);
       refreshed += 1;
+
+      // Keep the stored page token (Auto-Reply DMs) consistent with the fresh
+      // user token. Best-effort: a miss here just means the old page token
+      // keeps working until the next run.
+      try {
+        const igAccount = await getInstagramBusinessAccount(accessToken);
+        if (igAccount?.pageId && igAccount.pageAccessToken) {
+          await storePageCredentials(admin, profile.id, {
+            pageId: igAccount.pageId,
+            pageName: igAccount.pageName ?? null,
+            pageToken: igAccount.pageAccessToken,
+          });
+        }
+      } catch (pageError) {
+        console.error("Page token re-derivation failed", pageError);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // Only flag invalid on genuine token failures; transient errors retry next run.
