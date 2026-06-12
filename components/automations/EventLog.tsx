@@ -38,6 +38,7 @@ export function EventLog({ events }: EventLogProps) {
             <th className="px-4 py-3 font-medium">Follower</th>
             <th className="px-4 py-3 font-medium">Comment</th>
             <th className="px-4 py-3 font-medium">Keyword</th>
+            <th className="px-4 py-3 font-medium">Like</th>
             <th className="px-4 py-3 font-medium">Reply</th>
             <th className="px-4 py-3 font-medium">DM</th>
           </tr>
@@ -69,6 +70,16 @@ export function EventLog({ events }: EventLogProps) {
                 ) : (
                   "—"
                 )}
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex flex-col gap-1">
+                  <StatusBadge status={event.like_status} />
+                  {event.like_error ? (
+                    <span className="max-w-[200px] truncate text-xs text-rose-400" title={event.like_error}>
+                      {event.like_error}
+                    </span>
+                  ) : null}
+                </div>
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
