@@ -171,6 +171,22 @@ export function isInvalidTokenError(message: string): boolean {
   );
 }
 
+// Detects Meta's "this object/edge doesn't support this operation" error
+// (GraphMethodException, code 100 / subcode 33). It means the call is hitting an
+// endpoint the connection can't use at all — NOT a transient failure or a bad
+// token — so callers should treat it as "unavailable" and stop, never retry.
+// The Auto-Reply like step relies on this: liking comments/media is not exposed
+// on the Facebook-Login Graph API path this app uses, so every attempt returns
+// this error and should be logged as "skipped", not "failed".
+export function isUnsupportedOperationError(message: string): boolean {
+  return (
+    /GraphMethodException/i.test(message) ||
+    /error_subcode\\?":\s*33/.test(message) ||
+    /unsupported (?:post|get|delete) request/i.test(message) ||
+    /does not support this operation/i.test(message)
+  );
+}
+
 // Find the Instagram Business account linked to the user's Facebook Pages.
 // Also returns the linking Page's credentials: private replies (Auto-Reply
 // module) are sent with the PAGE token, not the user token. A page token

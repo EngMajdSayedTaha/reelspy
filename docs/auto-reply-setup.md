@@ -12,11 +12,15 @@ direct message matching your keywords (or any message, with a once-per-24h
 per-person cooldown), they get an automatic reply + link. Story replies are
 deliberately ignored. Requires the `messages` webhook field (setup step 6).
 
-> **Note on likes:** Meta only added comment-liking to the official API in
-> 2026 and its documentation is thin. The like step is therefore best-effort:
-> if Meta rejects it, the Activity log shows the like as `failed` with Meta's
-> message while the reply and DM proceed normally. To turn likes off without
-> a code change, set `AUTO_REPLY_LIKE_DISABLED=1` in the environment.
+> **Note on likes:** liking a comment/media is **not exposed on the Facebook
+> Login Graph API path** this app uses — `POST /{id}/likes` returns
+> `GraphMethodException` (code 100 / subcode 33, "does not support this
+> operation") for comments *and* media, with both the user and the page token.
+> The like step is therefore best-effort and, when Meta rejects it as
+> unsupported, the Activity log records it as `skipped` (not `failed`) while the
+> reply and DM proceed normally. If Meta ever enables the edge for this
+> connection it will start reporting `sent` automatically. To turn the attempt
+> off entirely, set `AUTO_REPLY_LIKE_DISABLED=1` in the environment.
 
 Everything runs on Meta's official Graph API — 100% free. Because only your
 own account uses the app (you are the app admin), **Standard Access is enough:
@@ -106,6 +110,16 @@ the public reply templates, your DM message, and the link. Done.
 - **Nothing fires:** check the Activity log; if empty, confirm the app is
   Live, the `comments` field is subscribed, and you reconnected after this
   feature shipped (the Auto-Reply page shows a banner if not).
+- **DM keyword automations never fire (DM Activity stays empty):** the comment
+  flow can work while DM automations don't, because they ride a *different*
+  webhook field. Confirm **both**: (a) the **`messages`** field is subscribed on
+  the **Instagram** object in the App Dashboard (subscribing `comments` only is
+  the usual cause), and (b) on the connected IG account, **Settings → Messages
+  and story replies → Connected tools → Allow access to messages** is ON —
+  without it Meta delivers no message webhooks. Then reconnect Instagram once so
+  the page re-subscribes. (The page-level `subscribed_apps` already lists
+  `messages` after a reconnect; the gap is almost always the Instagram-object
+  field subscription or the IG toggle.)
 - **DM fails with "already sent":** expected — Meta allows one private reply
   per comment.
 - **DM fails with a permissions error:** the reconnect didn't grant
