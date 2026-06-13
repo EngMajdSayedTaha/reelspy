@@ -86,6 +86,29 @@ export async function POST(request: Request) {
     }
   }
 
+  // Delivery trace: lets you confirm in the runtime logs WHICH webhook fields
+  // Meta actually delivers. Comment automations can work while DM automations
+  // don't because messages ride a different field that must be subscribed
+  // separately (App Dashboard → Instagram → Webhooks → `messages`) AND requires
+  // the IG account's "Allow access to messages" tool to be on. Logs structure
+  // only — never message text or commenter content.
+  console.log(
+    "[ig-webhook] delivered",
+    JSON.stringify({
+      object: payload.object,
+      entries: payload.entry?.length ?? 0,
+      changeFields: (payload.entry ?? []).flatMap((entry) =>
+        (entry.changes ?? []).map((change) => change.field ?? "?")
+      ),
+      messagingEntries: (payload.entry ?? []).reduce(
+        (sum, entry) => sum + (entry.messaging?.length ?? 0),
+        0
+      ),
+      processableComments: changes.length,
+      processableMessages: messages.length,
+    })
+  );
+
   if (changes.length > 0 || messages.length > 0) {
     after(async () => {
       const admin = createAdminClient();
@@ -100,7 +123,8 @@ export async function POST(request: Request) {
       }
       for (const message of messages) {
         try {
-          await processDirectMessage(admin, message.igAccountId, message.event);
+          const result = await processDirectMessage(admin, message.igAccountId, message.event);
+          console.log("[ig-webhook] dm processed", result);
         } catch (error) {
           console.error("Auto-reply: DM processing failed", error);
         }
