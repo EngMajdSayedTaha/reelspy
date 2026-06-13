@@ -11,6 +11,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isInvalidTokenError,
   isMetaRateLimitMessage,
+  isUnsupportedOperationError,
   parseGraphError,
 } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
@@ -132,6 +133,13 @@ export async function processCommentChange(
 
   // Step 1 — like (heart) the comment. Purely best-effort: a failure (or the
   // endpoint being unavailable) never blocks the reply or the DM.
+  //
+  // NOTE: liking comments/media is NOT exposed on the Facebook-Login Graph API
+  // path this app uses — every attempt returns GraphMethodException (code 100 /
+  // subcode 33). That's a permanent "unavailable", not a transient failure, so
+  // we record it as "skipped" to keep the Activity log clean. If Meta ever
+  // enables the edge for this connection the same code path starts reporting
+  // "sent" with no further change.
   if (!credentials || LIKE_DISABLED) {
     update.like_status = "skipped";
     if (LIKE_DISABLED) update.like_error = "Disabled via AUTO_REPLY_LIKE_DISABLED.";
@@ -140,9 +148,15 @@ export async function processCommentChange(
       await likeComment(value.id, credentials.token);
       update.like_status = "sent";
     } catch (err) {
-      update.like_status = "failed";
-      update.like_error = errorText(err);
-      await handleGraphFailure(admin, profile.id, err);
+      const raw = err instanceof Error ? err.message : String(err);
+      if (isUnsupportedOperationError(raw)) {
+        update.like_status = "skipped";
+        update.like_error = "Comment liking isn't supported by the Instagram API on this connection.";
+      } else {
+        update.like_status = "failed";
+        update.like_error = errorText(err);
+        await handleGraphFailure(admin, profile.id, err);
+      }
     }
   }
 
