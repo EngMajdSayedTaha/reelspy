@@ -19,8 +19,8 @@ const SCRIPT_LOADING_MESSAGES = [
 ];
 
 const REEL_FETCH_MESSAGES = [
-  "Fetching reel metadata…",
-  "Extracting audio track…",
+  "Fetching reel…",
+  "Extracting audio…",
   "Transcribing with Whisper…",
   "Almost done…",
 ];
@@ -51,14 +51,6 @@ type GeneratedResponse = {
   error?: string;
 };
 
-type FetchedReel = {
-  username: string;
-  caption: string;
-  transcript: string | null;
-  thumbnail_url: string | null;
-  permalink: string;
-};
-
 type ScriptGeneratorProps = {
   reelId?: string;
   initialCaption?: string;
@@ -74,55 +66,29 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResponse | null>(null);
 
-  // Reel-link import state
+  // External reel link → transcript
   const [reelUrl, setReelUrl] = useState("");
   const [isFetchingReel, setIsFetchingReel] = useState(false);
-  const [fetchedReel, setFetchedReel] = useState<FetchedReel | null>(null);
   const [reelFetchError, setReelFetchError] = useState<string | null>(null);
-  const [isAddingAccount, setIsAddingAccount] = useState(false);
-  const [accountAdded, setAccountAdded] = useState(false);
 
   const onFetchReel = async () => {
     const url = reelUrl.trim();
     if (!url) return;
     setIsFetchingReel(true);
     setReelFetchError(null);
-    setFetchedReel(null);
-    setAccountAdded(false);
 
     try {
-      const json = await requestJson<FetchedReel>("/api/ig/reel-from-link", {
+      const json = await requestJson<{ transcript: string }>("/api/ig/reel-from-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      setFetchedReel(json);
-      // Transcript (spoken words) is far more useful for script generation
-      // than the IG caption text. Use whichever is available.
-      const context = json.transcript || json.caption;
-      if (context) setCaption(context);
+      setCaption(json.transcript);
+      toast.success("Transcript loaded");
     } catch (err) {
-      setReelFetchError(err instanceof Error ? err.message : "Could not fetch reel data.");
+      setReelFetchError(err instanceof Error ? err.message : "Could not fetch reel.");
     } finally {
       setIsFetchingReel(false);
-    }
-  };
-
-  const onAddToInspiration = async () => {
-    if (!fetchedReel?.username) return;
-    setIsAddingAccount(true);
-    try {
-      await requestJson("/api/ig/add-inspiration-account", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: fetchedReel.username }),
-      });
-      setAccountAdded(true);
-      toast.success(`@${fetchedReel.username} added to inspiration`);
-    } catch (err) {
-      notifyError(err, "Could not add account.");
-    } finally {
-      setIsAddingAccount(false);
     }
   };
 
@@ -158,9 +124,9 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
     <div className="space-y-5">
       <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
         <div className="space-y-4">
-          {/* Reel Link Import */}
+          {/* External reel link → transcript */}
           <div className="space-y-2">
-            <Label>From Instagram Reel</Label>
+            <Label>Transcribe from Instagram Link</Label>
             <div className="flex gap-2">
               <Input
                 placeholder="https://www.instagram.com/reel/..."
@@ -182,7 +148,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
                 disabled={isFetchingReel || !reelUrl.trim()}
                 className="shrink-0"
               >
-                {isFetchingReel ? "Transcribing…" : "Fetch & Transcribe"}
+                {isFetchingReel ? "Transcribing…" : "Transcribe"}
               </Button>
             </div>
 
@@ -191,31 +157,9 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
             ) : null}
 
             {isFetchingReel ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
-
-            {fetchedReel ? (
-              <div className="flex items-center justify-between rounded-lg border border-zinc-700 bg-[#0d0d0d] px-3 py-2 text-sm">
-                <span className="text-zinc-400">
-                  From{" "}
-                  <span className="font-medium text-white">@{fetchedReel.username}</span>
-                  {fetchedReel.transcript ? " — transcript loaded" : " — caption loaded"}
-                </span>
-                {accountAdded ? (
-                  <span className="text-xs text-[#F9E400]">✓ Tracking</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onAddToInspiration}
-                    disabled={isAddingAccount || !fetchedReel.username}
-                    className="text-xs text-[#F9E400] hover:underline disabled:opacity-50"
-                  >
-                    {isAddingAccount ? "Adding…" : `+ Track @${fetchedReel.username}`}
-                  </button>
-                )}
-              </div>
-            ) : null}
           </div>
 
-          {fetchedReel ? <div className="border-t border-[#1f1f1f]" /> : null}
+          <div className="border-t border-[#1f1f1f]" />
 
           {/* Caption context */}
           <div className="space-y-2">
