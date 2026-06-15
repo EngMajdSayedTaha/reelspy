@@ -14,6 +14,10 @@ export type ReelMetadata = {
   durationSec: number | null;
   thumbnail: string | null;
   uploader: string | null;
+  /** e.g. https://www.instagram.com/majdst_codes/ — contains the real handle */
+  uploader_url: string | null;
+  /** Full caption / description text from the post */
+  description: string | null;
   // Direct, short-lived CDN URL good for immediate transcription.
   mediaUrl: string | null;
 };
@@ -35,6 +39,8 @@ type YtDlpInfo = {
   duration?: number;
   thumbnail?: string;
   uploader?: string;
+  uploader_url?: string;
+  description?: string;
   url?: string;
   formats?: YtDlpFormat[];
 };
@@ -232,6 +238,8 @@ export async function getReelMetadata(url: string): Promise<ReelMetadata> {
     durationSec: typeof info.duration === "number" ? Math.round(info.duration) : null,
     thumbnail: info.thumbnail ?? null,
     uploader: info.uploader ?? null,
+    uploader_url: info.uploader_url ?? null,
+    description: info.description ?? null,
     mediaUrl: pickMediaUrl(info),
   };
 }

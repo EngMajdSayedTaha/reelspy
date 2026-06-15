@@ -18,6 +18,13 @@ const SCRIPT_LOADING_MESSAGES = [
   "Adding a natural call to action…",
 ];
 
+const REEL_FETCH_MESSAGES = [
+  "Fetching reel metadata…",
+  "Extracting audio track…",
+  "Transcribing with Whisper…",
+  "Almost done…",
+];
+
 const VIRAL_PATTERNS = [
   "Hot Take",
   "Mistake List",
@@ -47,6 +54,7 @@ type GeneratedResponse = {
 type FetchedReel = {
   username: string;
   caption: string;
+  transcript: string | null;
   thumbnail_url: string | null;
   permalink: string;
 };
@@ -89,7 +97,10 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
         body: JSON.stringify({ url }),
       });
       setFetchedReel(json);
-      if (json.caption) setCaption(json.caption);
+      // Transcript (spoken words) is far more useful for script generation
+      // than the IG caption text. Use whichever is available.
+      const context = json.transcript || json.caption;
+      if (context) setCaption(context);
     } catch (err) {
       setReelFetchError(err instanceof Error ? err.message : "Could not fetch reel data.");
     } finally {
@@ -171,7 +182,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
                 disabled={isFetchingReel || !reelUrl.trim()}
                 className="shrink-0"
               >
-                {isFetchingReel ? "Fetching…" : "Fetch Caption"}
+                {isFetchingReel ? "Transcribing…" : "Fetch & Transcribe"}
               </Button>
             </div>
 
@@ -179,12 +190,14 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
               <p className="text-sm text-rose-400">{reelFetchError}</p>
             ) : null}
 
+            {isFetchingReel ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
+
             {fetchedReel ? (
               <div className="flex items-center justify-between rounded-lg border border-zinc-700 bg-[#0d0d0d] px-3 py-2 text-sm">
                 <span className="text-zinc-400">
                   From{" "}
                   <span className="font-medium text-white">@{fetchedReel.username}</span>
-                  {" — caption loaded"}
+                  {fetchedReel.transcript ? " — transcript loaded" : " — caption loaded"}
                 </span>
                 {accountAdded ? (
                   <span className="text-xs text-[#F9E400]">✓ Tracking</span>
