@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { CookieConsent } from "@/components/legal/CookieConsent";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,11 +28,20 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#0d0d0d] text-zinc-100">
-        {children}
-        <Toaster theme="dark" position="top-right" richColors closeButton />
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <CookieConsent />
+          <Toaster position="top-right" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   );

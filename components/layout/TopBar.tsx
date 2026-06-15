@@ -25,24 +25,24 @@ export function TopBar({ onMenu }: TopBarProps) {
   const current = TITLES.find((t) => t.match(pathname))?.label ?? "ReelSpy";
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#1f1f1f] bg-[#0d0d0d]/80 px-4 py-3.5 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-2 text-sm">
         <button
           type="button"
           onClick={onMenu}
           aria-label="Open menu"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-[#1a1a1a] hover:text-zinc-100 lg:hidden"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="hidden font-mono text-zinc-600 sm:inline">~/reelspy</span>
-        <span className="hidden text-zinc-700 sm:inline">/</span>
-        <span className="truncate font-medium text-zinc-200">{current}</span>
+        <span className="hidden font-mono text-subtle sm:inline">~/reelspy</span>
+        <span className="hidden text-subtle sm:inline">/</span>
+        <span className="truncate font-medium text-foreground">{current}</span>
       </div>
       <div className="flex min-w-0 items-center gap-3">
         {/* Global Instagram sync budget — visible on every page. */}
         <RateLimitStatus />
-        <span className="hidden h-2 w-2 animate-pulse rounded-full bg-[#F9E400] sm:inline" />
+        <span className="hidden h-2 w-2 animate-pulse rounded-full bg-primary sm:inline" />
       </div>
     </header>
   );

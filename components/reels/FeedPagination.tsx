@@ -46,7 +46,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-subtle">
         Showing {from}–{toShown} of {total}
       </p>
 
@@ -55,7 +55,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           type="button"
           disabled={page <= 1 || isPending}
           onClick={() => goTo(page - 1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -64,7 +64,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
         {start > 1 ? (
           <>
             <PageButton n={1} current={page} onClick={goTo} disabled={isPending} />
-            {start > 2 ? <span className="px-1 text-zinc-600">…</span> : null}
+            {start > 2 ? <span className="px-1 text-subtle">…</span> : null}
           </>
         ) : null}
 
@@ -74,7 +74,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
 
         {end < totalPages ? (
           <>
-            {end < totalPages - 1 ? <span className="px-1 text-zinc-600">…</span> : null}
+            {end < totalPages - 1 ? <span className="px-1 text-subtle">…</span> : null}
             <PageButton n={totalPages} current={page} onClick={goTo} disabled={isPending} />
           </>
         ) : null}
@@ -83,7 +83,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           type="button"
           disabled={page >= totalPages || isPending}
           onClick={() => goTo(page + 1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Next page"
         >
           <ChevronRight className="h-4 w-4" />
@@ -112,8 +112,8 @@ function PageButton({
       onClick={() => onClick(n)}
       className={
         active
-          ? "h-8 min-w-8 rounded-lg bg-[#F9E400] px-2 text-sm font-semibold text-[#121212]"
-          : "h-8 min-w-8 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400] disabled:opacity-40"
+          ? "h-8 min-w-8 rounded-lg bg-primary px-2 text-sm font-semibold text-primary-foreground"
+          : "h-8 min-w-8 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-40"
       }
     >
       {n}

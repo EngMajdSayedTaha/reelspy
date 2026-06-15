@@ -69,10 +69,10 @@ export function Logo({ size = 32, animated = true, withWordmark = true, classNam
       <LogoMark size={size} animated={animated} />
       {withWordmark ? (
         <span
-          className="font-semibold tracking-tight text-white"
+          className="font-semibold tracking-tight text-foreground"
           style={{ fontSize: Math.round(size * 0.62) }}
         >
-          Reel<span className="text-[#F9E400]">Spy</span>
+          Reel<span className="text-brand">Spy</span>
         </span>
       ) : null}
     </span>

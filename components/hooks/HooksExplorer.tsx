@@ -25,10 +25,10 @@ function HookRow({ item }: { item: HookItem }) {
   };
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card p-4">
       <div className="min-w-0 space-y-1.5">
-        <p className="text-sm leading-relaxed text-zinc-100">{item.hook}</p>
-        <p className="text-xs text-zinc-500">@{item.username}</p>
+        <p className="text-sm leading-relaxed text-foreground">{item.hook}</p>
+        <p className="text-xs text-subtle">@{item.username}</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -37,7 +37,7 @@ function HookRow({ item }: { item: HookItem }) {
           onClick={copy}
           title="Copy hook"
           aria-label="Copy hook"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
         >
           {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
         </button>
@@ -45,7 +45,7 @@ function HookRow({ item }: { item: HookItem }) {
           href={`/dashboard/generate/${item.reelId}`}
           title="Write a script from this"
           aria-label="Write a script from this"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
         >
           <Sparkles className="h-4 w-4" />
         </Link>
@@ -55,7 +55,7 @@ function HookRow({ item }: { item: HookItem }) {
           rel="noreferrer"
           title="Open original reel"
           aria-label="Open original reel"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
         >
           <ExternalLink className="h-4 w-4" />
         </a>
@@ -78,17 +78,17 @@ export function HooksExplorer({ hooks }: HooksExplorerProps) {
   return (
     <div className="space-y-4">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search hooks…"
-          className="h-10 w-full rounded-lg border border-[#262626] bg-[#141414] pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+          className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 pl-9 pr-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
       </div>
 
-      <p className="px-1 text-xs text-zinc-500">
+      <p className="px-1 text-xs text-subtle">
         {filtered.length} {filtered.length === 1 ? "hook" : "hooks"}
         {query ? " match your search" : ""}
       </p>

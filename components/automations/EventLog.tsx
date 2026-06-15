@@ -9,7 +9,7 @@ function StatusBadge({ status }: { status: AutomationEventStatus }) {
   const styles: Record<AutomationEventStatus, string> = {
     sent: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
     failed: "border-rose-500/50 bg-rose-500/15 text-rose-300",
-    pending: "border-zinc-600 bg-zinc-500/10 text-zinc-400",
+    pending: "border-border-strong bg-border-strong/10 text-muted-foreground",
     skipped: "border-amber-500/50 bg-amber-500/15 text-amber-300",
   };
   return (
@@ -23,17 +23,17 @@ function StatusBadge({ status }: { status: AutomationEventStatus }) {
 export function EventLog({ events }: EventLogProps) {
   if (events.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+      <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
         No activity yet. When a follower comments one of your keywords, it shows up here.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-[#1f1f1f] bg-[#111111]">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-[#1f1f1f] text-xs uppercase tracking-wide text-zinc-500">
+          <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
             <th className="px-4 py-3 font-medium">When</th>
             <th className="px-4 py-3 font-medium">Follower</th>
             <th className="px-4 py-3 font-medium">Comment</th>
@@ -45,8 +45,8 @@ export function EventLog({ events }: EventLogProps) {
         </thead>
         <tbody>
           {events.map((event) => (
-            <tr key={event.id} className="border-b border-[#1a1a1a] last:border-b-0">
-              <td className="whitespace-nowrap px-4 py-3 text-zinc-400">
+            <tr key={event.id} className="border-b border-secondary last:border-b-0">
+              <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                 {new Date(event.created_at).toLocaleString("en-US", {
                   month: "short",
                   day: "numeric",
@@ -54,17 +54,17 @@ export function EventLog({ events }: EventLogProps) {
                   minute: "2-digit",
                 })}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 text-zinc-200">
+              <td className="whitespace-nowrap px-4 py-3 text-foreground">
                 {event.commenter_username ? `@${event.commenter_username}` : "—"}
               </td>
               <td className="max-w-[260px] px-4 py-3">
-                <p className="truncate text-zinc-300" title={event.comment_text ?? undefined}>
+                <p className="truncate text-muted-foreground" title={event.comment_text ?? undefined}>
                   {event.comment_text ?? "—"}
                 </p>
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 {event.matched_keyword ? (
-                  <Badge variant="outline" className="border-[#2e2e2e] text-zinc-300">
+                  <Badge variant="outline" className="border-border-strong text-muted-foreground">
                     {event.matched_keyword === "*" ? "any" : event.matched_keyword}
                   </Badge>
                 ) : (

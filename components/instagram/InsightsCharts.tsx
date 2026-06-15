@@ -131,8 +131,8 @@ function Pill({
       onClick={onClick}
       className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
         active
-          ? "bg-[#F9E400] text-black"
-          : "bg-[#1a1a1a] text-zinc-400 hover:bg-[#222222] hover:text-zinc-200"
+          ? "bg-primary text-black"
+          : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
       }`}
     >
       {children}
@@ -156,12 +156,12 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-xl border border-[#1f1f1f] bg-[#141414] p-4 ${className}`}>
+    <div className={`rounded-xl border border-border bg-surface-2 p-4 ${className}`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-medium text-white">
-          <span className="text-[#F9E400]">{icon}</span>
+        <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <span className="text-brand">{icon}</span>
           {title}
-          {hint ? <span className="ml-1 text-[11px] font-normal text-zinc-500">{hint}</span> : null}
+          {hint ? <span className="ml-1 text-[11px] font-normal text-subtle">{hint}</span> : null}
         </h3>
         {actions}
       </div>
@@ -175,7 +175,7 @@ function ChartTooltip({ leftPct, children }: { leftPct: number; children: React.
   const clamped = Math.min(86, Math.max(14, leftPct));
   return (
     <div
-      className="pointer-events-none absolute top-0 z-10 w-44 -translate-x-1/2 -translate-y-2 rounded-lg border border-[#2e2e2e] bg-[#0a0a0a]/95 p-2.5 shadow-xl backdrop-blur-sm"
+      className="pointer-events-none absolute top-0 z-10 w-44 -translate-x-1/2 -translate-y-2 rounded-lg border border-border-strong bg-background/95 p-2.5 shadow-xl backdrop-blur-sm"
       style={{ left: `${clamped}%` }}
     >
       {children}
@@ -211,15 +211,15 @@ function KpiCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#141414] p-3.5">
+    <div className="rounded-xl border border-border bg-surface-2 p-3.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+        <span className="flex items-center gap-1.5 text-xs text-subtle">
           {icon}
           {label}
         </span>
         {delta !== undefined ? <DeltaBadge delta={delta} /> : null}
       </div>
-      <p className="mt-1.5 text-xl font-semibold text-white">{value}</p>
+      <p className="mt-1.5 text-xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -245,14 +245,14 @@ function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: M
     <div className="relative" onMouseLeave={() => setHover(null)}>
       {hover != null ? (
         <ChartTooltip leftPct={((hover + 0.5) / n) * 100}>
-          <p className="text-[10px] text-zinc-500">
+          <p className="text-[10px] text-subtle">
             {shortDate(data[hover].item.timestamp)} ·{" "}
             {String(data[hover].item.media_product_type ?? data[hover].item.media_type ?? "post").toLowerCase()}
           </p>
           <p className="text-sm font-semibold" style={{ color: COLORS[metricKey] }}>
             {metric.format(data[hover].value)} {metric.label.toLowerCase()}
           </p>
-          <p className="mt-1 flex items-center gap-2 text-[10px] text-zinc-400">
+          <p className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-0.5">
               <Heart className="h-2.5 w-2.5" />
               {formatCompact(data[hover].item.insights?.likes ?? data[hover].item.like_count)}
@@ -266,7 +266,7 @@ function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: M
             ) : null}
           </p>
           {data[hover].item.caption ? (
-            <p className="mt-1 line-clamp-2 text-[10px] text-zinc-500">{data[hover].item.caption}</p>
+            <p className="mt-1 line-clamp-2 text-[10px] text-subtle">{data[hover].item.caption}</p>
           ) : null}
         </ChartTooltip>
       ) : null}
@@ -322,9 +322,9 @@ function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: M
           );
         })}
       </svg>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-zinc-600">
+      <div className="mt-1 flex items-center justify-between text-[10px] text-subtle">
         <span>{shortDate(data[0]?.item.timestamp)}</span>
-        <span className="text-zinc-500">
+        <span className="text-subtle">
           avg {metric.format(mean)} · peak {metric.format(data[peakIdx]?.value ?? 0)}
         </span>
         <span>{shortDate(data[data.length - 1]?.item.timestamp)}</span>
@@ -380,10 +380,10 @@ function EngagementDonut({ items }: { items: MediaItem[] }) {
             })}
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-base font-semibold text-white">
+          <span className="text-base font-semibold text-foreground">
             {formatCompact(activeSeg ? activeSeg.value : sum)}
           </span>
-          <span className="text-[10px] text-zinc-500">
+          <span className="text-[10px] text-subtle">
             {activeSeg ? activeSeg.label.toLowerCase() : "interactions"}
           </span>
         </div>
@@ -393,18 +393,18 @@ function EngagementDonut({ items }: { items: MediaItem[] }) {
           <li
             key={s.label}
             className={`flex cursor-default items-center justify-between gap-2 rounded-md px-1.5 py-0.5 text-xs transition-colors ${
-              active === s.label ? "bg-[#1a1a1a]" : ""
+              active === s.label ? "bg-secondary" : ""
             }`}
             onMouseEnter={() => setActive(s.label)}
             onMouseLeave={() => setActive(null)}
           >
-            <span className="flex items-center gap-1.5 text-zinc-300">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
               {s.label}
             </span>
-            <span className="font-medium text-white">
+            <span className="font-medium text-foreground">
               {formatCompact(s.value)}
-              <span className="ml-1 text-zinc-500">
+              <span className="ml-1 text-subtle">
                 {sum > 0 ? `${((s.value / sum) * 100).toFixed(0)}%` : "0%"}
               </span>
             </span>
@@ -447,18 +447,18 @@ function EngagementRateLine({ items }: { items: MediaItem[] }) {
   return (
     <div>
       <div className="mb-2 flex items-baseline gap-2">
-        <span className="text-xl font-semibold text-[#F9E400]">{avgRate.toFixed(1)}%</span>
-        <span className="text-xs text-zinc-500">avg engagement rate</span>
-        <span className="ml-auto text-[11px] text-zinc-600">
+        <span className="text-xl font-semibold text-brand">{avgRate.toFixed(1)}%</span>
+        <span className="text-xs text-subtle">avg engagement rate</span>
+        <span className="ml-auto text-[11px] text-subtle">
           best {max.toFixed(1)}% · worst {min.toFixed(1)}%
         </span>
       </div>
       <div className="relative" onMouseLeave={() => setHover(null)}>
         {hover != null ? (
           <ChartTooltip leftPct={(pts[hover].x / W) * 100}>
-            <p className="text-[10px] text-zinc-500">{pts[hover].date}</p>
-            <p className="text-sm font-semibold text-[#F9E400]">{pts[hover].rate.toFixed(2)}% ER</p>
-            <p className="mt-0.5 text-[10px] text-zinc-400">
+            <p className="text-[10px] text-subtle">{pts[hover].date}</p>
+            <p className="text-sm font-semibold text-brand">{pts[hover].rate.toFixed(2)}% ER</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
               {formatCompact(pts[hover].item.insights?.views)} views ·{" "}
               {formatCompact(interactionsOf(pts[hover].item))} interactions
             </p>
@@ -501,7 +501,7 @@ function EngagementRateLine({ items }: { items: MediaItem[] }) {
           ))}
         </svg>
       </div>
-      <div className="mt-1 flex justify-between text-[10px] text-zinc-600">
+      <div className="mt-1 flex justify-between text-[10px] text-subtle">
         <span>{data[0].date}</span>
         <span>{data[data.length - 1].date}</span>
       </div>
@@ -531,26 +531,26 @@ function BestDayChart({ items }: { items: MediaItem[] }) {
           <div key={WEEKDAYS[i]} className="group flex flex-1 flex-col items-center gap-1">
             <span
               className={`text-[10px] tabular-nums transition-opacity ${
-                i === bestIdx ? "text-[#F9E400]" : "text-zinc-500 opacity-0 group-hover:opacity-100"
+                i === bestIdx ? "text-brand" : "text-subtle opacity-0 group-hover:opacity-100"
               }`}
             >
               {v > 0 ? formatCompact(Math.round(v)) : ""}
             </span>
             <div
               className={`w-full rounded-t-md transition-colors ${
-                i === bestIdx ? "bg-[#F9E400]" : "bg-zinc-700 group-hover:bg-zinc-600"
+                i === bestIdx ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"
               }`}
               style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }}
               title={`${WEEKDAYS[i]}: ${formatCompact(Math.round(v))} avg views (${byDay[i].length} posts)`}
             />
-            <span className={`text-[10px] ${i === bestIdx ? "font-semibold text-[#F9E400]" : "text-zinc-500"}`}>
+            <span className={`text-[10px] ${i === bestIdx ? "font-semibold text-brand" : "text-subtle"}`}>
               {WEEKDAYS[i]}
             </span>
           </div>
         ))}
       </div>
-      <p className="mt-2 text-[11px] text-zinc-500">
-        <span className="font-medium text-[#F9E400]">{WEEKDAYS[bestIdx]}</span> is your strongest
+      <p className="mt-2 text-[11px] text-subtle">
+        <span className="font-medium text-brand">{WEEKDAYS[bestIdx]}</span> is your strongest
         posting day by average views.
       </p>
     </div>
@@ -578,11 +578,11 @@ function TopPerformers({ items }: { items: MediaItem[] }) {
               href={m.permalink}
               target="_blank"
               rel="noreferrer"
-              className="group flex items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-[#1a1a1a]"
+              className="group flex items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-secondary"
             >
               <span
                 className={`w-4 shrink-0 text-center text-xs font-semibold ${
-                  i === 0 ? "text-[#F9E400]" : "text-zinc-500"
+                  i === 0 ? "text-brand" : "text-subtle"
                 }`}
               >
                 {i + 1}
@@ -597,22 +597,22 @@ function TopPerformers({ items }: { items: MediaItem[] }) {
                   className="h-9 w-9 shrink-0 rounded-md object-cover"
                 />
               ) : (
-                <span className="h-9 w-9 shrink-0 rounded-md bg-[#1f1f1f]" />
+                <span className="h-9 w-9 shrink-0 rounded-md bg-border" />
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs text-zinc-300">
+                <p className="truncate text-xs text-muted-foreground">
                   {m.caption?.replace(/\s+/g, " ") || shortDate(m.timestamp) || "Untitled"}
                 </p>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[#1f1f1f]">
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
                   <div
-                    className={`h-full rounded-full ${i === 0 ? "bg-[#F9E400]" : "bg-zinc-600 group-hover:bg-zinc-500"}`}
+                    className={`h-full rounded-full ${i === 0 ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"}`}
                     style={{ width: `${Math.max((views / max) * 100, 2)}%` }}
                   />
                 </div>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-xs font-semibold text-white">{formatCompact(views)}</p>
-                <p className="text-[10px] text-zinc-500">{rate != null ? `${rate.toFixed(1)}% ER` : "views"}</p>
+                <p className="text-xs font-semibold text-foreground">{formatCompact(views)}</p>
+                <p className="text-[10px] text-subtle">{rate != null ? `${rate.toFixed(1)}% ER` : "views"}</p>
               </div>
             </a>
           </li>
@@ -677,8 +677,8 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
     <div className="space-y-4">
       {/* Range filter */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
-          <Activity className="h-4 w-4 text-[#F9E400]" />
+        <h3 className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+          <Activity className="h-4 w-4 text-brand" />
           Performance analytics
         </h3>
         <div className="flex items-center gap-1.5">
@@ -691,7 +691,7 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
       </div>
 
       {filtered.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-zinc-700 p-4 text-center text-sm text-zinc-400">
+        <p className="rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-muted-foreground">
           No analyzed posts in this time range — try a wider one.
         </p>
       ) : (

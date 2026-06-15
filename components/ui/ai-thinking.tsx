@@ -31,18 +31,18 @@ export function AiThinking({ messages = DEFAULT_MESSAGES, className }: AiThinkin
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 ${className ?? ""}`}
+      className={`flex items-center gap-3 rounded-xl border border-border bg-card p-4 ${className ?? ""}`}
     >
-      <Sparkles className="h-5 w-5 shrink-0 animate-pulse text-[#F9E400]" />
+      <Sparkles className="h-5 w-5 shrink-0 animate-pulse text-brand" />
 
-      <span key={index} className="text-sm text-zinc-300 transition-opacity duration-300">
+      <span key={index} className="text-sm text-muted-foreground transition-opacity duration-300">
         {messages[index]}
       </span>
 
       <span className="ml-auto flex items-center gap-1">
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#F9E400] [animation-delay:-0.3s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#F9E400] [animation-delay:-0.15s]" />
-        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#F9E400]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
+        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-primary" />
       </span>
     </div>
   );

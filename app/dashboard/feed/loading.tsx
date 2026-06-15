@@ -14,7 +14,7 @@ export default function FeedLoading() {
       </div>
 
       {/* Controls bar */}
-      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+      <div className="rounded-xl border border-border bg-card p-3">
         <div className="flex flex-wrap items-center gap-2">
           <Skeleton className="h-9 min-w-[200px] flex-1 rounded-lg" />
           {Array.from({ length: 5 }).map((_, i) => (
@@ -26,7 +26,7 @@ export default function FeedLoading() {
       {/* Reel cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="space-y-3 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4">
+          <div key={i} className="space-y-3 rounded-2xl border border-border bg-card p-4">
             <Skeleton className="aspect-[4/5] w-full rounded-xl" />
             <div className="flex items-center gap-2">
               <Skeleton className="h-7 w-7 rounded-full" />

@@ -99,10 +99,10 @@ export function AutomationCard({
 
   return (
     <article
-      className={`space-y-3.5 rounded-2xl border p-3.5 text-zinc-100 transition-colors ${
+      className={`space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
         isActive
-          ? "border-[#1f1f1f] bg-[#111111] hover:border-[#2e2e2e]"
-          : "border-amber-500/40 border-dashed bg-[#0d0d0d] opacity-80"
+          ? "border-border bg-card hover:border-border-strong"
+          : "border-amber-500/40 border-dashed bg-background opacity-80"
       }`}
     >
       {!isActive ? (
@@ -119,23 +119,23 @@ export function AutomationCard({
             src={automation.media_thumbnail_url}
             alt="Reel thumbnail"
             referrerPolicy="no-referrer"
-            className={`h-16 w-12 shrink-0 rounded-lg object-cover ring-1 ring-[#2e2e2e] ${
+            className={`h-16 w-12 shrink-0 rounded-lg object-cover ring-1 ring-border-strong ${
               isActive ? "" : "grayscale"
             }`}
           />
         ) : (
-          <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded-lg bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-            <MessageCircleReply className="h-5 w-5 text-zinc-500" />
+          <span className="flex h-16 w-12 shrink-0 items-center justify-center rounded-lg bg-secondary ring-1 ring-border-strong">
+            <MessageCircleReply className="h-5 w-5 text-subtle" />
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm text-zinc-200">{caption || "(no caption)"}</p>
+          <p className="line-clamp-2 text-sm text-foreground">{caption || "(no caption)"}</p>
           {automation.media_permalink ? (
             <a
               href={automation.media_permalink}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-xs text-zinc-500 transition hover:text-[#F9E400]"
+              className="mt-1 inline-flex items-center gap-1 text-xs text-subtle transition hover:text-brand"
             >
               View on Instagram <ExternalLink className="h-3 w-3" />
             </a>
@@ -210,19 +210,19 @@ export function AutomationCard({
         <>
           <div className="flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
-              <Badge variant="outline" className="border-[#F9E400]/40 bg-[#F9E400]/10 text-[#F9E400]">
+              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
                 Any comment
               </Badge>
             ) : (
               automation.keywords.map((keyword) => (
-                <Badge key={keyword} variant="outline" className="border-[#2e2e2e] text-zinc-300">
+                <Badge key={keyword} variant="outline" className="border-border-strong text-muted-foreground">
                   {keyword}
                 </Badge>
               ))
             )}
           </div>
 
-          <p className="line-clamp-2 text-xs text-zinc-500">
+          <p className="line-clamp-2 text-xs text-subtle">
             DM: {automation.dm_message}
             {automation.dm_link ? ` · ${automation.dm_link}` : ""}
           </p>

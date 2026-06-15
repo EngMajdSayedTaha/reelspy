@@ -33,7 +33,7 @@ export function RisingGroupFilter({ groups, current }: RisingGroupFilterProps) {
       value={current}
       disabled={isPending}
       onChange={(e) => onChange(e.target.value)}
-      className="h-8 rounded-lg border border-[#262626] bg-[#141414] px-2 text-xs text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
+      className="h-8 rounded-lg border border-border-strong bg-surface-2 px-2 text-xs text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
     >
       <option value="all">All groups</option>
       {groups.map((g) => (

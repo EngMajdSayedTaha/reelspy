@@ -151,10 +151,10 @@ export function AccountCard({
 
   return (
     <article
-      className={`space-y-3.5 rounded-2xl border p-3.5 text-zinc-100 transition-colors ${
+      className={`space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
         isActive
-          ? "border-[#1f1f1f] bg-[#111111] hover:border-[#2e2e2e]"
-          : "border-amber-500/40 border-dashed bg-[#0d0d0d] opacity-80"
+          ? "border-border bg-card hover:border-border-strong"
+          : "border-amber-500/40 border-dashed bg-background opacity-80"
       }`}
     >
       {/* Loud, unambiguous "this account is OFF" banner. */}
@@ -174,21 +174,21 @@ export function AccountCard({
               alt={`@${account.ig_username}`}
               referrerPolicy="no-referrer"
               onError={() => setAvatarError(true)}
-              className={`h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e] ${
+              className={`h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border-strong ${
                 isActive ? "" : "grayscale"
               }`}
             />
           ) : (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-              <AtSign className="h-5 w-5 text-zinc-500" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
+              <AtSign className="h-5 w-5 text-subtle" />
             </span>
           )}
           <div className="min-w-0">
-            <p className={`truncate text-base font-medium ${isActive ? "text-white" : "text-zinc-400"}`}>
+            <p className={`truncate text-base font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
               @{account.ig_username}
             </p>
             {account.display_name && account.display_name !== account.ig_username ? (
-              <p className="truncate text-sm text-zinc-400">{account.display_name}</p>
+              <p className="truncate text-sm text-muted-foreground">{account.display_name}</p>
             ) : null}
           </div>
         </div>
@@ -200,12 +200,12 @@ export function AccountCard({
         </Badge>
       </div>
 
-      <div className="flex flex-col gap-1 text-sm text-zinc-300">
+      <div className="flex flex-col gap-1 text-sm text-muted-foreground">
         <p className="flex items-center gap-1.5">
-          <Users className="h-4 w-4 text-zinc-500" />
+          <Users className="h-4 w-4 text-subtle" />
           {formatFollowers(account.followers_count)} followers
         </p>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-subtle">
           Last sync:{" "}
           {account.last_synced_at
             ? new Date(account.last_synced_at).toLocaleDateString("en-US")
@@ -214,8 +214,8 @@ export function AccountCard({
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-sm text-zinc-400">
-          <FolderClosed className="h-4 w-4 text-zinc-500" />
+        <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <FolderClosed className="h-4 w-4 text-subtle" />
           Group
         </label>
         <select
@@ -223,7 +223,7 @@ export function AccountCard({
           disabled={busy}
           aria-label="Assign group"
           onChange={(e) => onGroupChange(e.target.value)}
-          className="h-9 flex-1 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
+          className="h-9 flex-1 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
         >
           <option value="">No group</option>
           {groups.map((group) => (
@@ -240,7 +240,7 @@ export function AccountCard({
           value={syncLimit}
           disabled={busy}
           onChange={(e) => setSyncLimit(Number(e.target.value))}
-          className="h-9 shrink-0 rounded-lg border border-[#262626] bg-[#141414] px-1.5 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 disabled:opacity-60"
+          className="h-9 shrink-0 rounded-lg border border-border-strong bg-surface-2 px-1.5 text-sm text-foreground outline-none transition focus:border-primary/60 disabled:opacity-60"
         >
           {[25, 50, 100].map((n) => (
             <option key={n} value={n}>

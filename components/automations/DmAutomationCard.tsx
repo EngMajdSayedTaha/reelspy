@@ -95,10 +95,10 @@ export function DmAutomationCard({
 
   return (
     <article
-      className={`space-y-3.5 rounded-2xl border p-3.5 text-zinc-100 transition-colors ${
+      className={`space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
         isActive
-          ? "border-[#1f1f1f] bg-[#111111] hover:border-[#2e2e2e]"
-          : "border-amber-500/40 border-dashed bg-[#0d0d0d] opacity-80"
+          ? "border-border bg-card hover:border-border-strong"
+          : "border-amber-500/40 border-dashed bg-background opacity-80"
       }`}
     >
       {!isActive ? (
@@ -109,18 +109,18 @@ export function DmAutomationCard({
       ) : null}
 
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-          <Send className={`h-5 w-5 ${isActive ? "text-[#F9E400]" : "text-zinc-500"}`} />
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
+          <Send className={`h-5 w-5 ${isActive ? "text-brand" : "text-subtle"}`} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
-              <Badge variant="outline" className="border-[#F9E400]/40 bg-[#F9E400]/10 text-[#F9E400]">
+              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
                 Any message
               </Badge>
             ) : (
               automation.keywords.map((keyword) => (
-                <Badge key={keyword} variant="outline" className="border-[#2e2e2e] text-zinc-300">
+                <Badge key={keyword} variant="outline" className="border-border-strong text-muted-foreground">
                   {keyword}
                 </Badge>
               ))
@@ -184,7 +184,7 @@ export function DmAutomationCard({
         </div>
       ) : (
         <>
-          <p className="line-clamp-2 text-xs text-zinc-500">
+          <p className="line-clamp-2 text-xs text-subtle">
             Reply: {automation.reply_message}
             {automation.reply_link ? ` · ${automation.reply_link}` : ""}
           </p>

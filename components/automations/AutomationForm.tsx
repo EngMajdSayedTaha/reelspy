@@ -139,10 +139,10 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+    <div className="space-y-4 rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
-        <Clapperboard className="h-4 w-4 text-[#F9E400]" />
-        <h2 className="text-sm font-semibold text-white">New automation</h2>
+        <Clapperboard className="h-4 w-4 text-brand" />
+        <h2 className="text-sm font-semibold text-foreground">New automation</h2>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -150,13 +150,13 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           <div className="space-y-2">
             <Label htmlFor="automation_reel">Reel</Label>
             {loadingReels ? (
-              <p className="flex items-center gap-2 text-sm text-zinc-400">
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading your reels…
               </p>
             ) : reelsError ? (
               <p className="text-sm text-amber-300">{reelsError}</p>
             ) : reels.length === 0 ? (
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 No reels available — every reel already has an automation, or your account has no
                 reels yet.
               </p>
@@ -168,7 +168,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                     src={selected.thumbnail_url}
                     alt="Selected reel"
                     referrerPolicy="no-referrer"
-                    className="h-14 w-10 shrink-0 rounded-md object-cover ring-1 ring-[#2e2e2e]"
+                    className="h-14 w-10 shrink-0 rounded-md object-cover ring-1 ring-border-strong"
                   />
                 ) : null}
                 <select
@@ -176,7 +176,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                   value={mediaId}
                   disabled={isPending}
                   onChange={(e) => setMediaId(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
+                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                 >
                   <option value="">Pick a reel…</option>
                   {reels.map((reel) => (
@@ -200,7 +200,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                   e.target.value === "exact" ? "exact" : e.target.value === "any" ? "any" : "contains"
                 )
               }
-              className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
               <option value="contains">Comment contains a keyword</option>
               <option value="exact">Comment is exactly a keyword</option>
@@ -209,7 +209,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           </div>
 
           {matchMode === "any" ? (
-            <p className="rounded-lg bg-[#F9E400]/5 px-3 py-2 text-xs text-zinc-400">
+            <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               Every comment on this reel gets the reply + DM (your own comments and the bot&apos;s
               replies are always ignored). Great for &ldquo;comment anything and I&apos;ll DM you the
               link&rdquo; CTAs — just mind Meta&apos;s ~200 calls/hour limit if the reel goes viral.

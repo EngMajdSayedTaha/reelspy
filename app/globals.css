@@ -1,7 +1,42 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Drive Tailwind's `dark:` variant off the `.dark` class (set by next-themes)
+   instead of the OS `prefers-color-scheme`, so the in-app toggle wins. */
+@custom-variant dark (&:is(.dark *));
+
+/* Light theme (default). `.dark` below overrides for dark mode. The neon-yellow
+   brand accent stays in both; `--brand` is the *readable* accent for text/icons
+   (dark gold on light, yellow on dark) since pure yellow text is invisible on
+   white. */
 :root {
+  --background: #f7f7f8;
+  --foreground: #18181b;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #f9e400;
+  --primary-foreground: #121212;
+  --secondary: #f1f1f3;
+  --secondary-foreground: #18181b;
+  --muted: #f1f1f3;
+  --muted-foreground: #52525b;
+  --accent: #f9e400;
+  --accent-foreground: #121212;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #f9e400;
+  --surface-2: #f1f1f3;
+  --border-strong: #d4d4d8;
+  --subtle: #71717a;
+  --brand: #a16207;
+  --radius: 0.75rem;
+}
+
+.dark {
   --background: #0d0d0d;
   --foreground: #f4f4f5;
   --card: #111111;
@@ -21,10 +56,17 @@
   --border: #1f1f1f;
   --input: #1f1f1f;
   --ring: #f9e400;
-  --radius: 0.75rem;
+  --surface-2: #141414;
+  --border-strong: #262626;
+  --subtle: #71717a;
+  --brand: #f9e400;
 }
 
 @theme inline {
+  --color-surface-2: var(--surface-2);
+  --color-border-strong: var(--border-strong);
+  --color-subtle: var(--subtle);
+  --color-brand: var(--brand);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -87,7 +129,7 @@ label {
 /* Custom scrollbar — subtle, on-brand */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2a2a transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -100,14 +142,14 @@ label {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #262626;
+  background: var(--border-strong);
   border: 2px solid transparent;
   background-clip: content-box;
   border-radius: 9999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #383838;
+  background: var(--subtle);
   background-clip: content-box;
 }
 

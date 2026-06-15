@@ -89,20 +89,20 @@ function sortMedia(items: MediaItem[], sort: SortKey): MediaItem[] {
 
 function StatBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#141414] p-3.5">
-      <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+    <div className="rounded-xl border border-border bg-surface-2 p-3.5">
+      <div className="flex items-center gap-1.5 text-xs text-subtle">
         {icon}
         {label}
       </div>
-      <p className="mt-1.5 text-xl font-semibold text-white">{value}</p>
+      <p className="mt-1.5 text-xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }
 
 function Metric({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
   return (
-    <span className="flex items-center gap-1 text-xs text-zinc-300" title={label}>
-      <span className="text-zinc-500">{icon}</span>
+    <span className="flex items-center gap-1 text-xs text-muted-foreground" title={label}>
+      <span className="text-subtle">{icon}</span>
       {value}
     </span>
   );
@@ -179,7 +179,7 @@ function ExportMenu({
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
       {open ? (
-        <div className="absolute right-0 top-full z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#141414] p-1 shadow-xl">
+        <div className="absolute right-0 top-full z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-border-strong bg-surface-2 p-1 shadow-xl">
           {items.map((item) => (
             <button
               key={item.label}
@@ -188,13 +188,13 @@ function ExportMenu({
                 item.onClick();
                 if (!item.keepOpen) setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-zinc-300 transition-colors hover:bg-[#1f1f1f] hover:text-white"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
             >
-              <span className="text-zinc-500">{item.icon}</span>
+              <span className="text-subtle">{item.icon}</span>
               {item.label}
             </button>
           ))}
-          <p className="border-t border-[#1f1f1f] px-2.5 py-1.5 text-[10px] text-zinc-600">
+          <p className="border-t border-border px-2.5 py-1.5 text-[10px] text-subtle">
             The AI summary is formatted to paste straight into a chat.
           </p>
         </div>
@@ -264,14 +264,14 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
   const visible = showAll ? sorted : sorted.slice(0, INITIAL_REELS);
 
   return (
-    <section className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-5 text-zinc-100">
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 text-foreground">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-            <Clapperboard className="h-5 w-5 text-[#F9E400]" />
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+            <Clapperboard className="h-5 w-5 text-brand" />
             My Reels &amp; Insights
           </h2>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-muted-foreground">
             Everything Instagram shares about your own content — views, reach, saves, shares and
             watch time.
           </p>
@@ -285,7 +285,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
             </Button>
           </div>
           {data?.synced_at ? (
-            <p className="text-[11px] text-zinc-600">Updated {timeAgo(data.synced_at)}</p>
+            <p className="text-[11px] text-subtle">Updated {timeAgo(data.synced_at)}</p>
           ) : null}
         </div>
       </div>
@@ -335,7 +335,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       ) : null}
 
       {totals && totals.analyzed > 0 ? (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-subtle">
           Totals across your {totals.analyzed} most recent posts with full insights.
         </p>
       ) : null}
@@ -345,7 +345,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       ) : null}
 
       {!isLoading && media.length === 0 && !error ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 p-5 text-center text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong p-5 text-center text-sm text-muted-foreground">
           No posts found on your account yet. Post a reel, then sync again.
         </div>
       ) : null}
@@ -362,8 +362,8 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                   onClick={() => setTypeFilter(t.key)}
                   className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     typeFilter === t.key
-                      ? "bg-[#F9E400] text-black"
-                      : "bg-[#1a1a1a] text-zinc-400 hover:bg-[#222222] hover:text-zinc-200"
+                      ? "bg-primary text-black"
+                      : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
                   }`}
                 >
                   {t.label}
@@ -371,14 +371,14 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-zinc-600">
+              <span className="text-[11px] text-subtle">
                 Showing {visible.length} of {sorted.length}
               </span>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 aria-label="Sort posts"
-                className="h-8 rounded-lg border border-[#1f1f1f] bg-[#141414] px-2 text-xs text-zinc-300 outline-none transition-colors hover:border-[#2e2e2e] focus:border-[#F9E400]/50"
+                className="h-8 rounded-lg border border-border bg-surface-2 px-2 text-xs text-muted-foreground outline-none transition-colors hover:border-border-strong focus:border-primary/50"
               >
                 {SORTS.map((s) => (
                   <option key={s.key} value={s.key}>
@@ -390,7 +390,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
           </div>
 
           {sorted.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-zinc-700 p-4 text-center text-sm text-zinc-400">
+            <p className="rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-muted-foreground">
               Nothing matches this filter.
             </p>
           ) : (
@@ -410,15 +410,15 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                 return (
                   <article
                     key={item.id}
-                    className={`flex flex-col overflow-hidden rounded-2xl border bg-[#141414] transition-colors ${
-                      isTop ? "border-[#F9E400]/50" : "border-[#1f1f1f] hover:border-[#2e2e2e]"
+                    className={`flex flex-col overflow-hidden rounded-2xl border bg-surface-2 transition-colors ${
+                      isTop ? "border-primary/50" : "border-border hover:border-border-strong"
                     }`}
                   >
                     <a
                       href={item.permalink}
                       target="_blank"
                       rel="noreferrer"
-                      className="relative block aspect-[4/5] w-full overflow-hidden bg-[#0a0a0a]"
+                      className="relative block aspect-[4/5] w-full overflow-hidden bg-background"
                     >
                       {thumb ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -431,14 +431,14 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                         />
                       ) : (
                         <span className="absolute inset-0 flex items-center justify-center">
-                          <Clapperboard className="h-10 w-10 text-zinc-700" />
+                          <Clapperboard className="h-10 w-10 text-subtle" />
                         </span>
                       )}
                       <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
                         {isReelItem(item) ? "Reel" : (item.media_type ?? "Post").toLowerCase()}
                       </span>
                       {isTop ? (
-                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-[#F9E400] px-2 py-0.5 text-[10px] font-semibold text-black">
+                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-black">
                           <TrendingUp className="h-3 w-3" />
                           Top performer
                         </span>
@@ -452,9 +452,9 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                     </a>
 
                     <div className="flex flex-1 flex-col gap-2 p-3">
-                      {posted ? <p className="text-xs text-zinc-500">{posted}</p> : null}
+                      {posted ? <p className="text-xs text-subtle">{posted}</p> : null}
                       {item.caption ? (
-                        <p className="line-clamp-2 text-xs text-zinc-300">{item.caption}</p>
+                        <p className="line-clamp-2 text-xs text-muted-foreground">{item.caption}</p>
                       ) : null}
 
                       <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-1">

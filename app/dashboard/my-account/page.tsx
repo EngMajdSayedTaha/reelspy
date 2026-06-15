@@ -62,8 +62,8 @@ export default async function MyAccountPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">My IG</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">My IG</h1>
+        <p className="text-sm text-muted-foreground">
           Your Instagram account — full reel history, performance and insights.
         </p>
       </div>
@@ -75,7 +75,7 @@ export default async function MyAccountPage() {
       ) : null}
 
       {/* Account Overview */}
-      <section className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-5 text-zinc-100">
+      <section className="rounded-xl border border-border bg-card p-5 text-foreground">
         <div className="flex flex-wrap items-center gap-4">
           {insights?.profile_picture_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -83,16 +83,16 @@ export default async function MyAccountPage() {
               src={insights.profile_picture_url}
               alt={`@${insights.username}`}
               referrerPolicy="no-referrer"
-              className="h-16 w-16 rounded-full object-cover ring-2 ring-[#F9E400]/40"
+              className="h-16 w-16 rounded-full object-cover ring-2 ring-primary/40"
             />
           ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-              <AtSign className="h-7 w-7 text-zinc-500" />
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
+              <AtSign className="h-7 w-7 text-subtle" />
             </span>
           )}
 
           <div className="min-w-0 flex-1">
-            <p className="text-lg font-semibold text-white">
+            <p className="text-lg font-semibold text-foreground">
               {insights?.username
                 ? `@${insights.username}`
                 : profile?.username ?? user.email ?? "—"}
@@ -101,22 +101,22 @@ export default async function MyAccountPage() {
               {connected ? "Connected" : "Not connected"}
             </p>
             {insights?.biography ? (
-              <p className="mt-1 line-clamp-2 text-sm text-zinc-400">{insights.biography}</p>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{insights.biography}</p>
             ) : null}
           </div>
 
           <div className="flex gap-6 text-center">
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold text-foreground">
                 {insights ? formatNumber(insights.followers_count) : "—"}
               </p>
-              <p className="text-xs text-zinc-500">Followers</p>
+              <p className="text-xs text-subtle">Followers</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">
+              <p className="text-2xl font-semibold text-foreground">
                 {insights ? formatNumber(insights.media_count) : "—"}
               </p>
-              <p className="text-xs text-zinc-500">Posts</p>
+              <p className="text-xs text-subtle">Posts</p>
             </div>
           </div>
         </div>
@@ -138,9 +138,9 @@ export default async function MyAccountPage() {
       <GrowthNotes connected={connected} />
 
       {!connected ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong p-5 text-sm text-muted-foreground">
           Connect your Instagram account in{" "}
-          <Link href="/dashboard/settings/instagram" className="text-[#F9E400] hover:underline">
+          <Link href="/dashboard/settings/instagram" className="text-brand hover:underline">
             Settings
           </Link>{" "}
           to see analytics here.
