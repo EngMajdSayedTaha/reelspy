@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ScriptOutput } from "@/components/scripts/ScriptOutput";
 import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { notifyError, requestJson } from "@/lib/utils/api";
@@ -43,6 +44,13 @@ type GeneratedResponse = {
   error?: string;
 };
 
+type FetchedReel = {
+  username: string;
+  caption: string;
+  thumbnail_url: string | null;
+  permalink: string;
+};
+
 type ScriptGeneratorProps = {
   reelId?: string;
   initialCaption?: string;
@@ -57,6 +65,55 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResponse | null>(null);
+
+  // Reel-link import state
+  const [reelUrl, setReelUrl] = useState("");
+  const [isFetchingReel, setIsFetchingReel] = useState(false);
+  const [fetchedReel, setFetchedReel] = useState<FetchedReel | null>(null);
+  const [reelFetchError, setReelFetchError] = useState<string | null>(null);
+  const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [accountAdded, setAccountAdded] = useState(false);
+
+  const onFetchReel = async () => {
+    const url = reelUrl.trim();
+    if (!url) return;
+    setIsFetchingReel(true);
+    setReelFetchError(null);
+    setFetchedReel(null);
+    setAccountAdded(false);
+
+    try {
+      const json = await requestJson<FetchedReel>("/api/ig/reel-from-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      setFetchedReel(json);
+      if (json.caption) setCaption(json.caption);
+    } catch (err) {
+      setReelFetchError(err instanceof Error ? err.message : "Could not fetch reel data.");
+    } finally {
+      setIsFetchingReel(false);
+    }
+  };
+
+  const onAddToInspiration = async () => {
+    if (!fetchedReel?.username) return;
+    setIsAddingAccount(true);
+    try {
+      await requestJson("/api/ig/add-inspiration-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: fetchedReel.username }),
+      });
+      setAccountAdded(true);
+      toast.success(`@${fetchedReel.username} added to inspiration`);
+    } catch (err) {
+      notifyError(err, "Could not add account.");
+    } finally {
+      setIsAddingAccount(false);
+    }
+  };
 
   const onGenerate = async () => {
     setIsLoading(true);
@@ -88,9 +145,66 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
 
   return (
     <div className="space-y-5">
-      {/* Caption context */}
       <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
         <div className="space-y-4">
+          {/* Reel Link Import */}
+          <div className="space-y-2">
+            <Label>From Instagram Reel</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://www.instagram.com/reel/..."
+                value={reelUrl}
+                onChange={(e) => setReelUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    onFetchReel();
+                  }
+                }}
+                disabled={isFetchingReel}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onFetchReel}
+                disabled={isFetchingReel || !reelUrl.trim()}
+                className="shrink-0"
+              >
+                {isFetchingReel ? "Fetching…" : "Fetch Caption"}
+              </Button>
+            </div>
+
+            {reelFetchError ? (
+              <p className="text-sm text-rose-400">{reelFetchError}</p>
+            ) : null}
+
+            {fetchedReel ? (
+              <div className="flex items-center justify-between rounded-lg border border-zinc-700 bg-[#0d0d0d] px-3 py-2 text-sm">
+                <span className="text-zinc-400">
+                  From{" "}
+                  <span className="font-medium text-white">@{fetchedReel.username}</span>
+                  {" — caption loaded"}
+                </span>
+                {accountAdded ? (
+                  <span className="text-xs text-[#F9E400]">✓ Tracking</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onAddToInspiration}
+                    disabled={isAddingAccount || !fetchedReel.username}
+                    className="text-xs text-[#F9E400] hover:underline disabled:opacity-50"
+                  >
+                    {isAddingAccount ? "Adding…" : `+ Track @${fetchedReel.username}`}
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          {fetchedReel ? <div className="border-t border-[#1f1f1f]" /> : null}
+
+          {/* Caption context */}
           <div className="space-y-2">
             <Label htmlFor="caption">Reel Caption / Context</Label>
             <Textarea
