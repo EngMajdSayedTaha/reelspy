@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { getReelInfo, YtDlpUnavailableError } from "@/lib/media/ytdlp";
+import { getReelMetadata, YtDlpUnavailableError } from "@/lib/media/ytdlp";
+import { transcribeReel } from "@/lib/transcription";
 
-// Matches /reel/, /reels/, or /p/ segments — optionally preceded by a username.
+// Transcription runs yt-dlp + Whisper — allow up to 5 minutes.
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+// Matches /reel/, /reels/, or /p/ — optionally preceded by a username.
 const IG_URL_RE = /instagram\.com\/(?:[a-z0-9._]{1,30}\/)?(?:reel|reels|p)\/([A-Za-z0-9_-]+)/i;
-// Extracts the username when the URL contains /username/reel/SHORTCODE.
+// Extracts the username when the URL itself contains /username/reel/SHORTCODE.
 const IG_USERNAME_FROM_URL_RE =
   /instagram\.com\/([a-z0-9._]{1,30})\/(?:reel|reels|p)\//i;
 
@@ -13,7 +18,7 @@ const bodySchema = z.object({
   url: z.string().url().max(500),
 });
 
-// Drop tracking query params (igsh, etc.) — yt-dlp only needs the canonical path.
+// Drop tracking query params (igsh, etc.) before passing to yt-dlp.
 function cleanIgUrl(raw: string): string {
   try {
     const u = new URL(raw);
@@ -21,6 +26,14 @@ function cleanIgUrl(raw: string): string {
   } catch {
     return raw;
   }
+}
+
+// yt-dlp returns uploader_url like https://www.instagram.com/majdst_codes/
+// — the real handle is the last path segment.
+function usernameFromUploaderUrl(url: string | null): string {
+  if (!url) return "";
+  const match = /instagram\.com\/([a-z0-9._]{1,30})\/?$/i.exec(url);
+  return match?.[1]?.toLowerCase() ?? "";
 }
 
 export async function POST(request: Request) {
@@ -49,12 +62,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // Fallback: username embedded in the URL path itself.
   const usernameMatch = IG_USERNAME_FROM_URL_RE.exec(cleanUrl);
   const urlUsername = usernameMatch?.[1]?.toLowerCase() ?? "";
 
-  let info: Awaited<ReturnType<typeof getReelInfo>>;
+  // Single yt-dlp call: gets description, uploader_url, thumbnail, AND the
+  // direct media URL needed for transcription — no second yt-dlp invocation.
+  let metadata: Awaited<ReturnType<typeof getReelMetadata>>;
   try {
-    info = await getReelInfo(cleanUrl);
+    metadata = await getReelMetadata(cleanUrl);
   } catch (err) {
     if (err instanceof YtDlpUnavailableError) {
       return NextResponse.json(
@@ -75,14 +91,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const rawUsername = info.uploader_id ?? info.uploader ?? urlUsername;
-  const username = rawUsername.toLowerCase().replace(/^@/, "");
-  const caption = info.description ?? "";
+  // Resolve the handle: uploader_url has the real @handle; uploader is a
+  // display name which may contain spaces or emoji — never use it as a handle.
+  const username =
+    usernameFromUploaderUrl(metadata.uploader_url) ||
+    urlUsername;
+
+  const caption = metadata.description ?? "";
+
+  // Transcribe the audio with Whisper so the spoken content goes into the
+  // script generator — far more useful than the IG caption text alone.
+  let transcript: string | null = null;
+  if (metadata.mediaUrl) {
+    try {
+      const result = await transcribeReel({
+        permalink: cleanUrl,
+        mediaUrl: metadata.mediaUrl,
+      });
+      if (result.status === "ready") {
+        transcript = result.text;
+      } else {
+        console.error("[reel-from-link] transcription unavailable:", result.reason);
+      }
+    } catch (err) {
+      // Non-fatal — return what we have without the transcript.
+      console.error("[reel-from-link] transcription error:", err);
+    }
+  }
 
   return NextResponse.json({
     username,
     caption,
-    thumbnail_url: info.thumbnail ?? null,
+    transcript,
+    thumbnail_url: metadata.thumbnail ?? null,
     permalink: cleanUrl,
   });
 }
