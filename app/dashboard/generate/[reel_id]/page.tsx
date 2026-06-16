@@ -47,15 +47,15 @@ export default async function GenerateScriptPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Generate Script</h1>
-        <p className="text-sm text-zinc-400">Create an original script from this reel inspiration.</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Generate Script</h1>
+        <p className="text-sm text-muted-foreground">Create an original script from this reel inspiration.</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr] lg:items-start">
         {/* Source reel — same card as the feed, watchable inline. Capped and
             centered below lg so it doesn't blow up to full-bleed on phones. */}
         <div className="mx-auto w-full min-w-0 max-w-sm space-y-2 lg:mx-0 lg:max-w-none lg:sticky lg:top-20">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Source reel</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Source reel</p>
           <ReelCard
             reel={reel}
             markWorkedAction={markReelAsWorkedOn}

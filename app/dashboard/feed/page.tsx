@@ -293,8 +293,8 @@ export default async function FeedPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white">Feed</h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">Feed</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Watch tracked reels inline, score performance, and turn the best ideas into scripts.
           </p>
         </div>

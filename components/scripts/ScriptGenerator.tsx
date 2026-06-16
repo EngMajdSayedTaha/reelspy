@@ -122,7 +122,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+      <div className="rounded-xl border border-border bg-card p-4 text-foreground">
         <div className="space-y-4">
           {/* External reel link → transcript */}
           <div className="space-y-2">
@@ -159,7 +159,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
             {isFetchingReel ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
           </div>
 
-          <div className="border-t border-[#1f1f1f]" />
+          <div className="border-t border-border" />
 
           {/* Caption context */}
           <div className="space-y-2">
@@ -185,8 +185,8 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
                   onClick={() => setViralPattern(pattern)}
                   className={`rounded-md border px-3 py-1.5 text-sm transition ${
                     viralPattern === pattern
-                      ? "border-[#F9E400] bg-[#F9E400]/10 text-[#F9E400]"
-                      : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                      ? "border-primary bg-primary/10 text-brand"
+                      : "border-border-strong text-muted-foreground hover:border-border-strong"
                   }`}
                 >
                   {pattern}
@@ -207,8 +207,8 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
                     onClick={() => setPlatform(p)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition ${
                       platform === p
-                        ? "border-[#F9E400] bg-[#F9E400]/10 text-[#F9E400]"
-                        : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                        ? "border-primary bg-primary/10 text-brand"
+                        : "border-border-strong text-muted-foreground hover:border-border-strong"
                     }`}
                   >
                     {p}
@@ -227,8 +227,8 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
                     onClick={() => setTone(t)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition ${
                       tone === t
-                        ? "border-[#F9E400] bg-[#F9E400]/10 text-[#F9E400]"
-                        : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                        ? "border-primary bg-primary/10 text-brand"
+                        : "border-border-strong text-muted-foreground hover:border-border-strong"
                     }`}
                   >
                     {t}
@@ -242,7 +242,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
           <div className="space-y-2">
             <Label htmlFor="custom-context">
               Custom Context{" "}
-              <span className="text-xs text-zinc-500">(optional — add your angle or topic)</span>
+              <span className="text-xs text-subtle">(optional — add your angle or topic)</span>
             </Label>
             <Textarea
               id="custom-context"

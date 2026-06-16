@@ -28,15 +28,15 @@ function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
   return (
     <Link
       href={href}
-      className="group sheen rounded-2xl border border-[#1f1f1f] bg-[#111111] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#2e2e2e] hover:shadow-lg hover:shadow-black/40 sm:p-5"
+      className="group sheen rounded-2xl border border-border bg-card p-4 transition duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-lg hover:shadow-black/40 sm:p-5"
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-zinc-400">{label}</p>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1a1a1a] text-zinc-400 transition group-hover:bg-[#F9E400]/10 group-hover:text-[#F9E400]">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-primary/10 group-hover:text-brand">
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-white sm:text-3xl">{value}</p>
+      <p className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">{value}</p>
     </Link>
   );
 }
@@ -109,10 +109,10 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
           Welcome back, {username}
         </h1>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-muted-foreground">
           Your content intelligence command center.
         </p>
       </div>
@@ -182,8 +182,8 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Quick actions
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -225,16 +225,16 @@ function QuickAction({
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-xl border border-[#1f1f1f] bg-[#141414] p-4 transition duration-200 hover:-translate-y-0.5 hover:border-[#F9E400]/40"
+      className="group flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary/40"
     >
-      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1a1a1a] text-zinc-300 transition group-hover:bg-[#F9E400]/10 group-hover:text-[#F9E400]">
+      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-primary/10 group-hover:text-brand">
         <Icon className="h-5 w-5" />
       </span>
       <div className="flex-1">
-        <p className="text-sm font-medium text-zinc-100">{title}</p>
-        <p className="text-xs text-zinc-500">{desc}</p>
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="text-xs text-subtle">{desc}</p>
       </div>
-      <ArrowRight className="h-4 w-4 text-zinc-600 transition group-hover:translate-x-0.5 group-hover:text-[#F9E400]" />
+      <ArrowRight className="h-4 w-4 text-subtle transition group-hover:translate-x-0.5 group-hover:text-brand" />
     </Link>
   );
 }

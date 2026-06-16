@@ -56,7 +56,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
   };
 
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+    <div className="rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
         <div className="space-y-2">
           <Label htmlFor="ig_username">Instagram Username</Label>
@@ -85,7 +85,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
               value={groupId}
               disabled={isPending}
               onChange={(e) => setGroupId(e.target.value)}
-              className="block h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60 md:w-44"
+              className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:w-44"
             >
               <option value="">No group</option>
               {groups.map((group) => (

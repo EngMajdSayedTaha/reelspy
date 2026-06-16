@@ -56,12 +56,12 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
       >
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
-          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-[#1f1f1f] bg-[#111111] p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
-            <AlertDialog.Title className="text-lg font-semibold text-white">
+          <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
+            <AlertDialog.Title className="text-lg font-semibold text-foreground">
               {options.title ?? "Are you sure?"}
             </AlertDialog.Title>
             {options.description ? (
-              <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-zinc-400">
+              <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {options.description}
               </AlertDialog.Description>
             ) : null}
@@ -70,7 +70,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => settle(false)}
-                className="h-9 rounded-lg border border-[#262626] bg-[#141414] px-4 text-sm text-zinc-300 transition hover:border-zinc-500"
+                className="h-9 rounded-lg border border-border-strong bg-surface-2 px-4 text-sm text-muted-foreground transition hover:border-border-strong"
               >
                 {options.cancelText ?? "Cancel"}
               </button>
@@ -80,7 +80,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 className={`h-9 rounded-lg px-4 text-sm font-semibold transition ${
                   options.destructive
                     ? "bg-rose-500 text-white hover:bg-rose-500/90"
-                    : "bg-[#F9E400] text-black hover:bg-[#F9E400]/90"
+                    : "bg-primary text-black hover:bg-primary/90"
                 }`}
               >
                 {options.confirmText ?? "Confirm"}

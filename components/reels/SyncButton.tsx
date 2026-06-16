@@ -98,14 +98,14 @@ export function SyncButton() {
 
   return (
     <div className="flex items-center gap-2">
-      <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <span className="hidden sm:inline">Per account</span>
         <select
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
           disabled={isSyncing}
           aria-label="Reels to sync per account"
-          className="h-9 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-50"
+          className="h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
         >
           {LIMIT_OPTIONS.map((n) => (
             <option key={n} value={n}>

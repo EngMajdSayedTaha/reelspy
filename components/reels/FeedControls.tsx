@@ -45,7 +45,7 @@ const STATUS_OPTIONS = [
 const PER_PAGE_OPTIONS = ["10", "25"];
 
 const selectClass =
-  "h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 sm:w-auto";
+  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:w-auto";
 
 export function FeedControls({ accounts, groups, current, statusCounts, total }: FeedControlsProps) {
   const router = useRouter();
@@ -91,30 +91,30 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
     current.q !== "";
 
   return (
-    <div className="relative rounded-xl border border-[#1f1f1f] bg-[#111111] p-3">
+    <div className="relative rounded-xl border border-border bg-card p-3">
       {/* Thin progress bar while the filtered feed is loading. Rounded ends
           stand in for the parent's old overflow-hidden, which clipped the
           account dropdown panel. */}
       {isPending ? (
-        <span className="absolute inset-x-2 top-0 h-0.5 animate-pulse rounded-full bg-[#F9E400]" />
+        <span className="absolute inset-x-2 top-0 h-0.5 animate-pulse rounded-full bg-primary" />
       ) : null}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <form onSubmit={onSearchSubmit} className="flex w-full gap-2 sm:w-auto sm:min-w-[230px] sm:flex-1">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search captions…"
-              className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 pl-9 pr-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <button
             type="submit"
             disabled={isPending}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-[#F9E400] px-3 text-sm font-medium text-black transition hover:bg-[#F9E400]/90 disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-black transition hover:bg-primary/90 disabled:opacity-60"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -201,7 +201,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             aria-label="Toggle sort direction"
             title={current.order === "asc" ? "Ascending" : "Descending"}
             onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#262626] bg-[#141414] text-zinc-300 transition hover:border-[#F9E400]/60 hover:text-[#F9E400]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
           >
             {current.order === "asc" ? (
               <ArrowUpWideNarrow className="h-4 w-4" />
@@ -233,7 +233,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
               setSearch("");
               apply({ account: null, group: null, pattern: null, status: null, q: null });
             }}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-400 transition hover:border-rose-500/50 hover:text-rose-300"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-300"
           >
             <X className="h-3.5 w-3.5" />
             Clear
@@ -242,7 +242,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         </div>
       </div>
 
-      <p className="mt-2 px-1 text-xs text-zinc-500">
+      <p className="mt-2 px-1 text-xs text-subtle">
         {total} {total === 1 ? "reel" : "reels"}
         {isFiltered ? " match your filters" : " tracked"}
       </p>

@@ -142,8 +142,8 @@ export default async function AccountsPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Accounts</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Accounts</h1>
+        <p className="text-sm text-muted-foreground">
           Save inspiration accounts you want ReelSpy to track and score.
         </p>
       </div>
@@ -160,7 +160,7 @@ export default async function AccountsPage({
       />
 
       {counts.all === 0 && !q ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           No inspiration accounts yet. Add your first account above.
         </div>
       ) : (
@@ -171,7 +171,7 @@ export default async function AccountsPage({
           </div>
 
           {accounts.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+            <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
               {q ? `No accounts match “${q}”.` : `No ${status} accounts.`}
             </div>
           ) : (

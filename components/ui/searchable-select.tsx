@@ -106,16 +106,16 @@ export function SearchableSelect({
         aria-expanded={open}
         disabled={disabled}
         onClick={toggleOpen}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-50"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
       >
         <span className="truncate">{current?.label ?? placeholder}</span>
-        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
+        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-30 mt-1 w-full min-w-[220px] overflow-hidden rounded-lg border border-[#262626] bg-[#141414] shadow-xl shadow-black/50">
-          <div className="relative border-b border-[#262626]">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+        <div className="absolute left-0 top-full z-30 mt-1 w-full min-w-[220px] overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl shadow-black/50">
+          <div className="relative border-b border-border-strong">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
             <input
               ref={inputRef}
               type="text"
@@ -126,13 +126,13 @@ export function SearchableSelect({
               }}
               onKeyDown={onKeyDown}
               placeholder={placeholder}
-              className="h-9 w-full bg-transparent pl-8 pr-3 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none"
+              className="h-9 w-full bg-transparent pl-8 pr-3 text-sm text-foreground placeholder:text-subtle outline-none"
             />
           </div>
 
           <div className="max-h-60 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-zinc-500">No matches.</p>
+              <p className="px-3 py-2 text-sm text-subtle">No matches.</p>
             ) : (
               filtered.map((option, i) => {
                 const selected = option.value === value;
@@ -143,11 +143,11 @@ export function SearchableSelect({
                     onClick={() => select(option)}
                     onMouseEnter={() => setHighlight(i)}
                     className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition ${
-                      i === highlight ? "bg-[#1f1f1f] text-zinc-100" : "text-zinc-300"
+                      i === highlight ? "bg-border text-foreground" : "text-muted-foreground"
                     }`}
                   >
                     <span className="truncate">{option.label}</span>
-                    {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-[#F9E400]" /> : null}
+                    {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-brand" /> : null}
                   </button>
                 );
               })

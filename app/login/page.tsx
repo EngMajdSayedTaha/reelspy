@@ -103,22 +103,22 @@ function LoginForm() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0d0d0d] p-6">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
       {/* Ambient accent glow */}
-      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-[#F9E400]/5 blur-[120px]" />
+      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px]" />
 
       <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <LogoMark size={48} />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Reel<span className="text-[#F9E400]">Spy</span>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Reel<span className="text-brand">Spy</span>
             </h1>
-            <p className="mt-1 text-sm text-zinc-500">Personal content intelligence</p>
+            <p className="mt-1 text-sm text-subtle">Personal content intelligence</p>
           </div>
         </div>
 
-        <Card className="border-[#1f1f1f] bg-[#111111] text-zinc-100">
+        <Card className="border-border bg-card text-foreground">
           <CardContent className="space-y-4 pt-6">
           <Button
             className="w-full"
@@ -129,7 +129,7 @@ function LoginForm() {
             Continue with Google
           </Button>
 
-          <div className="text-center text-xs uppercase tracking-wide text-zinc-400">or</div>
+          <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">or</div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -184,6 +184,16 @@ function LoginForm() {
           ) : null}
           </CardContent>
         </Card>
+
+        <p className="mt-6 text-center text-xs text-subtle">
+          <a href="/privacy" className="hover:text-foreground">
+            Privacy Policy
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/cookies" className="hover:text-foreground">
+            Cookie Policy
+          </a>
+        </p>
       </div>
     </div>
   );

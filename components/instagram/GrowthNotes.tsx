@@ -33,11 +33,11 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-5 text-zinc-100">
+    <section className="space-y-4 rounded-xl border border-border bg-card p-5 text-foreground">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-white">AI Growth Notes</h2>
-          <p className="text-sm text-zinc-400">
+          <h2 className="text-lg font-semibold text-foreground">AI Growth Notes</h2>
+          <p className="text-sm text-muted-foreground">
             Data-backed recommendations from your last 20 posts.
           </p>
         </div>
@@ -62,15 +62,15 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
           {notes.map((note, i) => (
             <li
               key={i}
-              className="flex gap-3 rounded-md border border-zinc-800 bg-[#0d0d0d] p-3 text-sm text-zinc-200"
+              className="flex gap-3 rounded-md border border-border-strong bg-background p-3 text-sm text-foreground"
             >
-              <span className="shrink-0 font-mono text-[#F9E400]">{i + 1}.</span>
+              <span className="shrink-0 font-mono text-brand">{i + 1}.</span>
               <span>{note}</span>
             </li>
           ))}
         </ul>
       ) : notes.length === 0 && !isLoading && !error && connected ? (
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-subtle">
           Click Generate Notes to get AI recommendations based on your Instagram data.
         </p>
       ) : null}

@@ -17,7 +17,7 @@ type PreferencesFormProps = {
 };
 
 const selectClass =
-  "h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60";
+  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60";
 
 export function PreferencesForm({ initial, action }: PreferencesFormProps) {
   const [toastMs, setToastMs] = useState(initial.toastMs);
@@ -42,18 +42,18 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
   };
 
   return (
-    <section className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-5 text-zinc-100">
+    <section className="rounded-2xl border border-border bg-card p-5 text-foreground">
       <div className="flex items-center gap-2">
-        <SlidersHorizontal className="h-4 w-4 text-[#F9E400]" />
-        <h2 className="text-lg font-semibold text-white">Preferences</h2>
+        <SlidersHorizontal className="h-4 w-4 text-brand" />
+        <h2 className="text-lg font-semibold text-foreground">Preferences</h2>
       </div>
-      <p className="mt-1 text-sm text-zinc-400">
+      <p className="mt-1 text-sm text-muted-foreground">
         Tune how the app behaves for you. Saved on this device.
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <label className="space-y-1.5 text-sm">
-          <span className="text-zinc-300">Notification duration</span>
+          <span className="text-muted-foreground">Notification duration</span>
           <select
             value={toastMs}
             disabled={isPending}
@@ -66,11 +66,11 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
               </option>
             ))}
           </select>
-          <span className="block text-xs text-zinc-500">How long toasts stay on screen.</span>
+          <span className="block text-xs text-subtle">How long toasts stay on screen.</span>
         </label>
 
         <label className="space-y-1.5 text-sm">
-          <span className="text-zinc-300">Default sync depth</span>
+          <span className="text-muted-foreground">Default sync depth</span>
           <select
             value={syncLimit}
             disabled={isPending}
@@ -83,11 +83,11 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
               </option>
             ))}
           </select>
-          <span className="block text-xs text-zinc-500">Pre-selected on sync buttons.</span>
+          <span className="block text-xs text-subtle">Pre-selected on sync buttons.</span>
         </label>
 
         <label className="space-y-1.5 text-sm">
-          <span className="text-zinc-300">Feed page size</span>
+          <span className="text-muted-foreground">Feed page size</span>
           <select
             value={feedPerPage}
             disabled={isPending}
@@ -100,7 +100,7 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
               </option>
             ))}
           </select>
-          <span className="block text-xs text-zinc-500">Default page size in the Feed.</span>
+          <span className="block text-xs text-subtle">Default page size in the Feed.</span>
         </label>
       </div>
 

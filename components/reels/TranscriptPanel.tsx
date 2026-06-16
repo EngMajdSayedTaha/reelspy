@@ -92,13 +92,13 @@ export function TranscriptPanel({
   };
 
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-sm text-zinc-300">
+    <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-4 w-4 shrink-0 text-[#F9E400]" />
-          <p className="font-medium text-zinc-100">Reel Transcript</p>
+          <FileText className="h-4 w-4 shrink-0 text-brand" />
+          <p className="font-medium text-foreground">Reel Transcript</p>
           {hasTranscript && source ? (
-            <span className="truncate text-xs text-zinc-500">
+            <span className="truncate text-xs text-subtle">
               AI transcription{language ? ` · ${language}` : ""}
             </span>
           ) : null}
@@ -143,16 +143,16 @@ export function TranscriptPanel({
       {isLoading ? (
         <AiThinking messages={TRANSCRIPT_LOADING_MESSAGES} className="mt-3" />
       ) : hasTranscript ? (
-        <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-[#1f1f1f] bg-[#0a0a0a] p-3 leading-relaxed text-zinc-200">
+        <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-3 leading-relaxed text-foreground">
           {transcript}
         </div>
       ) : status === "failed" ? (
-        <p className="mt-3 text-zinc-500">
+        <p className="mt-3 text-subtle">
           We couldn&apos;t transcribe this reel. It may be private, very long, or temporarily
           unavailable — try again in a bit.
         </p>
       ) : (
-        <p className="mt-3 text-zinc-500">
+        <p className="mt-3 text-subtle">
           Generate the spoken transcript of this reel to study its hook, pacing, and structure.
         </p>
       )}

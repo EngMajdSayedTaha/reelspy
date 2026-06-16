@@ -142,7 +142,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
   };
 
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] text-zinc-100">
+    <div className="rounded-xl border border-border bg-card text-foreground">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -150,29 +150,29 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-[#F9E400]" />
+          <Users className="h-4 w-4 text-brand" />
           <span className="font-medium">Import accounts you follow</span>
-          <span className="hidden text-xs text-zinc-500 sm:inline">
+          <span className="hidden text-xs text-subtle sm:inline">
             Fill your inspiration list in one go
           </span>
         </span>
-        <ChevronDown className={`h-4 w-4 text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 text-subtle transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open ? (
-        <div className="space-y-4 border-t border-[#1f1f1f] p-4">
+        <div className="space-y-4 border-t border-border p-4">
           {candidates === null ? (
             <>
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground">
                 Instagram&apos;s API doesn&apos;t share your following list, but you can import it
                 in seconds: paste usernames below, or upload the{" "}
-                <span className="text-zinc-200">following.json</span> /{" "}
-                <span className="text-zinc-200">following.html</span> file from Instagram&apos;s{" "}
+                <span className="text-foreground">following.json</span> /{" "}
+                <span className="text-foreground">following.html</span> file from Instagram&apos;s{" "}
                 <a
                   href="https://www.instagram.com/download/request/"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[#F9E400] underline-offset-4 hover:underline"
+                  className="text-brand underline-offset-4 hover:underline"
                 >
                   Download your information
                 </a>{" "}
@@ -184,7 +184,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                 onChange={(e) => setRawInput(e.target.value)}
                 rows={4}
                 placeholder={"@creator_one\n@creator_two creator_three, https://www.instagram.com/creator_four/"}
-                className="w-full rounded-lg border border-[#262626] bg-[#141414] p-3 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20"
+                className="w-full rounded-lg border border-border-strong bg-surface-2 p-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
               />
 
               <div className="flex flex-wrap gap-2">
@@ -208,30 +208,30 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-zinc-300">
-                  <span className="font-semibold text-white">{selected.length}</span> of{" "}
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{selected.length}</span> of{" "}
                   {candidates.length} accounts selected — untick any you don&apos;t want.
                 </p>
                 <div className="flex gap-2 text-xs">
                   <button
                     type="button"
                     onClick={() => setExcluded(new Set())}
-                    className="text-zinc-400 transition hover:text-[#F9E400]"
+                    className="text-muted-foreground transition hover:text-brand"
                   >
                     Select all
                   </button>
-                  <span className="text-zinc-700">·</span>
+                  <span className="text-subtle">·</span>
                   <button
                     type="button"
                     onClick={() => setExcluded(new Set(candidates))}
-                    className="text-zinc-400 transition hover:text-[#F9E400]"
+                    className="text-muted-foreground transition hover:text-brand"
                   >
                     Clear all
                   </button>
                 </div>
               </div>
 
-              <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto rounded-lg border border-[#262626] bg-[#0f0f0f] p-2 sm:grid-cols-3">
+              <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto rounded-lg border border-border-strong bg-background p-2 sm:grid-cols-3">
                 {candidates.map((username) => {
                   const checked = !excluded.has(username);
                   return (
@@ -240,11 +240,11 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                       type="button"
                       onClick={() => toggle(username)}
                       className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition ${
-                        checked ? "text-zinc-200 hover:bg-[#1a1a1a]" : "text-zinc-600 hover:bg-[#1a1a1a]"
+                        checked ? "text-foreground hover:bg-secondary" : "text-subtle hover:bg-secondary"
                       }`}
                     >
                       {checked ? (
-                        <CheckSquare className="h-4 w-4 shrink-0 text-[#F9E400]" />
+                        <CheckSquare className="h-4 w-4 shrink-0 text-brand" />
                       ) : (
                         <Square className="h-4 w-4 shrink-0" />
                       )}
@@ -257,11 +257,11 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
               <div className="flex flex-wrap items-end gap-3">
                 {groups.length > 0 ? (
                   <label className="space-y-1 text-sm">
-                    <span className="text-zinc-400">Add to group (optional)</span>
+                    <span className="text-muted-foreground">Add to group (optional)</span>
                     <select
                       value={groupId}
                       onChange={(e) => setGroupId(e.target.value)}
-                      className="block h-9 rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60"
+                      className="block h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60"
                     >
                       <option value="">No group</option>
                       {groups.map((g) => (

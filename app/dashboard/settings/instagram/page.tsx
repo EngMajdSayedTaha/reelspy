@@ -99,7 +99,7 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
   const showSetupDetails = !isConnected || Boolean(errorMessage);
 
   const statusBadge = !isConnected
-    ? { label: "Not connected", className: "border-zinc-700 bg-zinc-800/50 text-zinc-300" }
+    ? { label: "Not connected", className: "border-border-strong bg-border-strong/50 text-muted-foreground" }
     : needsReconnect
       ? { label: "Reconnect needed", className: "border-rose-500/40 bg-rose-500/10 text-rose-300" }
       : { label: "Connected", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" };
@@ -109,8 +109,8 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Instagram</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Instagram</h1>
+        <p className="text-sm text-muted-foreground">
           Connect your Instagram to sync reels from the accounts you track.
         </p>
       </div>
@@ -140,15 +140,15 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
       ) : null}
 
       {/* Connection card */}
-      <div className="rounded-2xl border border-[#1f1f1f] bg-[#111111] p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#F9E400]/20 to-[#1a1a1a] ring-1 ring-[#2e2e2e]">
-              <AtSign className="h-6 w-6 text-[#F9E400]" />
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-secondary ring-1 ring-border-strong">
+              <AtSign className="h-6 w-6 text-brand" />
             </span>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="font-semibold text-white">
+                <p className="font-semibold text-foreground">
                   {isConnected && username ? `@${username}` : "Instagram account"}
                 </p>
                 <span
@@ -157,7 +157,7 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
                   {statusBadge.label}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-zinc-500">
+              <p className="mt-0.5 text-xs text-subtle">
                 {needsReconnect
                   ? "Your connection expired — reconnect to resume syncing."
                   : isConnected
@@ -167,9 +167,9 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
                     : "Not connected yet."}
               </p>
               {isConnected && profile?.ig_token_refreshed_at ? (
-                <p className="mt-0.5 text-xs text-zinc-500">
+                <p className="mt-0.5 text-xs text-subtle">
                   Last reconnect / token renewal:{" "}
-                  <span className="text-zinc-300">
+                  <span className="text-muted-foreground">
                     {formatDateTime(profile.ig_token_refreshed_at)}
                   </span>
                 </p>
@@ -211,22 +211,22 @@ export default async function InstagramSettingsPage({ searchParams }: PageProps)
 
       {/* Troubleshooting details — only when not connected or on error */}
       {showSetupDetails && oauthReady ? (
-        <details className="group rounded-2xl border border-[#1f1f1f] bg-[#0f0f0f] p-4 text-sm">
-          <summary className="cursor-pointer list-none font-medium text-zinc-300 hover:text-white">
+        <details className="group rounded-2xl border border-border bg-background p-4 text-sm">
+          <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
             Setup details
           </summary>
-          <div className="mt-3 space-y-1 text-zinc-400">
+          <div className="mt-3 space-y-1 text-muted-foreground">
             <p>
-              App ID: <span className="font-mono text-xs text-zinc-300">{igAppId ?? "not set"}</span>
+              App ID: <span className="font-mono text-xs text-muted-foreground">{igAppId ?? "not set"}</span>
             </p>
             <p>
               Callback URL:{" "}
-              <span className="font-mono text-xs text-zinc-300">{redirectUri ?? "not set"}</span>
+              <span className="font-mono text-xs text-muted-foreground">{redirectUri ?? "not set"}</span>
             </p>
             <p>
-              Permissions: <span className="font-medium text-zinc-300">{scopes}</span>
+              Permissions: <span className="font-medium text-muted-foreground">{scopes}</span>
             </p>
-            <p className="pt-1 text-xs text-zinc-500">
+            <p className="pt-1 text-xs text-subtle">
               Your Instagram must be a Business or Creator account linked to a Facebook Page.
             </p>
           </div>

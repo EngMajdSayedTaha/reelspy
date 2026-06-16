@@ -83,8 +83,8 @@ function Metric({
 }) {
   return (
     <div className="flex items-center gap-1.5" title={label}>
-      <span className={accent ? "text-[#F9E400]" : "text-zinc-500"}>{icon}</span>
-      <span className={accent ? "font-semibold text-[#F9E400]" : "font-medium text-zinc-200"}>
+      <span className={accent ? "text-brand" : "text-subtle"}>{icon}</span>
+      <span className={accent ? "font-semibold text-brand" : "font-medium text-foreground"}>
         {value}
       </span>
     </div>
@@ -111,9 +111,9 @@ export function ReelCard({
     : null;
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-2xl border border-[#1f1f1f] bg-[#111111] text-zinc-100 transition duration-200 hover:-translate-y-1 hover:border-[#2e2e2e] hover:shadow-xl hover:shadow-black/40">
+    <article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-foreground transition duration-200 hover:-translate-y-1 hover:border-border-strong hover:shadow-xl hover:shadow-black/40">
       {/* Media */}
-      <div className="relative aspect-[4/5] w-full overflow-hidden bg-[#0a0a0a]">
+      <div className="relative aspect-[4/5] w-full overflow-hidden bg-background">
         {playing ? (
           <iframe
             src={toEmbedUrl(reel.ig_permalink)}
@@ -137,8 +137,8 @@ export function ReelCard({
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a]">
-                <Play className="h-10 w-10 text-zinc-700" />
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-secondary to-background">
+                <Play className="h-10 w-10 text-subtle" />
               </div>
             )}
 
@@ -151,7 +151,7 @@ export function ReelCard({
               aria-label="Play reel inline"
               className="absolute inset-0 flex items-center justify-center"
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-[#F9E400] group-hover:text-black">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-primary group-hover:text-black">
                 <Play className="ml-0.5 h-6 w-6 fill-current" />
               </span>
             </button>
@@ -171,7 +171,7 @@ export function ReelCard({
                 variant={reel.is_worked_on ? "default" : "outline"}
                 className={
                   reel.is_worked_on
-                    ? "bg-[#F9E400] text-black"
+                    ? "bg-primary text-black"
                     : "border-white/20 bg-black/50 text-white backdrop-blur-sm"
                 }
               >
@@ -188,7 +188,7 @@ export function ReelCard({
             {/* Transcript indicator */}
             {reel.transcript_status === "ready" ? (
               <div
-                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-[#F9E400] backdrop-blur-sm"
+                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-brand backdrop-blur-sm"
                 title="Transcript available"
               >
                 <Captions className="h-3.5 w-3.5" />
@@ -216,32 +216,32 @@ export function ReelCard({
                 alt={`@${username}`}
                 referrerPolicy="no-referrer"
                 onError={() => setAvatarError(true)}
-                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-[#2e2e2e]"
+                className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
               />
             ) : (
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#1f1f1f] text-xs font-semibold text-zinc-400 ring-1 ring-[#2e2e2e]">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-border text-xs font-semibold text-muted-foreground ring-1 ring-border-strong">
                 {username.charAt(0).toUpperCase()}
               </span>
             )}
-            <span className="truncate text-sm font-medium text-zinc-200 hover:text-white">
+            <span className="truncate text-sm font-medium text-foreground hover:text-foreground">
               @{username}
             </span>
           </a>
 
           {postedLabel ? (
-            <span className="shrink-0 text-xs text-zinc-500">{postedLabel}</span>
+            <span className="shrink-0 text-xs text-subtle">{postedLabel}</span>
           ) : null}
         </div>
 
         {/* Pattern */}
         {reel.viral_pattern ? (
-          <span className="w-fit rounded-full border border-[#F9E400]/30 bg-[#F9E400]/10 px-2 py-0.5 text-xs font-medium text-[#F9E400]">
+          <span className="w-fit rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-brand">
             {reel.viral_pattern}
           </span>
         ) : null}
 
         {/* Caption */}
-        <p className="line-clamp-2 min-h-[2.5rem] break-words text-sm text-zinc-300">
+        <p className="line-clamp-2 min-h-[2.5rem] break-words text-sm text-muted-foreground">
           {reel.caption ?? "No caption available."}
         </p>
 

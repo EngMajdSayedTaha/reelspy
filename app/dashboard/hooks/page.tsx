@@ -73,14 +73,14 @@ export default async function HooksPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Hook Library</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Hook Library</h1>
+        <p className="text-sm text-muted-foreground">
           The opening lines of every reel you&apos;ve transcribed — search, steal the structure, remix.
         </p>
       </div>
 
       {hooks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           No hooks yet. Generate transcripts for some reels (open a reel → Generate transcript) and
           their opening lines will appear here.
         </div>

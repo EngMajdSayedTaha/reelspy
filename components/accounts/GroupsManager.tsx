@@ -106,7 +106,7 @@ function GroupChip({
 
   if (editing) {
     return (
-      <span className="flex items-center rounded-full border border-[#F9E400]/40 bg-[#141414] py-0.5 pl-2 pr-1">
+      <span className="flex items-center rounded-full border border-primary/40 bg-surface-2 py-0.5 pl-2 pr-1">
         <input
           ref={inputRef}
           value={value}
@@ -123,20 +123,20 @@ function GroupChip({
               cancel();
             }
           }}
-          className="w-28 bg-transparent text-sm text-zinc-100 outline-none"
+          className="w-28 bg-transparent text-sm text-foreground outline-none"
         />
       </span>
     );
   }
 
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-[#262626] bg-[#141414] py-1 pl-3 pr-1.5 text-sm text-zinc-200">
+    <span className="flex items-center gap-1.5 rounded-full border border-border-strong bg-surface-2 py-1 pl-3 pr-1.5 text-sm text-foreground">
       <button
         type="button"
         onClick={startEdit}
         disabled={isPending}
         title="Click to rename"
-        className="transition hover:text-[#F9E400] disabled:opacity-60"
+        className="transition hover:text-brand disabled:opacity-60"
       >
         {group.name}
       </button>
@@ -146,7 +146,7 @@ function GroupChip({
         disabled={isPending}
         aria-label={`Delete group ${group.name}`}
         title="Delete group"
-        className="flex h-5 w-5 items-center justify-center rounded-full text-zinc-500 transition hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-60"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-subtle transition hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-60"
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -182,11 +182,11 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
   };
 
   return (
-    <div className="rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+    <div className="rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
-        <FolderPlus className="h-4 w-4 text-[#F9E400]" />
-        <p className="font-medium text-zinc-100">Groups</p>
-        <span className="text-xs text-zinc-500">Organize accounts (e.g. Angular, Memes)</span>
+        <FolderPlus className="h-4 w-4 text-brand" />
+        <p className="font-medium text-foreground">Groups</p>
+        <span className="text-xs text-subtle">Organize accounts (e.g. Angular, Memes)</span>
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
@@ -229,7 +229,7 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-zinc-500">No groups yet. Create one above, then assign accounts.</p>
+        <p className="mt-3 text-sm text-subtle">No groups yet. Create one above, then assign accounts.</p>
       )}
     </div>
   );

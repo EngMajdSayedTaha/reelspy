@@ -68,7 +68,7 @@ export function PatternBackfill({ initialMissing }: PatternBackfillProps) {
         type="button"
         onClick={run}
         disabled={running || missing <= 0}
-        className="flex h-9 items-center gap-1.5 rounded-lg border border-[#262626] bg-[#141414] px-3 text-sm text-zinc-200 transition hover:border-[#F9E400]/60 hover:text-[#F9E400] disabled:opacity-50"
+        className="flex h-9 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-50"
       >
         {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tags className="h-4 w-4" />}
         {running ? `Tagging patterns… ${missing} left` : `Tag patterns (${missing})`}

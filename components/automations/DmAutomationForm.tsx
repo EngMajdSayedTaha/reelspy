@@ -61,10 +61,10 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
   };
 
   return (
-    <div className="space-y-4 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4 text-zinc-100">
+    <div className="space-y-4 rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
-        <Send className="h-4 w-4 text-[#F9E400]" />
-        <h2 className="text-sm font-semibold text-white">New DM automation</h2>
+        <Send className="h-4 w-4 text-brand" />
+        <h2 className="text-sm font-semibold text-foreground">New DM automation</h2>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -80,7 +80,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
                   e.target.value === "exact" ? "exact" : e.target.value === "any" ? "any" : "contains"
                 )
               }
-              className="h-9 w-full rounded-lg border border-[#262626] bg-[#141414] px-2 text-sm text-zinc-200 outline-none transition focus:border-[#F9E400]/60 focus:ring-2 focus:ring-[#F9E400]/20 disabled:opacity-60"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
               <option value="contains">Message contains a keyword</option>
               <option value="exact">Message is exactly a keyword</option>
@@ -89,7 +89,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
           </div>
 
           {matchMode === "any" ? (
-            <p className="rounded-lg bg-[#F9E400]/5 px-3 py-2 text-xs text-zinc-400">
+            <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               Every incoming DM gets the reply — but each person at most once per 24 hours, so
               normal conversations aren&apos;t spammed. Story replies are always ignored.
             </p>

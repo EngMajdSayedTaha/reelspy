@@ -128,7 +128,7 @@ export function RateLimitStatus() {
       className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs ${
         near
           ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
-          : "border-[#262626] bg-[#141414] text-zinc-400"
+          : "border-border-strong bg-surface-2 text-muted-foreground"
       }`}
       title={
         status.userResetSeconds > 0

@@ -51,7 +51,7 @@ type ScriptsListProps = {
 
 const STATUS_OPTIONS = ["draft", "ready", "published"] as const;
 const STATUS_COLORS: Record<string, string> = {
-  draft: "border-zinc-600 text-zinc-400",
+  draft: "border-border-strong text-muted-foreground",
   ready: "border-blue-500/50 text-blue-400",
   published: "border-emerald-500/50 text-emerald-400",
 };
@@ -68,7 +68,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="text-xs text-zinc-500 transition hover:text-[#F9E400]"
+      className="text-xs text-subtle transition hover:text-brand"
     >
       {copied ? "Copied!" : "Copy"}
     </button>
@@ -111,7 +111,7 @@ function ScriptCard({
   };
 
   return (
-    <article className="space-y-3 rounded-xl border border-[#1f1f1f] bg-[#111111] p-4">
+    <article className="space-y-3 rounded-xl border border-border bg-card p-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -121,18 +121,18 @@ function ScriptCard({
             {status}
           </span>
           {script.viral_pattern ? (
-            <Badge variant="outline" className="text-xs text-[#F9E400] border-[#F9E400]/30">
+            <Badge variant="outline" className="text-xs text-brand border-primary/30">
               {script.viral_pattern}
             </Badge>
           ) : null}
           {script.platform ? (
-            <span className="text-xs text-zinc-500">{script.platform}</span>
+            <span className="text-xs text-subtle">{script.platform}</span>
           ) : null}
           {script.scheduled_date ? (
             <span className="text-xs text-blue-400">Scheduled: {script.scheduled_date}</span>
           ) : null}
         </div>
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-subtle">
           {new Date(script.created_at).toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
@@ -143,7 +143,7 @@ function ScriptCard({
 
       {/* Source reel this script was generated from */}
       {sourceReel ? (
-        <div className="flex items-center gap-2.5 rounded-lg border border-[#262626] bg-[#0d0d0d] p-2">
+        <div className="flex items-center gap-2.5 rounded-lg border border-border-strong bg-background p-2">
           {sourceReel.thumbnail_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -154,14 +154,14 @@ function ScriptCard({
             />
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-wide text-zinc-600">Source reel</p>
-            <p className="truncate text-xs text-zinc-300">
+            <p className="text-[10px] uppercase tracking-wide text-subtle">Source reel</p>
+            <p className="truncate text-xs text-muted-foreground">
               {sourceAccount ? `@${sourceAccount.ig_username}` : "Tracked reel"}
             </p>
           </div>
           <Link
             href={`/dashboard/generate/${sourceReel.id}`}
-            className="shrink-0 text-xs text-[#F9E400] underline-offset-4 hover:underline"
+            className="shrink-0 text-xs text-brand underline-offset-4 hover:underline"
           >
             Open
           </Link>
@@ -171,7 +171,7 @@ function ScriptCard({
             rel="noreferrer"
             title="Open on Instagram"
             aria-label="Open on Instagram"
-            className="shrink-0 text-zinc-500 transition hover:text-[#F9E400]"
+            className="shrink-0 text-subtle transition hover:text-brand"
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
@@ -180,20 +180,20 @@ function ScriptCard({
 
       {/* Hook always visible */}
       <div>
-        <p className="text-xs uppercase tracking-wide text-zinc-600">Hook</p>
-        <p className="mt-0.5 text-sm text-zinc-100">{script.hook}</p>
+        <p className="text-xs uppercase tracking-wide text-subtle">Hook</p>
+        <p className="mt-0.5 text-sm text-foreground">{script.hook}</p>
       </div>
 
       {/* Expandable body + cta */}
       {expanded ? (
         <>
           <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-600">Body</p>
-            <p className="mt-0.5 whitespace-pre-line text-sm text-zinc-200">{script.body}</p>
+            <p className="text-xs uppercase tracking-wide text-subtle">Body</p>
+            <p className="mt-0.5 whitespace-pre-line text-sm text-foreground">{script.body}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-zinc-600">CTA</p>
-            <p className="mt-0.5 text-sm text-zinc-200">{script.cta}</p>
+            <p className="text-xs uppercase tracking-wide text-subtle">CTA</p>
+            <p className="mt-0.5 text-sm text-foreground">{script.cta}</p>
           </div>
         </>
       ) : null}
@@ -206,7 +206,7 @@ function ScriptCard({
             aria-label="Publish date"
             value={scheduleDate}
             onChange={(e) => setScheduleDate(e.target.value)}
-            className="rounded-md border border-zinc-700 bg-[#0d0d0d] px-2 py-1 text-sm text-zinc-100"
+            className="rounded-md border border-border-strong bg-background px-2 py-1 text-sm text-foreground"
           />
           <Button type="button" size="sm" onClick={handleSchedule} disabled={isPending || !scheduleDate}>
             Save
@@ -218,11 +218,11 @@ function ScriptCard({
       ) : null}
 
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border-strong pt-3">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="text-xs text-zinc-500 hover:text-zinc-200 transition"
+          className="text-xs text-subtle hover:text-foreground transition"
         >
           {expanded ? "Collapse" : "Expand"}
         </button>
@@ -232,7 +232,7 @@ function ScriptCard({
         <button
           type="button"
           onClick={() => setShowSchedule((v) => !v)}
-          className="text-xs text-zinc-500 hover:text-blue-400 transition"
+          className="text-xs text-subtle hover:text-blue-400 transition"
         >
           Schedule
         </button>
@@ -244,7 +244,7 @@ function ScriptCard({
               type="button"
               disabled={isPending}
               onClick={() => handleStatusChange(s)}
-              className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 transition hover:border-zinc-500 disabled:opacity-40"
+              className="rounded border border-border-strong px-2 py-0.5 text-xs text-muted-foreground transition hover:border-border-strong disabled:opacity-40"
             >
               → {s}
             </button>
@@ -255,7 +255,7 @@ function ScriptCard({
           <input type="hidden" name="script_id" value={script.id} />
           <button
             type="submit"
-            className="text-xs text-zinc-600 transition hover:text-rose-400"
+            className="text-xs text-subtle transition hover:text-rose-400"
           >
             Delete
           </button>
@@ -283,10 +283,10 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
   return (
     <div className="space-y-4">
       {/* History header: status tabs + search across everything generated */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-strong pb-2">
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
-            <History className="h-4 w-4 text-[#F9E400]" />
+          <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            <History className="h-4 w-4 text-brand" />
             History
           </span>
           <div className="flex gap-2">
@@ -296,7 +296,7 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
                 type="button"
                 onClick={() => setFilter(f)}
                 className={`text-sm capitalize transition ${
-                  filter === f ? "text-[#F9E400]" : "text-zinc-500 hover:text-zinc-200"
+                  filter === f ? "text-brand" : "text-subtle hover:text-foreground"
                 }`}
               >
                 {f} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})
@@ -306,19 +306,19 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
         </div>
 
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search scripts…"
-            className="h-8 w-48 rounded-lg border border-[#262626] bg-[#141414] pl-8 pr-2 text-sm text-zinc-200 placeholder:text-zinc-500 outline-none transition focus:border-[#F9E400]/60"
+            className="h-8 w-48 rounded-lg border border-border-strong bg-surface-2 pl-8 pr-2 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60"
           />
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           {query
             ? `No scripts match “${query}”.`
             : filter === "all"

@@ -92,8 +92,8 @@ export default async function AutomationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-white">Auto-Reply</h1>
-        <p className="text-sm text-zinc-400">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Auto-Reply</h1>
+        <p className="text-sm text-muted-foreground">
           Link a reel to keywords. When a follower comments a keyword, ReelSpy replies publicly
           and DMs them your link — automatically.
         </p>
@@ -124,7 +124,7 @@ export default async function AutomationsPage() {
       />
 
       {automations.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           No automations yet. Pick a reel above, choose your keywords, and write the DM to send.
         </div>
       ) : (
@@ -142,13 +142,13 @@ export default async function AutomationsPage() {
       )}
 
       <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-white">Activity</h2>
+        <h2 className="text-lg font-semibold text-foreground">Activity</h2>
         <EventLog events={events} />
       </div>
 
-      <div className="space-y-1 border-t border-[#1f1f1f] pt-6">
-        <h2 className="text-xl font-semibold text-white">DM Auto-Reply</h2>
-        <p className="text-sm text-zinc-400">
+      <div className="space-y-1 border-t border-border pt-6">
+        <h2 className="text-xl font-semibold text-foreground">DM Auto-Reply</h2>
+        <p className="text-sm text-muted-foreground">
           Answer incoming direct messages that contain your keywords. Story replies are always
           ignored.
         </p>
@@ -157,7 +157,7 @@ export default async function AutomationsPage() {
       <DmAutomationForm action={createDmAutomation} />
 
       {dmAutomations.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-700 bg-[#101010] p-5 text-sm text-zinc-400">
+        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           No DM automations yet. Add keywords above (e.g. &ldquo;price&rdquo;, &ldquo;link&rdquo;)
           and the reply to send.
         </div>
@@ -176,7 +176,7 @@ export default async function AutomationsPage() {
       )}
 
       <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-white">DM Activity</h2>
+        <h2 className="text-lg font-semibold text-foreground">DM Activity</h2>
         <DmEventLog events={dmEvents} />
       </div>
     </div>
