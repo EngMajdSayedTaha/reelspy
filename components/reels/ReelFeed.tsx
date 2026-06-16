@@ -18,7 +18,6 @@ type Reel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  viral_pattern: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
   inspiration_accounts:

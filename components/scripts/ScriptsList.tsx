@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { ExternalLink, History, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 type SourceAccount = { ig_username: string; avatar_url: string | null };
 
@@ -20,7 +19,6 @@ export type ScriptRow = {
   hook: string | null;
   body: string | null;
   cta: string | null;
-  viral_pattern: string | null;
   platform: string | null;
   status: string | null;
   scheduled_date: string | null;
@@ -120,11 +118,6 @@ function ScriptCard({
           >
             {status}
           </span>
-          {script.viral_pattern ? (
-            <Badge variant="outline" className="text-xs text-brand border-primary/30">
-              {script.viral_pattern}
-            </Badge>
-          ) : null}
           {script.platform ? (
             <span className="text-xs text-subtle">{script.platform}</span>
           ) : null}
@@ -274,7 +267,7 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
     const q = query.trim().toLowerCase();
     if (!q) return byStatus;
     return byStatus.filter((s) =>
-      [s.hook, s.body, s.cta, s.viral_pattern, s.platform]
+      [s.hook, s.body, s.cta, s.platform]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(q))
     );

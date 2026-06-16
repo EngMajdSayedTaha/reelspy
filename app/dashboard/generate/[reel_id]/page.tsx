@@ -30,7 +30,7 @@ export default async function GenerateScriptPage({ params }: PageProps) {
   const { data: reel, error } = await supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript, transcript_lang, transcript_source, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts(ig_username, display_name, avatar_url)"
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript, transcript_lang, transcript_source, transcript_status, is_discarded, is_favorite, inspiration_accounts(ig_username, display_name, avatar_url)"
     )
     .eq("id", reel_id)
     .eq("user_id", user.id)

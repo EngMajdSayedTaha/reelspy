@@ -9,7 +9,6 @@ import { generateScript } from "@/lib/ai/claude";
 const bodySchema = z.object({
   reel_id: z.uuid().optional(),
   caption: z.string().max(5_000).optional(),
-  viral_pattern: z.string().max(60).default("Tool Reveal"),
   platform: z.string().max(60).default("Instagram Reels"),
   tone: z.string().max(60).default("Direct"),
   custom_context: z.string().max(2_000).optional(),
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const { reel_id, caption, viral_pattern, platform, tone, custom_context } = parsed.data;
+  const { reel_id, caption, platform, tone, custom_context } = parsed.data;
 
   let sourceCaption = caption?.trim() ?? "";
   let reelId: string | null = null;
@@ -63,7 +62,6 @@ export async function POST(request: Request) {
 
   const generated = await generateScript({
     caption: sourceCaption,
-    viralPattern: viral_pattern,
     platform,
     tone,
     customContext: custom_context,
@@ -77,11 +75,10 @@ export async function POST(request: Request) {
       hook: generated.hook,
       body: generated.body,
       cta: generated.cta,
-      viral_pattern: generated.viral_pattern,
       platform,
       status: "draft",
     })
-    .select("id, hook, body, cta, viral_pattern, status, created_at")
+    .select("id, hook, body, cta, status, created_at")
     .single();
 
   if (insertError) {
@@ -93,8 +90,5 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/scripts");
 
-  return NextResponse.json({
-    script: inserted,
-    explanation: generated.pattern_explanation ?? null,
-  });
+  return NextResponse.json({ script: inserted });
 }

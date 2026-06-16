@@ -5,7 +5,6 @@ import { FeedControls } from "@/components/reels/FeedControls";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
-import { PatternBackfill } from "@/components/reels/PatternBackfill";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
@@ -22,7 +21,6 @@ export type FeedReel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  viral_pattern: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
   inspiration_accounts:
@@ -69,7 +67,6 @@ const SORT_COLUMNS: Record<string, string> = {
 type SearchParams = {
   account?: string;
   group?: string;
-  pattern?: string;
   status?: string;
   q?: string;
   sort?: string;
@@ -103,7 +100,6 @@ export default async function FeedPage({
 
   const account = first(params.account) ?? "all";
   const group = first(params.group) ?? "all";
-  const pattern = first(params.pattern) ?? "all";
   const status = first(params.status) ?? "new"; // default to New only
   const q = (first(params.q) ?? "").trim();
   const sort = first(params.sort) ?? "recent";
@@ -151,7 +147,7 @@ export default async function FeedPage({
   let query = supabase
     .from("tracked_reels")
     .select(
-      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
+      "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)",
       { count: "exact" }
     )
     .eq("user_id", user.id)
@@ -165,10 +161,6 @@ export default async function FeedPage({
     // Empty group → no matching reels (sentinel keeps the query valid).
     const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
     query = query.in("account_id", ids);
-  }
-
-  if (pattern !== "all") {
-    query = query.eq("viral_pattern", pattern);
   }
 
   if (status === "discarded") {
@@ -204,12 +196,12 @@ export default async function FeedPage({
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
-  // Account/group/pattern/search filters (status excluded — its default is "new").
+  // Account/group/search filters (status excluded — its default is "new").
   const hasContentFilters =
-    account !== "all" || group !== "all" || pattern !== "all" || q !== "";
+    account !== "all" || group !== "all" || q !== "";
   const hasFilters = hasContentFilters || status !== "new";
 
-  // Status counts (respecting the account/group/pattern/search filters) for the
+  // Status counts (respecting the account/group/search filters) for the
   // filter badges.
   const countBase = () => {
     let qy = supabase
@@ -222,7 +214,6 @@ export default async function FeedPage({
       const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
       qy = qy.in("account_id", ids);
     }
-    if (pattern !== "all") qy = qy.eq("viral_pattern", pattern);
     if (q) qy = qy.ilike("caption", `%${q}%`);
     return qy;
   };
@@ -243,14 +234,6 @@ export default async function FeedPage({
     discarded: cDisc.count ?? 0,
   };
 
-  // Reels still needing pattern classification (drives the tagging control).
-  const { count: missingPatternCount } = await supabase
-    .from("tracked_reels")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .is("viral_pattern", null)
-    .is("pattern_checked_at", null);
-
   // "Rising now" rail — only on the unfiltered first page. Has its own group
   // scope (rgroup), independent of the main feed filters. Reels are pulled
   // recent and ranked by velocity in JS (no time-dependent SQL needed).
@@ -261,7 +244,7 @@ export default async function FeedPage({
     let recentQuery = supabase
       .from("tracked_reels")
       .select(
-        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, viral_pattern, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
+        "id, caption, ig_permalink, thumbnail_url, view_count, like_count, comment_count, viral_score, is_worked_on, posted_at, transcript_status, is_discarded, is_favorite, inspiration_accounts!inner(ig_username, display_name, avatar_url)"
       )
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true)
@@ -301,7 +284,6 @@ export default async function FeedPage({
 
         <div className="flex flex-col items-end gap-2">
           <SyncButton />
-          <PatternBackfill initialMissing={missingPatternCount ?? 0} />
         </div>
       </div>
 
@@ -319,7 +301,7 @@ export default async function FeedPage({
       <FeedControls
         accounts={accounts}
         groups={groups}
-        current={{ account, group, pattern, status, q, sort, order, perPage: String(perPage) }}
+        current={{ account, group, status, q, sort, order, perPage: String(perPage) }}
         statusCounts={statusCounts}
         total={total}
       />

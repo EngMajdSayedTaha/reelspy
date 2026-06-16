@@ -12,7 +12,6 @@ import { notifyError, requestJson } from "@/lib/utils/api";
 
 const SCRIPT_LOADING_MESSAGES = [
   "Reading the reel context…",
-  "Spotting the viral pattern…",
   "Writing a scroll-stopping hook…",
   "Shaping the script…",
   "Adding a natural call to action…",
@@ -25,16 +24,6 @@ const REEL_FETCH_MESSAGES = [
   "Almost done…",
 ];
 
-const VIRAL_PATTERNS = [
-  "Hot Take",
-  "Mistake List",
-  "Tool Reveal",
-  "Before/After",
-  "Story",
-  "Step-by-Step",
-  "Unpopular Opinion",
-] as const;
-
 const PLATFORMS = ["Instagram Reels", "LinkedIn", "TikTok"] as const;
 const TONES = ["Casual", "Direct", "Educational"] as const;
 
@@ -42,12 +31,10 @@ type GeneratedScript = {
   hook: string;
   body: string;
   cta: string;
-  viral_pattern: string;
 };
 
 type GeneratedResponse = {
   script: GeneratedScript;
-  explanation?: string | null;
   error?: string;
 };
 
@@ -58,7 +45,6 @@ type ScriptGeneratorProps = {
 
 export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGeneratorProps) {
   const [caption, setCaption] = useState(initialCaption);
-  const [viralPattern, setViralPattern] = useState<string>("Tool Reveal");
   const [platform, setPlatform] = useState<string>("Instagram Reels");
   const [tone, setTone] = useState<string>("Direct");
   const [customContext, setCustomContext] = useState("");
@@ -103,7 +89,6 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
         body: JSON.stringify({
           reel_id: reelId,
           caption,
-          viral_pattern: viralPattern,
           platform,
           tone,
           custom_context: customContext || undefined,
@@ -172,27 +157,6 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
               rows={3}
               className="resize-none"
             />
-          </div>
-
-          {/* Viral Pattern */}
-          <div className="space-y-2">
-            <Label>Viral Pattern</Label>
-            <div className="flex flex-wrap gap-2">
-              {VIRAL_PATTERNS.map((pattern) => (
-                <button
-                  key={pattern}
-                  type="button"
-                  onClick={() => setViralPattern(pattern)}
-                  className={`rounded-md border px-3 py-1.5 text-sm transition ${
-                    viralPattern === pattern
-                      ? "border-primary bg-primary/10 text-brand"
-                      : "border-border-strong text-muted-foreground hover:border-border-strong"
-                  }`}
-                >
-                  {pattern}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Platform + Tone row */}
@@ -269,9 +233,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
         </div>
       </div>
 
-      {result?.script ? (
-        <ScriptOutput script={result.script} explanation={result.explanation} />
-      ) : null}
+      {result?.script ? <ScriptOutput script={result.script} /> : null}
     </div>
   );
 }

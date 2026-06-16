@@ -73,8 +73,6 @@ create table tracked_reels (
   transcript_source text,
   transcript_status text default 'none',
   transcript_generated_at timestamptz,
-  viral_pattern text,
-  pattern_checked_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -90,7 +88,6 @@ create table generated_scripts (
   hook text,
   body text,
   cta text,
-  viral_pattern text,
   platform text default 'instagram_reels',
   status text default 'draft',
   scheduled_date date,
