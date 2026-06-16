@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power } from "lucide-react";
+import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,12 @@ type Account = {
   is_active: boolean | null;
   last_synced_at: string | null;
   group_id: string | null;
+  linked_usernames: string[] | null;
 };
 
 type Group = { id: string; name: string };
+
+type LinkedAccountsState = { error?: string; ok?: boolean };
 
 type AccountCardProps = {
   account: Account;
@@ -28,6 +31,10 @@ type AccountCardProps = {
   removeAction: (formData: FormData) => Promise<void>;
   assignGroupAction: (formData: FormData) => Promise<void>;
   toggleActiveAction: (formData: FormData) => Promise<void>;
+  updateLinkedAction: (
+    prevState: LinkedAccountsState,
+    formData: FormData
+  ) => Promise<LinkedAccountsState>;
 };
 
 type SyncResult = {
@@ -49,9 +56,24 @@ export function AccountCard({
   removeAction,
   assignGroupAction,
   toggleActiveAction,
+  updateLinkedAction,
 }: AccountCardProps) {
   const confirm = useConfirm();
   const isActive = account.is_active !== false;
+
+  // Linked partner handles whose collab/cross-post reels get merged into this
+  // feed (Business Discovery can't surface them under this account otherwise).
+  const savedLinked = (account.linked_usernames ?? []).join(", ");
+  const [linkedOpen, setLinkedOpen] = useState(false);
+  const [linkedValue, setLinkedValue] = useState(savedLinked);
+  const [savedLinkedValue, setSavedLinkedValue] = useState(savedLinked);
+  if (savedLinked !== savedLinkedValue) {
+    // Server data changed under us (e.g. after revalidate) — resync the field.
+    setSavedLinkedValue(savedLinked);
+    setLinkedValue(savedLinked);
+  }
+  const [isSavingLinked, startSaveLinked] = useTransition();
+  const linkedCount = (account.linked_usernames ?? []).length;
 
   // Controlled group value so the dropdown reflects the saved group immediately.
   const [groupId, setGroupId] = useState(account.group_id ?? "");
@@ -73,7 +95,22 @@ export function AccountCard({
     setSyncLimit(Math.min(100, getClientPrefs().syncLimit));
   }, []);
 
-  const busy = isSyncing || isAssigning || isPendingAction;
+  const busy = isSyncing || isAssigning || isPendingAction || isSavingLinked;
+
+  const handleSaveLinked = () => {
+    const data = new FormData();
+    data.set("account_id", account.id);
+    data.set("linked_usernames", linkedValue);
+    startSaveLinked(async () => {
+      const result = await updateLinkedAction({}, data);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Linked handles saved — sync to pull their reels in.");
+        setLinkedOpen(false);
+      }
+    });
+  };
 
   // Server actions are invoked directly (not via <form action>) so we can show
   // toasts and avoid React 19's post-action form reset on the controlled select.
@@ -286,6 +323,69 @@ export function AccountCard({
         >
           <Trash2 className="h-4 w-4" />
         </Button>
+      </div>
+
+      <div className="border-t border-border pt-2.5">
+        <button
+          type="button"
+          onClick={() => setLinkedOpen((v) => !v)}
+          disabled={busy}
+          className="flex w-full items-center gap-1.5 text-left text-xs font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-60"
+        >
+          <Link2 className="h-3.5 w-3.5 text-subtle" />
+          Linked handles
+          {linkedCount > 0 ? (
+            <Badge variant="outline" className="ml-0.5 px-1.5 py-0 text-[10px]">
+              {linkedCount}
+            </Badge>
+          ) : null}
+          <span className="ml-auto text-subtle">{linkedOpen ? "Hide" : "Edit"}</span>
+        </button>
+
+        {linkedOpen ? (
+          <div className="mt-2 space-y-2">
+            <p className="text-[11px] leading-snug text-subtle">
+              Pull in collab/cross-post reels published by this creator&apos;s other
+              handles (comma-separated). Their reels are merged into this feed.
+            </p>
+            <input
+              type="text"
+              value={linkedValue}
+              disabled={busy}
+              onChange={(e) => setLinkedValue(e.target.value)}
+              placeholder="e.g. cindiezhu, otherhandle"
+              aria-label="Linked handles"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+            />
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={handleSaveLinked}
+                disabled={busy || linkedValue === savedLinkedValue}
+              >
+                {isSavingLinked ? "Saving…" : "Save"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setLinkedValue(savedLinkedValue);
+                  setLinkedOpen(false);
+                }}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : linkedCount > 0 ? (
+          <p className="mt-1 truncate text-[11px] text-subtle">
+            {(account.linked_usernames ?? []).map((u) => `@${u}`).join(", ")}
+          </p>
+        ) : null}
       </div>
     </article>
   );

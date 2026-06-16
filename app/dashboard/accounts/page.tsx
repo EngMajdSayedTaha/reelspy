@@ -16,6 +16,7 @@ import {
   removeInspirationAccount,
   renameAccountGroup,
   toggleAccountActive,
+  updateLinkedAccounts,
 } from "./actions";
 
 type InspirationAccount = {
@@ -27,6 +28,7 @@ type InspirationAccount = {
   is_active: boolean | null;
   last_synced_at: string | null;
   group_id: string | null;
+  linked_usernames: string[] | null;
 };
 
 type AccountGroup = { id: string; name: string };
@@ -101,7 +103,7 @@ export default async function AccountsPage({
   let query = supabase
     .from("inspiration_accounts")
     .select(
-      "id, ig_username, display_name, avatar_url, followers_count, is_active, last_synced_at, group_id",
+      "id, ig_username, display_name, avatar_url, followers_count, is_active, last_synced_at, group_id, linked_usernames",
       { count: "exact" }
     )
     .eq("user_id", user.id);
@@ -184,6 +186,7 @@ export default async function AccountsPage({
                   removeAction={removeInspirationAccount}
                   assignGroupAction={assignAccountGroup}
                   toggleActiveAction={toggleAccountActive}
+                  updateLinkedAction={updateLinkedAccounts}
                 />
               ))}
             </div>
