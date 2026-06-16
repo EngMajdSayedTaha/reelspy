@@ -69,6 +69,7 @@ create table tracked_reels (
   favorited_at timestamptz,
   posted_at timestamptz,
   transcript text,
+  transcript_srt text,
   transcript_lang text,
   transcript_source text,
   transcript_status text default 'none',

@@ -6,9 +6,16 @@ import type { TranscriptionProvider } from "@/lib/transcription/types";
 const GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_MODEL = "whisper-large-v3";
 
+type GroqSegment = {
+  start?: number;
+  end?: number;
+  text?: string;
+};
+
 type GroqTranscriptionResponse = {
   text?: string;
   language?: string;
+  segments?: GroqSegment[];
 };
 
 export const groqProvider: TranscriptionProvider = {
@@ -59,6 +66,20 @@ export const groqProvider: TranscriptionProvider = {
       throw new Error("Groq returned an empty transcript.");
     }
 
-    return { text, language: json.language?.trim() || null };
+    // verbose_json includes per-segment timings, which we turn into an .srt file.
+    const segments =
+      json.segments
+        ?.map((segment) => ({
+          start: typeof segment.start === "number" ? segment.start : 0,
+          end: typeof segment.end === "number" ? segment.end : 0,
+          text: segment.text?.trim() ?? "",
+        }))
+        .filter((segment) => segment.text.length > 0) ?? null;
+
+    return {
+      text,
+      language: json.language?.trim() || null,
+      segments: segments && segments.length > 0 ? segments : null,
+    };
   },
 };
