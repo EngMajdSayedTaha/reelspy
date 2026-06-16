@@ -20,7 +20,7 @@ export default async function ScriptsPage() {
   const { data, error } = await supabase
     .from("generated_scripts")
     .select(
-      "id, hook, body, cta, viral_pattern, platform, status, scheduled_date, created_at, tracked_reels(id, thumbnail_url, ig_permalink, inspiration_accounts(ig_username, avatar_url))"
+      "id, hook, body, cta, platform, status, scheduled_date, created_at, tracked_reels(id, thumbnail_url, ig_permalink, inspiration_accounts(ig_username, avatar_url))"
     )
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })

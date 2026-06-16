@@ -18,7 +18,7 @@ export default async function CalendarPage() {
   // tray ready to be dragged onto a day.
   const { data, error } = await supabase
     .from("generated_scripts")
-    .select("id, hook, status, scheduled_date, viral_pattern, platform, created_at")
+    .select("id, hook, status, scheduled_date, platform, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(300);

@@ -31,7 +31,6 @@ type Reel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  viral_pattern: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
   inspiration_accounts:
@@ -232,13 +231,6 @@ export function ReelCard({
             <span className="shrink-0 text-xs text-subtle">{postedLabel}</span>
           ) : null}
         </div>
-
-        {/* Pattern */}
-        {reel.viral_pattern ? (
-          <span className="w-fit rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-brand">
-            {reel.viral_pattern}
-          </span>
-        ) : null}
 
         {/* Caption */}
         <p className="line-clamp-2 min-h-[2.5rem] break-words text-sm text-muted-foreground">

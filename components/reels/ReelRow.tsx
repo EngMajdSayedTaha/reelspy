@@ -31,7 +31,6 @@ type Reel = {
   is_worked_on: boolean | null;
   posted_at: string | null;
   transcript_status: string | null;
-  viral_pattern: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
   inspiration_accounts:
@@ -176,11 +175,6 @@ export function ReelRow({
           <span className="flex items-center gap-1 font-medium text-brand">
             <Flame className="h-3.5 w-3.5" /> {formatCompact(reel.viral_score)}
           </span>
-          {reel.viral_pattern ? (
-            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 font-medium text-brand">
-              {reel.viral_pattern}
-            </span>
-          ) : null}
           {reel.transcript_status === "ready" ? (
             <span className="flex items-center gap-1 text-brand" title="Transcript available">
               <Captions className="h-3.5 w-3.5" /> Transcript

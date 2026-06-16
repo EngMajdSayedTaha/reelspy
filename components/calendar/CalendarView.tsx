@@ -4,14 +4,12 @@ import { useState, useTransition } from "react";
 import { CalendarPlus, GripVertical, Inbox, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 export type CalendarScript = {
   id: string;
   hook: string | null;
   status: string | null;
   scheduled_date: string | null;
-  viral_pattern: string | null;
   platform: string | null;
   created_at: string;
 };
@@ -291,11 +289,6 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                     >
                       {s.status ?? "draft"}
                     </span>
-                    {s.viral_pattern ? (
-                      <Badge variant="outline" className="text-xs text-brand border-primary/30">
-                        {s.viral_pattern}
-                      </Badge>
-                    ) : null}
                     <button
                       type="button"
                       disabled={isPending}

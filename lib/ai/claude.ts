@@ -1,36 +1,22 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { VIRAL_PATTERNS, isViralPattern } from "@/lib/viral-patterns";
 
 export type GeneratedScript = {
   hook: string;
   body: string;
   cta: string;
-  viral_pattern: string;
-  pattern_explanation?: string;
 };
 
 export type GrowthNote = string;
 
 const SCRIPT_SYSTEM_PROMPT = `You are a content script generator for @majdst_codes — a senior full-stack developer from the UAE who makes AI tools, Angular, .NET, and real-world code feel simple and practical for mid-level developers. Aesthetic: dark, terminal, direct, no fluff.
 
-Given an inspiration reel caption and a viral pattern, generate an ORIGINAL script using the SAME pattern structure but through the @majdst_codes lens — your own topic, your own angle, your own voice. Never copy the original content.
-
-Viral patterns you know:
-- Hot Take: controversial but defensible statement about code/tools/industry
-- Mistake List: common mistakes devs make + the fix
-- Tool Reveal: "this tool changed how I [do X]" — specific, practical
-- Before/After: before using X vs after — concrete difference
-- Story: quick 3-act dev story (problem → struggle → breakthrough)
-- Step-by-Step: exact steps to do one specific thing
-- Unpopular Opinion: thing everyone does wrong + your take on why
+Given an inspiration reel caption, generate an ORIGINAL script through the @majdst_codes lens — your own topic, your own angle, your own voice. Never copy the original content.
 
 Respond ONLY with valid JSON, no markdown, no preamble:
 {
   "hook": "under 15 words. scroll-stopping opener that creates curiosity or controversy",
   "body": "3-5 punchy lines for a 30-60s reel. spoken words, not a blog post. each line standalone",
-  "cta": "soft, natural close. not salesy. comment/save/follow if it resonates",
-  "viral_pattern": "pattern name used",
-  "pattern_explanation": "one sentence explaining why this pattern converts"
+  "cta": "soft, natural close. not salesy. comment/save/follow if it resonates"
 }`;
 
 const GROWTH_SYSTEM_PROMPT = `You are a data-driven Instagram growth advisor for @majdst_codes — a senior full-stack developer content creator from the UAE. Analyze the provided post metrics JSON and return exactly 5 specific, actionable growth recommendations.
@@ -44,7 +30,6 @@ Respond ONLY with a JSON array of 5 strings. No markdown, no preamble.`;
 
 type GenerateScriptInput = {
   caption: string;
-  viralPattern?: string;
   platform?: string;
   tone?: string;
   customContext?: string;
@@ -52,15 +37,11 @@ type GenerateScriptInput = {
 
 function fallbackScript(input: GenerateScriptInput): GeneratedScript {
   const topic = input.caption.slice(0, 120) || "this idea";
-  const pattern = input.viralPattern ?? "Tool Reveal";
 
   return {
     hook: `This one change saved me hours of ${topic.split(" ").slice(0, 3).join(" ")}.`,
     body: `Most devs skip this. Here's the exact thing that changed how I work.\n\nStep 1: identify the friction point.\nStep 2: replace it with the simpler approach.\nStep 3: never go back.`,
     cta: "Save this if you want the full breakdown.",
-    viral_pattern: pattern,
-    pattern_explanation:
-      "Tool Reveal pattern works because it promises a specific, concrete outcome and creates FOMO around a known problem.",
   };
 }
 
@@ -68,15 +49,13 @@ function parseJsonFromText(text: string): GeneratedScript | null {
   try {
     const clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const parsed = JSON.parse(clean) as Partial<GeneratedScript>;
-    if (!parsed.hook || !parsed.body || !parsed.cta || !parsed.viral_pattern) {
+    if (!parsed.hook || !parsed.body || !parsed.cta) {
       return null;
     }
     return {
       hook: parsed.hook,
       body: parsed.body,
       cta: parsed.cta,
-      viral_pattern: parsed.viral_pattern,
-      pattern_explanation: parsed.pattern_explanation,
     };
   } catch {
     return null;
@@ -93,7 +72,6 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
 
   const userMessage = [
     `Caption: ${input.caption}`,
-    `Pattern: ${input.viralPattern ?? "Tool Reveal"}`,
     `Platform: ${input.platform ?? "Instagram Reels"}`,
     `Tone: ${input.tone ?? "Direct"}`,
     input.customContext ? `Extra context: ${input.customContext}` : null,
@@ -169,63 +147,5 @@ export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNo
       "Could not generate AI notes — check your Anthropic API key.",
       "Make sure you have recent media data synced from Instagram.",
     ];
-  }
-}
-
-const PATTERN_SYSTEM_PROMPT = `You classify short-form video content (Instagram Reels) into exactly ONE viral content pattern.
-
-The allowed patterns are:
-${VIRAL_PATTERNS.map((p) => `- ${p}`).join("\n")}
-
-Read the caption and/or transcript and choose the single best-fitting pattern. If none fit well, return null.
-
-Respond ONLY with valid JSON, no markdown, no preamble:
-{ "pattern": "<one of the exact pattern names above, or null>" }`;
-
-// Detects the viral pattern of a reel from its caption and/or transcript.
-// Returns one of VIRAL_PATTERNS, or null when undetermined / no API key.
-export async function detectViralPattern(input: {
-  caption?: string | null;
-  transcript?: string | null;
-}): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
-
-  const content = [
-    input.caption ? `Caption: ${input.caption}` : null,
-    input.transcript ? `Transcript: ${input.transcript.slice(0, 2000)}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-  if (!content) {
-    return null;
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
-  try {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 40,
-      system: PATTERN_SYSTEM_PROMPT,
-      messages: [{ role: "user", content }],
-    });
-
-    const text = response.content
-      .filter((item) => item.type === "text")
-      .map((item) => item.text)
-      .join("")
-      .trim();
-
-    const clean = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const parsed = JSON.parse(clean) as { pattern?: unknown };
-
-    return isViralPattern(parsed.pattern) ? parsed.pattern : null;
-  } catch (error) {
-    console.error("Claude pattern detection failed", error);
-    return null;
   }
 }

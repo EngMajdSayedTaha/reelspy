@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Search, X } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { VIRAL_PATTERNS } from "@/lib/viral-patterns";
 
 type Account = { id: string; ig_username: string };
 type Group = { id: string; name: string };
@@ -15,7 +14,6 @@ type FeedControlsProps = {
   current: {
     account: string;
     group: string;
-    pattern: string;
     status: string;
     q: string;
     sort: string;
@@ -86,7 +84,6 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
   const isFiltered =
     current.account !== "all" ||
     current.group !== "all" ||
-    current.pattern !== "all" ||
     current.status !== "new" ||
     current.q !== "";
 
@@ -155,20 +152,6 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         ) : null}
 
         <select
-          aria-label="Filter by pattern"
-          className={selectClass}
-          value={current.pattern}
-          onChange={(e) => apply({ pattern: e.target.value })}
-        >
-          <option value="all">All patterns</option>
-          {VIRAL_PATTERNS.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-
-        <select
           aria-label="Filter by status"
           className={selectClass}
           value={current.status}
@@ -231,7 +214,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             type="button"
             onClick={() => {
               setSearch("");
-              apply({ account: null, group: null, pattern: null, status: null, q: null });
+              apply({ account: null, group: null, status: null, q: null });
             }}
             className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-300"
           >
