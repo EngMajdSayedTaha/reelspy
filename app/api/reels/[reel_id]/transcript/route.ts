@@ -49,7 +49,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   const { data: reel, error } = await supabase
     .from("tracked_reels")
-    .select("id, transcript, transcript_lang, transcript_source, transcript_status, transcript_generated_at")
+    .select(
+      "id, transcript, transcript_srt, transcript_lang, transcript_source, transcript_status, transcript_generated_at"
+    )
     .eq("id", reel_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -63,6 +65,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   return NextResponse.json({
     transcript: reel.transcript ?? null,
+    srt: reel.transcript_srt ?? null,
     status: reel.transcript_status ?? "none",
     source: reel.transcript_source ?? null,
     language: reel.transcript_lang ?? null,
@@ -88,7 +91,9 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   const { data: reel, error: reelError } = await supabase
     .from("tracked_reels")
-    .select("id, ig_permalink, transcript, transcript_lang, transcript_source, transcript_status")
+    .select(
+      "id, ig_permalink, transcript, transcript_srt, transcript_lang, transcript_source, transcript_status"
+    )
     .eq("id", reel_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -104,6 +109,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!force && reel.transcript_status === "ready" && reel.transcript) {
     return NextResponse.json({
       transcript: reel.transcript,
+      srt: reel.transcript_srt ?? null,
       status: "ready",
       source: reel.transcript_source ?? null,
       language: reel.transcript_lang ?? null,
@@ -152,6 +158,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     .from("tracked_reels")
     .update({
       transcript: result.text,
+      transcript_srt: result.srt,
       transcript_lang: result.language,
       transcript_source: result.source,
       transcript_status: "ready",
@@ -166,6 +173,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   return NextResponse.json({
     transcript: result.text,
+    srt: result.srt,
     status: "ready",
     source: result.source,
     language: result.language,

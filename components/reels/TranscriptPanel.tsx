@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, FileText, Loader2, RefreshCw } from "lucide-react";
+import { Check, Copy, Download, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 type TranscriptPanelProps = {
   reelId: string;
   initialTranscript: string | null;
+  initialSrt: string | null;
   initialStatus: TranscriptStatus;
   initialSource: string | null;
   initialLanguage: string | null;
@@ -27,6 +28,7 @@ type TranscriptPanelProps = {
 
 type TranscriptResponse = {
   transcript?: string | null;
+  srt?: string | null;
   status?: TranscriptStatus;
   source?: string | null;
   language?: string | null;
@@ -37,11 +39,13 @@ type TranscriptResponse = {
 export function TranscriptPanel({
   reelId,
   initialTranscript,
+  initialSrt,
   initialStatus,
   initialSource,
   initialLanguage,
 }: TranscriptPanelProps) {
   const [transcript, setTranscript] = useState<string | null>(initialTranscript);
+  const [srt, setSrt] = useState<string | null>(initialSrt);
   const [status, setStatus] = useState<TranscriptStatus>(initialStatus);
   const [source, setSource] = useState<string | null>(initialSource);
   const [language, setLanguage] = useState<string | null>(initialLanguage);
@@ -49,6 +53,7 @@ export function TranscriptPanel({
   const [copied, setCopied] = useState(false);
 
   const hasTranscript = Boolean(transcript && status === "ready");
+  const hasSrt = Boolean(srt && status === "ready");
 
   const copyTranscript = async () => {
     if (!transcript) return;
@@ -59,6 +64,24 @@ export function TranscriptPanel({
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Could not copy transcript.");
+    }
+  };
+
+  const downloadSrt = () => {
+    if (!srt) return;
+    try {
+      const blob = new Blob([srt], { type: "application/x-subrip;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `reel-${reelId}.srt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Downloaded .srt file.");
+    } catch {
+      toast.error("Could not download the .srt file.");
     }
   };
 
@@ -79,6 +102,7 @@ export function TranscriptPanel({
       }
 
       setTranscript(json.transcript ?? null);
+      setSrt(json.srt ?? null);
       setStatus(json.status ?? "ready");
       setSource(json.source ?? null);
       setLanguage(json.language ?? null);
@@ -122,6 +146,20 @@ export function TranscriptPanel({
             </Button>
           )}
 
+          {hasSrt && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={downloadSrt}
+              className="shrink-0"
+              title="Download timed captions (.srt) matching the audio"
+            >
+              <Download className="h-4 w-4" />
+              .srt
+            </Button>
+          )}
+
           <Button
             type="button"
             size="sm"
@@ -154,6 +192,7 @@ export function TranscriptPanel({
       ) : (
         <p className="mt-3 text-subtle">
           Generate the spoken transcript of this reel to study its hook, pacing, and structure.
+          You can copy the text or download timed captions as an .srt file that matches the audio.
         </p>
       )}
     </div>

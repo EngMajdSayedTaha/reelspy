@@ -4,8 +4,15 @@ import type { TranscriptionProvider } from "@/lib/transcription/types";
 // raw audio bytes in the request body. Used as a secondary audio-based provider.
 const HF_MODEL_URL = "https://api-inference.huggingface.co/models/openai/whisper-large-v3";
 
+type HuggingFaceChunk = {
+  // [start, end] in seconds; end may be null on the final chunk.
+  timestamp?: [number | null, number | null];
+  text?: string;
+};
+
 type HuggingFaceResponse = {
   text?: string;
+  chunks?: HuggingFaceChunk[];
   error?: string;
 };
 
@@ -52,6 +59,21 @@ export const huggingfaceProvider: TranscriptionProvider = {
       throw new Error("Hugging Face returned an empty transcript.");
     }
 
-    return { text, language: null };
+    // Whisper on HF returns timed chunks when timestamps are available; map
+    // them so we can build an .srt. Otherwise we degrade to text-only.
+    const segments =
+      json.chunks
+        ?.map((chunk) => ({
+          start: typeof chunk.timestamp?.[0] === "number" ? chunk.timestamp[0] : 0,
+          end: typeof chunk.timestamp?.[1] === "number" ? chunk.timestamp[1] : 0,
+          text: chunk.text?.trim() ?? "",
+        }))
+        .filter((segment) => segment.text.length > 0) ?? null;
+
+    return {
+      text,
+      language: null,
+      segments: segments && segments.length > 0 ? segments : null,
+    };
   },
 };
