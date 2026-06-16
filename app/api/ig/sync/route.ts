@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
-import { fetchBusinessDiscovery } from "@/lib/instagram/graph-api";
 import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { numEnv } from "@/lib/utils/env";
@@ -166,64 +165,22 @@ export async function POST(request: Request) {
       if (snap.error) errors.push(`@${account.ig_username}: ${snap.error}`);
     }
 
-    // 1b) Backfill missing profile data (avatar/followers) — accounts added in
-    //     bulk (e.g. the following import) skip Business Discovery validation,
-    //     so their first sync enriches them here. Cached in the shared snapshot
-    //     row so N users tracking the same account pay for one fetch. Gated on
-    //     a healthy snapshot: if Business Discovery can't read the account at
-    //     all (private / not Business), retrying the profile fetch every sync
-    //     would burn budget forever.
-    if (!account.avatar_url && !rateLimitHit && snap.status === "ok") {
-      const uname = account.ig_username.toLowerCase();
-      const { data: snapProfile } = await admin
-        .from("ig_account_snapshots")
-        .select("display_name, followers_count, avatar_url")
-        .eq("ig_username", uname)
-        .maybeSingle();
-
-      let profile: {
-        username: string;
-        followers_count?: number;
-        profile_picture_url?: string;
-      } | null = snapProfile?.avatar_url
-        ? {
-            username: snapProfile.display_name ?? account.ig_username,
-            followers_count: snapProfile.followers_count ?? undefined,
-            profile_picture_url: snapProfile.avatar_url,
-          }
-        : null;
-
-      if (!profile) {
-        const discovery = await fetchBusinessDiscovery(
-          credentials.igUserId,
-          credentials.token,
-          uname,
-          limiter
-        );
-        if (discovery.rateLimited) rateLimitHit = true;
-        profile = discovery.profile;
-        if (profile) {
-          await admin
-            .from("ig_account_snapshots")
-            .update({
-              display_name: profile.username,
-              followers_count: profile.followers_count ?? null,
-              avatar_url: profile.profile_picture_url ?? null,
-            })
-            .eq("ig_username", uname);
-        }
-      }
-
-      if (profile) {
-        await supabase
-          .from("inspiration_accounts")
-          .update({
-            display_name: profile.username,
-            followers_count: profile.followers_count ?? null,
-            avatar_url: profile.profile_picture_url ?? null,
-          })
-          .eq("id", account.id);
-      }
+    // 1b) Refresh this user's account row from the freshly-fetched profile
+    //     (avatar/followers/handle). The profile rides along with the reels in
+    //     the same Business Discovery call — no extra quota — and the snapshot
+    //     layer already cached it for every other user. Crucially this runs on
+    //     EVERY sync, not just when the avatar is missing: IG's profile_picture
+    //     URLs are signed and expire, so a once-only backfill leaves avatars
+    //     broken forever once that URL lapses.
+    if (snap.profile) {
+      await supabase
+        .from("inspiration_accounts")
+        .update({
+          display_name: snap.profile.display_name,
+          followers_count: snap.profile.followers_count,
+          avatar_url: snap.profile.avatar_url,
+        })
+        .eq("id", account.id);
     }
 
     // 2) Materialize from the cache into this user's feed — pure DB, no quota.
