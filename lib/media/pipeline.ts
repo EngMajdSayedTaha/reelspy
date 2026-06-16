@@ -7,6 +7,7 @@ export type ReelTranscriptionResult =
       text: string;
       language: string | null;
       source: string;
+      srt: string | null;
       metadata: ReelMetadata;
     }
   | {
@@ -50,6 +51,7 @@ export async function processReel(permalink: string): Promise<ReelTranscriptionR
     text: result.text,
     language: result.language,
     source: result.source,
+    srt: result.srt,
     metadata,
   };
 }

@@ -1,10 +1,13 @@
 import { groqProvider } from "@/lib/transcription/groq";
 import { huggingfaceProvider } from "@/lib/transcription/huggingface";
+import { buildSrt } from "@/lib/transcription/srt";
 import type { TranscribeInput, TranscriptResult } from "@/lib/transcription/types";
 
+export { buildSrt } from "@/lib/transcription/srt";
 export type {
   TranscribeInput,
   TranscriptResult,
+  TranscriptSegment,
   TranscriptStatus,
   TranscriptionSource,
 } from "@/lib/transcription/types";
@@ -35,13 +38,15 @@ export async function transcribeReel(input: TranscribeInput): Promise<Transcript
 
   for (const provider of configured) {
     try {
-      const { text, language } = await provider.transcribe(input);
+      const { text, language, segments } = await provider.transcribe(input);
       return {
         status: "ready",
         text,
         language,
         source: provider.name,
         durationMs: Date.now() - startedAt,
+        segments,
+        srt: buildSrt(segments),
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

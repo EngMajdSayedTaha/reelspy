@@ -16,12 +16,24 @@ export type TranscribeInput = {
   mediaUrl?: string | null;
 };
 
+// A single timed chunk of speech, used to build the .srt subtitle file.
+export type TranscriptSegment = {
+  // Start/end offsets in seconds, relative to the start of the audio.
+  start: number;
+  end: number;
+  text: string;
+};
+
 export type TranscriptReady = {
   status: "ready";
   text: string;
   language: string | null;
   source: TranscriptionSource;
   durationMs: number;
+  // Timed segments (when the provider returns them) and the rendered SubRip
+  // document. Both are null when only a plain transcript could be produced.
+  segments: TranscriptSegment[] | null;
+  srt: string | null;
 };
 
 export type TranscriptUnavailable = {
@@ -38,5 +50,10 @@ export type TranscriptionProvider = {
   // True when this provider needs a downloadable media URL (audio-based ASR).
   requiresMedia: boolean;
   // Performs the transcription. Throws on failure; the orchestrator catches it.
-  transcribe: (input: TranscribeInput) => Promise<{ text: string; language: string | null }>;
+  // Returns the plain text plus timed segments when the engine provides them.
+  transcribe: (input: TranscribeInput) => Promise<{
+    text: string;
+    language: string | null;
+    segments: TranscriptSegment[] | null;
+  }>;
 };
