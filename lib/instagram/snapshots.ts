@@ -148,10 +148,16 @@ export async function materializeForUser(
 
   const mediaIds = rows.map((r) => r.ig_media_id).filter(Boolean);
 
+  // Dedup is scoped to THIS account, not the whole user. A collab reel is
+  // returned by Business Discovery under every account that co-authored it
+  // (same ig_media_id). Without the account filter, the reel would land under
+  // whichever account synced first and be skipped as "existing" for the others
+  // it's shared with — so it would never show under those accounts' feeds.
   const { data: existing } = await db
     .from("tracked_reels")
     .select("ig_media_id")
     .eq("user_id", userId)
+    .eq("account_id", accountId)
     .in("ig_media_id", mediaIds);
 
   const existingIds = new Set((existing ?? []).map((r) => r.ig_media_id));
@@ -192,6 +198,7 @@ export async function materializeForUser(
             thumbnail_url: r.thumbnail_url,
           })
           .eq("user_id", userId)
+          .eq("account_id", accountId)
           .eq("ig_media_id", r.ig_media_id)
       )
   );
