@@ -18,9 +18,18 @@ import { numEnv } from "@/lib/utils/env";
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
 const DEFAULT_MAX_REELS = numEnv("SNAPSHOT_MAX_REELS", 25);
 
+export type SnapshotProfile = {
+  display_name: string;
+  followers_count: number | null;
+  avatar_url: string | null;
+};
+
 export type SnapshotResult = {
   status: "ok" | "error" | "rate_limited" | "not_found";
   fetched: boolean; // true if we actually called Meta this time
+  // Fresh profile from this fetch — lets the sync route keep the per-user
+  // account's avatar/followers/handle current (IG avatar URLs expire).
+  profile?: SnapshotProfile;
   rateLimited?: boolean;
   retryAfterSeconds?: number;
   error?: string;
@@ -64,13 +73,23 @@ export async function refreshAccountSnapshot(
     }
   }
 
-  const { reels, error, rateLimited, retryAfterSeconds } = await fetchAccountReels(
+  const { reels, profile, error, rateLimited, retryAfterSeconds } = await fetchAccountReels(
     callerIgUserId,
     callerToken,
     uname,
     maxReels,
     limiter
   );
+
+  // Normalize the profile for both the snapshot row and the caller. The IG
+  // avatar URL is signed + expiring, so we refresh it on every fetch.
+  const snapshotProfile: SnapshotProfile | undefined = profile
+    ? {
+        display_name: profile.username || uname,
+        followers_count: profile.followers_count ?? null,
+        avatar_url: profile.profile_picture_url ?? null,
+      }
+    : undefined;
 
   // Throttled with nothing new — leave the existing cache intact and report it.
   if (rateLimited && reels.length === 0) {
@@ -113,12 +132,31 @@ export async function refreshAccountSnapshot(
     }
   }
 
+  // Refresh the shared profile alongside reels (avatar URL expires over time).
+  // N users tracking this account all read the one cached avatar.
   await admin
     .from("ig_account_snapshots")
-    .update({ last_fetched_at: new Date().toISOString(), last_status: "ok", last_error: null })
+    .update({
+      last_fetched_at: new Date().toISOString(),
+      last_status: "ok",
+      last_error: null,
+      ...(snapshotProfile
+        ? {
+            display_name: snapshotProfile.display_name,
+            followers_count: snapshotProfile.followers_count,
+            avatar_url: snapshotProfile.avatar_url,
+          }
+        : {}),
+    })
     .eq("ig_username", uname);
 
-  return { status: "ok", fetched: true, rateLimited: rateLimited || undefined, retryAfterSeconds };
+  return {
+    status: "ok",
+    fetched: true,
+    profile: snapshotProfile,
+    rateLimited: rateLimited || undefined,
+    retryAfterSeconds,
+  };
 }
 
 // Copy shared snapshot reels into one user's personal feed. Pure DB work: no

@@ -536,6 +536,10 @@ export async function fetchAccountReels(
   limiter?: MetaRateLimiter
 ): Promise<{
   reels: InstagramMedia[];
+  // The account's current profile, read from the SAME business_discovery call as
+  // the reels (no extra quota). Lets callers keep the avatar/followers/handle
+  // fresh — IG's profile_picture_url is a signed CDN URL that expires.
+  profile?: BusinessDiscoveryProfile;
   error?: string;
   rateLimited?: boolean;
   retryAfterSeconds?: number;
@@ -548,6 +552,7 @@ export async function fetchAccountReels(
     "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
 
   const reels: InstagramMedia[] = [];
+  let profile: BusinessDiscoveryProfile | undefined;
   const seen = new Set<string>();
   // Over-fetch raw media since non-reel posts get filtered out. Cap total pages
   // so a feed-heavy account can't loop forever.
@@ -560,12 +565,27 @@ export async function fetchAccountReels(
     for (let page = 0; page < MAX_PAGES; page++) {
       const cursor = after ? `.after(${after})` : "";
       const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
-        fields: `business_discovery.username(${targetUsername}){media.limit(${PAGE_SIZE})${cursor}{${mediaFields}}}`,
+        fields: `business_discovery.username(${targetUsername}){username,followers_count,profile_picture_url,media.limit(${PAGE_SIZE})${cursor}{${mediaFields}}}`,
         access_token: token,
       });
 
       const json = await fetchJson<JsonRecord>(url, undefined, limiter);
       const discovery = json.business_discovery as JsonRecord | undefined;
+
+      // Capture the profile once (the scalar fields repeat on every page).
+      if (!profile && discovery) {
+        profile = {
+          username:
+            typeof discovery.username === "string" ? discovery.username : targetUsername,
+          followers_count:
+            typeof discovery.followers_count === "number" ? discovery.followers_count : undefined,
+          profile_picture_url:
+            typeof discovery.profile_picture_url === "string"
+              ? discovery.profile_picture_url
+              : undefined,
+        };
+      }
+
       const media = discovery?.media as JsonRecord | undefined;
       const pageItems = (media?.data as JsonRecord[] | undefined) ?? [];
 
@@ -576,7 +596,7 @@ export async function fetchAccountReels(
         seen.add(mapped.id);
         reels.push(mapped);
         if (reels.length >= maxReels) {
-          return { reels };
+          return { reels, profile };
         }
       }
 
@@ -592,13 +612,14 @@ export async function fetchAccountReels(
       await sleep(350);
     }
 
-    return { reels };
+    return { reels, profile };
   } catch (err) {
     // The shared guard deferred this call before it left our server. Keep any
     // reels gathered on earlier pages and surface the precise retry window.
     if (err instanceof MetaRateLimitError) {
       return {
         reels,
+        profile,
         error: reels.length > 0 ? undefined : err.message,
         rateLimited: true,
         retryAfterSeconds: err.retryAfterSeconds,
@@ -613,7 +634,7 @@ export async function fetchAccountReels(
     }
     // If we already collected some reels before the error, keep them.
     if (reels.length > 0) {
-      return { reels, rateLimited: rateLimited || undefined };
+      return { reels, profile, rateLimited: rateLimited || undefined };
     }
     if (rateLimited) {
       return {
