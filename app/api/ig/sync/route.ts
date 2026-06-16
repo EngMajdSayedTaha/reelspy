@@ -145,15 +145,16 @@ export async function POST(request: Request) {
       await sleep(300);
     }
 
-    // 1) Refresh the SHARED snapshot if stale — deduped across every user, and
-    //    skipped entirely (no Graph call) when the cache is still warm.
+    // 1) Refresh the SHARED snapshot. Manual syncs always force a fresh Meta
+    //    call so the user gets up-to-date reels regardless of cache age; the
+    //    MetaRateLimiter still guards against API overuse.
     const snap = await refreshAccountSnapshot(
       admin,
       limiter,
       credentials.igUserId,
       credentials.token,
       account.ig_username,
-      { maxReels: syncLimit }
+      { maxReels: syncLimit, force: true }
     );
 
     if (snap.rateLimited) {
