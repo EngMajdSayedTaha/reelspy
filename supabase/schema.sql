@@ -46,11 +46,6 @@ create policy "Users can manage own groups"
 alter table inspiration_accounts
   add column if not exists group_id uuid references account_groups(id) on delete set null;
 
--- Partner/cross-post handles whose reels are merged into this account's feed.
--- See migrations/20260616_linked_accounts.sql for why collab reels need this.
-alter table inspiration_accounts
-  add column if not exists linked_usernames text[] not null default '{}';
-
 -- Tracked reels
 create table tracked_reels (
   id uuid primary key default gen_random_uuid(),

@@ -33,20 +33,12 @@ export async function GET(request: Request) {
   // Unique set of active tracked usernames across ALL users (the dedup payoff).
   const { data: rows } = await admin
     .from("inspiration_accounts")
-    .select("ig_username, linked_usernames")
+    .select("ig_username")
     .eq("is_active", true);
 
-  // Warm both the tracked handles and any linked partner handles — the partners'
-  // snapshots feed collab reels into tracked accounts' feeds on sync, so they
-  // need to stay fresh too.
-  const usernameSet = new Set<string>();
-  for (const r of rows ?? []) {
-    if (r.ig_username) usernameSet.add(String(r.ig_username).toLowerCase());
-    for (const linked of (r.linked_usernames as string[] | null) ?? []) {
-      if (linked) usernameSet.add(String(linked).toLowerCase());
-    }
-  }
-  const allUsernames = Array.from(usernameSet);
+  const allUsernames = Array.from(
+    new Set((rows ?? []).map((r) => String(r.ig_username).toLowerCase()))
+  );
 
   // Prioritize the stalest accounts. Pull current snapshot freshness in one go.
   const { data: snaps } = await admin

@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   // Build query for inspiration accounts to sync
   let accountsQuery = supabase
     .from("inspiration_accounts")
-    .select("id, ig_username, last_synced_at, avatar_url, display_name, followers_count, linked_usernames")
+    .select("id, ig_username, last_synced_at, avatar_url, display_name, followers_count")
     .eq("user_id", user.id)
     .eq("is_active", true);
 
@@ -195,54 +195,6 @@ export async function POST(request: Request) {
     );
     totalInserted += inserted;
     totalUpdated += updated;
-
-    // 2b) Merge in any LINKED partner handles. Instagram's Business Discovery
-    //     only returns reels PUBLISHED by the account you query, so a collab reel
-    //     a tracked account merely co-authored (but a partner handle published)
-    //     never shows under the tracked account. We fetch each partner directly
-    //     and materialize its reels into THIS account's feed so they stop going
-    //     missing. Each is another Graph call, so we pace and bail on throttling.
-    const linked = Array.isArray(account.linked_usernames)
-      ? (account.linked_usernames as string[])
-      : [];
-    for (const linkedUsername of linked) {
-      if (rateLimitHit) break;
-      const partner = linkedUsername?.trim().toLowerCase();
-      if (!partner || partner === account.ig_username) continue;
-
-      await sleep(300);
-
-      const partnerSnap = await refreshAccountSnapshot(
-        admin,
-        limiter,
-        credentials.igUserId,
-        credentials.token,
-        partner,
-        { maxReels: syncLimit, force: true }
-      );
-
-      if (partnerSnap.rateLimited) {
-        retryAfterSeconds = partnerSnap.retryAfterSeconds ?? retryAfterSeconds;
-        rateLimitHit = true;
-      }
-      if (partnerSnap.status === "error" || partnerSnap.status === "not_found") {
-        if (partnerSnap.error) errors.push(`@${partner}: ${partnerSnap.error}`);
-      }
-
-      // Partner reels land under THIS account's id, so they show in the same
-      // feed card. materializeForUser dedups per (account, media id), so a true
-      // collab present under both handles is inserted once, not duplicated.
-      const partnerResult = await materializeForUser(
-        admin,
-        supabase,
-        user.id,
-        account.id,
-        partner,
-        syncLimit
-      );
-      totalInserted += partnerResult.inserted;
-      totalUpdated += partnerResult.updated;
-    }
 
     // Don't stamp a throttled refresh as "synced" — the bulk-sync freshness
     // skip would then wrongly pass over this account on the next attempt.
