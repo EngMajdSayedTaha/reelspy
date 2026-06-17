@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchAccountReels } from "./graph-api";
+import { fetchGridReels, gridScrapeEnabled, extractShortcode } from "./grid-scrape";
 import type { MetaRateLimiter } from "./rate-limit";
 import { numEnv } from "@/lib/utils/env";
 
@@ -109,27 +110,56 @@ export async function refreshAccountSnapshot(
     return { status: notFound ? "not_found" : "error", fetched: false, error };
   }
 
-  if (reels.length > 0) {
-    const rows = reels
-      .filter((r) => r.id && r.permalink)
-      .map((r) => ({
-        ig_username: uname,
-        ig_media_id: r.id,
-        permalink: r.permalink!,
-        caption: r.caption ?? null,
-        thumbnail_url: r.thumbnail_url ?? null,
-        view_count: r.view_count ?? 0,
-        like_count: r.like_count ?? 0,
-        comment_count: r.comments_count ?? 0,
-        posted_at: r.timestamp ?? null,
-        last_seen_at: new Date().toISOString(),
-      }));
+  const nowIso = new Date().toISOString();
+  const rows = reels
+    .filter((r) => r.id && r.permalink)
+    .map((r) => ({
+      ig_username: uname,
+      ig_media_id: r.id,
+      permalink: r.permalink!,
+      caption: r.caption ?? null,
+      thumbnail_url: r.thumbnail_url ?? null,
+      view_count: r.view_count ?? 0,
+      like_count: r.like_count ?? 0,
+      comment_count: r.comments_count ?? 0,
+      posted_at: r.timestamp ?? null,
+      last_seen_at: nowIso,
+    }));
 
-    if (rows.length > 0) {
-      await admin
-        .from("ig_reel_snapshots")
-        .upsert(rows, { onConflict: "ig_username,ig_media_id" });
+  // Supplement with collab reels from the public grid. Business Discovery omits
+  // reels this account only co-authored; the grid shows them. Best-effort and
+  // additive — any failure leaves the Graph results untouched. We dedup by
+  // shortcode (Graph media ids and grid pks differ), so a reel that's in BOTH
+  // sources stays under its Graph id and only grid-ONLY (collab) reels get
+  // appended, preventing duplicate rows for the same reel.
+  if (reels.length > 0 && gridScrapeEnabled()) {
+    const graphShortcodes = new Set(
+      reels.map((r) => extractShortcode(r.permalink)).filter((s): s is string => Boolean(s))
+    );
+    const grid = await fetchGridReels(uname, maxReels);
+    if (grid.status === "ok") {
+      for (const g of grid.reels) {
+        if (graphShortcodes.has(g.shortcode)) continue;
+        rows.push({
+          ig_username: uname,
+          ig_media_id: g.mediaId,
+          permalink: g.permalink,
+          caption: g.caption,
+          thumbnail_url: g.thumbnailUrl,
+          view_count: g.viewCount,
+          like_count: g.likeCount,
+          comment_count: g.commentCount,
+          posted_at: g.postedAt,
+          last_seen_at: nowIso,
+        });
+      }
     }
+  }
+
+  if (rows.length > 0) {
+    await admin
+      .from("ig_reel_snapshots")
+      .upsert(rows, { onConflict: "ig_username,ig_media_id" });
   }
 
   // Refresh the shared profile alongside reels (avatar URL expires over time).
