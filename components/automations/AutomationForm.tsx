@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { Clapperboard, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { Clapperboard, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { isReelItem } from "@/lib/instagram/insights-export";
 import { requestJson } from "@/lib/utils/api";
 
 type ActionState = { error?: string };
@@ -46,6 +47,7 @@ function reelLabel(reel: MyReel): string {
 export function AutomationForm({ action, automatedMediaIds }: AutomationFormProps) {
   const [reels, setReels] = useState<MyReel[]>([]);
   const [loadingReels, setLoadingReels] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [reelsError, setReelsError] = useState<string | null>(null);
 
   const [mediaId, setMediaId] = useState("");
@@ -57,36 +59,42 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  // The picker rides the cache-first my-reels endpoint, so rendering this form
-  // normally costs zero Graph API calls.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // The picker rides the cache-first my-reels endpoint, so the initial load
+  // normally costs zero Graph API calls. `force` hits the endpoint with
+  // ?refresh=1 for a live Instagram pull — needed to surface a just-posted reel
+  // that isn't in the cache yet.
+  const loadReels = useCallback(
+    async (force = false) => {
+      if (force) setRefreshing(true);
+      setReelsError(null);
       try {
-        const json = await requestJson<MyReelsResponse>("/api/ig/my-reels");
-        if (cancelled) return;
+        const json = await requestJson<MyReelsResponse>(
+          force ? "/api/ig/my-reels?refresh=1" : "/api/ig/my-reels",
+          { cache: "no-store" }
+        );
         if (!json.connected) {
           setReelsError("Connect your Instagram account first (Settings → Instagram).");
           return;
         }
         const automated = new Set(automatedMediaIds);
         const onlyReels = (json.media ?? []).filter(
-          (m) =>
-            m.id &&
-            !automated.has(m.id) &&
-            (m.media_product_type === "REELS" || m.media_type === "VIDEO")
+          (m) => m.id && !automated.has(m.id) && isReelItem(m)
         );
         setReels(onlyReels);
       } catch {
-        if (!cancelled) setReelsError("Could not load your reels. Try refreshing the page.");
+        setReelsError("Could not load your reels. Try refreshing the page.");
       } finally {
-        if (!cancelled) setLoadingReels(false);
+        setLoadingReels(false);
+        setRefreshing(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [automatedMediaIds]);
+    },
+    [automatedMediaIds]
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- kicks off the initial async fetch
+    loadReels();
+  }, [loadReels]);
 
   const selected = reels.find((r) => r.id === mediaId);
 
@@ -148,7 +156,19 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="automation_reel">Reel</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="automation_reel">Reel</Label>
+              <button
+                type="button"
+                onClick={() => loadReels(true)}
+                disabled={isPending || refreshing}
+                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+                title="Pull your latest reels from Instagram — use this if a reel you just posted isn't listed yet."
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Syncing…" : "Refresh"}
+              </button>
+            </div>
             {loadingReels ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading your reels…

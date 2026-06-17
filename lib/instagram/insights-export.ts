@@ -44,7 +44,7 @@ export type ProfileSummary = {
   biography?: string;
 };
 
-export function isReelItem(item: MediaItem): boolean {
+export function isReelItem(item: Pick<MediaItem, "media_type" | "media_product_type">): boolean {
   return (
     String(item.media_product_type ?? "").toUpperCase() === "REELS" ||
     String(item.media_type ?? "").toUpperCase() === "VIDEO"
