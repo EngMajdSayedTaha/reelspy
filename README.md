@@ -34,17 +34,7 @@ and never errors):
 - `HF_API_TOKEN` — optional Whisper fallback.
 - `YTDLP_COOKIES_B64` — optional base64-encoded `cookies.txt`; many Instagram reels require
   authenticated cookies for yt-dlp to resolve the media URL. Generate with `base64 -w0 cookies.txt`.
-  Also reused by the collab-reel grid fallback (below).
 - `YTDLP_BIN` — optional path override for the yt-dlp binary.
-- `ENABLE_GRID_SCRAPE` — defaults to on. When enabled **and** `YTDLP_COOKIES_B64` is set, each
-  account sync also reads the account's public grid to recover **collab reels** that Meta's
-  Business Discovery API omits (a collab reel is owned by one account and only mirrored onto
-  collaborators' grids). Purely additive: Business Discovery stays primary, and any failure
-  (no cookies, stale cookies, an Instagram block, or a changed page shape) degrades silently to
-  "Graph only". Set to `false` to disable instantly if Instagram starts pushing back. Note this
-  uses the cookie account's logged-in session to read Instagram, which carries some
-  account/ToS risk — see `lib/instagram/grid-scrape.ts`.
-- `GRID_SCRAPE_TIMEOUT_MS` / `GRID_SCRAPE_UA` — optional tuning for the grid fallback.
 
 Set `GROQ_API_KEY` (and usually `YTDLP_COOKIES_B64`) in `.env.local` locally and in the
 Vercel project's Production environment variables.
