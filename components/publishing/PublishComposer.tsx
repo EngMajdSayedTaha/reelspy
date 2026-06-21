@@ -1,0 +1,269 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Upload, Send, CalendarClock, Loader2, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { createClient } from "@/lib/supabase/client";
+import { notifyError, requestJson } from "@/lib/utils/api";
+import { PLATFORMS, PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { createPublishPost } from "@/app/dashboard/publishing/actions";
+
+type Props = {
+  connected: Record<Platform, boolean>;
+};
+
+const ACCEPT = "video/mp4,video/quicktime,video/webm";
+
+export function PublishComposer({ connected }: Props) {
+  const router = useRouter();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [caption, setCaption] = useState("");
+  const [hashtags, setHashtags] = useState("");
+  const [privacy, setPrivacy] = useState<"public" | "private">("public");
+  const [scheduled, setScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [selected, setSelected] = useState<Set<Platform>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const anyConnected = PLATFORMS.some((p) => connected[p]);
+
+  function toggle(platform: Platform) {
+    if (!connected[platform]) return;
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(platform)) next.delete(platform);
+      else next.add(platform);
+      return next;
+    });
+  }
+
+  // Upload the file straight to Storage via a one-time signed URL, returning the
+  // object path the post will reference.
+  async function uploadVideo(video: File): Promise<string> {
+    const { path, token } = await requestJson<{ path: string; token: string }>(
+      "/api/publishing/upload",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentType: video.type || "video/mp4", fileName: video.name }),
+      }
+    );
+
+    const supabase = createClient();
+    const { error } = await supabase.storage
+      .from("publish-media")
+      .uploadToSignedUrl(path, token, video);
+    if (error) throw new Error(error.message);
+    return path;
+  }
+
+  async function handleSubmit() {
+    if (!file) {
+      toast.error("Choose a video to upload first.");
+      return;
+    }
+    if (selected.size === 0) {
+      toast.error("Select at least one platform.");
+      return;
+    }
+    if (scheduled && !scheduledAt) {
+      toast.error("Pick a date and time to schedule.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const videoPath = await uploadVideo(file);
+      const result = await createPublishPost({
+        videoPath,
+        title: title.trim() || null,
+        caption: caption.trim() || null,
+        hashtags: hashtags.trim() || null,
+        platforms: Array.from(selected),
+        privacy,
+        scheduledAt: scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      });
+
+      if (result.publishedNow) {
+        toast.success("Publishing started — check the history below for status.");
+      } else {
+        toast.success("Scheduled. It will post automatically at the chosen time.");
+      }
+
+      // Reset and refresh the history.
+      setFile(null);
+      setTitle("");
+      setCaption("");
+      setHashtags("");
+      setSelected(new Set());
+      setScheduled(false);
+      setScheduledAt("");
+      if (fileInput.current) fileInput.current.value = "";
+      router.refresh();
+    } catch (error) {
+      notifyError(error, "Could not publish. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+      {/* Upload */}
+      <div className="space-y-2">
+        <Label>Video</Label>
+        <button
+          type="button"
+          onClick={() => fileInput.current?.click()}
+          className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border-strong bg-background px-4 py-6 text-left transition hover:border-primary"
+        >
+          {file ? (
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+          ) : (
+            <Upload className="h-5 w-5 text-muted-foreground" />
+          )}
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium text-foreground">
+              {file ? file.name : "Click to choose a video"}
+            </span>
+            <span className="block text-xs text-muted-foreground">MP4, MOV or WebM</span>
+          </span>
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept={ACCEPT}
+          className="hidden"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+      </div>
+
+      {/* Caption */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="pub-title">Title (YouTube / FB)</Label>
+          <Input
+            id="pub-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Optional title"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="pub-hashtags">Hashtags</Label>
+          <Input
+            id="pub-hashtags"
+            value={hashtags}
+            onChange={(e) => setHashtags(e.target.value)}
+            placeholder="#reels #viral"
+          />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="pub-caption">Caption</Label>
+        <Textarea
+          id="pub-caption"
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder="Write the caption that goes out with the video…"
+          rows={3}
+        />
+      </div>
+
+      {/* Platforms */}
+      <div className="space-y-2">
+        <Label>Post to</Label>
+        <div className="flex flex-wrap gap-2">
+          {PLATFORMS.map((platform) => {
+            const isConn = connected[platform];
+            const isOn = selected.has(platform);
+            return (
+              <button
+                key={platform}
+                type="button"
+                disabled={!isConn}
+                onClick={() => toggle(platform)}
+                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                  isOn
+                    ? "border-primary bg-primary/10 text-brand"
+                    : "border-border bg-background text-muted-foreground hover:text-foreground"
+                } disabled:cursor-not-allowed disabled:opacity-40`}
+                title={isConn ? "" : "Connect this platform first"}
+              >
+                {PLATFORM_LABELS[platform]}
+                {!isConn ? " · not connected" : ""}
+              </button>
+            );
+          })}
+        </div>
+        {!anyConnected ? (
+          <p className="text-xs text-amber-500">
+            Connect at least one platform on the Connections tab to start posting.
+          </p>
+        ) : null}
+      </div>
+
+      {/* Privacy + scheduling */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="pub-privacy">Visibility</Label>
+          <select
+            id="pub-privacy"
+            value={privacy}
+            onChange={(e) => setPrivacy(e.target.value as "public" | "private")}
+            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
+          >
+            <option value="public">Public</option>
+            <option value="private">Private / unlisted</option>
+          </select>
+          <p className="text-xs text-subtle">
+            TikTok &amp; YouTube stay private until their app audit passes.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={scheduled}
+              onChange={(e) => setScheduled(e.target.checked)}
+            />
+            Schedule for later
+          </Label>
+          {scheduled ? (
+            <Input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+            />
+          ) : (
+            <p className="text-xs text-subtle">Leave off to publish immediately.</p>
+          )}
+        </div>
+      </div>
+
+      <Button type="button" onClick={handleSubmit} disabled={busy || !anyConnected} className="w-full sm:w-auto">
+        {busy ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" /> Working…
+          </>
+        ) : scheduled ? (
+          <>
+            <CalendarClock className="h-4 w-4" /> Schedule post
+          </>
+        ) : (
+          <>
+            <Send className="h-4 w-4" /> Post now
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
