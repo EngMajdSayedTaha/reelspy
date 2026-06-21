@@ -6,6 +6,12 @@ import {
   isInvalidTokenError,
 } from "@/lib/instagram/graph-api";
 import { storePageCredentials } from "@/lib/instagram/token-store";
+import {
+  updateConnectionTokens,
+  markConnectionInvalid,
+} from "@/lib/publishing/token-store";
+import { refreshTikTokToken } from "@/lib/publishing/adapters/tiktok";
+import { refreshYouTubeToken } from "@/lib/publishing/adapters/youtube";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { numEnv } from "@/lib/utils/env";
 
@@ -84,5 +90,52 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, candidates: profiles?.length ?? 0, refreshed, invalidated });
+  // ── TikTok / YouTube publishing connections ────────────────────────────────
+  // Access tokens are short-lived (TikTok ~24h, Google ~1h); refresh any that
+  // expire within the window using the stored refresh token. A failed refresh
+  // flags the connection so the UI prompts a reconnect.
+  let socialRefreshed = 0;
+  let socialInvalidated = 0;
+
+  const { data: connections } = await admin
+    .from("social_connections")
+    .select("id, platform, refresh_token, token_expires_at")
+    .in("platform", ["tiktok", "youtube"])
+    .eq("token_status", "active")
+    .not("refresh_token", "is", null)
+    .or(`token_expires_at.is.null,token_expires_at.lte.${cutoffIso}`);
+
+  for (const conn of connections ?? []) {
+    if (!conn.refresh_token) continue;
+    try {
+      if (conn.platform === "tiktok") {
+        const r = await refreshTikTokToken(conn.refresh_token);
+        await updateConnectionTokens(admin, conn.id, {
+          accessToken: r.accessToken,
+          refreshToken: r.refreshToken,
+          expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
+        });
+      } else {
+        const r = await refreshYouTubeToken(conn.refresh_token);
+        await updateConnectionTokens(admin, conn.id, {
+          accessToken: r.accessToken,
+          expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
+        });
+      }
+      socialRefreshed += 1;
+    } catch (err) {
+      console.error(`${conn.platform} token refresh failed`, err);
+      await markConnectionInvalid(admin, conn.id);
+      socialInvalidated += 1;
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    candidates: profiles?.length ?? 0,
+    refreshed,
+    invalidated,
+    socialRefreshed,
+    socialInvalidated,
+  });
 }

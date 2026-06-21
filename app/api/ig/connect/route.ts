@@ -23,10 +23,13 @@ export async function GET(request: Request) {
   // reply DMs, page webhook subscription). NOTE: META_IG_SCOPES overrides this
   // list, and with META_FB_CONFIG_ID the permissions come from the Facebook
   // Login for Business configuration in the Meta dashboard instead.
+  // The last two scopes power the Publishing module (Reels content publishing +
+  // Facebook Page video posts); the four before them power Auto-Reply.
   const scopes =
     process.env.META_IG_SCOPES?.trim() ||
     "instagram_basic,pages_show_list,pages_read_engagement,business_management,instagram_manage_insights," +
-      "instagram_manage_comments,instagram_manage_messages,pages_manage_metadata,pages_messaging";
+      "instagram_manage_comments,instagram_manage_messages,pages_manage_metadata,pages_messaging," +
+      "instagram_content_publish,pages_manage_posts";
   // Facebook Login for Business: when set, permissions come from this configuration.
   const configId = process.env.META_FB_CONFIG_ID?.trim() || undefined;
 
