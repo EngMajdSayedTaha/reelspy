@@ -122,9 +122,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
       </div>
 
       <p className="rounded-lg border border-border bg-background px-4 py-3 text-xs text-subtle">
-        Note: Instagram &amp; Facebook posting needs Meta App Review; TikTok and YouTube need their
-        platform audits before posts can go fully public. Until then, TikTok/YouTube posts stay
-        private to your own account.
+        Note: Instagram &amp; Facebook posting works on your own account with no Meta App Review
+        (the app stays in development mode). TikTok and YouTube post to your own account right away
+        but stay private until their platform audits pass. See{" "}
+        <span className="font-mono">docs/publishing-setup.md</span> for the full step-by-step.
       </p>
     </div>
   );
