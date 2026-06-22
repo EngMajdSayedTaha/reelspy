@@ -50,6 +50,8 @@ type JobRow = {
   privacy: string;
   status: string;
   attempts: number;
+  // Per-platform caption override; null = use the shared post caption.
+  caption: string | null;
 };
 
 export type DispatchResult = {
@@ -142,7 +144,7 @@ export async function dispatchPost(
 
   const { data: jobs } = await admin
     .from("publish_jobs")
-    .select("id, platform, connection_id, privacy, status, attempts")
+    .select("id, platform, connection_id, privacy, status, attempts, caption")
     .eq("post_id", postId)
     .eq("status", "pending")
     .returns<JobRow[]>();
@@ -161,12 +163,6 @@ export async function dispatchPost(
     throw new Error(`Could not sign the uploaded video: ${signErr?.message ?? "unknown"}`);
   }
 
-  const content: PublishContent = {
-    title: post.title,
-    caption: post.caption,
-    hashtags: post.hashtags,
-  };
-
   let published = 0;
   let failed = 0;
 
@@ -175,6 +171,13 @@ export async function dispatchPost(
       .from("publish_jobs")
       .update({ status: "processing", attempts: job.attempts + 1, updated_at: new Date().toISOString() })
       .eq("id", job.id);
+
+    // Per-platform caption override falls back to the shared post caption.
+    const content: PublishContent = {
+      title: post.title,
+      caption: job.caption ?? post.caption,
+      hashtags: post.hashtags,
+    };
 
     try {
       const resolved = await resolveCredentials(admin, post.user_id, job);

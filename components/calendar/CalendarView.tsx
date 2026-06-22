@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CalendarPlus, GripVertical, Inbox, X } from "lucide-react";
+import Link from "next/link";
+import { CalendarPlus, GripVertical, Inbox, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
@@ -14,8 +15,27 @@ export type CalendarScript = {
   created_at: string;
 };
 
+// A scheduled cross-post queued from the Publishing tab. Read-only on the
+// calendar — it surfaces what will actually go live and when.
+export type CalendarPost = {
+  id: string;
+  title: string | null;
+  caption: string | null;
+  status: string;
+  scheduled_at: string | null;
+  platforms: string[];
+};
+
+const PLATFORM_SHORT: Record<string, string> = {
+  instagram: "IG",
+  facebook: "FB",
+  tiktok: "TT",
+  youtube: "YT",
+};
+
 type CalendarViewProps = {
   scripts: CalendarScript[];
+  posts: CalendarPost[];
   scheduleAction: (scriptId: string, date: string) => Promise<void>;
   unscheduleAction: (scriptId: string) => Promise<void>;
 };
@@ -45,7 +65,12 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-export function CalendarView({ scripts, scheduleAction, unscheduleAction }: CalendarViewProps) {
+function formatTime(value: string | null): string {
+  if (!value) return "";
+  return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction }: CalendarViewProps) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -67,6 +92,16 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
     const date = script.scheduled_date!.slice(0, 10);
     const existing = scriptsByDate.get(date) ?? [];
     scriptsByDate.set(date, [...existing, script]);
+  }
+
+  // Scheduled publish posts, grouped by local calendar day.
+  const postsByDate = new Map<string, CalendarPost[]>();
+  for (const post of posts) {
+    if (!post.scheduled_at) continue;
+    const d = new Date(post.scheduled_at);
+    const date = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const existing = postsByDate.get(date) ?? [];
+    postsByDate.set(date, [...existing, post]);
   }
 
   const placingScript = placingId ? scripts.find((s) => s.id === placingId) ?? null : null;
@@ -138,6 +173,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
   }
 
   const selectedScripts = selectedDate ? scriptsByDate.get(selectedDate) ?? [] : [];
+  const selectedPosts = selectedDate ? postsByDate.get(selectedDate) ?? [] : [];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-start">
@@ -191,6 +227,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
 
             const dateStr = toDateStr(year, month, day);
             const dayScripts = scriptsByDate.get(dateStr) ?? [];
+            const dayPosts = postsByDate.get(dateStr) ?? [];
             const isToday = dateStr === todayStr;
             const isDragOver = dragOverDate === dateStr;
 
@@ -211,7 +248,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                     : isToday
                       ? "border-primary/40 bg-primary/5"
                       : "border-border-strong bg-background"
-                } ${placingId || dayScripts.length > 0 ? "cursor-pointer hover:border-border-strong" : ""}`}
+                } ${placingId || dayScripts.length > 0 || dayPosts.length > 0 ? "cursor-pointer hover:border-border-strong" : ""}`}
               >
                 <p className={`text-xs font-medium ${isToday ? "text-brand" : "text-muted-foreground"}`}>
                   {day}
@@ -219,6 +256,9 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                 {/* Phones: text chips are unreadable in ~45px cells, so show
                     status dots instead — tapping the day opens the detail. */}
                 <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
+                  {dayPosts.slice(0, 4).map((p) => (
+                    <span key={p.id} className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  ))}
                   {dayScripts.slice(0, 4).map((s) => (
                     <span
                       key={s.id}
@@ -227,14 +267,27 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                       }`}
                     />
                   ))}
-                  {dayScripts.length > 4 ? (
-                    <span className="text-[9px] leading-none text-subtle">
-                      +{dayScripts.length - 4}
-                    </span>
+                  {dayScripts.length + dayPosts.length > 4 ? (
+                    <span className="text-[9px] leading-none text-subtle">+</span>
                   ) : null}
                 </div>
 
                 <div className="mt-1 hidden space-y-0.5 sm:block">
+                  {dayPosts.slice(0, 2).map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={(e) => e.stopPropagation()}
+                      title={`${p.title || p.caption || "Scheduled post"} — ${p.platforms
+                        .map((pl) => PLATFORM_SHORT[pl] ?? pl)
+                        .join(", ")} · ${formatTime(p.scheduled_at)}`}
+                      className="flex items-center gap-1 truncate rounded bg-primary/15 px-1 py-0.5 text-[10px] leading-tight text-brand"
+                    >
+                      <Send className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">
+                        {formatTime(p.scheduled_at)} {p.title || p.caption || "Post"}
+                      </span>
+                    </div>
+                  ))}
                   {dayScripts.slice(0, 2).map((s) => (
                     <div
                       key={s.id}
@@ -262,7 +315,7 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
         </div>
 
         {/* Selected day detail */}
-        {selectedDate && selectedScripts.length > 0 ? (
+        {selectedDate && (selectedScripts.length > 0 || selectedPosts.length > 0) ? (
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-medium text-foreground">{selectedDate}</h3>
@@ -274,6 +327,41 @@ export function CalendarView({ scripts, scheduleAction, unscheduleAction }: Cale
                 Close
               </button>
             </div>
+
+            {/* Scheduled cross-posts from Publishing (read-only). */}
+            {selectedPosts.length > 0 ? (
+              <div className="mb-3 space-y-2">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-brand">
+                  <Send className="h-3.5 w-3.5" /> Scheduled posts
+                </p>
+                {selectedPosts.map((p) => (
+                  <Link
+                    key={p.id}
+                    href="/dashboard/publishing"
+                    className="block rounded-md border border-primary/30 bg-primary/5 p-3 transition hover:border-primary/60"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-primary/40 px-2 py-0.5 text-xs text-brand">
+                        {formatTime(p.scheduled_at)}
+                      </span>
+                      {p.platforms.map((pl) => (
+                        <span
+                          key={pl}
+                          className="rounded-full border border-border-strong px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground"
+                        >
+                          {PLATFORM_SHORT[pl] ?? pl}
+                        </span>
+                      ))}
+                      <span className="ml-auto text-[10px] capitalize text-subtle">{p.status}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-foreground">
+                      {p.title || p.caption || "Scheduled post"}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
+
             <div className="space-y-2">
               {selectedScripts.map((s) => (
                 <div key={s.id} className="rounded-md border border-border-strong bg-background p-3">

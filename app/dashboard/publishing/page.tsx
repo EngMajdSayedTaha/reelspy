@@ -13,6 +13,7 @@ type JobRow = {
   status: string;
   remote_url: string | null;
   error_message: string | null;
+  caption: string | null;
 };
 
 type PostRow = {
@@ -72,7 +73,7 @@ export default async function PublishingPage() {
       .eq("user_id", user.id),
     supabase
       .from("publish_posts")
-      .select("id, title, caption, status, scheduled_at, created_at, publish_jobs(id, platform, status, remote_url, error_message)")
+      .select("id, title, caption, status, scheduled_at, created_at, publish_jobs(id, platform, status, remote_url, error_message, caption)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(25)
@@ -139,27 +140,37 @@ export default async function PublishingPage() {
                   {post.publish_jobs.map((job) => (
                     <div
                       key={job.id}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5"
+                      className="flex flex-col gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5"
                     >
-                      <span className="text-xs font-medium text-foreground">
-                        {PLATFORM_LABELS[job.platform]}
-                      </span>
-                      <StatusBadge status={job.status} />
-                      {job.remote_url ? (
-                        <a
-                          href={job.remote_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-muted-foreground hover:text-foreground"
-                          title="View post"
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground">
+                          {PLATFORM_LABELS[job.platform]}
+                        </span>
+                        <StatusBadge status={job.status} />
+                        {job.remote_url ? (
+                          <a
+                            href={job.remote_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-muted-foreground hover:text-foreground"
+                            title="View post"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        ) : null}
+                        {job.status === "failed" ? <RetryButton jobId={job.id} /> : null}
+                        {job.status === "failed" && job.error_message ? (
+                          <span className="max-w-[16rem] truncate text-xs text-rose-400" title={job.error_message}>
+                            {job.error_message}
+                          </span>
+                        ) : null}
+                      </div>
+                      {job.caption ? (
+                        <span
+                          className="max-w-[16rem] truncate text-[11px] text-muted-foreground"
+                          title={job.caption}
                         >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
-                      {job.status === "failed" ? <RetryButton jobId={job.id} /> : null}
-                      {job.status === "failed" && job.error_message ? (
-                        <span className="max-w-[16rem] truncate text-xs text-rose-400" title={job.error_message}>
-                          {job.error_message}
+                          ✎ {job.caption}
                         </span>
                       ) : null}
                     </div>
