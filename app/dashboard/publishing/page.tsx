@@ -66,7 +66,7 @@ export default async function PublishingPage() {
   // Connection state: IG/FB live on the profile (browser-readable metadata),
   // TikTok/YouTube in social_connections.
   const [{ data: profile }, { data: conns }, { data: posts }] = await Promise.all([
-    supabase.from("profiles").select("ig_user_id, fb_page_id").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("ig_user_id, fb_page_id, username").eq("id", user.id).maybeSingle(),
     supabase
       .from("social_connections")
       .select("platform, token_status, is_active")
@@ -90,6 +90,8 @@ export default async function PublishingPage() {
     youtube: activeConn("youtube"),
   };
 
+  const previewHandle = profile?.username || user.email?.split("@")[0] || "your_account";
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -106,7 +108,7 @@ export default async function PublishingPage() {
         </Button>
       </div>
 
-      <PublishComposer connected={connected} />
+      <PublishComposer connected={connected} handle={previewHandle} />
 
       {/* History */}
       <div className="space-y-3">

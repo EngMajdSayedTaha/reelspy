@@ -11,15 +11,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
 import { notifyError, requestJson } from "@/lib/utils/api";
 import { PLATFORMS, PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { PublishPreview } from "@/components/publishing/PublishPreview";
 import { createPublishPost } from "@/app/dashboard/publishing/actions";
 
 type Props = {
   connected: Record<Platform, boolean>;
+  /** Account handle shown in the live preview (e.g. "your_account"). */
+  handle?: string;
 };
 
 const ACCEPT = "video/mp4,video/quicktime,video/webm";
 
-export function PublishComposer({ connected }: Props) {
+export function PublishComposer({ connected, handle = "your_account" }: Props) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -139,7 +142,8 @@ export function PublishComposer({ connected }: Props) {
   }
 
   return (
-    <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_300px] md:items-start lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
       {/* Upload */}
       <div className="space-y-2">
         <Label>Video</Label>
@@ -330,6 +334,24 @@ export function PublishComposer({ connected }: Props) {
           </>
         )}
       </Button>
+      </div>
+
+      {/* Live social-media preview — tablet & desktop only. */}
+      <div className="hidden md:block">
+        <PublishPreview
+          file={file}
+          title={title}
+          caption={caption}
+          hashtags={hashtags}
+          selected={Array.from(selected)}
+          perPlatform={perPlatform}
+          platformCaptions={platformCaptions}
+          privacy={privacy}
+          scheduled={scheduled}
+          scheduledAt={scheduledAt}
+          handle={handle}
+        />
+      </div>
     </div>
   );
 }
