@@ -15,6 +15,10 @@ const createSchema = z.object({
   caption: z.string().max(5000).optional().nullable(),
   hashtags: z.string().max(2000).optional().nullable(),
   platforms: z.array(z.enum(PLATFORMS)).min(1, "Pick at least one platform."),
+  // Optional per-platform caption overrides, keyed by platform. A platform with
+  // a non-empty value here posts that caption instead of the shared one; anything
+  // absent or blank falls back to `caption` at dispatch time.
+  captions: z.record(z.string(), z.string().max(5000)).optional(),
   privacy: z.enum(["public", "private"]).default("public"),
   // ISO datetime; absent/empty = publish now.
   scheduledAt: z.string().datetime().optional().nullable(),
@@ -87,11 +91,15 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
       platform === "tiktok" || platform === "youtube"
         ? await getConnection(admin, user.id, platform)
         : null;
+    // Per-platform override wins; blank/absent leaves caption null so the
+    // dispatcher falls back to the shared post caption.
+    const override = parsed.captions?.[platform]?.trim();
     jobRows.push({
       post_id: post.id,
       user_id: user.id,
       connection_id: conn?.id ?? null,
       platform,
+      caption: override ? override : null,
       privacy: parsed.privacy,
       status: "pending",
     });

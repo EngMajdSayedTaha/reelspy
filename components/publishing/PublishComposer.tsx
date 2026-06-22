@@ -31,6 +31,16 @@ export function PublishComposer({ connected }: Props) {
   const [scheduled, setScheduled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [selected, setSelected] = useState<Set<Platform>>(new Set());
+  // Per-platform caption overrides. Off by default: every platform uses the
+  // shared caption above. When on, each selected platform gets its own box and
+  // anything left blank still falls back to the shared caption.
+  const [perPlatform, setPerPlatform] = useState(false);
+  const [platformCaptions, setPlatformCaptions] = useState<Record<Platform, string>>({
+    instagram: "",
+    facebook: "",
+    tiktok: "",
+    youtube: "",
+  });
   const [busy, setBusy] = useState(false);
 
   const anyConnected = PLATFORMS.some((p) => connected[p]);
@@ -82,12 +92,23 @@ export function PublishComposer({ connected }: Props) {
     setBusy(true);
     try {
       const videoPath = await uploadVideo(file);
+      // Only forward per-platform captions when the toggle is on, and only for
+      // platforms actually selected with non-blank copy.
+      const captions: Record<string, string> = {};
+      if (perPlatform) {
+        for (const platform of selected) {
+          const value = platformCaptions[platform]?.trim();
+          if (value) captions[platform] = value;
+        }
+      }
+
       const result = await createPublishPost({
         videoPath,
         title: title.trim() || null,
         caption: caption.trim() || null,
         hashtags: hashtags.trim() || null,
         platforms: Array.from(selected),
+        captions: Object.keys(captions).length > 0 ? captions : undefined,
         privacy,
         scheduledAt: scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       });
@@ -104,6 +125,8 @@ export function PublishComposer({ connected }: Props) {
       setCaption("");
       setHashtags("");
       setSelected(new Set());
+      setPerPlatform(false);
+      setPlatformCaptions({ instagram: "", facebook: "", tiktok: "", youtube: "" });
       setScheduled(false);
       setScheduledAt("");
       if (fileInput.current) fileInput.current.value = "";
@@ -209,6 +232,49 @@ export function PublishComposer({ connected }: Props) {
             Connect at least one platform on the Connections tab to start posting.
           </p>
         ) : null}
+      </div>
+
+      {/* Per-platform captions */}
+      <div className="space-y-3 rounded-xl border border-border bg-background p-4">
+        <Label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={perPlatform}
+            onChange={(e) => setPerPlatform(e.target.checked)}
+          />
+          Customize caption per platform
+        </Label>
+        {!perPlatform ? (
+          <p className="text-xs text-subtle">
+            Off — every selected platform uses the shared caption above. Turn on to write a
+            tailored caption for each one.
+          </p>
+        ) : selected.size === 0 ? (
+          <p className="text-xs text-amber-500">Select a platform above to customize its caption.</p>
+        ) : (
+          <div className="space-y-3">
+            {Array.from(selected).map((platform) => (
+              <div key={platform} className="space-y-1.5">
+                <Label htmlFor={`pub-caption-${platform}`} className="text-xs">
+                  {PLATFORM_LABELS[platform]} caption
+                </Label>
+                <Textarea
+                  id={`pub-caption-${platform}`}
+                  value={platformCaptions[platform]}
+                  onChange={(e) =>
+                    setPlatformCaptions((prev) => ({ ...prev, [platform]: e.target.value }))
+                  }
+                  placeholder={
+                    caption.trim()
+                      ? `Leave blank to use the shared caption…`
+                      : `Caption for ${PLATFORM_LABELS[platform]}…`
+                  }
+                  rows={2}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Privacy + scheduling */}
