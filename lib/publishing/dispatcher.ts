@@ -7,6 +7,7 @@
 // can't double-post. Used by both the "Post now" action and the cron worker.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { presignGetUrl } from "@/lib/storage/r2";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
 import {
   getConnection,
@@ -155,12 +156,14 @@ export async function dispatchPost(
 
   await admin.from("publish_posts").update({ status: "publishing" }).eq("id", postId);
 
-  // Sign the upload once for all targets.
-  const { data: signed, error: signErr } = await admin.storage
-    .from("publish-media")
-    .createSignedUrl(post.video_path, SIGNED_URL_TTL_SECONDS);
-  if (signErr || !signed?.signedUrl) {
-    throw new Error(`Could not sign the uploaded video: ${signErr?.message ?? "unknown"}`);
+  // Sign the R2 object once for all targets — the adapters hand this URL to each
+  // platform so they can pull the video bytes directly.
+  let signedVideoUrl: string;
+  try {
+    signedVideoUrl = await presignGetUrl(post.video_path, SIGNED_URL_TTL_SECONDS);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "unknown";
+    throw new Error(`Could not sign the uploaded video: ${message}`);
   }
 
   let published = 0;
@@ -185,7 +188,7 @@ export async function dispatchPost(
 
       const result = await ADAPTERS[job.platform].publish({
         content,
-        signedVideoUrl: signed.signedUrl,
+        signedVideoUrl,
         creds: resolved.creds,
         privacy: job.privacy,
       });
