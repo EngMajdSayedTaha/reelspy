@@ -13,9 +13,11 @@ import type { YouTubeAutomation } from "@/lib/auto-reply/types";
 
 // POLLING is the ONLY delivery mechanism for YouTube comment auto-reply —
 // unlike Instagram, the YouTube Data API has no push webhooks for comments.
-// Register this in vercel.json at a conservative cadence (every 15 min) to
-// respect the ~10,000 units/day quota: commentThreads.list = 1 unit per
-// automation per run, comments.insert = ~50 units per reply.
+// This endpoint is triggered every ~15 min by the GitHub Actions workflow
+// .github/workflows/poll-youtube-comments.yml (Vercel Hobby caps crons at once
+// a day, so the schedule lives in GitHub Actions instead). The cadence is kept
+// conservative to respect the ~10,000 units/day quota: commentThreads.list =
+// 1 unit per automation per run, comments.insert = ~50 units per reply.
 //
 // Overlap-safe: processYouTubeComment dedupes on the unique comment_id, so a
 // comment is only ever replied to once even if two runs race.

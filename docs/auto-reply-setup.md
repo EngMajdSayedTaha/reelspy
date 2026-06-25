@@ -148,8 +148,10 @@ comments**, so delivery is **poll-based**.
 ## How it differs from Instagram
 
 - **Polling, not webhooks.** The cron `/api/cron/poll-youtube-comments` lists
-  recent comments and posts replies. It's registered in `vercel.json` at
-  `*/15 * * * *` (every 15 min). Idempotency is the same as IG: the unique
+  recent comments and posts replies. Vercel Hobby caps crons at once a day, so
+  the `*/15 * * * *` (every 15 min) schedule runs from the GitHub Actions
+  workflow `.github/workflows/poll-youtube-comments.yml`, which hits the
+  endpoint with `CRON_SECRET`. Idempotency is the same as IG: the unique
   `youtube_automation_events.comment_id` means a comment is only replied once.
 - **New comments only.** A new automation only answers comments posted *after*
   it was created — the existing backlog is never touched (avoids quota burn and
@@ -178,7 +180,18 @@ flow now requests it, so:
 Requires `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REDIRECT_URI`
 (already set for publishing) and `CRON_SECRET` for the cron auth.
 
-### 3. Create an automation
+### 3. Enable the polling scheduler (GitHub Actions)
+
+The poll runs from `.github/workflows/poll-youtube-comments.yml` every ~15 min.
+In the repo, go to **Settings → Secrets and variables → Actions** and add:
+
+- Secret **`CRON_SECRET`** — the same value as the Vercel `CRON_SECRET` env var.
+- Variable **`APP_BASE_URL`** — `https://<your-production-domain>` (no trailing slash).
+
+The workflow runs on the default branch once merged. You can trigger it manually
+from the Actions tab (**Run workflow**) to verify before waiting for the schedule.
+
+### 4. Create an automation
 
 Dashboard → **Auto-Reply** → **YouTube Auto-Reply** → paste a video link (or the
 11-char id), choose keywords, and write the public reply templates.
