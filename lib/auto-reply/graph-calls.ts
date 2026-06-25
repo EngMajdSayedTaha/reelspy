@@ -87,6 +87,31 @@ export async function subscribePageToWebhooks(
   });
 }
 
+// Read back which Page webhook fields THIS app is currently subscribed to, so
+// the Automations UI can confirm `messages` (DM delivery) is actually active —
+// the #1 reason DM auto-reply silently doesn't fire. Returns the field list for
+// our app (matched by META_APP_ID when set, else the first subscription).
+export async function getPageSubscribedFields(
+  pageId: string,
+  pageToken: string
+): Promise<string[]> {
+  const url = new URL(`${GRAPH_BASE}/${pageId}/subscribed_apps`);
+  url.searchParams.set("access_token", pageToken);
+
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Instagram API error (${response.status}): ${text}`);
+  }
+
+  const json = (await response.json()) as {
+    data?: Array<{ id?: string; subscribed_fields?: string[] }>;
+  };
+  const appId = process.env.META_APP_ID;
+  const entry = appId ? json.data?.find((d) => d.id === appId) : json.data?.[0];
+  return entry?.subscribed_fields ?? [];
+}
+
 // Plain DM to an Instagram-scoped user id (the `sender.id` from a messaging
 // webhook). Uses the PAGE token. Replying to a just-received message is always
 // inside Meta's 24-hour messaging window.

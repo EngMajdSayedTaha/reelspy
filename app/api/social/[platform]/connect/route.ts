@@ -53,9 +53,11 @@ export async function GET(
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("response_type", "code");
+    // youtube.force-ssl is required to POST comment replies (the upload/readonly
+    // scopes can't write comments) — see the YouTube comment auto-reply module.
     url.searchParams.set(
       "scope",
-      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
+      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"
     );
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");

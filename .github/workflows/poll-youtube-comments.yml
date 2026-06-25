@@ -1,0 +1,36 @@
+name: Poll YouTube comments
+
+# Vercel Hobby only allows once-a-day cron jobs, so the YouTube comment
+# auto-reply poll runs from GitHub Actions instead of vercel.json. It calls the
+# same /api/cron/poll-youtube-comments endpoint a Vercel cron would have,
+# authenticated with CRON_SECRET (see lib/utils/cron.ts).
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#   Secret    CRON_SECRET   = the same value as the Vercel env var CRON_SECRET
+#   Variable  APP_BASE_URL  = https://<your-production-domain>   (no trailing slash)
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load,
+# so ~15 min is a target, not a guarantee. Scheduled workflows run on the
+# default branch only and auto-pause after 60 days of repo inactivity.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger YouTube comment poll
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "Missing CRON_SECRET secret or APP_BASE_URL variable — see workflow header." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/poll-youtube-comments"
