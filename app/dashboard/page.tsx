@@ -129,7 +129,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <Button asChild variant="outline">
-            <Link href="/dashboard/settings/instagram">
+            <Link href="/dashboard/connections">
               <Plug className="h-4 w-4" />
               Connect
             </Link>
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
           label="Instagram"
           value={igConnected ? "Connected" : "Offline"}
           icon={Plug}
-          href="/dashboard/settings/instagram"
+          href="/dashboard/connections"
         />
         <StatCard
           label="Reels Worked On"

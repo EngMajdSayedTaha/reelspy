@@ -11,6 +11,7 @@ import {
   MessageCircleReply,
   Calendar,
   Send,
+  Plug,
   Settings,
   AtSign,
   X,
@@ -34,7 +35,8 @@ const links: NavLink[] = [
   { href: "/dashboard/automations", label: "Auto-Reply", icon: MessageCircleReply },
   { href: "/dashboard/publishing", label: "Publishing", icon: Send },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-  { href: "/dashboard/settings/instagram", label: "Settings", icon: Settings },
+  { href: "/dashboard/connections", label: "Connections", icon: Plug },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string): boolean {

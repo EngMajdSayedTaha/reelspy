@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { AutomationCard } from "@/components/automations/AutomationCard";
 import { AutomationForm } from "@/components/automations/AutomationForm";
@@ -163,25 +164,38 @@ export default async function AutomationsPage() {
 
   const igBanner = !connected ? (
     <Notice>
-      Connect your Instagram account first (Settings → Instagram). Auto-Reply needs an Instagram
-      Business/Creator account linked to a Facebook Page.
+      Connect your Instagram account first on the{" "}
+      <Link href="/dashboard/connections" className="font-medium underline">
+        Connections
+      </Link>{" "}
+      page. Auto-Reply needs an Instagram Business/Creator account linked to a Facebook Page.
     </Notice>
   ) : needsReconnect ? (
     <Notice>
-      Your connection predates Auto-Reply. Go to Settings → Instagram and{" "}
-      <span className="font-medium">reconnect</span> to grant the comment & messaging permissions and
-      activate webhook delivery — until then, automations won&apos;t fire.
+      Your connection predates Auto-Reply. Go to{" "}
+      <Link href="/dashboard/connections" className="font-medium underline">
+        Connections
+      </Link>{" "}
+      and <span className="font-medium">reconnect</span> to grant the comment &amp; messaging
+      permissions and activate webhook delivery — until then, automations won&apos;t fire.
     </Notice>
   ) : null;
 
   const ytBanner = !ytConnected ? (
     <Notice>
-      Connect your YouTube channel first (Publishing → Connections) to enable comment auto-reply.
+      Connect your YouTube channel first on the{" "}
+      <Link href="/dashboard/connections" className="font-medium underline">
+        Connections
+      </Link>{" "}
+      page to enable comment auto-reply.
     </Notice>
   ) : ytNeedsReconnect ? (
     <Notice>
-      Your YouTube connection predates comment auto-reply. Go to Publishing → Connections and{" "}
-      <span className="font-medium">reconnect</span> to grant the comment permission
+      Your YouTube connection predates comment auto-reply. Go to{" "}
+      <Link href="/dashboard/connections" className="font-medium underline">
+        Connections
+      </Link>{" "}
+      and <span className="font-medium">reconnect</span> to grant the comment permission
       (youtube.force-ssl) — until then, replies can&apos;t be posted.
     </Notice>
   ) : null;

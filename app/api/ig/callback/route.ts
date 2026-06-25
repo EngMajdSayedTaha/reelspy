@@ -26,16 +26,16 @@ export async function GET(request: NextRequest) {
   const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
 
   if (error) {
-    return NextResponse.redirect(new URL(`/dashboard/settings/instagram?error=${error}`, request.url));
+    return NextResponse.redirect(new URL(`/dashboard/connections?error=${error}`, request.url));
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/dashboard/settings/instagram?error=missing_code", request.url));
+    return NextResponse.redirect(new URL("/dashboard/connections?error=missing_code", request.url));
   }
 
   if (!state || !expectedState || state !== expectedState) {
     const invalidStateResponse = NextResponse.redirect(
-      new URL("/dashboard/settings/instagram?error=invalid_state", request.url)
+      new URL("/dashboard/connections?error=invalid_state", request.url)
     );
     invalidStateResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return invalidStateResponse;
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     if (!igAccount) {
       const noAccountResponse = NextResponse.redirect(
-        new URL("/dashboard/settings/instagram?error=no_ig_business_account", request.url)
+        new URL("/dashboard/connections?error=no_ig_business_account", request.url)
       );
       noAccountResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return noAccountResponse;
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     } catch (updateError) {
       console.error("Failed to update profile with IG token", updateError);
       const profileUpdateResponse = NextResponse.redirect(
-        new URL("/dashboard/settings/instagram?error=profile_update_failed", request.url)
+        new URL("/dashboard/connections?error=profile_update_failed", request.url)
       );
       profileUpdateResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return profileUpdateResponse;
@@ -124,13 +124,13 @@ export async function GET(request: NextRequest) {
     if (accountError) {
       console.error("Failed to create connected IG account row", accountError);
       const accountResponse = NextResponse.redirect(
-        new URL("/dashboard/settings/instagram?error=account_link_failed", request.url)
+        new URL("/dashboard/connections?error=account_link_failed", request.url)
       );
       accountResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return accountResponse;
     }
 
-    const successUrl = new URL("/dashboard/settings/instagram?success=connected", request.url);
+    const successUrl = new URL("/dashboard/connections?success=connected", request.url);
     if (webhookWarning) {
       successUrl.searchParams.set("warning", webhookWarning);
     }
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
     console.error("Instagram callback failed", callbackError);
     const raw = callbackError instanceof Error ? callbackError.message : String(callbackError);
     const friendly = parseGraphError(raw);
-    const target = new URL("/dashboard/settings/instagram", request.url);
+    const target = new URL("/dashboard/connections", request.url);
     target.searchParams.set("error", "oauth_failed");
     if (friendly) {
       target.searchParams.set("detail", friendly.slice(0, 200));

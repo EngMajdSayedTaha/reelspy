@@ -10,7 +10,7 @@ import { isPlatform, type Platform } from "@/lib/publishing/types";
 // see the token columns — see 20260621_publishing.sql).
 
 const STATE_COOKIE = "reelspy_social_oauth_state";
-const SETTINGS = "/dashboard/publishing/connections";
+const SETTINGS = "/dashboard/connections";
 
 function fail(request: NextRequest, code: string) {
   const res = NextResponse.redirect(new URL(`${SETTINGS}?error=${code}`, request.url));
