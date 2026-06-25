@@ -29,18 +29,6 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   return (await response.json()) as T;
 }
 
-// Like (heart) a comment. Uses the long-lived USER token.
-//
-// NOTE: Meta only added comment-liking to the official API in 2026 and the
-// docs around it are thin — callers must treat this as best-effort and never
-// let a failure block the reply/DM steps. If the endpoint is rejected
-// ("nonexisting field"-style errors), the event log captures Meta's message.
-export async function likeComment(commentId: string, userToken: string): Promise<void> {
-  await postJson(`${GRAPH_BASE}/${commentId}/likes`, {
-    access_token: userToken,
-  });
-}
-
 // Public reply under a comment. Uses the long-lived USER token.
 // Returns the new reply's comment id.
 export async function replyToComment(
