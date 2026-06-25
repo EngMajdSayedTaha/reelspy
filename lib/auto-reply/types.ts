@@ -30,8 +30,6 @@ export type AutomationEvent = {
   commenter_id: string | null;
   commenter_username: string | null;
   matched_keyword: string | null;
-  like_status: AutomationEventStatus;
-  like_error: string | null;
   public_reply_status: AutomationEventStatus;
   public_reply_error: string | null;
   dm_status: AutomationEventStatus;

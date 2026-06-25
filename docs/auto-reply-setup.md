@@ -3,24 +3,13 @@
 The Auto-Reply module links one of **your own reels** to keywords. When a
 follower comments a matching keyword, ReelSpy:
 
-1. **likes (hearts)** the comment — best-effort; see note below,
-2. posts a **public reply** under the comment (rotating templates, e.g. "Check your DMs 📩"), and
-3. sends the follower a **private reply DM** with your message + link.
+1. posts a **public reply** under the comment (rotating templates, e.g. "Check your DMs 📩"), and
+2. sends the follower a **private reply DM** with your message + link.
 
 It also supports **DM keyword automations**: when someone sends your account a
 direct message matching your keywords (or any message, with a once-per-24h
 per-person cooldown), they get an automatic reply + link. Story replies are
 deliberately ignored. Requires the `messages` webhook field (setup step 6).
-
-> **Note on likes:** liking a comment/media is **not exposed on the Facebook
-> Login Graph API path** this app uses — `POST /{id}/likes` returns
-> `GraphMethodException` (code 100 / subcode 33, "does not support this
-> operation") for comments *and* media, with both the user and the page token.
-> The like step is therefore best-effort and, when Meta rejects it as
-> unsupported, the Activity log records it as `skipped` (not `failed`) while the
-> reply and DM proceed normally. If Meta ever enables the edge for this
-> connection it will start reporting `sent` automatically. To turn the attempt
-> off entirely, set `AUTO_REPLY_LIKE_DISABLED=1` in the environment.
 
 Everything runs on Meta's official Graph API — 100% free. Because only your
 own account uses the app (you are the app admin), **Standard Access is enough:
