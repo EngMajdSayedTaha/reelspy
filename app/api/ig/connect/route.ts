@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
   if (!appId || !appSecret || !redirectUri) {
     return NextResponse.redirect(
-      new URL("/dashboard/settings/instagram?error=meta_env_missing", request.url)
+      new URL("/dashboard/connections?error=meta_env_missing", request.url)
     );
   }
 

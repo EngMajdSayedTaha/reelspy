@@ -123,7 +123,7 @@ export default async function MyAccountPage() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="sm">
-            <Link href="/dashboard/settings/instagram">Manage Connection</Link>
+            <Link href="/dashboard/connections">Manage Connection</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/dashboard/feed">Go to Feed</Link>
@@ -140,8 +140,8 @@ export default async function MyAccountPage() {
       {!connected ? (
         <div className="rounded-xl border border-dashed border-border-strong p-5 text-sm text-muted-foreground">
           Connect your Instagram account in{" "}
-          <Link href="/dashboard/settings/instagram" className="text-brand hover:underline">
-            Settings
+          <Link href="/dashboard/connections" className="text-brand hover:underline">
+            Connections
           </Link>{" "}
           to see analytics here.
         </div>

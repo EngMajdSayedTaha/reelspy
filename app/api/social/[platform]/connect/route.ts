@@ -9,7 +9,7 @@ import { isPlatform } from "@/lib/publishing/types";
 // provider's consent screen, verify on the way back in the callback.
 
 const STATE_COOKIE = "reelspy_social_oauth_state";
-const SETTINGS = "/dashboard/publishing/connections";
+const SETTINGS = "/dashboard/connections";
 
 export async function GET(
   request: Request,

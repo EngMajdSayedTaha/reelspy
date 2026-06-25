@@ -102,7 +102,7 @@ export default async function PublishingPage() {
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/dashboard/publishing/connections">
+          <Link href="/dashboard/connections">
             <Settings2 className="h-4 w-4" /> Connections
           </Link>
         </Button>
