@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchPost } from "@/lib/publishing/dispatcher";
+import { deleteR2Object } from "@/lib/storage/r2";
 import { getConnection } from "@/lib/publishing/token-store";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
 import { PLATFORMS, type Platform } from "@/lib/publishing/types";
@@ -152,9 +153,13 @@ export async function deletePost(postId: string): Promise<void> {
     .maybeSingle();
   if (!post || post.user_id !== user.id) throw new Error("Post not found.");
 
-  // Remove the uploaded object too (best-effort), then the row (jobs cascade).
+  // Remove the uploaded R2 object too (best-effort), then the row (jobs cascade).
   if (post.video_path) {
-    await admin.storage.from("publish-media").remove([post.video_path]);
+    try {
+      await deleteR2Object(post.video_path);
+    } catch {
+      // Don't block post deletion if the object is already gone / R2 hiccups.
+    }
   }
   await admin.from("publish_posts").delete().eq("id", postId);
 

@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { createClient } from "@/lib/supabase/client";
 import { notifyError, requestJson } from "@/lib/utils/api";
 import { PLATFORMS, PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
 import { PublishPreview } from "@/components/publishing/PublishPreview";
@@ -58,23 +57,30 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
     });
   }
 
-  // Upload the file straight to Storage via a one-time signed URL, returning the
-  // object path the post will reference.
+  // Upload the file straight to Cloudflare R2 via a one-time presigned PUT URL,
+  // returning the object path the post will reference. The bytes go directly to
+  // R2 (no server hop, no Supabase 50 MB cap), which is what fixes the 413.
   async function uploadVideo(video: File): Promise<string> {
-    const { path, token } = await requestJson<{ path: string; token: string }>(
+    const contentType = video.type || "video/mp4";
+    const { path, uploadUrl } = await requestJson<{ path: string; uploadUrl: string }>(
       "/api/publishing/upload",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: video.type || "video/mp4", fileName: video.name }),
+        body: JSON.stringify({ contentType, fileName: video.name }),
       }
     );
 
-    const supabase = createClient();
-    const { error } = await supabase.storage
-      .from("publish-media")
-      .uploadToSignedUrl(path, token, video);
-    if (error) throw new Error(error.message);
+    // Content-Type isn't part of the presigned signature (host-only), so this is
+    // just stored as the object's content type on R2.
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: video,
+    });
+    if (!res.ok) {
+      throw new Error(`Upload failed (${res.status}). Please try again.`);
+    }
     return path;
   }
 

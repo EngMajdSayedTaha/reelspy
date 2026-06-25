@@ -33,10 +33,10 @@ Apply the publishing migration to your Supabase project:
 supabase db push          # or run supabase/migrations/20260621_publishing.sql
 ```
 
-It creates `social_connections`, `publish_posts`, `publish_jobs`, and a private
-Storage bucket named **`publish-media`** (with per-user RLS). After it runs,
-confirm in Supabase → Storage that the `publish-media` bucket exists and is
-**not public**.
+It creates `social_connections`, `publish_posts`, and `publish_jobs`. (The
+migration also defines a Supabase `publish-media` Storage bucket, but uploaded
+**video bytes now live in Cloudflare R2** — see the next step. The bucket is no
+longer used by the upload flow and can be ignored.)
 
 Set the cron secret so the scheduler can run (already used by the other crons):
 
@@ -46,6 +46,51 @@ CRON_SECRET=<long random string>
 
 The scheduled-post worker is `/api/cron/publish-due` (registered in
 `vercel.json`, runs every 15 minutes).
+
+---
+
+## 1b. Video storage — Cloudflare R2
+
+Uploaded videos are stored in a private **Cloudflare R2** bucket. The browser
+uploads each file **straight to R2** with a one-time presigned URL, so the bytes
+never pass through the serverless function — and R2 has no per-file size cap,
+which is what fixes the **413 "payload too large"** you'd hit on real-size reels
+with Supabase Storage's 50 MB limit.
+
+1. In the Cloudflare dashboard → **R2** → **Create bucket** (e.g.
+   `publish-media`). Keep it **private** (no public access needed — we use
+   presigned URLs).
+2. **R2 → Manage R2 API Tokens → Create API token** with **Object Read & Write**
+   permission for that bucket. Copy the **Access Key ID** and **Secret Access
+   Key**.
+3. Find your **Account ID** (R2 overview page, or the endpoint subdomain
+   `https://<account-id>.r2.cloudflarestorage.com`).
+4. Add a **CORS policy** to the bucket (R2 → your bucket → **Settings → CORS
+   Policy**) so the browser's presigned PUT is allowed from your app origin:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://<your-domain>", "http://localhost:3000"],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedHeaders": ["content-type"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+5. Set these env vars (in Vercel → Project → Settings → Environment Variables,
+   and your local `.env`):
+
+   ```
+   R2_ACCOUNT_ID=<cloudflare account id>
+   R2_ACCESS_KEY_ID=<r2 token access key id>
+   R2_SECRET_ACCESS_KEY=<r2 token secret access key>
+   R2_BUCKET=publish-media
+   ```
+
+That's it — no public bucket, no custom domain. The platform adapters fetch each
+video from R2 via a short-lived presigned GET URL at publish time.
 
 ---
 
@@ -150,7 +195,8 @@ units, so about **6 uploads/day** until you request more in the audit.
 
 ## 5. Going-live checklist
 
-- [ ] Migration applied; `publish-media` bucket exists and is private.
+- [ ] Migration applied (`social_connections`, `publish_posts`, `publish_jobs`).
+- [ ] Cloudflare R2 bucket created (private) + CORS rule + `R2_*` env vars set.
 - [ ] `CRON_SECRET` set; `/api/cron/publish-due` scheduled.
 - [ ] Instagram + Facebook connected (public posting works, no review).
 - [ ] TikTok connected (private now) → audit passed → `TIKTOK_ALLOW_PUBLIC=true`.
