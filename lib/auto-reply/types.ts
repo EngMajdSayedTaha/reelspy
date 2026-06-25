@@ -108,3 +108,49 @@ export type MessagingWebhookEvent = {
     attachments?: Array<{ type?: string }>;
   };
 };
+
+// ── YouTube comment automations ───────────────────────────────────────────────
+// The YouTube analogue of ReelAutomation: link a video to keywords and post a
+// public reply when a matching top-level comment appears. Comments-only —
+// YouTube has no DMs.
+
+export type YouTubeAutomation = {
+  id: string;
+  user_id: string;
+  connection_id: string | null;
+  video_id: string;
+  video_title: string | null;
+  keywords: string[];
+  match_mode: MatchMode;
+  public_reply_templates: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type YouTubeAutomationEvent = {
+  id: string;
+  automation_id: string | null;
+  comment_id: string;
+  video_id: string | null;
+  comment_text: string | null;
+  commenter_name: string | null;
+  matched_keyword: string | null;
+  reply_status: AutomationEventStatus;
+  reply_error: string | null;
+  created_at: string;
+  processed_at: string | null;
+};
+
+// A top-level comment on a video, as the processor consumes it.
+export type YouTubeComment = {
+  /** The top-level comment id — used both as the dedupe lock and the reply parentId. */
+  id: string;
+  text: string;
+  authorName: string | null;
+  /** Channel id of the comment's author; lets us skip the owner's own comments. */
+  authorChannelId: string | null;
+  publishedAt: string | null;
+  /** False when the thread is locked / replies disabled. */
+  canReply: boolean;
+};

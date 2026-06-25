@@ -120,6 +120,11 @@ the public reply templates, your DM message, and the link. Done.
   the page re-subscribes. (The page-level `subscribed_apps` already lists
   `messages` after a reconnect; the gap is almost always the Instagram-object
   field subscription or the IG toggle.)
+  - **Shortcut:** the Auto-Reply page now has a **"DM delivery check"** panel.
+    Its **Re-subscribe & check** button re-runs the page subscription (no full
+    reconnect needed) and reads the fields back, so it tells you immediately
+    whether Meta reports the `messages` field as active. Use it after toggling
+    the two manual steps above.
 - **DM fails with "already sent":** expected — Meta allows one private reply
   per comment.
 - **DM fails with a permissions error:** the reconnect didn't grant
@@ -130,3 +135,71 @@ the public reply templates, your DM message, and the link. Done.
   Schedule it by adding to `vercel.json`:
   `{ "path": "/api/cron/poll-comments", "schedule": "*/10 * * * *" }`
   (note: Vercel Hobby plan only allows daily cron schedules).
+
+---
+
+# YouTube Comment Auto-Reply
+
+A separate automation that posts a **public reply** to comments on **your own
+YouTube videos** when they match your keywords. Comments-only — YouTube has no
+DMs. Unlike Instagram, the YouTube Data API has **no push webhooks for
+comments**, so delivery is **poll-based**.
+
+## How it differs from Instagram
+
+- **Polling, not webhooks.** The cron `/api/cron/poll-youtube-comments` lists
+  recent comments and posts replies. It's registered in `vercel.json` at
+  `*/15 * * * *` (every 15 min). Idempotency is the same as IG: the unique
+  `youtube_automation_events.comment_id` means a comment is only replied once.
+- **New comments only.** A new automation only answers comments posted *after*
+  it was created — the existing backlog is never touched (avoids quota burn and
+  spamming old threads).
+- **Quota.** Default YouTube quota is 10,000 units/day. `commentThreads.list`
+  costs 1 unit per automation per run; `comments.insert` costs ~50 units per
+  reply. The 15-min cadence keeps a normal account well under budget.
+
+## One-time setup
+
+### 1. Apply the migration
+
+Run `supabase/migrations/20260625_youtube_auto_reply.sql` (creates
+`youtube_automations` + `youtube_automation_events`).
+
+### 2. Connect / reconnect YouTube with the comment scope
+
+Posting a reply needs the **`https://www.googleapis.com/auth/youtube.force-ssl`**
+scope — the upload/readonly scopes alone **cannot write comments**. The connect
+flow now requests it, so:
+
+- **New connections:** just connect YouTube in Publishing → Connections.
+- **Existing connections:** **reconnect** to grant `youtube.force-ssl`. The
+  Auto-Reply page shows a banner prompting this until the scope is present.
+
+Requires `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REDIRECT_URI`
+(already set for publishing) and `CRON_SECRET` for the cron auth.
+
+### 3. Create an automation
+
+Dashboard → **Auto-Reply** → **YouTube Auto-Reply** → paste a video link (or the
+11-char id), choose keywords, and write the public reply templates.
+
+## Verifying it works
+
+1. Reconnect YouTube and confirm `social_connections.scopes` includes
+   `youtube.force-ssl`.
+2. Create an automation on a test video; from a **second** Google account post a
+   comment containing a keyword.
+3. Trigger the cron with the secret:
+   `curl -H "Authorization: Bearer <CRON_SECRET>" "https://<domain>/api/cron/poll-youtube-comments"`
+   → response shows `actioned >= 1`, a row appears under **YouTube Activity** as
+   `sent`, and the reply is visible under the comment on YouTube.
+4. Re-run the cron → the same comment is **not** replied to again (idempotency).
+
+## Troubleshooting
+
+- **Reply fails with a permissions error:** the connection lacks
+  `youtube.force-ssl` — reconnect YouTube. Auth failures (401/403) flag the
+  connection `invalid`, and the page prompts a reconnect.
+- **Nothing happens:** confirm the cron is scheduled/triggered and the comment
+  was posted *after* the automation was created (older comments are skipped by
+  design).
