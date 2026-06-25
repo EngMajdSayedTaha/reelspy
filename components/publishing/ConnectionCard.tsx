@@ -1,11 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Link2, Unplug, RefreshCw, AtSign, type LucideIcon } from "lucide-react";
+import { Link2, Unplug, RefreshCw, Camera, ThumbsUp, Music2, PlayCircle, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError, requestJson } from "@/lib/utils/api";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+
+// Icons live here (a client component) rather than being passed in as props —
+// component functions can't cross the Server→Client boundary.
+const PLATFORM_ICONS: Record<Platform, LucideIcon> = {
+  instagram: Camera,
+  facebook: ThumbsUp,
+  tiktok: Music2,
+  youtube: PlayCircle,
+};
 
 type Props = {
   platform: Platform;
@@ -22,8 +31,6 @@ type Props = {
   // Status subline shown when connected (expiry, last renewal, …). Falls back
   // to the handle when omitted.
   detail?: ReactNode;
-  // Optional brand icon for the card avatar.
-  icon?: LucideIcon;
   // When the platform isn't configured on the server, disable the connect CTA.
   disabled?: boolean;
   // Extra full-width content under the header (setup details, warnings).
@@ -41,13 +48,13 @@ export function ConnectionCard({
   disconnectHref,
   note,
   detail,
-  icon: Icon = AtSign,
   disabled = false,
   children,
   disconnectConfirm,
 }: Props) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
+  const Icon = PLATFORM_ICONS[platform];
 
   const badge = !connected
     ? { label: "Not connected", cls: "border-border-strong bg-border-strong/50 text-muted-foreground" }
