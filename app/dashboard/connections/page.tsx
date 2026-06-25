@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Camera, ThumbsUp, Music2, PlayCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { ConnectionCard } from "@/components/publishing/ConnectionCard";
 
@@ -133,7 +133,6 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
         {/* Instagram + Facebook share the Meta OAuth flow. */}
         <ConnectionCard
           platform="instagram"
-          icon={Camera}
           connected={igConnected}
           handle={profile?.username ? `@${profile.username}` : null}
           needsReconnect={igNeedsReconnect}
@@ -187,7 +186,6 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
 
         <ConnectionCard
           platform="facebook"
-          icon={ThumbsUp}
           connected={Boolean(profile?.fb_page_id)}
           handle={profile?.fb_page_id ? "Page connected" : null}
           needsReconnect={igNeedsReconnect}
@@ -198,7 +196,6 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
 
         <ConnectionCard
           platform="tiktok"
-          icon={Music2}
           connected={Boolean(tiktok)}
           handle={tiktok?.account_username ? `@${tiktok.account_username}` : null}
           needsReconnect={tiktok?.token_status === "invalid"}
@@ -209,7 +206,6 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
 
         <ConnectionCard
           platform="youtube"
-          icon={PlayCircle}
           connected={Boolean(youtube)}
           handle={youtube?.account_name ?? null}
           needsReconnect={youtube?.token_status === "invalid"}
