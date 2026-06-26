@@ -31,7 +31,7 @@ export function EventLog({ events }: EventLogProps) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full text-left text-sm">
+      <table className="w-full min-w-[680px] text-left text-sm">
         <thead>
           <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
             <th className="px-4 py-3 font-medium">When</th>

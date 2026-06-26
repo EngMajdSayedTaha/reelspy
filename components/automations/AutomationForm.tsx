@@ -286,9 +286,14 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        {error ? <p className="text-sm text-rose-400">{error}</p> : <span />}
-        <Button type="button" onClick={submit} disabled={isPending || loadingReels}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        {error ? <p className="text-sm text-rose-400">{error}</p> : <span className="hidden sm:block" />}
+        <Button
+          type="button"
+          onClick={submit}
+          disabled={isPending || loadingReels}
+          className="w-full sm:w-auto"
+        >
           {isPending ? "Creating…" : "Create Automation"}
         </Button>
       </div>

@@ -142,9 +142,9 @@ export default async function PublishingPage() {
                   {post.publish_jobs.map((job) => (
                     <div
                       key={job.id}
-                      className="flex flex-col gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5"
+                      className="flex min-w-0 max-w-full flex-col gap-1 rounded-lg border border-border bg-background px-2.5 py-1.5"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-medium text-foreground">
                           {PLATFORM_LABELS[job.platform]}
                         </span>
@@ -162,14 +162,17 @@ export default async function PublishingPage() {
                         ) : null}
                         {job.status === "failed" ? <RetryButton jobId={job.id} /> : null}
                         {job.status === "failed" && job.error_message ? (
-                          <span className="max-w-[16rem] truncate text-xs text-rose-400" title={job.error_message}>
+                          <span
+                            className="max-w-full truncate text-xs text-rose-400 sm:max-w-[16rem]"
+                            title={job.error_message}
+                          >
                             {job.error_message}
                           </span>
                         ) : null}
                       </div>
                       {job.caption ? (
                         <span
-                          className="max-w-[16rem] truncate text-[11px] text-muted-foreground"
+                          className="max-w-full truncate text-[11px] text-muted-foreground sm:max-w-[16rem]"
                           title={job.caption}
                         >
                           ✎ {job.caption}
