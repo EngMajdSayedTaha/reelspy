@@ -59,7 +59,9 @@ create table tracked_reels (
   like_count bigint default 0,
   comment_count bigint default 0,
   viral_score numeric generated always as (
-    (like_count * 1.0) + (comment_count * 3.0) + (view_count * 0.01)
+    (coalesce(like_count, 0) * 1.0)
+    + (coalesce(comment_count, 0) * 3.0)
+    + (coalesce(view_count, 0) * 0.01)
   ) stored,
   is_worked_on boolean default false,
   worked_on_at timestamptz,
