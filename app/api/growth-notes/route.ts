@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { generateGrowthNotes } from "@/lib/ai/claude";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
+import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 export async function POST() {
   const supabase = await createClient();
@@ -14,6 +15,14 @@ export async function POST() {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limit = await consumeUserAction(supabase, user.id, "growth_notes");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: rateLimitMessage("growth_notes", limit.retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
   }
 
   const credentials = await getIgCredentials(createAdminClient(), user.id).catch(() => null);

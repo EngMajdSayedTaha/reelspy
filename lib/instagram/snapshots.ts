@@ -221,26 +221,53 @@ export async function materializeForUser(
     if (!error) inserted = inserts.length;
   }
 
-  // Metric refreshes are independent per reel — run them concurrently instead
-  // of serially (one round-trip each adds up fast across many accounts).
-  const updateResults = await Promise.all(
-    rows
-      .filter((r) => existingIds.has(r.ig_media_id))
-      .map((r) =>
-        db
-          .from("tracked_reels")
-          .update({
-            view_count: r.view_count ?? 0,
-            like_count: r.like_count ?? 0,
-            comment_count: r.comment_count ?? 0,
-            thumbnail_url: r.thumbnail_url,
-          })
-          .eq("user_id", userId)
-          .eq("account_id", accountId)
-          .eq("ig_media_id", r.ig_media_id)
-      )
-  );
-  const updated = updateResults.filter((r) => !r.error).length;
+  // Refresh public metrics on the reels this user already has. One bulk RPC
+  // applies the whole batch in a single round-trip (it ran as N concurrent
+  // UPDATEs before — one network hop per reel, which adds up across accounts).
+  const updates = rows
+    .filter((r) => existingIds.has(r.ig_media_id))
+    .map((r) => ({
+      ig_media_id: r.ig_media_id,
+      view_count: r.view_count ?? 0,
+      like_count: r.like_count ?? 0,
+      comment_count: r.comment_count ?? 0,
+      thumbnail_url: r.thumbnail_url,
+    }));
+
+  let updated = 0;
+  if (updates.length > 0) {
+    const { data: bulkCount, error: bulkError } = await db.rpc(
+      "bulk_update_tracked_reel_metrics",
+      { p_account_id: accountId, p_rows: updates }
+    );
+
+    if (bulkError) {
+      // Fall back to per-reel updates if the RPC isn't provisioned yet
+      // (migration not applied) — never let a sync fail on this optimization.
+      console.warn(
+        "[snapshots] bulk_update_tracked_reel_metrics failed; falling back:",
+        bulkError.message
+      );
+      const updateResults = await Promise.all(
+        updates.map((u) =>
+          db
+            .from("tracked_reels")
+            .update({
+              view_count: u.view_count,
+              like_count: u.like_count,
+              comment_count: u.comment_count,
+              thumbnail_url: u.thumbnail_url,
+            })
+            .eq("user_id", userId)
+            .eq("account_id", accountId)
+            .eq("ig_media_id", u.ig_media_id)
+        )
+      );
+      updated = updateResults.filter((r) => !r.error).length;
+    } else {
+      updated = typeof bulkCount === "number" ? bulkCount : updates.length;
+    }
+  }
 
   return { inserted, updated };
 }

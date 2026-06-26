@@ -2,11 +2,32 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { processReel } from "@/lib/media/pipeline";
+import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Transcription providers are async and polled, so allow a generous budget.
 // Vercel clamps this to the plan's maximum function duration.
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+// Leave headroom under maxDuration so we can mark the reel "failed" and respond
+// before Vercel hard-kills the function (which would otherwise strand the row on
+// "pending"). A rejection here flows into the same catch that marks failure.
+const PIPELINE_DEADLINE_MS = 280_000;
+
+class TranscriptTimeoutError extends Error {
+  constructor() {
+    super("transcription timed out");
+    this.name = "TranscriptTimeoutError";
+  }
+}
+
+function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new TranscriptTimeoutError()), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
 
 const bodySchema = z
   .object({
@@ -127,6 +148,16 @@ export async function POST(request: Request, { params }: RouteContext) {
     );
   }
 
+  // Throttle only genuine pipeline runs (cache hits / in-flight reuses above
+  // don't reach here), so a loop can't burn yt-dlp/Whisper compute.
+  const limit = await consumeUserAction(supabase, user.id, "transcript");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: rateLimitMessage("transcript", limit.retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
   // Mark in-flight (best effort — failures here should not block the request).
   await supabase
     .from("tracked_reels")
@@ -134,8 +165,35 @@ export async function POST(request: Request, { params }: RouteContext) {
     .eq("id", reel.id)
     .eq("user_id", user.id);
 
-  // Extract reel metadata + direct media URL via yt-dlp, then transcribe with Whisper.
-  const result = await processReel(reel.ig_permalink);
+  // Extract reel metadata + direct media URL via yt-dlp, then transcribe with
+  // Whisper. If the pipeline throws (network error, OOM) the status would
+  // otherwise stay stuck on "pending" forever, so a throw is treated as a
+  // terminal failure — the same as a clean non-ready result.
+  let result: Awaited<ReturnType<typeof processReel>>;
+  try {
+    result = await withDeadline(processReel(reel.ig_permalink), PIPELINE_DEADLINE_MS);
+  } catch (err) {
+    const timedOut = err instanceof TranscriptTimeoutError;
+    console.error(
+      `[transcript] reel=${reel.id} ${timedOut ? "timed out" : "pipeline threw"}:`,
+      err
+    );
+    await supabase
+      .from("tracked_reels")
+      .update({ transcript_status: "failed" })
+      .eq("id", reel.id)
+      .eq("user_id", user.id);
+
+    return NextResponse.json(
+      {
+        error: timedOut
+          ? "This reel took too long to transcribe. Shorter reels work best — please try again."
+          : friendlyTranscriptError(""),
+        status: "failed",
+      },
+      { status: timedOut ? 504 : 502 }
+    );
+  }
 
   if (result.status !== "ready") {
     // The raw reason (provider names, API bodies) stays in the server logs;

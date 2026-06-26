@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript } from "@/lib/ai/claude";
+import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Length caps bound what flows into the model prompt and the database — an
 // unbounded caption/context would let a single request burn arbitrary tokens.
@@ -23,6 +24,15 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Throttle per user so a loop can't burn Anthropic quota.
+  const limit = await consumeUserAction(supabase, user.id, "generate_script");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: rateLimitMessage("generate_script", limit.retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
   }
 
   const rawBody = await request.json().catch(() => ({}));
