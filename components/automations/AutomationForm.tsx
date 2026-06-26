@@ -154,7 +154,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <Label htmlFor="automation_reel">Reel</Label>
@@ -181,7 +181,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                 reels yet.
               </p>
             ) : (
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 {selected?.thumbnail_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -196,7 +196,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                   value={mediaId}
                   disabled={isPending}
                   onChange={(e) => setMediaId(e.target.value)}
-                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                  className="h-9 w-full min-w-0 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                 >
                   <option value="">Pick a reel…</option>
                   {reels.map((reel) => (
@@ -248,7 +248,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="automation_templates">Public replies (one per line, rotated)</Label>
             <Textarea

@@ -68,7 +68,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="dm_automation_match_mode">Match</Label>
             <select
@@ -107,7 +107,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="dm_automation_reply">Reply message</Label>
             <Textarea
