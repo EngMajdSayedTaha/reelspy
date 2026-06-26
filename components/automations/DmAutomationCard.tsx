@@ -95,7 +95,7 @@ export function DmAutomationCard({
 
   return (
     <article
-      className={`space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
+      className={`min-w-0 space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
         isActive
           ? "border-border bg-card hover:border-border-strong"
           : "border-amber-500/40 border-dashed bg-background opacity-80"
@@ -184,7 +184,7 @@ export function DmAutomationCard({
         </div>
       ) : (
         <>
-          <p className="line-clamp-2 text-xs text-subtle">
+          <p className="line-clamp-2 break-words text-xs text-subtle">
             Reply: {automation.reply_message}
             {automation.reply_link ? ` · ${automation.reply_link}` : ""}
           </p>

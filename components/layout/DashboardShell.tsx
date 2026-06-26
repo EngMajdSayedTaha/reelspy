@@ -23,8 +23,15 @@ export function DashboardShell({
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
         <main className="min-h-screen lg:ml-[240px]">
           <TopBar onMenu={() => setSidebarOpen(true)} />
-          {/* Keyed by route so every page entrance replays the fade-up. */}
-          <section key={pathname} className="animate-rise p-4 sm:p-6 lg:p-8">
+          {/* Keyed by route so every page entrance replays the fade-up.
+              `overflow-x-clip` + `min-w-0` are a mobile safety net: no page can
+              push the layout wider than the viewport (which on phones shows up
+              as content squeezed to one side with empty space beside it).
+              `clip` (not `hidden`) keeps sticky descendants working. */}
+          <section
+            key={pathname}
+            className="animate-rise min-w-0 overflow-x-clip p-4 sm:p-6 lg:p-8"
+          >
             {children}
           </section>
         </main>

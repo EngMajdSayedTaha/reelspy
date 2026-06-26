@@ -74,7 +74,7 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <Label htmlFor="yt_automation_video">Video link or id</Label>
             <Input
@@ -117,7 +117,7 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {matchMode === "any" ? (
             <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               Every new comment on this video gets a reply — your channel&apos;s own comments are

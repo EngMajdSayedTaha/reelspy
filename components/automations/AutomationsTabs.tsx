@@ -109,7 +109,7 @@ export function AutomationsTabs({
           <div
             role="tablist"
             aria-label="Instagram automation type"
-            className="-mx-4 flex gap-4 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:gap-6 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex gap-4 overflow-x-auto border-b border-border sm:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <SubTab
               active={igView === "comments"}
