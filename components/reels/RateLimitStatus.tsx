@@ -108,12 +108,12 @@ export function RateLimitStatus() {
 
   if (throttled) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-sm text-rose-200 sm:px-3">
         <AlertTriangle className="h-4 w-4 shrink-0" />
-        <span>
-          Instagram hourly limit reached — retry in{" "}
-          <span className="font-semibold tabular-nums">{formatCountdown(retrySeconds)}</span>
-        </span>
+        {/* The prose shrinks/clips first; the countdown stays visible. */}
+        <span className="hidden truncate sm:inline">Instagram hourly limit reached — retry in&nbsp;</span>
+        <span className="truncate sm:hidden">Rate limited&nbsp;·&nbsp;</span>
+        <span className="shrink-0 font-semibold tabular-nums">{formatCountdown(retrySeconds)}</span>
       </div>
     );
   }
@@ -125,7 +125,7 @@ export function RateLimitStatus() {
 
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs ${
+      className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs sm:px-3 ${
         near
           ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
           : "border-border-strong bg-surface-2 text-muted-foreground"
@@ -137,7 +137,7 @@ export function RateLimitStatus() {
       }
     >
       <Gauge className="h-3.5 w-3.5 shrink-0" />
-      <span>
+      <span className="truncate">
         Sync budget{" "}
         <span className="font-semibold tabular-nums">
           {used}/{cap}

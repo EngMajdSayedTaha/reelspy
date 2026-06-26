@@ -104,8 +104,13 @@ export function AutomationsTabs({
         <section className="space-y-5">
           {igBanner}
 
-          {/* Sub-tabs: comment-triggered auto-reply vs. DM-keyword auto-reply. */}
-          <div role="tablist" aria-label="Instagram automation type" className="flex gap-6 border-b border-border">
+          {/* Sub-tabs: comment-triggered auto-reply vs. DM-keyword auto-reply.
+              Scrolls horizontally on narrow phones instead of overflowing the page. */}
+          <div
+            role="tablist"
+            aria-label="Instagram automation type"
+            className="-mx-4 flex gap-4 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:gap-6 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <SubTab
               active={igView === "comments"}
               onClick={() => setIgView("comments")}
@@ -151,7 +156,7 @@ function SubTab({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "-mb-px flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition",
+        "-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-medium transition",
         active
           ? "border-brand text-foreground"
           : "border-transparent text-muted-foreground hover:text-foreground"
