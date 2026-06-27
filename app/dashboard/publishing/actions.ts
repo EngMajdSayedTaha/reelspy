@@ -120,6 +120,51 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
   return { postId: post.id, publishedNow: immediate };
 }
 
+const updateSchema = z.object({
+  postId: z.string().uuid(),
+  title: z.string().max(200).optional().nullable(),
+  caption: z.string().max(5000).optional().nullable(),
+  hashtags: z.string().max(2000).optional().nullable(),
+  // ISO datetime in UTC; the client converts from the user's local picker.
+  scheduledAt: z.string().datetime(),
+});
+
+export type UpdatePostInput = z.input<typeof updateSchema>;
+
+// Edit a still-pending scheduled post: change when it fires or tweak the copy.
+// Only posts in the `scheduled` state are editable — once the cron worker has
+// flipped a post to publishing/done/failed, the content is already in flight.
+export async function updateScheduledPost(input: UpdatePostInput): Promise<void> {
+  const parsed = updateSchema.parse(input);
+  const user = await requireUser();
+  const admin = createAdminClient();
+
+  const { data: post } = await admin
+    .from("publish_posts")
+    .select("id, user_id, status")
+    .eq("id", parsed.postId)
+    .maybeSingle();
+  if (!post || post.user_id !== user.id) throw new Error("Post not found.");
+  if (post.status !== "scheduled") {
+    throw new Error("Only scheduled posts can be edited.");
+  }
+
+  const { error } = await admin
+    .from("publish_posts")
+    .update({
+      title: parsed.title?.trim() || null,
+      caption: parsed.caption?.trim() || null,
+      hashtags: parsed.hashtags?.trim() || null,
+      scheduled_at: parsed.scheduledAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", parsed.postId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/publishing");
+  revalidatePath("/dashboard/calendar");
+}
+
 export async function retryJob(jobId: string): Promise<void> {
   const user = await requireUser();
   const admin = createAdminClient();

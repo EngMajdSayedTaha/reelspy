@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
 import { PublishComposer } from "@/components/publishing/PublishComposer";
-import { RetryButton, DeletePostButton } from "@/components/publishing/PostActions";
+import { LocalDateTime } from "@/components/publishing/LocalDateTime";
+import { RetryButton, DeletePostButton, EditPostButton } from "@/components/publishing/PostActions";
 
 type JobRow = {
   id: string;
@@ -20,6 +21,7 @@ type PostRow = {
   id: string;
   title: string | null;
   caption: string | null;
+  hashtags: string | null;
   status: string;
   scheduled_at: string | null;
   created_at: string;
@@ -46,16 +48,6 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function formatDateTime(value: string | null): string | null {
-  if (!value) return null;
-  return new Date(value).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export default async function PublishingPage() {
   const supabase = await createClient();
   const {
@@ -73,7 +65,7 @@ export default async function PublishingPage() {
       .eq("user_id", user.id),
     supabase
       .from("publish_posts")
-      .select("id, title, caption, status, scheduled_at, created_at, publish_jobs(id, platform, status, remote_url, error_message, caption)")
+      .select("id, title, caption, hashtags, status, scheduled_at, created_at, publish_jobs(id, platform, status, remote_url, error_message, caption)")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(25)
@@ -127,13 +119,24 @@ export default async function PublishingPage() {
                       {post.title || post.caption || "Untitled post"}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      {post.scheduled_at
-                        ? `Scheduled · ${formatDateTime(post.scheduled_at)}`
-                        : `Created · ${formatDateTime(post.created_at)}`}
+                      {post.scheduled_at ? (
+                        <LocalDateTime value={post.scheduled_at} prefix="Scheduled · " />
+                      ) : (
+                        <LocalDateTime value={post.created_at} prefix="Created · " />
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={post.status} />
+                    {post.status === "scheduled" && post.scheduled_at ? (
+                      <EditPostButton
+                        postId={post.id}
+                        title={post.title}
+                        caption={post.caption}
+                        hashtags={post.hashtags}
+                        scheduledAt={post.scheduled_at}
+                      />
+                    ) : null}
                     <DeletePostButton postId={post.id} />
                   </div>
                 </div>
