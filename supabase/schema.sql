@@ -1,17 +1,82 @@
--- Profiles (extends Supabase auth.users)
+-- ReelSpy database schema — full snapshot regenerated from the live Supabase
+-- project (bsyzjlvgcpdxtdchkiva) on 2026-06-29.
+--
+-- This file is the authoritative picture of the deployed `public` schema:
+-- tables, constraints, indexes, row-level security, policies, the column-level
+-- token lockdown grants, functions, the auth trigger, and the publishing
+-- storage bucket. It is reconstructed from the catalog (not a verbatim
+-- pg_dump), so it is hand-formatted for readability but matches production.
+-- Tables are ordered so foreign-key targets are created before their referrers.
+--
+-- To recreate from scratch you also need the Supabase-managed `auth` schema
+-- (profiles.id and user_action_usage.user_id reference auth.users).
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ profiles — one row per auth user. Holds Instagram/Facebook OAuth tokens.   ║
+-- ║ Token columns are locked down to SERVER-ONLY via column grants below.      ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
 create table profiles (
-  id uuid references auth.users(id) primary key,
+  id uuid primary key references auth.users(id),
   username text,
-  ig_access_token text,
+  ig_access_token text,                 -- SERVER ONLY (revoked from browser roles)
   ig_user_id text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  ig_token_expires_at timestamptz,
+  ig_token_status text not null default 'active',
+  ig_token_refreshed_at timestamptz,
+  fb_page_id text,
+  fb_page_name text,
+  fb_page_access_token text,            -- SERVER ONLY (revoked from browser roles)
+  webhook_subscribed_at timestamptz
 );
 
 alter table profiles enable row level security;
 create policy "Users can manage own profile"
-  on profiles for all using (auth.uid() = id);
+  on profiles for all using (auth.uid() = id) with check (auth.uid() = id);
 
--- Inspiration accounts
+-- Token lockdown: browser roles never see ig_access_token / fb_page_access_token.
+-- Tokens are read/written only by the service-role client (which bypasses grants).
+revoke all on table profiles from anon, authenticated;
+grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
+              ig_token_refreshed_at, fb_page_id, fb_page_name,
+              webhook_subscribed_at, created_at)
+  on profiles to authenticated;
+grant insert (id, username) on profiles to authenticated;
+grant update (id, username) on profiles to authenticated;
+
+-- Auto-create a profile row when a new auth user signs up.
+create or replace function public.handle_new_user()
+  returns trigger
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  insert into public.profiles (id, username)
+  values (new.id, new.email)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+-- ── account_groups — user-defined folders for inspiration accounts ───────────
+create table account_groups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete cascade,
+  name text not null,
+  created_at timestamptz default now(),
+  unique (user_id, name)
+);
+
+alter table account_groups enable row level security;
+create policy "Users can manage own groups"
+  on account_groups for all using (auth.uid() = user_id);
+
+-- ── inspiration_accounts — public IG accounts a user tracks for ideas ────────
 create table inspiration_accounts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete cascade,
@@ -23,30 +88,18 @@ create table inspiration_accounts (
   last_synced_at timestamptz,
   is_active boolean default true,
   created_at timestamptz default now(),
-  unique(user_id, ig_username)
+  group_id uuid references account_groups(id) on delete set null,
+  unique (user_id, ig_username)
 );
 
 alter table inspiration_accounts enable row level security;
 create policy "Users can manage own accounts"
   on inspiration_accounts for all using (auth.uid() = user_id);
 
--- Account groups (e.g. "Angular", "Memes")
-create table account_groups (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references profiles(id) on delete cascade,
-  name text not null,
-  created_at timestamptz default now(),
-  unique(user_id, name)
-);
+create index inspiration_accounts_user_active_idx
+  on inspiration_accounts (user_id, is_active);
 
-alter table account_groups enable row level security;
-create policy "Users can manage own groups"
-  on account_groups for all using (auth.uid() = user_id);
-
-alter table inspiration_accounts
-  add column if not exists group_id uuid references account_groups(id) on delete set null;
-
--- Tracked reels
+-- ── tracked_reels — individual reels saved from inspiration accounts ─────────
 create table tracked_reels (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete cascade,
@@ -58,32 +111,36 @@ create table tracked_reels (
   view_count bigint default 0,
   like_count bigint default 0,
   comment_count bigint default 0,
-  viral_score numeric generated always as (
-    (coalesce(like_count, 0) * 1.0)
-    + (coalesce(comment_count, 0) * 3.0)
-    + (coalesce(view_count, 0) * 0.01)
-  ) stored,
   is_worked_on boolean default false,
   worked_on_at timestamptz,
-  is_discarded boolean default false,
-  discarded_at timestamptz,
-  is_favorite boolean default false,
-  favorited_at timestamptz,
   posted_at timestamptz,
   transcript text,
-  transcript_srt text,
   transcript_lang text,
   transcript_source text,
   transcript_status text default 'none',
   transcript_generated_at timestamptz,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  is_discarded boolean default false,
+  discarded_at timestamptz,
+  is_favorite boolean default false,
+  favorited_at timestamptz,
+  transcript_srt text,
+  -- NULL-safe stored virality score (coalesce keeps partially-synced reels rankable).
+  viral_score numeric generated always as (
+    (coalesce(like_count, 0) * 1.0)
+    + (coalesce(comment_count, 0) * 3.0)
+    + (coalesce(view_count, 0) * 0.01)
+  ) stored
 );
 
 alter table tracked_reels enable row level security;
 create policy "Users can manage own reels"
   on tracked_reels for all using (auth.uid() = user_id);
 
--- Generated scripts
+create index tracked_reels_user_viral_idx on tracked_reels (user_id, viral_score desc);
+create index tracked_reels_user_posted_idx on tracked_reels (user_id, posted_at desc);
+
+-- ── generated_scripts — AI-generated scripts, optionally tied to a reel ──────
 create table generated_scripts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete cascade,
@@ -100,3 +157,543 @@ create table generated_scripts (
 alter table generated_scripts enable row level security;
 create policy "Users can manage own scripts"
   on generated_scripts for all using (auth.uid() = user_id);
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Global snapshot cache — shared dedup layer. Each public account/reel is    ║
+-- ║ fetched from Meta at most once per TTL and shared across all users.        ║
+-- ║ RLS is on with NO policies: reachable only via the service-role client.    ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table ig_account_snapshots (
+  ig_username text primary key,
+  display_name text,
+  followers_count bigint,
+  avatar_url text,
+  last_fetched_at timestamptz,
+  refresh_started_at timestamptz,
+  last_status text not null default 'pending',
+  last_error text,
+  created_at timestamptz default now()
+);
+alter table ig_account_snapshots enable row level security;
+
+create table ig_reel_snapshots (
+  ig_username text not null references ig_account_snapshots(ig_username) on delete cascade,
+  ig_media_id text not null,
+  permalink text,
+  caption text,
+  thumbnail_url text,
+  view_count bigint default 0,
+  like_count bigint default 0,
+  comment_count bigint default 0,
+  posted_at timestamptz,
+  last_seen_at timestamptz default now(),
+  primary key (ig_username, ig_media_id)
+);
+alter table ig_reel_snapshots enable row level security;
+create index ig_reel_snapshots_username_idx on ig_reel_snapshots (ig_username);
+
+-- ── ig_my_insights_cache — per-user cache of the owner's own IG insights ─────
+create table ig_my_insights_cache (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  payload jsonb not null,
+  fetched_at timestamptz not null default now(),
+  refresh_started_at timestamptz
+);
+alter table ig_my_insights_cache enable row level security;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Meta API rate limiter — guards the shared APP-level Business Discovery     ║
+-- ║ pool (token bucket + circuit breaker) plus a per-user hourly window.       ║
+-- ║ RLS on, no policies: mutated only via the SECURITY DEFINER functions.      ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table meta_api_limiter (
+  id smallint primary key default 1 check (id = 1),  -- singleton row
+  tokens numeric not null default 160,
+  bucket_updated_at timestamptz not null default now(),
+  throttled_until timestamptz,
+  app_usage_pct integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+alter table meta_api_limiter enable row level security;
+
+create table meta_api_user_usage (
+  user_id uuid primary key,
+  window_start timestamptz not null default now(),
+  call_count integer not null default 0
+);
+alter table meta_api_user_usage enable row level security;
+
+-- ── user_action_usage — per-user throttle for expensive AI/transcription ─────
+-- actions (generate_script, growth_notes, transcript). RLS on, no policies:
+-- mutated only via consume_user_action() below.
+create table user_action_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  action text not null,
+  window_start timestamptz not null default now(),
+  call_count integer not null default 0,
+  primary key (user_id, action)
+);
+alter table user_action_usage enable row level security;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Auto-Reply (Instagram comments → public reply + DM)                        ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table reel_automations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  ig_media_id text not null,
+  media_caption text,
+  media_permalink text,
+  media_thumbnail_url text,
+  keywords text[] not null,
+  match_mode text not null default 'contains'
+    check (match_mode in ('contains', 'exact', 'any')),
+  public_reply_templates text[] not null default '{"Check your DMs 📩"}'::text[],
+  dm_message text not null,
+  dm_link text,
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, ig_media_id)
+);
+alter table reel_automations enable row level security;
+create policy "Users can manage own automations"
+  on reel_automations for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index reel_automations_media_idx on reel_automations (ig_media_id);
+
+create table automation_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  automation_id uuid references reel_automations(id) on delete set null,
+  comment_id text not null unique,        -- idempotency lock against webhook retries
+  ig_media_id text,
+  comment_text text,
+  commenter_id text,
+  commenter_username text,
+  matched_keyword text,
+  public_reply_status text not null default 'pending',
+  public_reply_error text,
+  dm_status text not null default 'pending',
+  dm_error text,
+  created_at timestamptz default now(),
+  processed_at timestamptz
+);
+alter table automation_events enable row level security;
+create policy "Users can read own automation events"
+  on automation_events for select using (auth.uid() = user_id);
+create index automation_events_user_created_idx
+  on automation_events (user_id, created_at desc);
+
+-- ── DM automations (Instagram DM keyword → auto reply) ───────────────────────
+create table dm_automations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  keywords text[] not null,
+  match_mode text not null default 'contains'
+    check (match_mode in ('contains', 'exact', 'any')),
+  reply_message text not null,
+  reply_link text,
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table dm_automations enable row level security;
+create policy "Users can manage own dm automations"
+  on dm_automations for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table dm_automation_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  automation_id uuid references dm_automations(id) on delete set null,
+  message_id text not null unique,        -- idempotency lock
+  sender_id text,
+  sender_username text,
+  message_text text,
+  matched_keyword text,
+  reply_status text not null default 'pending',
+  reply_error text,
+  created_at timestamptz default now(),
+  processed_at timestamptz
+);
+alter table dm_automation_events enable row level security;
+create policy "Users can read own dm automation events"
+  on dm_automation_events for select using (auth.uid() = user_id);
+create index dm_automation_events_sender_idx
+  on dm_automation_events (user_id, sender_id, created_at desc);
+create index dm_automation_events_user_created_idx
+  on dm_automation_events (user_id, created_at desc);
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Publishing — cross-post one upload to IG/FB/TikTok/YouTube.                ║
+-- ║ social_connections token columns are SERVER-ONLY (column grants below).    ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table social_connections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  platform text not null
+    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube')),
+  account_id text not null,
+  account_name text,
+  account_username text,
+  avatar_url text,
+  access_token text,                       -- SERVER ONLY
+  refresh_token text,                      -- SERVER ONLY
+  token_expires_at timestamptz,
+  token_status text not null default 'active',
+  scopes text,
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, platform, account_id)
+);
+
+alter table social_connections enable row level security;
+create policy "Users can read own connections"
+  on social_connections for select using (auth.uid() = user_id);
+create policy "Users can update own connections"
+  on social_connections for update
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "Users can delete own connections"
+  on social_connections for delete using (auth.uid() = user_id);
+create index social_connections_user_platform_idx
+  on social_connections (user_id, platform);
+
+-- Browser roles: metadata only, never the token columns.
+revoke all on table social_connections from anon, authenticated;
+grant select (id, user_id, platform, account_id, account_name, account_username,
+              avatar_url, token_status, token_expires_at, scopes, is_active,
+              created_at, updated_at)
+  on social_connections to authenticated;
+grant update (is_active) on social_connections to authenticated;
+grant delete on table social_connections to authenticated;
+
+create table publish_posts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  title text,
+  caption text,
+  hashtags text,
+  video_path text not null,                -- object path in the publish-media bucket
+  thumbnail_path text,
+  duration_seconds integer,
+  status text not null default 'draft'
+    check (status in ('draft', 'scheduled', 'publishing', 'done', 'failed')),
+  scheduled_at timestamptz,                -- null = publish immediately
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table publish_posts enable row level security;
+create policy "Users can manage own posts"
+  on publish_posts for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index publish_posts_user_created_idx on publish_posts (user_id, created_at desc);
+create index publish_posts_due_idx on publish_posts (status, scheduled_at);
+
+create table publish_jobs (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references publish_posts(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  connection_id uuid references social_connections(id) on delete set null,
+  platform text not null
+    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube')),
+  privacy text not null default 'public',
+  status text not null default 'pending'
+    check (status in ('pending', 'processing', 'published', 'failed')),
+  remote_id text,
+  remote_url text,
+  error_message text,
+  attempts integer not null default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  caption text,
+  unique (post_id, connection_id)          -- idempotency: never double-post a target
+);
+alter table publish_jobs enable row level security;
+create policy "Users can read own jobs"
+  on publish_jobs for select using (auth.uid() = user_id);
+create index publish_jobs_post_idx on publish_jobs (post_id);
+
+-- ── YouTube auto-reply (comment keyword → public reply) ──────────────────────
+create table youtube_automations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  connection_id uuid references social_connections(id) on delete set null,
+  video_id text not null,
+  video_title text,
+  keywords text[] not null,
+  match_mode text not null default 'contains'
+    check (match_mode in ('contains', 'exact', 'any')),
+  public_reply_templates text[] not null default '{}'::text[],
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, video_id)
+);
+alter table youtube_automations enable row level security;
+create policy "Users can manage own youtube automations"
+  on youtube_automations for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table youtube_automation_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  automation_id uuid references youtube_automations(id) on delete set null,
+  comment_id text not null unique,         -- idempotency lock
+  video_id text,
+  comment_text text,
+  commenter_name text,
+  matched_keyword text,
+  reply_status text not null default 'pending',
+  reply_error text,
+  created_at timestamptz default now(),
+  processed_at timestamptz
+);
+alter table youtube_automation_events enable row level security;
+create policy "Users can read own youtube automation events"
+  on youtube_automation_events for select using (auth.uid() = user_id);
+create index youtube_automation_events_user_created_idx
+  on youtube_automation_events (user_id, created_at desc);
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Functions (RPCs)                                                           ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+-- Per-user fixed-window throttle for expensive actions. Atomically enforces the
+-- quota and records the call. Returns allowed + seconds until the window resets.
+create or replace function public.consume_user_action(
+  p_user_id uuid,
+  p_action text,
+  p_limit integer,
+  p_window_seconds integer
+) returns table(allowed boolean, retry_after_seconds integer)
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  v_now timestamptz := now();
+  v_count int;
+  v_window timestamptz;
+  v_age numeric;
+begin
+  select call_count, window_start into v_count, v_window
+  from user_action_usage
+  where user_id = p_user_id and action = p_action
+  for update;
+
+  if not found then
+    insert into user_action_usage(user_id, action, window_start, call_count)
+      values (p_user_id, p_action, v_now, 0)
+      on conflict (user_id, action) do nothing;
+    v_count := 0; v_window := v_now;
+  end if;
+
+  v_age := extract(epoch from (v_now - v_window));
+  if v_age >= p_window_seconds then
+    v_count := 0; v_window := v_now;
+  end if;
+
+  if v_count + 1 > p_limit then
+    return query select false, greatest(1, ceil(p_window_seconds - v_age)::int);
+    return;
+  end if;
+
+  update user_action_usage
+    set call_count = v_count + 1, window_start = v_window
+    where user_id = p_user_id and action = p_action;
+
+  return query select true, 0;
+end;
+$$;
+grant execute on function public.consume_user_action(uuid, text, integer, integer)
+  to authenticated, service_role;
+
+-- Bulk metric refresh: apply a whole batch of reel metrics in one statement.
+-- SECURITY INVOKER + auth.uid() predicate => runs under the caller's RLS.
+create or replace function public.bulk_update_tracked_reel_metrics(
+  p_account_id uuid,
+  p_rows jsonb
+) returns integer
+  language plpgsql
+  security invoker
+  set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  with updated as (
+    update tracked_reels t
+    set view_count = coalesce((r->>'view_count')::bigint, 0),
+        like_count = coalesce((r->>'like_count')::bigint, 0),
+        comment_count = coalesce((r->>'comment_count')::bigint, 0),
+        thumbnail_url = r->>'thumbnail_url'
+    from jsonb_array_elements(p_rows) as r
+    where t.user_id = auth.uid()
+      and t.account_id = p_account_id
+      and t.ig_media_id = (r->>'ig_media_id')
+    returning 1
+  )
+  select count(*) into v_count from updated;
+  return v_count;
+end;
+$$;
+grant execute on function public.bulk_update_tracked_reel_metrics(uuid, jsonb)
+  to authenticated;
+
+-- Meta API token-bucket limiter: circuit breaker + app-wide budget + per-user
+-- hourly window, enforced atomically. Server-only (service_role).
+create or replace function public.consume_meta_quota(
+  p_user_id uuid,
+  p_cost integer,
+  p_capacity numeric,
+  p_refill_per_sec numeric,
+  p_user_cap integer
+) returns table(allowed boolean, retry_after_seconds integer, reason text)
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  v_now timestamptz := now();
+  v_tokens numeric;
+  v_bucket_at timestamptz;
+  v_throttled timestamptz;
+  v_elapsed numeric;
+  v_user_count int;
+  v_user_window timestamptz;
+  v_window_age numeric;
+begin
+  -- Lock the singleton limiter row (create it on first use).
+  select tokens, bucket_updated_at, throttled_until
+    into v_tokens, v_bucket_at, v_throttled
+  from meta_api_limiter where id = 1 for update;
+
+  if not found then
+    insert into meta_api_limiter(id, tokens, bucket_updated_at)
+      values (1, p_capacity, v_now)
+      on conflict (id) do nothing;
+    v_tokens := p_capacity; v_bucket_at := v_now; v_throttled := null;
+  end if;
+
+  -- 1) Circuit breaker — short-circuit while Meta is (or may be) blocking us.
+  if v_throttled is not null and v_throttled > v_now then
+    return query select false,
+      greatest(1, ceil(extract(epoch from (v_throttled - v_now)))::int),
+      'circuit_open'::text;
+    return;
+  end if;
+
+  -- 2) Refill the app-wide token bucket from elapsed time.
+  v_elapsed := greatest(0, extract(epoch from (v_now - v_bucket_at)));
+  v_tokens := least(p_capacity, v_tokens + v_elapsed * p_refill_per_sec);
+
+  -- 3) Per-user fixed hourly window.
+  select call_count, window_start into v_user_count, v_user_window
+  from meta_api_user_usage where user_id = p_user_id for update;
+
+  if not found then
+    insert into meta_api_user_usage(user_id, window_start, call_count)
+      values (p_user_id, v_now, 0)
+      on conflict (user_id) do nothing;
+    v_user_count := 0; v_user_window := v_now;
+  end if;
+
+  v_window_age := extract(epoch from (v_now - v_user_window));
+  if v_window_age >= 3600 then
+    v_user_count := 0; v_user_window := v_now;
+  end if;
+
+  if v_user_count + p_cost > p_user_cap then
+    update meta_api_limiter
+      set tokens = v_tokens, bucket_updated_at = v_now, updated_at = v_now
+      where id = 1;
+    return query select false,
+      greatest(1, ceil(3600 - v_window_age)::int), 'user_quota'::text;
+    return;
+  end if;
+
+  -- 4) App-wide budget (token bucket).
+  if v_tokens < p_cost then
+    update meta_api_limiter
+      set tokens = v_tokens, bucket_updated_at = v_now, updated_at = v_now
+      where id = 1;
+    return query select false,
+      greatest(1, ceil((p_cost - v_tokens) / nullif(p_refill_per_sec, 0))::int),
+      'app_budget'::text;
+    return;
+  end if;
+
+  -- Allowed: spend a token and record the user's call.
+  update meta_api_limiter
+    set tokens = v_tokens - p_cost, bucket_updated_at = v_now, updated_at = v_now
+    where id = 1;
+
+  update meta_api_user_usage
+    set call_count = v_user_count + p_cost, window_start = v_user_window
+    where user_id = p_user_id;
+
+  return query select true, 0, 'ok'::text;
+end;
+$$;
+grant execute on function
+  public.consume_meta_quota(uuid, integer, numeric, numeric, integer)
+  to service_role;
+
+-- Record Meta's reported app-usage % (from response headers).
+create or replace function public.record_meta_usage(p_usage integer)
+  returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  update meta_api_limiter
+    set app_usage_pct = p_usage, updated_at = now()
+  where id = 1;
+end;
+$$;
+grant execute on function public.record_meta_usage(integer) to service_role;
+
+-- Trip the circuit breaker for p_seconds (Meta hard-throttled us).
+create or replace function public.trip_meta_circuit(
+  p_seconds integer,
+  p_usage integer default null
+) returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  update meta_api_limiter
+    set throttled_until = greatest(coalesce(throttled_until, now()),
+                                   now() + make_interval(secs => greatest(1, p_seconds))),
+        tokens = 0,
+        bucket_updated_at = now(),
+        app_usage_pct = coalesce(p_usage, app_usage_pct),
+        updated_at = now()
+  where id = 1;
+end;
+$$;
+grant execute on function public.trip_meta_circuit(integer, integer) to service_role;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Storage — private bucket for uploaded publish videos.                      ║
+-- ║ Objects live under {user_id}/...; RLS keys off the first path segment.     ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+insert into storage.buckets (id, name, public)
+  values ('publish-media', 'publish-media', false)
+  on conflict (id) do nothing;
+
+create policy "Users manage own publish-media objects"
+  on storage.objects for all
+  to authenticated
+  using (
+    bucket_id = 'publish-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'publish-media'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
