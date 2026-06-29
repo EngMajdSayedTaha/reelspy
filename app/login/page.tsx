@@ -61,6 +61,13 @@ function LoginForm() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        // access_type=offline + prompt=consent makes Google return a refresh
+        // token (provider_refresh_token), so the session can be renewed without
+        // forcing the user through the Google consent screen again.
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent",
+        },
       },
     });
 
