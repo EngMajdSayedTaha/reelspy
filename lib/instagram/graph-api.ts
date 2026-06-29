@@ -655,7 +655,8 @@ export async function getMyRecentMedia(igUserId: string, token: string) {
     fields:
       "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count",
     access_token: token,
-    limit: "25",
+    // Up to 50 so the AI growth-notes post-count selector (10/20/50) is honored.
+    limit: "50",
   });
 
   const json = await fetchJson<{ data?: InstagramMedia[] }>(url);

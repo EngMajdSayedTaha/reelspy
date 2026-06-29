@@ -202,15 +202,25 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
   }
 }
 
-export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNote[]> {
+export type GrowthNotesResult = {
+  notes: GrowthNote[];
+  /** True when these are the static fallback notes, not live AI output. Lets the
+   *  UI show a plain warning instead of "typing out" an error message. */
+  degraded: boolean;
+};
+
+export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNotesResult> {
   if (!aiConfigured()) {
-    return [
-      "Connect an AI provider key (NVIDIA_API_KEY) to get AI-powered growth recommendations.",
-      "Track 20+ reels before generating notes — more data means better insights.",
-      "Post consistently for 2-3 weeks to establish baseline engagement patterns.",
-      "Reels posted at 7–9 PM typically see higher reach — test this window.",
-      "Hook the first 1-2 seconds with a visual or bold text on screen.",
-    ];
+    return {
+      degraded: true,
+      notes: [
+        "Connect an AI provider key (NVIDIA_API_KEY) to get AI-powered growth recommendations.",
+        "Track 20+ reels before generating notes — more data means better insights.",
+        "Post consistently for 2-3 weeks to establish baseline engagement patterns.",
+        "Reels posted at 7–9 PM typically see higher reach — test this window.",
+        "Hook the first 1-2 seconds with a visual or bold text on screen.",
+      ],
+    };
   }
 
   try {
@@ -230,17 +240,20 @@ export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNo
 
     const notes = parseGrowthNotes(result.text);
     if (notes.length > 0) {
-      return notes;
+      return { notes, degraded: false };
     }
 
     console.error("AI growth notes parse failed; raw start:", result.text.slice(0, 200));
     throw new Error("Invalid response format");
   } catch (error) {
     console.error("AI growth notes failed", error);
-    return [
-      "Could not generate AI notes — check your AI provider key (NVIDIA_API_KEY).",
-      "Make sure you have recent media data synced from Instagram.",
-    ];
+    return {
+      degraded: true,
+      notes: [
+        "Could not generate AI notes right now — please try again in a moment.",
+        "Make sure you have recent media data synced from Instagram.",
+      ],
+    };
   }
 }
 

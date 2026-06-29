@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
@@ -6,7 +7,19 @@ import { generateGrowthNotes } from "@/lib/ai/claude";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
-export async function POST() {
+// How many of the most recent posts to feed the model. Whitelisted so a caller
+// can't ask us to analyze (and pay tokens for) an unbounded number of posts.
+const ALLOWED_LIMITS = [10, 20, 50] as const;
+const bodySchema = z
+  .object({
+    limit: z
+      .number()
+      .refine((n) => (ALLOWED_LIMITS as readonly number[]).includes(n), "Unsupported limit")
+      .optional(),
+  })
+  .optional();
+
+export async function POST(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -25,6 +38,13 @@ export async function POST() {
     );
   }
 
+  const rawBody = await request.json().catch(() => ({}));
+  const parsed = bodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
+  }
+  const postLimit = parsed.data?.limit ?? 20;
+
   const credentials = await getIgCredentials(createAdminClient(), user.id).catch(() => null);
 
   if (!credentials) {
@@ -41,7 +61,8 @@ export async function POST() {
     ]);
 
     const insights = insightsResult.status === "fulfilled" ? insightsResult.value : null;
-    const recentMedia = mediaResult.status === "fulfilled" ? mediaResult.value.media.slice(0, 20) : [];
+    const recentMedia =
+      mediaResult.status === "fulfilled" ? mediaResult.value.media.slice(0, postLimit) : [];
 
     const metricsPayload = {
       account: insights
@@ -59,9 +80,9 @@ export async function POST() {
       })),
     };
 
-    const notes = await generateGrowthNotes(JSON.stringify(metricsPayload));
+    const { notes, degraded } = await generateGrowthNotes(JSON.stringify(metricsPayload));
 
-    return NextResponse.json({ notes });
+    return NextResponse.json({ notes, degraded, analyzed: recentMedia.length });
   } catch (err) {
     console.error("Growth notes failed", err);
     return NextResponse.json({ error: "Could not generate growth notes." }, { status: 500 });
