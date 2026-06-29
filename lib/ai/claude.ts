@@ -29,7 +29,7 @@ Each recommendation must:
 - Be specific to a developer/tech content creator audience
 - Stay concise — keep each recommendation under 240 characters (one or two sentences)
 
-Respond ONLY with a JSON array of 5 strings. No markdown, no preamble.`;
+Respond ONLY with a JSON array of 5 strings. No markdown, no preamble. Use plain straight ASCII double quotes (") only — never curly/smart quotes.`;
 
 type GenerateScriptInput = {
   caption: string;
@@ -48,9 +48,20 @@ function fallbackScript(input: GenerateScriptInput): GeneratedScript {
   };
 }
 
-// Strip markdown code fences the model sometimes adds despite json_object.
+// Llama (the NVIDIA default) routinely emits “smart” curly quotes as JSON string
+// delimiters (e.g. {“hook”: “…”}), which JSON.parse rejects outright. Fold them
+// back to straight ASCII quotes before any parsing. Apostrophe-style singles are
+// converted too — harmless inside JSON strings, where apostrophes aren't escaped.
+function normalizeQuotes(text: string): string {
+  return text
+    .replace(/[“”„‟″‶]/g, '"')
+    .replace(/[‘’‚‛′‵]/g, "'");
+}
+
+// Strip markdown code fences the model sometimes adds despite json_object, then
+// normalize curly quotes so the result is actually parseable JSON.
 function stripFences(text: string): string {
-  return text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  return normalizeQuotes(text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim());
 }
 
 // Pull the first balanced {…} object out of a response and parse it. Tolerates
@@ -215,16 +226,20 @@ function parseGrowthNotes(text: string): GrowthNote[] {
     // fall through to salvage
   }
 
-  // Salvage: scope to the first '[' so an object wrapper key (e.g.
-  // "recommendations") isn't mistaken for a list item, then extract complete
-  // JSON string literals. A truncated final string has no closing quote, so it
-  // simply won't match — we keep the ones that fully arrived.
+  // Salvage: extract complete JSON string literals from the response. Prefer
+  // scoping to the first '[' so an object wrapper key (e.g. "recommendations")
+  // isn't mistaken for a list item. But the model sometimes returns a malformed
+  // pseudo-array — comma-separated strings inside braces, no '[' and no keys
+  // (e.g. {"note one", "note two"}) — so when there's no '[', fall back to the
+  // first '{' and treat its quoted strings as the notes. A truncated final
+  // string has no closing quote and simply won't match — we keep what arrived.
   const arrStart = clean.indexOf("[");
-  if (arrStart === -1) {
+  const scopeStart = arrStart !== -1 ? arrStart : clean.indexOf("{");
+  if (scopeStart === -1) {
     return [];
   }
 
-  const literals = clean.slice(arrStart).match(/"(?:[^"\\]|\\.)*"/g);
+  const literals = clean.slice(scopeStart).match(/"(?:[^"\\]|\\.)*"/g);
   if (!literals) {
     return [];
   }
