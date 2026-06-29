@@ -131,11 +131,11 @@ export default async function MyAccountPage() {
         </div>
       </section>
 
+      {/* AI growth notes up top so they're the first thing you see */}
+      <GrowthNotes connected={connected} />
+
       {/* Own reels + full insights (separate sync, doesn't touch the shared budget) */}
       <MyReelsInsights connected={connected} />
-
-      {/* AI growth notes from your recent posts */}
-      <GrowthNotes connected={connected} />
 
       {!connected ? (
         <div className="rounded-xl border border-dashed border-border-strong p-5 text-sm text-muted-foreground">

@@ -58,10 +58,60 @@ function normalizeQuotes(text: string): string {
     .replace(/[‘’‚‛′‵]/g, "'");
 }
 
+// Models frequently emit multi-line string values with RAW newlines/tabs inside
+// the JSON (the script "body" is the worst offender — it's literally asked for
+// several lines), which JSON.parse rejects with "Bad control character in string
+// literal". Escape control chars that fall *inside* a string so the JSON parses
+// while the line breaks survive as proper \n. Tracks string boundaries by hand
+// (toggling on unescaped quotes) so structural whitespace is left untouched.
+function escapeControlCharsInStrings(text: string): string {
+  let out = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const ch of text) {
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === "\n") {
+        out += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        out += "\\r";
+        continue;
+      }
+      if (ch === "\t") {
+        out += "\\t";
+        continue;
+      }
+    }
+    out += ch;
+  }
+
+  return out;
+}
+
 // Strip markdown code fences the model sometimes adds despite json_object, then
-// normalize curly quotes so the result is actually parseable JSON.
+// normalize curly quotes and escape stray control characters so the result is
+// actually parseable JSON. Quote normalization runs first so the control-char
+// pass tracks string boundaries against straight quotes.
 function stripFences(text: string): string {
-  return normalizeQuotes(text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim());
+  const noFences = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  return escapeControlCharsInStrings(normalizeQuotes(noFences));
 }
 
 // Pull the first balanced {…} object out of a response and parse it. Tolerates
@@ -152,15 +202,25 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
   }
 }
 
-export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNote[]> {
+export type GrowthNotesResult = {
+  notes: GrowthNote[];
+  /** True when these are the static fallback notes, not live AI output. Lets the
+   *  UI show a plain warning instead of "typing out" an error message. */
+  degraded: boolean;
+};
+
+export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNotesResult> {
   if (!aiConfigured()) {
-    return [
-      "Connect an AI provider key (NVIDIA_API_KEY) to get AI-powered growth recommendations.",
-      "Track 20+ reels before generating notes — more data means better insights.",
-      "Post consistently for 2-3 weeks to establish baseline engagement patterns.",
-      "Reels posted at 7–9 PM typically see higher reach — test this window.",
-      "Hook the first 1-2 seconds with a visual or bold text on screen.",
-    ];
+    return {
+      degraded: true,
+      notes: [
+        "Connect an AI provider key (NVIDIA_API_KEY) to get AI-powered growth recommendations.",
+        "Track 20+ reels before generating notes — more data means better insights.",
+        "Post consistently for 2-3 weeks to establish baseline engagement patterns.",
+        "Reels posted at 7–9 PM typically see higher reach — test this window.",
+        "Hook the first 1-2 seconds with a visual or bold text on screen.",
+      ],
+    };
   }
 
   try {
@@ -180,17 +240,20 @@ export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNo
 
     const notes = parseGrowthNotes(result.text);
     if (notes.length > 0) {
-      return notes;
+      return { notes, degraded: false };
     }
 
     console.error("AI growth notes parse failed; raw start:", result.text.slice(0, 200));
     throw new Error("Invalid response format");
   } catch (error) {
     console.error("AI growth notes failed", error);
-    return [
-      "Could not generate AI notes — check your AI provider key (NVIDIA_API_KEY).",
-      "Make sure you have recent media data synced from Instagram.",
-    ];
+    return {
+      degraded: true,
+      notes: [
+        "Could not generate AI notes right now — please try again in a moment.",
+        "Make sure you have recent media data synced from Instagram.",
+      ],
+    };
   }
 }
 
