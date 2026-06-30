@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CalendarPlus, GripVertical, Inbox, Send, X } from "lucide-react";
+import { CalendarPlus, ExternalLink, GripVertical, Inbox, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
@@ -296,8 +296,11 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                         e.dataTransfer.setData("text/plain", s.id);
                         e.dataTransfer.effectAllowed = "move";
                       }}
-                      onClick={(e) => e.stopPropagation()}
-                      title={`${s.hook ?? "Script"} — drag to another day`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDate(dateStr);
+                      }}
+                      title={`${s.hook ?? "Script"} — click to view, drag to another day`}
                       className={`cursor-grab truncate rounded px-1 py-0.5 text-[10px] leading-tight text-foreground active:cursor-grabbing ${
                         STATUS_COLORS[s.status ?? "draft"] ?? STATUS_COLORS.draft
                       }`}
@@ -377,6 +380,9 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                     >
                       {s.status ?? "draft"}
                     </span>
+                    {s.platform ? (
+                      <span className="text-xs text-subtle">{s.platform}</span>
+                    ) : null}
                     <button
                       type="button"
                       disabled={isPending}
@@ -387,6 +393,15 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                     </button>
                   </div>
                   <p className="mt-2 text-sm text-foreground">{s.hook ?? "No hook"}</p>
+                  {/* Deep-link into the Scripts page so the user can read the full
+                      script (hook + body + CTA), not just the calendar preview. */}
+                  <Link
+                    href={`/dashboard/scripts?script=${s.id}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-brand underline-offset-4 hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open in Scripts
+                  </Link>
                 </div>
               ))}
             </div>
