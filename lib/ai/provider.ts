@@ -10,7 +10,15 @@ import { numEnv } from "@/lib/utils/env";
 // lib/transcription/groq.ts — no extra SDK needed for the NVIDIA path.
 
 const NVIDIA_CHAT_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const DEFAULT_NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
+// Default to the fast 8B model. The 70B free endpoint routinely queues/cold-
+// loads and times out (see prod logs), which dropped every request to the
+// static fallback. 8B answers in ~1-3s and rarely queues — real output beats a
+// placeholder. Override with NVIDIA_MODEL to trade speed for quality.
+const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
+// Reliability net: if the configured model keeps failing (e.g. someone pins
+// NVIDIA_MODEL to the slow 70B that times out on the free tier), we switch to
+// this fast model mid-request rather than dropping the user to a placeholder.
+const FAST_FALLBACK_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 // The free NVIDIA endpoint has no SLA: requests can stall (cold model load),
@@ -139,10 +147,7 @@ async function nvidiaAttempt(
   return stripReasoning(json.choices?.[0]?.message?.content?.trim() ?? "");
 }
 
-async function callNvidia(opts: ChatOptions): Promise<ChatResult> {
-  const apiKey = process.env.NVIDIA_API_KEY!;
-  const model = process.env.NVIDIA_MODEL || DEFAULT_NVIDIA_MODEL;
-
+function nvidiaBody(model: string, opts: ChatOptions): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model,
     max_tokens: opts.maxTokens,
@@ -159,21 +164,41 @@ async function callNvidia(opts: ChatOptions): Promise<ChatResult> {
   if (opts.jsonObject) {
     body.response_format = { type: "json_object" };
   }
+  return body;
+}
+
+async function callNvidia(opts: ChatOptions): Promise<ChatResult> {
+  const apiKey = process.env.NVIDIA_API_KEY!;
+  const configured = process.env.NVIDIA_MODEL || DEFAULT_NVIDIA_MODEL;
 
   const deadline = Date.now() + AI_TOTAL_BUDGET_MS;
+  let model = configured;
+  let switchedToFast = false;
   let lastError: unknown;
+
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
     // Clamp this attempt to whatever time is left in the overall budget.
     const remaining = deadline - Date.now();
     const attemptTimeout = Math.min(AI_TIMEOUT_MS, remaining);
     try {
-      const text = await nvidiaAttempt(body, apiKey, attemptTimeout);
+      const text = await nvidiaAttempt(nvidiaBody(model, opts), apiKey, attemptTimeout);
       return { text, provider: "nvidia" };
     } catch (err) {
       lastError = err;
       // Only transient failures are retried; a 4xx (bad request/auth) throws now.
       if (!(err instanceof RetryableError) || attempt === AI_MAX_RETRIES) {
         throw err;
+      }
+      // The configured model is failing transiently (usually a timeout on the
+      // slow 70B free tier). Rather than burn the remaining retries on it,
+      // switch to the fast model immediately — it answers in ~1-3s, so the user
+      // still gets real output well within budget instead of a placeholder.
+      if (!switchedToFast && model !== FAST_FALLBACK_NVIDIA_MODEL) {
+        console.warn(
+          `NVIDIA ${model} failed (${err.message}); switching to ${FAST_FALLBACK_NVIDIA_MODEL}`
+        );
+        model = FAST_FALLBACK_NVIDIA_MODEL;
+        switchedToFast = true;
       }
       // Exponential backoff, honoring a server Retry-After hint when it's larger.
       const backoff = AI_RETRY_BASE_MS * 2 ** attempt;

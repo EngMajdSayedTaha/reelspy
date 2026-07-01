@@ -74,12 +74,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "caption or reel_id is required." }, { status: 400 });
   }
 
-  const generated = await generateScript({
+  const { script: generated, degraded } = await generateScript({
     caption: sourceCaption,
     platform,
     tone,
     customContext: custom_context,
   });
+
+  // Don't persist the placeholder when the AI failed — saving a fake script
+  // pollutes the user's Scripts list and their "Scripts Generated" stat with
+  // content they never actually got. Hand it back flagged so the UI can warn
+  // and let them retry.
+  if (degraded) {
+    return NextResponse.json({ script: generated, degraded: true });
+  }
 
   const { data: inserted, error: insertError } = await supabase
     .from("generated_scripts")
@@ -104,5 +112,5 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/scripts");
 
-  return NextResponse.json({ script: inserted });
+  return NextResponse.json({ script: inserted, degraded: false });
 }
