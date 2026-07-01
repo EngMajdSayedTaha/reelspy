@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ExternalLink, History, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type SourceAccount = { ig_username: string; avatar_url: string | null };
 
@@ -87,6 +88,7 @@ function ScriptCard({
   scheduleAction: (id: string, date: string) => Promise<void>;
   highlight?: boolean;
 }) {
+  const confirm = useConfirm();
   const [expanded, setExpanded] = useState(Boolean(highlight));
   const [isPending, startTransition] = useTransition();
   const [showSchedule, setShowSchedule] = useState(false);
@@ -121,7 +123,15 @@ function ScriptCard({
     });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: "Delete this script?",
+      description: "This can't be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+
     startTransition(async () => {
       try {
         const formData = new FormData();

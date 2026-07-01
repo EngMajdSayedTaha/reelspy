@@ -22,7 +22,7 @@ import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 
-type NavLink = { href: string; label: string; icon: LucideIcon };
+type NavLink = { href: string; label: string; icon: LucideIcon; matchPrefixes?: string[] };
 
 const links: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,7 +30,14 @@ const links: NavLink[] = [
   { href: "/dashboard/feed", label: "Feed", icon: Clapperboard },
   // Hooks section is hidden from navigation for now — the page, data, and
   // logic remain intact and reachable by direct URL.
-  { href: "/dashboard/scripts", label: "Scripts", icon: ScrollText },
+  {
+    href: "/dashboard/scripts",
+    label: "Scripts",
+    icon: ScrollText,
+    // /dashboard/generate/[reel_id] is the script-generation page for a reel —
+    // part of the Scripts section even though it lives outside /dashboard/scripts.
+    matchPrefixes: ["/dashboard/generate"],
+  },
   { href: "/dashboard/my-account", label: "My IG", icon: Camera },
   { href: "/dashboard/automations", label: "Auto-Reply", icon: MessageCircleReply },
   { href: "/dashboard/publishing", label: "Publishing", icon: Send },
@@ -39,9 +46,12 @@ const links: NavLink[] = [
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isActive(pathname: string, link: NavLink): boolean {
+  if (link.href === "/dashboard") return pathname === "/dashboard";
+  if (pathname === link.href || pathname.startsWith(`${link.href}/`)) return true;
+  return (link.matchPrefixes ?? []).some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 }
 
 type SidebarProps = {
@@ -85,7 +95,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
 
         <nav className="flex flex-col gap-1 overflow-y-auto">
           {links.map((link) => {
-            const active = isActive(pathname, link.href);
+            const active = isActive(pathname, link);
             const Icon = link.icon;
             return (
               <Link
