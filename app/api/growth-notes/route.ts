@@ -7,6 +7,10 @@ import { generateGrowthNotes } from "@/lib/ai/claude";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
+// Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
+// the platform's default function timeout so a legitimate retry isn't killed.
+export const maxDuration = 60;
+
 // How many of the most recent posts to feed the model. Whitelisted so a caller
 // can't ask us to analyze (and pay tokens for) an unbounded number of posts.
 const ALLOWED_LIMITS = [10, 20, 50] as const;

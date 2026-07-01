@@ -15,15 +15,37 @@ export class ApiError extends Error {
 
 // fetch + JSON wrapper with consistent error handling. Throws ApiError with a
 // human-readable message derived from the response's `{ error }` body.
+//
+// `timeoutMs` bounds the whole request via AbortController so a wedged/slow
+// endpoint (e.g. the AI routes) surfaces as a clear error instead of an
+// indefinite spinner. Any caller-supplied `signal` is respected too.
 export async function requestJson<T = unknown>(
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit & { timeoutMs?: number }
 ): Promise<T> {
+  const { timeoutMs, signal: callerSignal, ...rest } = init ?? {};
+
+  let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let signal = callerSignal ?? undefined;
+  if (timeoutMs && timeoutMs > 0) {
+    controller = new AbortController();
+    timer = setTimeout(() => controller!.abort(), timeoutMs);
+    // Fold a caller signal into ours so either can abort the request.
+    if (callerSignal) callerSignal.addEventListener("abort", () => controller!.abort());
+    signal = controller.signal;
+  }
+
   let response: Response;
   try {
-    response = await fetch(input, init);
-  } catch {
+    response = await fetch(input, { ...rest, signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError("This took too long and timed out. Please try again.", 0);
+    }
     throw new ApiError("Network error — check your connection and try again.", 0);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   const text = await response.text();
