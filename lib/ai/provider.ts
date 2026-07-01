@@ -10,7 +10,11 @@ import { numEnv } from "@/lib/utils/env";
 // lib/transcription/groq.ts — no extra SDK needed for the NVIDIA path.
 
 const NVIDIA_CHAT_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
-const DEFAULT_NVIDIA_MODEL = "meta/llama-3.3-70b-instruct";
+// Default to the fast 8B model. The 70B free endpoint routinely queues/cold-
+// loads and times out (see prod logs), which dropped every request to the
+// static fallback. 8B answers in ~1-3s and rarely queues — real output beats a
+// placeholder. Override with NVIDIA_MODEL to trade speed for quality.
+const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 // The free NVIDIA endpoint has no SLA: requests can stall (cold model load),
