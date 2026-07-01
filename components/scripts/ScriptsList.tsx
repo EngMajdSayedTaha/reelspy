@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { ExternalLink, History, Search } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 type SourceAccount = { ig_username: string; avatar_url: string | null };
@@ -78,13 +79,15 @@ function ScriptCard({
   deleteAction,
   updateStatusAction,
   scheduleAction,
+  highlight,
 }: {
   script: ScriptRow;
   deleteAction: (formData: FormData) => Promise<void>;
   updateStatusAction: (id: string, status: "draft" | "ready" | "published") => Promise<void>;
   scheduleAction: (id: string, date: string) => Promise<void>;
+  highlight?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(Boolean(highlight));
   const [isPending, startTransition] = useTransition();
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState(script.scheduled_date ?? "");
@@ -96,20 +99,48 @@ function ScriptCard({
 
   const handleStatusChange = (newStatus: "draft" | "ready" | "published") => {
     startTransition(async () => {
-      await updateStatusAction(script.id, newStatus);
+      try {
+        await updateStatusAction(script.id, newStatus);
+        toast.success(`Moved to ${newStatus}`);
+      } catch {
+        toast.error("Could not update the script status.");
+      }
     });
   };
 
   const handleSchedule = () => {
     if (!scheduleDate) return;
     startTransition(async () => {
-      await scheduleAction(script.id, scheduleDate);
-      setShowSchedule(false);
+      try {
+        await scheduleAction(script.id, scheduleDate);
+        setShowSchedule(false);
+        toast.success(`Scheduled for ${scheduleDate}`);
+      } catch {
+        toast.error("Could not schedule the script.");
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set("script_id", script.id);
+        await deleteAction(formData);
+        toast.success("Script deleted");
+      } catch {
+        toast.error("Could not delete the script.");
+      }
     });
   };
 
   return (
-    <article className="space-y-3 rounded-xl border border-border bg-card p-4">
+    <article
+      id={`script-${script.id}`}
+      className={`space-y-3 rounded-xl border bg-card p-4 transition ${
+        highlight ? "border-primary ring-1 ring-primary/50" : "border-border"
+      }`}
+    >
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -244,15 +275,14 @@ function ScriptCard({
           ))}
         </div>
 
-        <form action={deleteAction}>
-          <input type="hidden" name="script_id" value={script.id} />
-          <button
-            type="submit"
-            className="text-xs text-subtle transition hover:text-rose-400"
-          >
-            Delete
-          </button>
-        </form>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={handleDelete}
+          className="text-xs text-subtle transition hover:text-rose-400 disabled:opacity-50"
+        >
+          Delete
+        </button>
       </div>
     </article>
   );
@@ -261,6 +291,27 @@ function ScriptCard({
 export function ScriptsList({ scripts, deleteAction, updateStatusAction, scheduleAction }: ScriptsListProps) {
   const [filter, setFilter] = useState<"all" | "draft" | "ready" | "published">("all");
   const [query, setQuery] = useState("");
+  // When opened from the calendar via /dashboard/scripts?script=<id>, highlight
+  // and scroll to that script so the user lands directly on what they clicked.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    // Read after mount: the param only matters on the client, and reading it
+    // during render would risk a hydration mismatch on the highlight styling.
+    const id = new URLSearchParams(window.location.search).get("script");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (id) setHighlightId(id);
+  }, []);
+
+  useEffect(() => {
+    if (!highlightId || scrolledRef.current) return;
+    const el = document.getElementById(`script-${highlightId}`);
+    if (el) {
+      scrolledRef.current = true;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightId, scripts]);
 
   const filtered = useMemo(() => {
     const byStatus = filter === "all" ? scripts : scripts.filter((s) => s.status === filter);
@@ -327,6 +378,7 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
               deleteAction={deleteAction}
               updateStatusAction={updateStatusAction}
               scheduleAction={scheduleAction}
+              highlight={highlightId === script.id}
             />
           ))}
         </div>
