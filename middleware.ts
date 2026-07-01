@@ -43,8 +43,34 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Redirects below swap in a fresh NextResponse.redirect, which would
+  // otherwise drop the refreshed session cookies just set on
+  // supabaseResponse above. Carry them over so a token refresh survives the
+  // redirect instead of getting silently discarded.
+  const redirect = (path: string) => {
+    const response = NextResponse.redirect(new URL(path, request.url));
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    return response;
+  };
+
+  // "/" and "/login" previously redirected/rendered unconditionally, even for
+  // an already-signed-in visitor. On mobile, opening a new tab reloads from
+  // the bookmarked/home-screen URL (almost always "/"), so a fully valid
+  // session cookie was landing back on the login screen every time. The user
+  // then had no choice but to tap "Continue with Google", which forces a full
+  // Google consent screen (app/login/page.tsx requests prompt=consent) even
+  // though they were never actually logged out. Route an authenticated
+  // visitor straight to the dashboard instead of back through login.
+  if (user && (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login")) {
+    return redirect("/dashboard");
+  }
+
+  if (!user && request.nextUrl.pathname === "/") {
+    return redirect("/login");
+  }
+
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return redirect("/login");
   }
 
   return supabaseResponse;
