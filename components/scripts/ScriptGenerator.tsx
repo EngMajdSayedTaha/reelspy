@@ -86,6 +86,9 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
       const json = await requestJson<GeneratedResponse>("/api/generate-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        // Above the server's ~60s AI budget so this only trips if the request
+        // itself wedges — the spinner can never hang forever.
+        timeoutMs: 70_000,
         body: JSON.stringify({
           reel_id: reelId,
           caption,

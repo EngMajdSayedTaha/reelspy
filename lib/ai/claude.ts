@@ -257,6 +257,27 @@ export async function generateGrowthNotes(metricsJson: string): Promise<GrowthNo
   }
 }
 
+// The prompt asks for exactly 5 recommendations. Llama sometimes ignores that
+// and repeats itself, so we defensively trim blanks, drop case-insensitive
+// duplicates, and cap the list — otherwise a repetition loop surfaces as the
+// "same row duplicated many times" the user reported.
+const MAX_GROWTH_NOTES = 5;
+
+function dedupeAndCap(notes: string[]): GrowthNote[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of notes) {
+    const note = raw.trim();
+    if (!note) continue;
+    const key = note.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note);
+    if (out.length >= MAX_GROWTH_NOTES) break;
+  }
+  return out;
+}
+
 // Pull the first array-of-strings value out of an object response, to tolerate
 // models that wrap the list under a key when asked for a JSON object.
 function extractStringArray(value: unknown): string[] | null {
@@ -283,7 +304,8 @@ function parseGrowthNotes(text: string): GrowthNote[] {
     const parsed = JSON.parse(clean) as unknown;
     const arr = Array.isArray(parsed) ? parsed : extractStringArray(parsed);
     if (arr && arr.length > 0 && arr.every((item) => typeof item === "string")) {
-      return arr as GrowthNote[];
+      const notes = dedupeAndCap(arr as string[]);
+      if (notes.length > 0) return notes;
     }
   } catch {
     // fall through to salvage
@@ -319,5 +341,5 @@ function parseGrowthNotes(text: string): GrowthNote[] {
     }
   }
 
-  return salvaged;
+  return dedupeAndCap(salvaged);
 }

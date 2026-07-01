@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { generateScript } from "@/lib/ai/claude";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
+// Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
+// the platform's default function timeout so a legitimate retry isn't killed.
+export const maxDuration = 60;
+
 // Length caps bound what flows into the model prompt and the database — an
 // unbounded caption/context would let a single request burn arbitrary tokens.
 const bodySchema = z.object({

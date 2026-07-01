@@ -98,11 +98,17 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
     setDegraded(false);
     setAnalyzed(null);
 
+    // Above the server's ~60s AI budget so this only trips if the request
+    // itself wedges — the "Analyzing…" state can never hang forever.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 70_000);
+
     try {
       const response = await fetch("/api/growth-notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: postCount }),
+        signal: controller.signal,
       });
       const json = (await response.json()) as NotesResponse;
 
@@ -113,9 +119,14 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
         setDegraded(Boolean(json.degraded));
         setAnalyzed(typeof json.analyzed === "number" ? json.analyzed : null);
       }
-    } catch {
-      setError("Failed to generate notes.");
+    } catch (err) {
+      setError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "This took too long and timed out. Please try again."
+          : "Failed to generate notes."
+      );
     } finally {
+      clearTimeout(timer);
       setIsLoading(false);
     }
   };
