@@ -4,17 +4,15 @@ import {
   UserSearch,
   Clapperboard,
   ScrollText,
-  Plug,
   ArrowRight,
   Sparkles,
   RefreshCw,
-  AlertTriangle,
   CalendarCheck,
   CheckCircle2,
   Heart,
+  Send,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
 type StatCardProps = {
@@ -52,11 +50,9 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // ig_user_id is set/cleared together with the token, so it's a safe
-  // "connected" signal without granting the page access to the token itself.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, ig_user_id")
+    .select("username")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -67,6 +63,7 @@ export default async function DashboardPage() {
     workedCountResult,
     favoritesCountResult,
     scheduledCountResult,
+    publishedCountResult,
   ] = await Promise.all([
     supabase
       .from("inspiration_accounts")
@@ -95,6 +92,11 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .not("scheduled_date", "is", null),
+    supabase
+      .from("publish_posts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "done"),
   ]);
 
   const accountsCount = accountsCountResult.count ?? 0;
@@ -103,7 +105,7 @@ export default async function DashboardPage() {
   const workedCount = workedCountResult.count ?? 0;
   const favoritesCount = favoritesCountResult.count ?? 0;
   const scheduledCount = scheduledCountResult.count ?? 0;
-  const igConnected = Boolean(profile?.ig_user_id);
+  const publishedCount = publishedCountResult.count ?? 0;
   const username = profile?.username ?? user.email ?? "creator";
 
   return (
@@ -116,26 +118,6 @@ export default async function DashboardPage() {
           Your content intelligence command center.
         </p>
       </div>
-
-      {!igConnected ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-400" />
-            <div>
-              <p className="text-sm font-medium text-amber-200">Instagram not connected</p>
-              <p className="text-xs text-amber-200/70">
-                Connect your account to sync inspiration reels and analytics.
-              </p>
-            </div>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/dashboard/connections">
-              <Plug className="h-4 w-4" />
-              Connect
-            </Link>
-          </Button>
-        </div>
-      ) : null}
 
       <div className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
@@ -157,10 +139,10 @@ export default async function DashboardPage() {
           href="/dashboard/scripts"
         />
         <StatCard
-          label="Instagram"
-          value={igConnected ? "Connected" : "Offline"}
-          icon={Plug}
-          href="/dashboard/connections"
+          label="Posts Published"
+          value={String(publishedCount)}
+          icon={Send}
+          href="/dashboard/publishing"
         />
         <StatCard
           label="Reels Worked On"
