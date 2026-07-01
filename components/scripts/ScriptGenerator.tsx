@@ -35,6 +35,7 @@ type GeneratedScript = {
 
 type GeneratedResponse = {
   script: GeneratedScript;
+  degraded?: boolean;
   error?: string;
 };
 
@@ -99,7 +100,11 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
       });
 
       setResult(json);
-      toast.success("Script generated");
+      if (json.degraded) {
+        toast.warning("AI is unavailable right now — showing a placeholder. Try again in a moment.");
+      } else {
+        toast.success("Script generated");
+      }
     } catch (error) {
       setError(notifyError(error, "Failed to generate script."));
       setResult(null);
@@ -236,7 +241,18 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
         </div>
       </div>
 
-      {result?.script ? <ScriptOutput script={result.script} /> : null}
+      {result?.script ? (
+        <div className="space-y-2">
+          {result.degraded ? (
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-300">
+              This is a generic placeholder — the AI didn&apos;t respond in time, so no real
+              script was generated (and it wasn&apos;t saved). Tap Generate Script again in a
+              moment.
+            </p>
+          ) : null}
+          <ScriptOutput script={result.script} />
+        </div>
+      ) : null}
     </div>
   );
 }

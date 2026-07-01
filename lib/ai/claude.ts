@@ -29,7 +29,9 @@ Each recommendation must:
 - Be specific to a developer/tech content creator audience
 - Stay concise — keep each recommendation under 240 characters (one or two sentences)
 
-Respond ONLY with a JSON array of 5 strings. No markdown, no preamble. Use plain straight ASCII double quotes (") only — never curly/smart quotes.`;
+Respond ONLY with a JSON OBJECT of exactly this shape — an array of 5 strings under a "recommendations" key:
+{"recommendations": ["first tip", "second tip", "third tip", "fourth tip", "fifth tip"]}
+No markdown, no preamble. Use plain straight ASCII double quotes (") only — never curly/smart quotes.`;
 
 type GenerateScriptInput = {
   caption: string;
@@ -150,9 +152,17 @@ function parseJsonFromText(text: string): GeneratedScript | null {
   return { hook, body, cta };
 }
 
-export async function generateScript(input: GenerateScriptInput): Promise<GeneratedScript> {
+export type GenerateScriptResult = {
+  script: GeneratedScript;
+  /** True when `script` is the static placeholder, not live AI output (no key,
+   *  API error/timeout, or unparseable response). Lets the caller warn the user
+   *  and avoid persisting a fake script, instead of failing invisibly. */
+  degraded: boolean;
+};
+
+export async function generateScript(input: GenerateScriptInput): Promise<GenerateScriptResult> {
   if (!aiConfigured()) {
-    return fallbackScript(input);
+    return { script: fallbackScript(input), degraded: true };
   }
 
   // User-supplied caption/context are wrapped in delimiters and the system
@@ -180,7 +190,7 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
     });
 
     if (!result) {
-      return fallbackScript(input);
+      return { script: fallbackScript(input), degraded: true };
     }
 
     const parsed = parseJsonFromText(result.text);
@@ -192,13 +202,13 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
         `AI script parse failed (provider=${result.provider}); raw start:`,
         result.text.slice(0, 200)
       );
-      return fallbackScript(input);
+      return { script: fallbackScript(input), degraded: true };
     }
 
-    return parsed;
+    return { script: parsed, degraded: false };
   } catch (error) {
     console.error("AI script generation failed", error);
-    return fallbackScript(input);
+    return { script: fallbackScript(input), degraded: true };
   }
 }
 
