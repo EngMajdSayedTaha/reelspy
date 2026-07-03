@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plug } from "lucide-react";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
+import { DangerZone } from "@/components/settings/DangerZone";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { savePreferences } from "./actions";
@@ -43,6 +44,8 @@ export default async function SettingsPage() {
         </div>
         <span className="text-sm font-medium text-brand">Manage →</span>
       </Link>
+
+      <DangerZone />
     </div>
   );
 }

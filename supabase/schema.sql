@@ -381,7 +381,7 @@ create table publish_posts (
   thumbnail_path text,
   duration_seconds integer,
   status text not null default 'draft'
-    check (status in ('draft', 'scheduled', 'publishing', 'done', 'failed')),
+    check (status in ('draft', 'scheduled', 'publishing', 'done', 'partial', 'failed')),
   scheduled_at timestamptz,                -- null = publish immediately
   created_at timestamptz default now(),
   updated_at timestamptz default now()

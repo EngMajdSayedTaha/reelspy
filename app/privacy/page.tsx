@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout title="Privacy Policy" updated="June 15, 2026">
+    <LegalLayout title="Privacy Policy" updated="July 3, 2026">
       <p>
         This Privacy Policy explains how ReelSpy (&ldquo;we&rdquo;, &ldquo;us&rdquo;) collects,
         uses, and safeguards your information when you use the ReelSpy application.
@@ -56,7 +56,56 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="4. Cookies">
+      <LegalSection heading="4. Service Providers (Sub-processors)">
+        <p>
+          We rely on the following third-party processors to run ReelSpy. Each
+          receives only the data needed for its function, under its own security and
+          privacy commitments:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            <span className="font-medium text-foreground">Supabase</span> — database,
+            authentication, and file storage.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Vercel</span> — application
+            hosting and delivery.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Cloudflare R2</span> — storage
+            for videos you upload for publishing.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Stripe</span> — payment and
+            subscription processing (we never store your card details).
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Anthropic</span> and{" "}
+            <span className="font-medium text-foreground">NVIDIA</span> — AI models that
+            generate scripts and suggestions from the inputs you provide.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Groq</span> and{" "}
+            <span className="font-medium text-foreground">Hugging Face</span> — speech-to-text
+            transcription of reels you choose to transcribe.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Meta</span> (Instagram &amp;
+            Facebook) and <span className="font-medium text-foreground">Google</span>{" "}
+            (YouTube &amp; sign-in) — platforms you connect and publish to via their APIs.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Resend</span> — transactional
+            email (e.g. publish-failure notifications).
+          </li>
+        </ul>
+        <p>
+          We do not sell your personal data, and we do not share it with third parties
+          except the processors above or where required by law.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="5. Cookies">
         <p>
           We use essential cookies for authentication and to remember your
           consent and preferences. For details, see our{" "}
@@ -67,24 +116,43 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection heading="5. Data Retention">
+      <LegalSection heading="6. Data Retention &amp; Deletion">
         <p>
-          We retain your data for as long as your account is active. You may
-          request deletion of your account and associated data at any time.
+          We retain your data for as long as your account is active. You can delete your
+          account at any time from{" "}
+          <Link href="/dashboard/settings" className="text-brand hover:underline">
+            Settings
+          </Link>
+          . Deletion permanently removes your profile and all associated data — tracked
+          accounts, reels, scripts, automations, uploaded videos, and event logs — and
+          revokes any connected Meta access token. This action is immediate and cannot be
+          undone.
         </p>
       </LegalSection>
 
-      <LegalSection heading="6. Your Rights">
+      <LegalSection heading="7. Your Rights">
         <p>
-          Depending on your jurisdiction, you may have the right to access,
-          correct, export, or delete your personal data. To exercise these rights,
-          contact us using the details below.
+          Depending on your jurisdiction, you may have the right to access, correct, export,
+          or delete your personal data. You can <span className="font-medium text-foreground">export</span>{" "}
+          a machine-readable copy of your data and <span className="font-medium text-foreground">delete</span>{" "}
+          your account yourself from Settings, or contact us to exercise any of these rights.
         </p>
       </LegalSection>
 
-      <LegalSection heading="7. Contact">
+      <LegalSection heading="8. Security &amp; Breach Notification">
         <p>
-          Questions about this policy? Email us at{" "}
+          We protect access tokens and other sensitive data with server-only access controls
+          and encryption in transit. No system is perfectly secure; in the event of a personal
+          data breach that is likely to affect you, we will notify affected users and the
+          relevant authority without undue delay, consistent with applicable law.
+        </p>
+      </LegalSection>
+
+      <LegalSection heading="9. Data Protection Contact (UAE PDPL)">
+        <p>
+          ReelSpy processes personal data in line with the UAE Personal Data Protection Law
+          (PDPL). For data-protection requests or questions — access, correction, export,
+          deletion, or objection — contact our data protection point of contact at{" "}
           <a href="mailto:privacy@reelspy.app" className="text-brand hover:underline">
             privacy@reelspy.app
           </a>

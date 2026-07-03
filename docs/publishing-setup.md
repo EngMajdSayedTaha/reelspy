@@ -44,8 +44,10 @@ Set the cron secret so the scheduler can run (already used by the other crons):
 CRON_SECRET=<long random string>
 ```
 
-The scheduled-post worker is `/api/cron/publish-due` (registered in
-`vercel.json`, runs every 15 minutes).
+The scheduled-post worker is `/api/cron/publish-due`. On **Vercel Pro** it runs
+every 5 minutes; it is **temporarily disabled on Hobby** (see
+[`cron-cadence.md`](./cron-cadence.md)) — re-add it to `vercel.json` after
+upgrading. "Post now" is unaffected (it runs the dispatcher inline).
 
 ---
 
