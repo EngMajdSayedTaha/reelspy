@@ -10,7 +10,7 @@ Execution order: L4/L8 → L1 → L2 → L3 → L5 → L6 → L7 → L10/L11 →
 | # | Item | Tag | Effort | Status | Notes |
 |---|---|---|---|---|---|
 | L4 | Rate-limit the unmetered heavy routes (B6) | BLOCKER | 0.5 ev | done | throttled reel-from-link (shares `transcript` bucket) + new `upload_presign` limit; diag `?transcribe=1` gated behind `DIAG_ALLOWED_USER_IDS` (fail-closed) |
-| L8 | Cron cadence / Vercel Pro (B5) | BLOCKER | 0.5 ev | done | `publish-due` → `*/5`, added `poll-comments */10`; needs Vercel Pro live |
+| L8 | Cron cadence / Vercel Pro (B5) | BLOCKER | 0.5 ev | done | `publish-due */5` + `poll-comments */10` **temporarily removed from `vercel.json`** (Hobby caps at 2 daily crons) — only the 2 daily crons ship until Vercel Pro; one-step restore documented in `docs/cron-cadence.md`. "Post now" unaffected (inline dispatch); automations still fire via webhook `after()` |
 | L1 | De-persona AI prompts (B2) | BLOCKER, WEDGE | 2 ev | done | `brand_voice` jsonb on profiles; system prompts now built from it with neutral fallback; both AI routes pass it. Collection UI lands in L7 |
 | L2 | Transcript-grounded scripts (W1) | WEDGE | 2 ev | done | route feeds `<reel_transcript>` + perf stats into the prompt; `grounded` flag → chip in ScriptGenerator; one-tap "transcribe first, then regenerate" |
 | L3 | Claude for paid tiers + tool-use JSON (W2) | WEDGE | 2 ev | done | `chat()` routes paid→Claude (Haiku 4.5 / Sonnet 4.6 for Pro/Studio), free→NVIDIA; `emit_script`/`emit_growth_notes` forced tool-use (clean JSON, strict). Tier via env `AI_DEFAULT_TIER` until L6 |
