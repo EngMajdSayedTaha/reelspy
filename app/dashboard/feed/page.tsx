@@ -23,11 +23,60 @@ export type FeedReel = {
   transcript_status: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
+  // Set only on the "Outperforming" sort (W3/V5): how many times this reel beats
+  // its own account's median reel. Drives the card's "Outperforming ×N" badge.
+  outperform_ratio?: number | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
     | null;
 };
+
+// Flat row shape returned by the outperforming_feed RPC (W3/V5).
+type OutperformRow = {
+  id: string;
+  caption: string | null;
+  ig_permalink: string;
+  thumbnail_url: string | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  viral_score: number | null;
+  is_worked_on: boolean | null;
+  posted_at: string | null;
+  transcript_status: string | null;
+  is_discarded: boolean | null;
+  is_favorite: boolean | null;
+  ig_username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  outperform_ratio: number | string | null;
+  total_count: number | string;
+};
+
+function mapOutperformRow(row: OutperformRow): FeedReel {
+  return {
+    id: row.id,
+    caption: row.caption,
+    ig_permalink: row.ig_permalink,
+    thumbnail_url: row.thumbnail_url,
+    view_count: row.view_count,
+    like_count: row.like_count,
+    comment_count: row.comment_count,
+    viral_score: row.viral_score,
+    is_worked_on: row.is_worked_on,
+    posted_at: row.posted_at,
+    transcript_status: row.transcript_status,
+    is_discarded: row.is_discarded,
+    is_favorite: row.is_favorite,
+    outperform_ratio: row.outperform_ratio != null ? Number(row.outperform_ratio) : null,
+    inspiration_accounts: {
+      ig_username: row.ig_username,
+      display_name: row.display_name,
+      avatar_url: row.avatar_url,
+    },
+  };
+}
 
 // Non-existent UUID used to force an empty result set for an empty group.
 const NO_MATCH_ID = "00000000-0000-0000-0000-000000000000";
@@ -102,7 +151,9 @@ export default async function FeedPage({
   const group = first(params.group) ?? "all";
   const status = first(params.status) ?? "new"; // default to New only
   const q = (first(params.q) ?? "").trim();
-  const sort = first(params.sort) ?? "recent";
+  // Default to the follower-normalized "Outperforming" ranking (W3/V5) so the
+  // best relative performers lead, not just the biggest accounts.
+  const sort = first(params.sort) ?? "outperforming";
   const order = first(params.order) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
   // Explicit ?pp= wins, then the user's saved preference (Settings), then 10.
@@ -193,16 +244,48 @@ export default async function FeedPage({
   const from = (page - 1) * perPage;
   const to = from + perPage - 1;
 
-  const { data, error, count } = await query
-    .order(sortColumn, { ascending, nullsFirst: false })
-    .range(from, to);
+  let reels: FeedReel[];
+  let total: number;
 
-  if (error) {
-    throw new Error(error.message);
+  if (sort === "outperforming") {
+    // Relative ranking lives in an RPC (a cross-table ratio can't be an ORDER BY
+    // in a PostgREST select). It applies the same filters + pagination and
+    // returns the outperform ratio per reel.
+    const pGroupIds =
+      group !== "all"
+        ? groupAccountIds && groupAccountIds.length
+          ? groupAccountIds
+          : [NO_MATCH_ID]
+        : null;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc("outperforming_feed", {
+      p_user_id: user.id,
+      p_account: account !== "all" ? account : null,
+      p_group_ids: pGroupIds,
+      p_status: status,
+      p_q: q || null,
+      p_limit: perPage,
+      p_offset: from,
+    });
+
+    if (rpcError) throw new Error(rpcError.message);
+
+    const rows = (rpcData ?? []) as OutperformRow[];
+    reels = rows.map(mapOutperformRow);
+    total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+  } else {
+    const { data, error, count } = await query
+      .order(sortColumn, { ascending, nullsFirst: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    reels = (data ?? []) as FeedReel[];
+    total = count ?? 0;
   }
 
-  const reels = (data ?? []) as FeedReel[];
-  const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   // Account/group/search filters (status excluded — its default is "new").

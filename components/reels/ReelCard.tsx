@@ -14,6 +14,7 @@ import {
   Captions,
   ThumbsDown,
   RotateCcw,
+  TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ type Reel = {
   transcript_status: string | null;
   is_discarded: boolean | null;
   is_favorite: boolean | null;
+  // Present on the "Outperforming" feed sort (W3/V5): × this account's median reel.
+  outperform_ratio?: number | null;
   inspiration_accounts:
     | { ig_username: string; display_name: string | null; avatar_url: string | null }
     | { ig_username: string; display_name: string | null; avatar_url: string | null }[]
@@ -61,6 +64,12 @@ function formatCompact(value: number | null): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}K`;
   return new Intl.NumberFormat("en-US").format(n);
+}
+
+// Compact "×N" for the outperform ratio (e.g. 761.16 → "×761", 2.4 → "×2.4").
+function formatOutperform(ratio: number): string {
+  if (ratio >= 10) return `×${Math.round(ratio).toLocaleString("en-US")}`;
+  return `×${ratio.toFixed(1)}`;
 }
 
 // Instagram embed URL from a reel/post permalink.
@@ -163,6 +172,21 @@ export function ReelCard({
                 action={favoriteAction}
               />
             </div>
+
+            {/* Outperforming badge (W3/V5) — only when the feed is sorted by
+                the relative "Outperforming" score. Explains the ranking: how
+                far this reel beats its own account's typical reel. */}
+            {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
+              <div
+                className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+                title={`This reel beat @${username}'s typical reel by ${formatOutperform(
+                  reel.outperform_ratio
+                )} (vs the account's median score).`}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                {formatOutperform(reel.outperform_ratio)}
+              </div>
+            ) : null}
 
             {/* Status badge */}
             <div className="absolute right-2 top-2">
