@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { readMyInsightsCache } from "@/lib/instagram/my-insights";
+import { resolveUserTier } from "@/lib/ai/tier";
+import type { AiTier } from "@/lib/ai/tier";
 
 export type SidebarUser = {
   /** "@handle" when an IG account is connected, else the profile name/email. */
@@ -11,6 +13,8 @@ export type SidebarUser = {
   avatarUrl: string | null;
   email: string | null;
   connected: boolean;
+  /** Subscription tier — drives the sidebar plan badge (L6). */
+  tier: AiTier;
 };
 
 /**
@@ -50,5 +54,7 @@ export async function getSidebarUser(): Promise<SidebarUser | null> {
     ? `@${igUsername}`
     : profile?.username ?? user.email ?? "Account";
 
-  return { handle, avatarUrl, email: user.email ?? null, connected };
+  const tier = await resolveUserTier(supabase, user.id);
+
+  return { handle, avatarUrl, email: user.email ?? null, connected, tier };
 }

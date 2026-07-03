@@ -1,0 +1,73 @@
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { PaidTier } from "@/lib/billing/plans";
+
+async function postJson(url: string, body?: unknown): Promise<{ url?: string; error?: string }> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json().catch(() => ({ error: "Something went wrong." }));
+}
+
+// Start Checkout for a paid tier. Label + variant are set by the caller so the
+// same button reads "Upgrade" / "Subscribe" / "Switch plan" as appropriate.
+export function SubscribeButton({
+  tier,
+  label,
+  variant = "default",
+  disabled,
+}: {
+  tier: PaidTier;
+  label: string;
+  variant?: "default" | "outline" | "secondary";
+  disabled?: boolean;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  async function go() {
+    setLoading(true);
+    const { url, error } = await postJson("/api/billing/checkout", { tier });
+    if (url) {
+      window.location.href = url;
+      return; // keep the spinner through the redirect
+    }
+    toast.error(error ?? "Could not start checkout.");
+    setLoading(false);
+  }
+
+  return (
+    <Button onClick={go} variant={variant} disabled={disabled || loading} className="w-full">
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {label}
+    </Button>
+  );
+}
+
+// Open the Stripe Billing Portal to update card / change plan / cancel.
+export function ManageBillingButton({ className }: { className?: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function go() {
+    setLoading(true);
+    const { url, error } = await postJson("/api/billing/portal");
+    if (url) {
+      window.location.href = url;
+      return;
+    }
+    toast.error(error ?? "Could not open billing portal.");
+    setLoading(false);
+  }
+
+  return (
+    <Button onClick={go} variant="outline" disabled={loading} className={className}>
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      Manage billing
+    </Button>
+  );
+}

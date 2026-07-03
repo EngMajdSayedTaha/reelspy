@@ -12,6 +12,7 @@ import {
   Calendar,
   Send,
   Plug,
+  CreditCard,
   Settings,
   AtSign,
   X,
@@ -20,6 +21,7 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { planFor } from "@/lib/billing/plans";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 
 type NavLink = { href: string; label: string; icon: LucideIcon; matchPrefixes?: string[] };
@@ -43,6 +45,7 @@ const links: NavLink[] = [
   { href: "/dashboard/publishing", label: "Publishing", icon: Send },
   { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
   { href: "/dashboard/connections", label: "Connections", icon: Plug },
+  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
@@ -119,6 +122,23 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
         </nav>
 
         <div className="mt-auto space-y-3 border-t border-border pt-4">
+          {user ? (
+            <Link
+              href="/dashboard/billing"
+              onClick={onClose}
+              className="flex items-center justify-between rounded-lg bg-secondary/60 px-3 py-2 text-xs transition hover:bg-secondary"
+            >
+              <span className="text-muted-foreground">Plan</span>
+              <span
+                className={`font-medium ${
+                  user.tier === "free" ? "text-foreground" : "text-brand"
+                }`}
+              >
+                {planFor(user.tier).name}
+              </span>
+            </Link>
+          ) : null}
+
           <ThemeToggle />
 
           {user ? (

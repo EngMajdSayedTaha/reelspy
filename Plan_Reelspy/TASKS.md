@@ -9,7 +9,7 @@ in the same commit. Each checkbox = one Claude Code session/patch.
 - [x] **L2** Ground scripts on transcripts + hooks, add grounded/caption-only chip — see `plan/03-wedge-quality.md` W1
 - [x] **L3** Route paid tiers to Claude (Haiku default, Sonnet Pro/Studio), tool-use forced JSON — see `plan/03-wedge-quality.md` W2
 - [x] **L5** `app_events` + `ai_usage` tables, `track()` helper, wire event map, 3 SQL views (WLC, activation funnel, retention) — see `plan/05-instrumentation.md`
-- [ ] **L6** Stripe UAE billing: `subscriptions` table, `entitlements.ts`, enforcement at 4 chokepoints, checkout/portal/webhook routes, `/dashboard/billing` — see `plan/02-launch-blockers.md` B1 *(start Stripe UAE application in week 1 — long pole)*
+- [x] **L6** Stripe UAE billing: `subscriptions` table, `entitlements.ts`, enforcement at 4 chokepoints, checkout/portal/webhook routes, `/dashboard/billing` — see `plan/02-launch-blockers.md` B1 *(code done; awaiting Stripe UAE approval + keys — see docs/billing-setup.md)*
 - [ ] **L7** Onboarding wizard → <10-min activation, starter-pack path, setup checklist card — see `plan/02-launch-blockers.md` B3
 - [ ] **L10** Empty/error/loading states across scripts, accounts, generate, publishing, automations — see `plan/02-launch-blockers.md` B7
 - [ ] **L11** Palette rebrand (`globals.css` tokens, sweep ~52 hardcoded amber/emerald classes) — see `plan/02-launch-blockers.md` B9
