@@ -1,6 +1,13 @@
 -- Derived metrics for L5. Plain SQL views over app_events / ai_usage — no app
 -- code. A view over an event that isn't wired yet simply returns no rows, so
 -- these are safe to define ahead of every call site being instrumented.
+--
+-- SECURITY: app_events / ai_usage have RLS on with no policies (service-role
+-- only). These views are created with security_invoker=on (see the ALTERs at the
+-- end) so the querying role's own RLS applies — authenticated gets zero rows,
+-- service-role / SQL editor gets everything — and browser access is revoked
+-- outright. A plain SECURITY DEFINER view would bypass that RLS and leak per-user
+-- rows via PostgREST (Supabase linter 0010).
 
 -- Weekly Loop Completions (North Star): users who completed the research→output
 -- loop — a research event (feed_synced / transcript_ready) followed within 7
@@ -99,3 +106,15 @@ select
 from ai_usage
 group by user_id
 order by est_usd desc;
+
+-- Enforce the querying role's own RLS (see SECURITY note above) and keep these
+-- analytics views off the browser API entirely.
+alter view wlc_weekly             set (security_invoker = on);
+alter view activation_funnel      set (security_invoker = on);
+alter view retention_cohorts      set (security_invoker = on);
+alter view publish_success_weekly set (security_invoker = on);
+alter view ai_cost_per_user       set (security_invoker = on);
+
+revoke all on wlc_weekly, activation_funnel, retention_cohorts,
+              publish_success_weekly, ai_cost_per_user
+  from anon, authenticated;

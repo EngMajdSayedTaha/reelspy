@@ -708,6 +708,90 @@ create table ai_usage (
 create index ai_usage_user_time_idx on ai_usage (user_id, created_at desc);
 alter table ai_usage enable row level security;  -- no policies: service-role only
 
+-- Derived analytics views (L5). security_invoker=on so the querying role's RLS
+-- applies (authenticated → 0 rows; service-role/SQL editor → all); browser access
+-- revoked. See migration 20260703c_instrumentation_views.sql for full notes.
+create or replace view wlc_weekly as
+with research as (
+  select user_id, created_at from app_events
+  where event in ('feed_synced', 'transcript_ready')
+),
+output as (
+  select user_id, created_at from app_events
+  where event = 'script_generated'
+     or (event = 'publish_job_finished' and props->>'status' = 'success')
+)
+select date_trunc('week', r.created_at) as week, count(distinct r.user_id) as loop_completers
+from research r
+where exists (
+  select 1 from output o
+  where o.user_id = r.user_id
+    and o.created_at >= r.created_at
+    and o.created_at < r.created_at + interval '7 days'
+)
+group by 1 order by 1;
+
+create or replace view activation_funnel as
+select
+  user_id,
+  min(created_at) filter (where event = 'signed_up')       as signed_up_at,
+  min(created_at) filter (where event = 'ig_connected')     as ig_connected_at,
+  min(created_at) filter (where event = 'account_added')    as account_added_at,
+  min(created_at) filter (where event = 'feed_synced')      as feed_synced_at,
+  min(created_at) filter (where event = 'script_generated') as first_script_at,
+  min(created_at) filter (where event = 'script_generated')
+    - min(created_at) filter (where event = 'signed_up')    as time_to_first_script,
+  (min(created_at) filter (where event = 'script_generated')
+    - min(created_at) filter (where event = 'signed_up')) < interval '10 minutes' as met_sla
+from app_events group by user_id;
+
+create or replace view retention_cohorts as
+with signup as (
+  select user_id, date_trunc('week', min(created_at)) as cohort_week
+  from app_events where event = 'signed_up' group by user_id
+),
+activity as (
+  select distinct user_id, date_trunc('week', created_at) as active_week from app_events
+)
+select s.cohort_week, a.active_week, count(distinct a.user_id) as active_users
+from signup s join activity a on a.user_id = s.user_id
+group by 1, 2 order by 1, 2;
+
+create or replace view publish_success_weekly as
+select
+  date_trunc('week', created_at) as week,
+  props->>'platform' as platform,
+  count(*) filter (where props->>'status' = 'success') as succeeded,
+  count(*) as total,
+  round(count(*) filter (where props->>'status' = 'success')::numeric
+        / nullif(count(*), 0), 3) as success_rate
+from app_events where event = 'publish_job_finished'
+group by 1, 2 order by 1, 2;
+
+create or replace view ai_cost_per_user as
+select
+  user_id,
+  count(*) as calls,
+  sum(coalesce(input_tokens, 0))  as input_tokens,
+  sum(coalesce(output_tokens, 0)) as output_tokens,
+  round(sum(
+    case
+      when model like 'claude-haiku%'  then coalesce(input_tokens,0)/1e6*1.0 + coalesce(output_tokens,0)/1e6*5.0
+      when model like 'claude-sonnet%' then coalesce(input_tokens,0)/1e6*3.0 + coalesce(output_tokens,0)/1e6*15.0
+      else 0
+    end
+  )::numeric, 4) as est_usd
+from ai_usage group by user_id order by est_usd desc;
+
+alter view wlc_weekly             set (security_invoker = on);
+alter view activation_funnel      set (security_invoker = on);
+alter view retention_cohorts      set (security_invoker = on);
+alter view publish_success_weekly set (security_invoker = on);
+alter view ai_cost_per_user       set (security_invoker = on);
+revoke all on wlc_weekly, activation_funnel, retention_cohorts,
+              publish_success_weekly, ai_cost_per_user
+  from anon, authenticated;
+
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Billing (L6/B1) — see migration 20260703d_billing.sql for full notes.      ║
 -- ║ subscriptions is written ONLY by the Stripe webhook (service-role); owners  ║
@@ -783,6 +867,7 @@ begin
     v_end;
 end;
 $$;
+revoke execute on function consume_user_action_monthly(uuid, text, int) from public, anon;
 grant execute on function consume_user_action_monthly(uuid, text, int)
   to authenticated, service_role;
 

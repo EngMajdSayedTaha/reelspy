@@ -101,5 +101,9 @@ begin
 end;
 $$;
 
+-- Postgres grants EXECUTE to PUBLIC by default; revoke so anon can't consume
+-- another user's monthly quota. The app only ever calls this as the signed-in
+-- user or the service-role client.
+revoke execute on function consume_user_action_monthly(uuid, text, int) from public, anon;
 grant execute on function consume_user_action_monthly(uuid, text, int)
   to authenticated, service_role;
