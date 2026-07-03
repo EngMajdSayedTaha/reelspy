@@ -11,8 +11,8 @@ in the same commit. Each checkbox = one Claude Code session/patch.
 - [x] **L5** `app_events` + `ai_usage` tables, `track()` helper, wire event map, 3 SQL views (WLC, activation funnel, retention) — see `plan/05-instrumentation.md`
 - [x] **L6** Stripe UAE billing: `subscriptions` table, `entitlements.ts`, enforcement at 4 chokepoints, checkout/portal/webhook routes, `/dashboard/billing` — see `plan/02-launch-blockers.md` B1 *(code done; awaiting Stripe UAE approval + keys — see docs/billing-setup.md)*
 - [x] **L7** Onboarding wizard → <10-min activation, starter-pack path, setup checklist card — see `plan/02-launch-blockers.md` B3
-- [ ] **L10** Empty/error/loading states across scripts, accounts, generate, publishing, automations — see `plan/02-launch-blockers.md` B7
-- [ ] **L11** Palette rebrand (`globals.css` tokens, sweep ~52 hardcoded amber/emerald classes) — see `plan/02-launch-blockers.md` B9
+- [x] **L10** Empty/error/loading states across scripts, accounts, generate, publishing, automations — see `plan/02-launch-blockers.md` B7
+- [x] **L11** Palette rebrand (`globals.css` tokens, sweep ~52 hardcoded amber/emerald classes) — see `plan/02-launch-blockers.md` B9
 - [ ] **L9** Publish failure notifications (Resend/Supabase SMTP) + honest `partial` status + retry action — see `plan/02-launch-blockers.md` B4
 - [ ] **L12** `/terms` page, `/privacy` processor disclosure, account delete + export endpoints — see `plan/02-launch-blockers.md` B8 + `plan/06-hardening-debt.md` H6
 - [ ] **L13** Vitest setup + entitlements/RPC tests — see `plan/06-hardening-debt.md` H5
