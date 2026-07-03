@@ -20,11 +20,11 @@ export function LogoMark({ size = 32, animated = true, className }: LogoMarkProp
       aria-label="ReelSpy logo"
       className={className}
     >
-      <rect width="64" height="64" rx="14" fill="#F9E400" />
+      <rect width="64" height="64" rx="14" fill="#6D28D9" />
 
       {/* Viewfinder corner brackets */}
       <g
-        stroke="#0d0d0d"
+        stroke="#ffffff"
         strokeWidth="4.5"
         strokeLinecap="round"
         fill="none"
@@ -40,8 +40,8 @@ export function LogoMark({ size = 32, animated = true, className }: LogoMarkProp
       {/* Play triangle */}
       <path
         d="M27 23.5 L43.5 32 L27 40.5 Z"
-        fill="#0d0d0d"
-        stroke="#0d0d0d"
+        fill="#ffffff"
+        stroke="#ffffff"
         strokeWidth="3"
         strokeLinejoin="round"
         className={animated ? "logo-play" : undefined}
@@ -50,7 +50,7 @@ export function LogoMark({ size = 32, animated = true, className }: LogoMarkProp
 
       {/* Scanning beam */}
       {animated ? (
-        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#0d0d0d" className="logo-scan" />
+        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#ffffff" className="logo-scan" />
       ) : null}
     </svg>
   );
