@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { generateGrowthNotes, type BrandVoice } from "@/lib/ai/claude";
+import { resolveUserTier } from "@/lib/ai/tier";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
@@ -91,9 +92,11 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .maybeSingle();
 
+    const tier = await resolveUserTier(supabase, user.id);
     const { notes, degraded } = await generateGrowthNotes(
       JSON.stringify(metricsPayload),
-      (profile?.brand_voice as BrandVoice | null) ?? null
+      (profile?.brand_voice as BrandVoice | null) ?? null,
+      tier
     );
 
     return NextResponse.json({ notes, degraded, analyzed: recentMedia.length });

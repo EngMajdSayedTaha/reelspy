@@ -1,4 +1,42 @@
-import { aiConfigured, chat } from "./provider";
+import { aiConfigured, chat, type JsonTool } from "./provider";
+import type { AiTier } from "./tier";
+
+// Forced-tool schemas for the Claude path (W2). Tool-use guarantees the model
+// returns a schema-valid JSON object, so the NVIDIA-era repair stack below is
+// only exercised on the free (NVIDIA) path. Schemas are strict-mode ready:
+// `type: object` + `required` + `additionalProperties: false`, no unsupported
+// numeric/length constraints.
+const SCRIPT_TOOL: JsonTool = {
+  name: "emit_script",
+  description: "Return the generated reel script as three structured fields.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      hook: { type: "string", description: "Scroll-stopping opener, under 15 words." },
+      body: { type: "string", description: "7-11 spoken lines separated by \\n." },
+      cta: { type: "string", description: "Soft, natural call to action." },
+    },
+    required: ["hook", "body", "cta"],
+    additionalProperties: false,
+  },
+};
+
+const GROWTH_TOOL: JsonTool = {
+  name: "emit_growth_notes",
+  description: "Return exactly 5 growth recommendations.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      recommendations: {
+        type: "array",
+        items: { type: "string" },
+        description: "Five specific, actionable recommendations.",
+      },
+    },
+    required: ["recommendations"],
+    additionalProperties: false,
+  },
+};
 
 export type GeneratedScript = {
   hook: string;
@@ -103,6 +141,8 @@ type GenerateScriptInput = {
   viralScore?: number | null;
   viewCount?: number | null;
   postedDaysAgo?: number | null;
+  // Subscription tier (W2): routes paid users to Claude, free to NVIDIA.
+  tier?: AiTier;
 };
 
 // Transcripts are our own output but still unbounded by request size, so cap
@@ -274,6 +314,10 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
       // make JSON.parse fail and silently drop us to the generic fallback).
       maxTokens: 1200,
       jsonObject: true,
+      tier: input.tier,
+      // Claude path returns clean JSON via tool-use; NVIDIA ignores this and
+      // uses jsonObject. Either way parseJsonFromText handles the result.
+      jsonTool: SCRIPT_TOOL,
     });
 
     if (!result) {
@@ -308,7 +352,8 @@ export type GrowthNotesResult = {
 
 export async function generateGrowthNotes(
   metricsJson: string,
-  brandVoice?: BrandVoice | null
+  brandVoice?: BrandVoice | null,
+  tier?: AiTier
 ): Promise<GrowthNotesResult> {
   if (!aiConfigured()) {
     return {
@@ -332,6 +377,8 @@ export async function generateGrowthNotes(
       // real headroom for 5 recommendations.
       maxTokens: 1500,
       jsonObject: true,
+      tier,
+      jsonTool: GROWTH_TOOL,
     });
 
     if (!result) {

@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript, type BrandVoice } from "@/lib/ai/claude";
+import { resolveUserTier } from "@/lib/ai/tier";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const grounded = Boolean(transcript);
+  const tier = await resolveUserTier(supabase, user.id);
 
   const { script: generated, degraded } = await generateScript({
     caption: sourceCaption,
@@ -110,6 +112,7 @@ export async function POST(request: Request) {
     viralScore,
     viewCount,
     postedDaysAgo,
+    tier,
   });
 
   // Don't persist the placeholder when the AI failed — saving a fake script

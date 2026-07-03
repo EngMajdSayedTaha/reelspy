@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { numEnv } from "@/lib/utils/env";
+import type { AiTier } from "./tier";
 
 // OpenAI-compatible chat helper with provider auto-detect.
 //
@@ -19,7 +20,20 @@ const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 // NVIDIA_MODEL to the slow 70B that times out on the free tier), we switch to
 // this fast model mid-request rather than dropping the user to a placeholder.
 const FAST_FALLBACK_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
-const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+
+// Paid-tier Claude models (founder decision / W2): Haiku 4.5 for Creator, Sonnet
+// 4.6 for Pro/Studio — the intelligence step-up justifies the higher tier price.
+// Pinned current IDs (aliases resolve to the latest snapshot). Overridable per
+// deploy without a code change.
+const ANTHROPIC_MODEL_HAIKU = process.env.ANTHROPIC_MODEL_HAIKU || "claude-haiku-4-5";
+const ANTHROPIC_MODEL_SONNET = process.env.ANTHROPIC_MODEL_SONNET || "claude-sonnet-4-6";
+
+function anthropicModelForTier(tier: AiTier): string {
+  // Pro/Studio get the stronger Sonnet; everyone else on the Claude path
+  // (Creator, or a free/unknown tier that reached Claude because no NVIDIA key
+  // is configured) gets Haiku.
+  return tier === "pro" || tier === "studio" ? ANTHROPIC_MODEL_SONNET : ANTHROPIC_MODEL_HAIKU;
+}
 
 // The free NVIDIA endpoint has no SLA: requests can stall (cold model load),
 // so every attempt is bounded by a hard timeout instead of hanging until the
@@ -51,12 +65,30 @@ export type ChatResult = {
   provider: ChatProvider;
 };
 
+// A tool that forces the Claude path to emit a schema-shaped JSON object via
+// tool-use (W2). Far more reliable than "respond ONLY with JSON": the input is
+// guaranteed valid JSON, so the quote/control-char/salvage repair stack in
+// lib/ai/claude.ts is only needed for the NVIDIA path. The NVIDIA path ignores
+// this and uses its OpenAI-style `response_format: json_object` instead.
+export type JsonTool = {
+  name: string;
+  description: string;
+  /** JSON Schema object: must be `type: "object"` with `required` +
+   *  `additionalProperties: false` so `strict` can guarantee the shape. */
+  inputSchema: Record<string, unknown>;
+};
+
 export type ChatOptions = {
   system: string;
   user: string;
   maxTokens: number;
   /** Ask the model for a strict JSON object (OpenAI-style response_format). */
   jsonObject?: boolean;
+  /** Subscription tier — routes paid users to Claude, free to NVIDIA. Defaults
+   *  to "free". */
+  tier?: AiTier;
+  /** When set, the Claude path forces this tool and returns its input as JSON. */
+  jsonTool?: JsonTool;
 };
 
 /** True when at least one AI provider key is configured. */
@@ -223,9 +255,35 @@ async function callAnthropic(opts: ChatOptions): Promise<ChatResult> {
   // Mirror the NVIDIA path's timeout/retry budget. The SDK retries transient
   // errors (429/5xx/network) on its own with backoff.
   const anthropic = new Anthropic({ apiKey, timeout: AI_TIMEOUT_MS, maxRetries: AI_MAX_RETRIES });
+  const model = anthropicModelForTier(opts.tier ?? "free");
+
+  // Forced tool-use path (W2): the model must call `jsonTool`, and its input is
+  // guaranteed to match the schema — so we hand back clean JSON with no repair.
+  if (opts.jsonTool) {
+    const response = await anthropic.messages.create({
+      model,
+      max_tokens: opts.maxTokens,
+      system: opts.system,
+      messages: [{ role: "user", content: opts.user }],
+      tools: [
+        {
+          name: opts.jsonTool.name,
+          description: opts.jsonTool.description,
+          input_schema: opts.jsonTool.inputSchema as Anthropic.Tool.InputSchema,
+          // Guarantees `tool_use.input` validates exactly against the schema.
+          strict: true,
+        },
+      ],
+      tool_choice: { type: "tool", name: opts.jsonTool.name },
+    });
+
+    const toolUse = response.content.find((item) => item.type === "tool_use");
+    const text = toolUse ? JSON.stringify(toolUse.input) : "";
+    return { text, provider: "anthropic" };
+  }
 
   const response = await anthropic.messages.create({
-    model: DEFAULT_ANTHROPIC_MODEL,
+    model,
     max_tokens: opts.maxTokens,
     system: opts.system,
     messages: [{ role: "user", content: opts.user }],
@@ -241,14 +299,27 @@ async function callAnthropic(opts: ChatOptions): Promise<ChatResult> {
 }
 
 /**
- * Run a chat completion against the configured provider. Returns null only when
- * no provider key is set; throws on API errors so callers can log + fall back.
+ * Run a chat completion against the tier-appropriate provider (W2):
+ *   - Paid tiers (Creator/Pro/Studio) → Claude, when ANTHROPIC_API_KEY is set.
+ *   - Free tier → NVIDIA Llama, when NVIDIA_API_KEY is set.
+ * Each falls back to the other provider if its own key is missing, so a
+ * single-key deploy still works. Returns null only when NO key is set; throws on
+ * API errors so callers can log + fall back to their templated responses.
  */
 export async function chat(opts: ChatOptions): Promise<ChatResult | null> {
-  if (process.env.NVIDIA_API_KEY) {
+  const hasNvidia = Boolean(process.env.NVIDIA_API_KEY);
+  const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
+  const paid = opts.tier === "creator" || opts.tier === "pro" || opts.tier === "studio";
+
+  // Paid users get Claude when it's configured; otherwise degrade to NVIDIA.
+  if (paid && hasAnthropic) {
+    return callAnthropic(opts);
+  }
+  // Free users (and paid users with no Claude key) get NVIDIA when configured.
+  if (hasNvidia) {
     return callNvidia(opts);
   }
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (hasAnthropic) {
     return callAnthropic(opts);
   }
   return null;

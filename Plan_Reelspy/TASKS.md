@@ -7,7 +7,7 @@ in the same commit. Each checkbox = one Claude Code session/patch.
 - [x] **L8** Cron cadence → Vercel Pro, `publish-due */5 * * * *`, add `poll-comments */10 * * * *` — see `plan/02-launch-blockers.md` B5
 - [x] **L1** De-persona AI prompts — add `brand_voice` jsonb, interpolate into system prompts — see `plan/02-launch-blockers.md` B2
 - [x] **L2** Ground scripts on transcripts + hooks, add grounded/caption-only chip — see `plan/03-wedge-quality.md` W1
-- [ ] **L3** Route paid tiers to Claude (Haiku default, Sonnet Pro/Studio), tool-use forced JSON — see `plan/03-wedge-quality.md` W2
+- [x] **L3** Route paid tiers to Claude (Haiku default, Sonnet Pro/Studio), tool-use forced JSON — see `plan/03-wedge-quality.md` W2
 - [ ] **L5** `app_events` + `ai_usage` tables, `track()` helper, wire event map, 3 SQL views (WLC, activation funnel, retention) — see `plan/05-instrumentation.md`
 - [ ] **L6** Stripe UAE billing: `subscriptions` table, `entitlements.ts`, enforcement at 4 chokepoints, checkout/portal/webhook routes, `/dashboard/billing` — see `plan/02-launch-blockers.md` B1 *(start Stripe UAE application in week 1 — long pole)*
 - [ ] **L7** Onboarding wizard → <10-min activation, starter-pack path, setup checklist card — see `plan/02-launch-blockers.md` B3
