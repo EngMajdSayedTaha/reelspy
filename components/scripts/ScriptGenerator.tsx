@@ -36,6 +36,9 @@ type GeneratedScript = {
 type GeneratedResponse = {
   script: GeneratedScript;
   degraded?: boolean;
+  /** True when the script was grounded on the reel's transcript (W1), false
+   *  when only the caption was available. */
+  grounded?: boolean;
   error?: string;
 };
 
@@ -57,6 +60,10 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
   const [reelUrl, setReelUrl] = useState("");
   const [isFetchingReel, setIsFetchingReel] = useState(false);
   const [reelFetchError, setReelFetchError] = useState<string | null>(null);
+
+  // W1: one-tap "transcribe this reel first, then regenerate" when the last
+  // script came back caption-only. Only reachable for a tracked reel (reelId).
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const onFetchReel = async () => {
     const url = reelUrl.trim();
@@ -110,6 +117,29 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
       setResult(null);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const onTranscribeAndGenerate = async () => {
+    if (!reelId) return;
+    setIsTranscribing(true);
+    setError(null);
+
+    try {
+      // Runs the full yt-dlp + Whisper pipeline server-side (minutes), so allow
+      // a budget above its 300s maxDuration before the client gives up.
+      await requestJson(`/api/reels/${reelId}/transcript`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        timeoutMs: 300_000,
+        body: JSON.stringify({}),
+      });
+      toast.success("Transcript ready — regenerating");
+      await onGenerate();
+    } catch (err) {
+      setError(notifyError(err, "Could not transcribe this reel. Try again shortly."));
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -249,7 +279,29 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
               script was generated (and it wasn&apos;t saved). Tap Generate Script again in a
               moment.
             </p>
+          ) : reelId ? (
+            result.grounded ? (
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1 text-xs font-medium text-emerald-300">
+                Grounded on transcript ✓
+              </span>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                  Caption only
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onTranscribeAndGenerate}
+                  disabled={isTranscribing || isLoading}
+                >
+                  {isTranscribing ? "Transcribing…" : "Transcribe first, then regenerate"}
+                </Button>
+              </div>
+            )
           ) : null}
+          {isTranscribing ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
           <ScriptOutput script={result.script} />
         </div>
       ) : null}

@@ -50,11 +50,16 @@ export async function POST(request: Request) {
 
   let sourceCaption = caption?.trim() ?? "";
   let reelId: string | null = null;
+  // Grounding context (W1) — populated only when generating from a tracked reel.
+  let transcript: string | null = null;
+  let viralScore: number | null = null;
+  let viewCount: number | null = null;
+  let postedDaysAgo: number | null = null;
 
   if (reel_id) {
     const { data: reel, error: reelError } = await supabase
       .from("tracked_reels")
-      .select("id, caption")
+      .select("id, caption, transcript, transcript_status, viral_score, view_count, posted_at")
       .eq("id", reel_id)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -68,6 +73,17 @@ export async function POST(request: Request) {
 
     reelId = reel.id;
     sourceCaption = reel.caption ?? sourceCaption;
+
+    // Only feed a genuinely-ready transcript into the prompt.
+    if (reel.transcript_status === "ready" && reel.transcript) {
+      transcript = reel.transcript;
+    }
+    viralScore = typeof reel.viral_score === "number" ? reel.viral_score : Number(reel.viral_score) || null;
+    viewCount = typeof reel.view_count === "number" ? reel.view_count : Number(reel.view_count) || null;
+    if (reel.posted_at) {
+      const days = Math.floor((Date.now() - new Date(reel.posted_at).getTime()) / 86_400_000);
+      postedDaysAgo = Number.isFinite(days) && days >= 0 ? days : null;
+    }
   }
 
   if (!sourceCaption) {
@@ -82,12 +98,18 @@ export async function POST(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
+  const grounded = Boolean(transcript);
+
   const { script: generated, degraded } = await generateScript({
     caption: sourceCaption,
     platform,
     tone,
     customContext: custom_context,
     brandVoice: (profile?.brand_voice as BrandVoice | null) ?? null,
+    transcript,
+    viralScore,
+    viewCount,
+    postedDaysAgo,
   });
 
   // Don't persist the placeholder when the AI failed — saving a fake script
@@ -95,7 +117,7 @@ export async function POST(request: Request) {
   // content they never actually got. Hand it back flagged so the UI can warn
   // and let them retry.
   if (degraded) {
-    return NextResponse.json({ script: generated, degraded: true });
+    return NextResponse.json({ script: generated, degraded: true, grounded });
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -121,5 +143,5 @@ export async function POST(request: Request) {
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/scripts");
 
-  return NextResponse.json({ script: inserted, degraded: false });
+  return NextResponse.json({ script: inserted, degraded: false, grounded });
 }
