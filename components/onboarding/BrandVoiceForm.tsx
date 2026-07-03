@@ -17,11 +17,13 @@ type Props = {
   initial?: BrandVoice | null;
   /** Label for the submit button (wizard says "Save & continue"; settings "Save"). */
   submitLabel?: string;
+  /** When set, navigate here on success (wizard advances a step); else refresh. */
+  onSuccessHref?: string;
 };
 
 // Collects the per-user brand voice that de-personas the AI (B2). Used in the
 // onboarding wizard and reusable anywhere the voice is edited.
-export function BrandVoiceForm({ action, initial, submitLabel = "Save & continue" }: Props) {
+export function BrandVoiceForm({ action, initial, submitLabel = "Save & continue", onSuccessHref }: Props) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -37,8 +39,10 @@ export function BrandVoiceForm({ action, initial, submitLabel = "Save & continue
           return;
         }
         toast.success("Brand voice saved");
-        // Server action revalidated; refresh so the wizard advances to the next step.
-        router.refresh();
+        // Server action revalidated. Navigate on if the caller wants the wizard
+        // to advance; otherwise just refresh in place (e.g. Settings).
+        if (onSuccessHref) router.push(onSuccessHref);
+        else router.refresh();
       } catch {
         const message = "Could not save. Please try again.";
         setError(message);

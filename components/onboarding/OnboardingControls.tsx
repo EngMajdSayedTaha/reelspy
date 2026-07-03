@@ -1,0 +1,155 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Sparkles, RefreshCw, Package, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { seedStarterPack, finishOnboarding } from "@/app/dashboard/onboarding/actions";
+import { bulkAddInspirationAccounts } from "@/app/dashboard/accounts/actions";
+
+// Seed the zero-quota starter pack (step 1 skip branch). Refreshes so the wizard
+// re-evaluates (source + accounts steps flip done).
+export function StarterPackButton() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function go() {
+    startTransition(async () => {
+      const res = await seedStarterPack();
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`Added ${res.added} starter account${res.added === 1 ? "" : "s"}`);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Button variant="outline" onClick={go} disabled={isPending}>
+      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Package className="h-4 w-4" />}
+      Skip — use a starter pack
+    </Button>
+  );
+}
+
+// Step 3: add a few accounts by handle (no Business Discovery validation — they
+// enrich on first sync), matching the bulk-import path.
+export function AddAccountsInline() {
+  const router = useRouter();
+  const [value, setValue] = useState("");
+  const [isPending, startTransition] = useTransition();
+
+  function go() {
+    const cleaned = value.trim();
+    if (!cleaned) {
+      toast.error("Add at least one username.");
+      return;
+    }
+    const data = new FormData();
+    data.set("usernames", cleaned);
+    startTransition(async () => {
+      const res = await bulkAddInspirationAccounts({}, data);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const added = res.added ?? 0;
+      toast.success(
+        added > 0
+          ? `Added ${added} account${added === 1 ? "" : "s"}${res.limited ? ` (${res.limited} over your plan limit skipped)` : ""}`
+          : "Those accounts were already tracked."
+      );
+      setValue("");
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Input
+        placeholder="handles, space or comma separated — e.g. creator1, creator2"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            go();
+          }
+        }}
+        disabled={isPending}
+      />
+      <Button onClick={go} disabled={isPending} className="shrink-0">
+        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        Add accounts
+      </Button>
+    </div>
+  );
+}
+
+// Step 4 (connected, no reels yet): pull the feed, then refresh so the wizard can
+// route to the top reel.
+export function SyncButton() {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function go() {
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/ig/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(data.error ?? "Sync failed. Try again.");
+          return;
+        }
+        toast.success("Feed synced");
+        router.refresh();
+      } catch {
+        toast.error("Sync failed. Try again.");
+      }
+    });
+  }
+
+  return (
+    <Button onClick={go} disabled={isPending}>
+      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+      {isPending ? "Syncing your feed..." : "Sync my feed"}
+    </Button>
+  );
+}
+
+// Finish / dismiss the wizard and go somewhere useful.
+export function FinishButton({
+  href = "/dashboard",
+  label = "Finish",
+  variant = "default",
+  withIcon = false,
+}: {
+  href?: string;
+  label?: string;
+  variant?: "default" | "outline" | "ghost";
+  withIcon?: boolean;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function go() {
+    startTransition(async () => {
+      await finishOnboarding();
+      router.push(href);
+    });
+  }
+
+  return (
+    <Button variant={variant} onClick={go} disabled={isPending}>
+      {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : withIcon ? <Sparkles className="h-4 w-4" /> : null}
+      {label}
+    </Button>
+  );
+}
