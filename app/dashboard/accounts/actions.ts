@@ -7,8 +7,30 @@ import { getIgCredentials } from "@/lib/instagram/token-store";
 import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { track } from "@/lib/analytics/track";
+import { resolveUserTier } from "@/lib/ai/tier";
+import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
+import { planFor } from "@/lib/billing/plans";
+import type { AiTier } from "@/lib/ai/tier";
 
 type ActionState = { error?: string };
+
+// Copy for a hit tracked-account cap (L6). Names the plan + limit so the user
+// knows what upgrading buys them.
+function accountLimitError(tier: AiTier): string {
+  return `Your ${planFor(tier).name} plan tracks up to ${limitFor(tier, "accounts")} accounts. Upgrade in Billing to add more.`;
+}
+
+// Count a user's tracked accounts (head-only, no rows pulled).
+async function countTrackedAccounts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("inspiration_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  return count ?? 0;
+}
 
 export async function addInspirationAccount(
   _prevState: ActionState,
@@ -37,6 +59,23 @@ export async function addInspirationAccount(
 
   if (!isValidIgUsername(igUsername)) {
     return { error: "Usernames can only contain letters, numbers, dots and underscores (max 30)." };
+  }
+
+  // Plan limit (L6): enforce the tracked-account cap before spending any Meta
+  // budget on Business Discovery. Only a genuinely new account counts — re-adding
+  // one already tracked just refreshes it via the upsert below.
+  const { data: alreadyTracked } = await supabase
+    .from("inspiration_accounts")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("ig_username", igUsername)
+    .maybeSingle();
+  if (!alreadyTracked) {
+    const tier = await resolveUserTier(supabase, user.id);
+    const used = await countTrackedAccounts(supabase, user.id);
+    if (!withinLimit(tier, "accounts", used)) {
+      return { error: accountLimitError(tier) };
+    }
   }
 
   // Optional group, picked right in the add form. Only allow groups the user owns.
@@ -111,6 +150,8 @@ export type BulkAddState = {
   added?: number;
   existing?: number;
   invalid?: string[];
+  /** Accounts skipped because they'd exceed the plan's tracked-account cap (L6). */
+  limited?: number;
 };
 
 // Bulk add (used by the "Import accounts you follow" flow). Skips per-account
@@ -179,7 +220,26 @@ export async function bulkAddInspirationAccounts(
     .in("ig_username", usernames);
 
   const existingSet = new Set((existingRows ?? []).map((r) => r.ig_username));
-  const fresh = usernames.filter((u) => !existingSet.has(u));
+  let fresh = usernames.filter((u) => !existingSet.has(u));
+
+  // Plan limit (L6): trim the import to whatever tracked-account slots remain on
+  // the user's tier, importing as many as fit and reporting the rest as skipped.
+  let limited = 0;
+  if (fresh.length > 0) {
+    const tier = await resolveUserTier(supabase, user.id);
+    const cap = limitFor(tier, "accounts");
+    if (!isUnlimited(cap)) {
+      const used = await countTrackedAccounts(supabase, user.id);
+      const remaining = Math.max(0, cap - used);
+      if (fresh.length > remaining) {
+        limited = fresh.length - remaining;
+        fresh = fresh.slice(0, remaining);
+      }
+      if (remaining === 0) {
+        return { error: accountLimitError(tier), existing: existingSet.size, limited };
+      }
+    }
+  }
 
   if (fresh.length > 0) {
     const { error: insertError } = await supabase.from("inspiration_accounts").insert(
@@ -208,6 +268,7 @@ export async function bulkAddInspirationAccounts(
     added: fresh.length,
     existing: existingSet.size,
     invalid: invalid.length > 0 ? invalid : undefined,
+    limited: limited > 0 ? limited : undefined,
   };
 }
 

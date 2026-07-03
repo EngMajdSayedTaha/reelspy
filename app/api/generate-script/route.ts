@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript, type BrandVoice } from "@/lib/ai/claude";
 import { resolveUserTier } from "@/lib/ai/tier";
+import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
 import { track, trackAiUsage } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
@@ -92,6 +93,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "caption or reel_id is required." }, { status: 400 });
   }
 
+  // Monthly plan quota (L6): checked only once the request is valid, so a
+  // malformed call never burns a slot. The hourly throttle above already guards
+  // against loops; this enforces the tier's scripts/month cap (unlimited on
+  // Studio). Consumed before the AI call — the rare degraded/failed path is
+  // bounded by the same hourly limiter.
+  const tier = await resolveUserTier(supabase, user.id);
+  const quota = await consumeMonthlyQuota(supabase, user.id, tier, "scripts_mo");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: monthlyLimitMessage("scripts_mo", quota.limit, quota.resetAt), upgrade: true },
+      { status: 402 }
+    );
+  }
+
   // Per-user brand voice drives the AI persona (B2). Best-effort: a missing row
   // or unset value just falls back to the neutral persona in the prompt builder.
   const { data: profile } = await supabase
@@ -101,7 +116,6 @@ export async function POST(request: Request) {
     .maybeSingle();
 
   const grounded = Boolean(transcript);
-  const tier = await resolveUserTier(supabase, user.id);
 
   const { script: generated, degraded, provider, usage } = await generateScript({
     caption: sourceCaption,

@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveUserTier } from "@/lib/ai/tier";
+import { limitFor, withinLimit } from "@/lib/billing/entitlements";
+import { planFor } from "@/lib/billing/plans";
 import { getPageCredentials, markWebhookSubscribed } from "@/lib/instagram/token-store";
 import {
   getPageSubscribedFields,
@@ -118,6 +121,23 @@ export async function createAutomation(
   const mediaId = formData.get("ig_media_id");
   if (typeof mediaId !== "string" || !mediaId.trim()) {
     return { error: "Pick one of your reels first." };
+  }
+
+  // Plan limit (L6): auto-reply automations are gated per tier (Free gets 0, so
+  // this is also the free→paid gate for the whole module).
+  const tier = await resolveUserTier(supabase, user.id);
+  const { count } = await supabase
+    .from("reel_automations")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  if (!withinLimit(tier, "automations", count ?? 0)) {
+    const cap = limitFor(tier, "automations");
+    return {
+      error:
+        cap === 0
+          ? `Auto-replies aren't included on the ${planFor(tier).name} plan. Upgrade in Billing to enable them.`
+          : `Your ${planFor(tier).name} plan allows up to ${cap} auto-replies. Upgrade in Billing for more.`,
+    };
   }
 
   const parsed = parseAutomationFields(formData);

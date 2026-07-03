@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getReelMetadata, YtDlpUnavailableError } from "@/lib/media/ytdlp";
 import { transcribeReel } from "@/lib/transcription";
+import { resolveUserTier } from "@/lib/ai/tier";
+import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
 import { track } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
@@ -73,6 +75,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: rateLimitMessage("transcript", limit.retryAfterSeconds) },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
+  }
+
+  // Monthly plan quota (L6): shares the transcripts/month cap with the per-reel
+  // route since it runs the same yt-dlp + Whisper pipeline.
+  const tier = await resolveUserTier(supabase, user.id);
+  const quota = await consumeMonthlyQuota(supabase, user.id, tier, "transcripts_mo");
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: monthlyLimitMessage("transcripts_mo", quota.limit, quota.resetAt), upgrade: true },
+      { status: 402 }
     );
   }
 
