@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { generateGrowthNotes, type BrandVoice } from "@/lib/ai/claude";
 import { resolveUserTier } from "@/lib/ai/tier";
+import { trackAiUsage } from "@/lib/analytics/track";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
@@ -93,11 +94,22 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     const tier = await resolveUserTier(supabase, user.id);
-    const { notes, degraded } = await generateGrowthNotes(
+    const { notes, degraded, provider, usage } = await generateGrowthNotes(
       JSON.stringify(metricsPayload),
       (profile?.brand_voice as BrandVoice | null) ?? null,
       tier
     );
+
+    // Instrumentation (L5): per-call AI cost.
+    if (usage) {
+      await trackAiUsage(user.id, {
+        action: "growth_notes",
+        provider: provider ?? "unknown",
+        model: usage.model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+      });
+    }
 
     return NextResponse.json({ notes, degraded, analyzed: recentMedia.length });
   } catch (err) {

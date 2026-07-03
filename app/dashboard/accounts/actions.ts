@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
+import { track } from "@/lib/analytics/track";
 
 type ActionState = { error?: string };
 
@@ -96,6 +97,9 @@ export async function addInspirationAccount(
   if (insertError) {
     return { error: insertError.message };
   }
+
+  // Instrumentation (L5): funnel step — tracking inspiration accounts.
+  await track(user.id, "account_added", { bulk: false, count: 1 });
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/accounts");
@@ -191,6 +195,9 @@ export async function bulkAddInspirationAccounts(
     if (insertError) {
       return { error: insertError.message };
     }
+
+    // Instrumentation (L5): funnel step — tracking inspiration accounts.
+    await track(user.id, "account_added", { bulk: true, count: fresh.length });
   }
 
   revalidatePath("/dashboard");

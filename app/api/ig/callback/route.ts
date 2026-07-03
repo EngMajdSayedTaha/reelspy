@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { track } from "@/lib/analytics/track";
 import {
   markWebhookSubscribed,
   storeIgToken,
@@ -129,6 +130,9 @@ export async function GET(request: NextRequest) {
       accountResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return accountResponse;
     }
+
+    // Instrumentation (L5): funnel step after signup.
+    await track(user.id, "ig_connected");
 
     const successUrl = new URL("/dashboard/connections?success=connected", request.url);
     if (webhookWarning) {

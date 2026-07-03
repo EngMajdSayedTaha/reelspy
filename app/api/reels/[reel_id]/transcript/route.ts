@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { processReel } from "@/lib/media/pipeline";
+import { track } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Transcription providers are async and polled, so allow a generous budget.
@@ -228,6 +229,13 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
+
+  // Instrumentation (L5): a research event — the input half of the WLC loop.
+  await track(user.id, "transcript_ready", {
+    source: result.source,
+    lang: result.language,
+    via: "reel",
+  });
 
   return NextResponse.json({
     transcript: result.text,

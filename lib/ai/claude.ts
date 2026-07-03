@@ -1,4 +1,4 @@
-import { aiConfigured, chat, type JsonTool } from "./provider";
+import { aiConfigured, chat, type ChatUsage, type JsonTool } from "./provider";
 import type { AiTier } from "./tier";
 
 // Forced-tool schemas for the Claude path (W2). Tool-use guarantees the model
@@ -267,6 +267,10 @@ export type GenerateScriptResult = {
    *  API error/timeout, or unparseable response). Lets the caller warn the user
    *  and avoid persisting a fake script, instead of failing invisibly. */
   degraded: boolean;
+  /** Provider + token usage for real (non-degraded) generations — feeds L5
+   *  ai_usage. Absent on the degraded/fallback paths. */
+  provider?: string;
+  usage?: ChatUsage;
 };
 
 export async function generateScript(input: GenerateScriptInput): Promise<GenerateScriptResult> {
@@ -336,7 +340,7 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
       return { script: fallbackScript(input), degraded: true };
     }
 
-    return { script: parsed, degraded: false };
+    return { script: parsed, degraded: false, provider: result.provider, usage: result.usage };
   } catch (error) {
     console.error("AI script generation failed", error);
     return { script: fallbackScript(input), degraded: true };
@@ -348,6 +352,9 @@ export type GrowthNotesResult = {
   /** True when these are the static fallback notes, not live AI output. Lets the
    *  UI show a plain warning instead of "typing out" an error message. */
   degraded: boolean;
+  /** Provider + token usage for real generations — feeds L5 ai_usage. */
+  provider?: string;
+  usage?: ChatUsage;
 };
 
 export async function generateGrowthNotes(
@@ -387,7 +394,7 @@ export async function generateGrowthNotes(
 
     const notes = parseGrowthNotes(result.text);
     if (notes.length > 0) {
-      return { notes, degraded: false };
+      return { notes, degraded: false, provider: result.provider, usage: result.usage };
     }
 
     console.error("AI growth notes parse failed; raw start:", result.text.slice(0, 200));

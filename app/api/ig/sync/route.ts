@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { track } from "@/lib/analytics/track";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
 import { getIgCredentials } from "@/lib/instagram/token-store";
@@ -236,6 +237,13 @@ export async function POST(request: Request) {
     error: rateLimitHit && totalInserted === 0 && totalUpdated === 0 ? rateLimitMessage : undefined,
     errors: errors.length > 0 ? errors : undefined,
   };
+
+  // Instrumentation (L5): a research event — the input half of the WLC loop.
+  await track(user.id, "feed_synced", {
+    inserted: totalInserted,
+    updated: totalUpdated,
+    rateLimited: rateLimitHit,
+  });
 
   // Surface throttling as 429 + Retry-After so clients (and proxies) can back off
   // properly, but only when nothing synced — partial successes stay 200.

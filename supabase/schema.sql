@@ -680,6 +680,35 @@ $$;
 grant execute on function public.trip_meta_circuit(integer, integer) to service_role;
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Instrumentation (L5) — event + AI-usage logs. Service-role only (RLS on,   ║
+-- ║ no policies). Written via lib/analytics/track.ts; derived metrics are      ║
+-- ║ plain SQL views in migration 20260703c_instrumentation_views.sql.          ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table app_events (
+  id bigint generated always as identity primary key,
+  user_id uuid not null,
+  event text not null,
+  props jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+create index app_events_user_event_idx on app_events (user_id, event, created_at desc);
+create index app_events_event_time_idx on app_events (event, created_at desc);
+alter table app_events enable row level security;  -- no policies: service-role only
+
+create table ai_usage (
+  id bigint generated always as identity primary key,
+  user_id uuid not null,
+  action text not null,                 -- 'script' | 'growth_notes'
+  provider text not null,               -- 'nvidia' | 'anthropic'
+  model text not null,
+  input_tokens int,
+  output_tokens int,
+  created_at timestamptz not null default now()
+);
+create index ai_usage_user_time_idx on ai_usage (user_id, created_at desc);
+alter table ai_usage enable row level security;  -- no policies: service-role only
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Storage — private bucket for uploaded publish videos.                      ║
 -- ║ Objects live under {user_id}/...; RLS keys off the first path segment.     ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝

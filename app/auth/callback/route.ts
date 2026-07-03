@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { track } from "@/lib/analytics/track";
 
 function redirectToLogin(
   request: NextRequest,
@@ -134,6 +135,14 @@ export async function GET(request: NextRequest) {
     }
 
     return redirectToLogin(request, "profile_upsert_failed", profileError.message);
+  }
+
+  // Instrumentation (L5): first session ≈ signup (funnel head). user.created_at
+  // is stamped at account creation, so a recent value marks the very first
+  // sign-in; the funnel views take min(created_at), so a rare duplicate is safe.
+  const createdAt = user.created_at ? Date.parse(user.created_at) : NaN;
+  if (Number.isFinite(createdAt) && Date.now() - createdAt < 2 * 60_000) {
+    await track(user.id, "signed_up");
   }
 
   return NextResponse.redirect(new URL("/dashboard", request.url));

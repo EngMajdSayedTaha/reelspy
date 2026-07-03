@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript, type BrandVoice } from "@/lib/ai/claude";
 import { resolveUserTier } from "@/lib/ai/tier";
+import { track, trackAiUsage } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
@@ -102,7 +103,7 @@ export async function POST(request: Request) {
   const grounded = Boolean(transcript);
   const tier = await resolveUserTier(supabase, user.id);
 
-  const { script: generated, degraded } = await generateScript({
+  const { script: generated, degraded, provider, usage } = await generateScript({
     caption: sourceCaption,
     platform,
     tone,
@@ -139,6 +140,23 @@ export async function POST(request: Request) {
 
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
+  }
+
+  // Instrumentation (L5): the output half of the research→script loop (WLC),
+  // plus per-call AI cost. Fire-and-forget; never blocks the response on error.
+  await track(user.id, "script_generated", {
+    grounded_on: grounded ? "transcript" : "caption",
+    provider: provider ?? null,
+    reel_id: reelId,
+  });
+  if (usage) {
+    await trackAiUsage(user.id, {
+      action: "script",
+      provider: provider ?? "unknown",
+      model: usage.model,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+    });
   }
 
   // Keep counters and lists in step everywhere a script shows up — otherwise

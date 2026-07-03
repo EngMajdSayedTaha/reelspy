@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getReelMetadata, YtDlpUnavailableError } from "@/lib/media/ytdlp";
 import { transcribeReel } from "@/lib/transcription";
+import { track } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 export const runtime = "nodejs";
@@ -114,6 +115,13 @@ export async function POST(request: Request) {
       { status: 422 }
     );
   }
+
+  // Instrumentation (L5): a research event — the input half of the WLC loop.
+  await track(user.id, "transcript_ready", {
+    source: result.source,
+    lang: result.language,
+    via: "link",
+  });
 
   return NextResponse.json({ transcript: result.text });
 }

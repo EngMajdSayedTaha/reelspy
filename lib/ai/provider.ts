@@ -60,9 +60,17 @@ const RETRYABLE_STATUS = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 
 export type ChatProvider = "nvidia" | "anthropic";
 
+export type ChatUsage = {
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
 export type ChatResult = {
   text: string;
   provider: ChatProvider;
+  /** Token usage for the call (L5 ai_usage). Both providers report it. */
+  usage?: ChatUsage;
 };
 
 // A tool that forces the Claude path to emit a schema-shaped JSON object via
@@ -104,6 +112,7 @@ function stripReasoning(text: string): string {
 
 type OpenAiChatResponse = {
   choices?: Array<{ message?: { content?: string | null } }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -141,7 +150,7 @@ async function nvidiaAttempt(
   body: Record<string, unknown>,
   apiKey: string,
   timeoutMs: number
-): Promise<string> {
+): Promise<{ text: string; inputTokens: number | null; outputTokens: number | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -176,7 +185,11 @@ async function nvidiaAttempt(
   }
 
   const json = (await response.json()) as OpenAiChatResponse;
-  return stripReasoning(json.choices?.[0]?.message?.content?.trim() ?? "");
+  return {
+    text: stripReasoning(json.choices?.[0]?.message?.content?.trim() ?? ""),
+    inputTokens: json.usage?.prompt_tokens ?? null,
+    outputTokens: json.usage?.completion_tokens ?? null,
+  };
 }
 
 function nvidiaBody(model: string, opts: ChatOptions): Record<string, unknown> {
@@ -213,8 +226,12 @@ async function callNvidia(opts: ChatOptions): Promise<ChatResult> {
     const remaining = deadline - Date.now();
     const attemptTimeout = Math.min(AI_TIMEOUT_MS, remaining);
     try {
-      const text = await nvidiaAttempt(nvidiaBody(model, opts), apiKey, attemptTimeout);
-      return { text, provider: "nvidia" };
+      const attempt = await nvidiaAttempt(nvidiaBody(model, opts), apiKey, attemptTimeout);
+      return {
+        text: attempt.text,
+        provider: "nvidia",
+        usage: { model, inputTokens: attempt.inputTokens, outputTokens: attempt.outputTokens },
+      };
     } catch (err) {
       lastError = err;
       // Only transient failures are retried; a 4xx (bad request/auth) throws now.
@@ -279,7 +296,7 @@ async function callAnthropic(opts: ChatOptions): Promise<ChatResult> {
 
     const toolUse = response.content.find((item) => item.type === "tool_use");
     const text = toolUse ? JSON.stringify(toolUse.input) : "";
-    return { text, provider: "anthropic" };
+    return { text, provider: "anthropic", usage: anthropicUsage(response) };
   }
 
   const response = await anthropic.messages.create({
@@ -295,7 +312,15 @@ async function callAnthropic(opts: ChatOptions): Promise<ChatResult> {
     .join("\n")
     .trim();
 
-  return { text, provider: "anthropic" };
+  return { text, provider: "anthropic", usage: anthropicUsage(response) };
+}
+
+function anthropicUsage(response: Anthropic.Message): ChatUsage {
+  return {
+    model: response.model,
+    inputTokens: response.usage?.input_tokens ?? null,
+    outputTokens: response.usage?.output_tokens ?? null,
+  };
 }
 
 /**
