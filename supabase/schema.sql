@@ -709,6 +709,84 @@ create index ai_usage_user_time_idx on ai_usage (user_id, created_at desc);
 alter table ai_usage enable row level security;  -- no policies: service-role only
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Billing (L6/B1) — see migration 20260703d_billing.sql for full notes.      ║
+-- ║ subscriptions is written ONLY by the Stripe webhook (service-role); owners  ║
+-- ║ may read but never write their row. user_monthly_usage + the RPC enforce    ║
+-- ║ per-tier monthly quotas (scripts/transcripts).                              ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table subscriptions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  tier text not null default 'free',
+  status text not null default 'inactive',
+  current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+create index subscriptions_stripe_customer_idx on subscriptions (stripe_customer_id);
+
+alter table subscriptions enable row level security;
+create policy "Users can read own subscription"
+  on subscriptions for select using (auth.uid() = user_id);
+revoke all on table subscriptions from anon, authenticated;
+grant select on table subscriptions to authenticated;
+
+create table user_monthly_usage (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  action text not null,
+  period_month date not null,
+  call_count int not null default 0,
+  primary key (user_id, action, period_month)
+);
+alter table user_monthly_usage enable row level security;  -- no policies: RPC-only
+
+create or replace function consume_user_action_monthly(
+  p_user_id uuid,
+  p_action text,
+  p_limit int
+) returns table(allowed boolean, used int, remaining int, period_end timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_period date := date_trunc('month', now() at time zone 'utc')::date;
+  v_end timestamptz := ((v_period + interval '1 month')::timestamp at time zone 'utc');
+  v_count int;
+begin
+  select call_count into v_count
+  from user_monthly_usage
+  where user_id = p_user_id and action = p_action and period_month = v_period
+  for update;
+
+  if not found then
+    insert into user_monthly_usage(user_id, action, period_month, call_count)
+      values (p_user_id, p_action, v_period, 0)
+      on conflict (user_id, action, period_month) do nothing;
+    v_count := 0;
+  end if;
+
+  if p_limit >= 0 and v_count + 1 > p_limit then
+    return query select false, v_count, 0, v_end;
+    return;
+  end if;
+
+  update user_monthly_usage
+    set call_count = v_count + 1
+    where user_id = p_user_id and action = p_action and period_month = v_period;
+
+  return query select
+    true,
+    v_count + 1,
+    case when p_limit < 0 then -1 else greatest(0, p_limit - (v_count + 1)) end,
+    v_end;
+end;
+$$;
+grant execute on function consume_user_action_monthly(uuid, text, int)
+  to authenticated, service_role;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Storage — private bucket for uploaded publish videos.                      ║
 -- ║ Objects live under {user_id}/...; RLS keys off the first path segment.     ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
