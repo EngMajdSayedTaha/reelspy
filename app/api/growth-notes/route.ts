@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
-import { generateGrowthNotes } from "@/lib/ai/claude";
+import { generateGrowthNotes, type BrandVoice } from "@/lib/ai/claude";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
@@ -84,7 +84,17 @@ export async function POST(request: Request) {
       })),
     };
 
-    const { notes, degraded } = await generateGrowthNotes(JSON.stringify(metricsPayload));
+    // Per-user brand voice tailors the advice to their niche/audience (B2).
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("brand_voice")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const { notes, degraded } = await generateGrowthNotes(
+      JSON.stringify(metricsPayload),
+      (profile?.brand_voice as BrandVoice | null) ?? null
+    );
 
     return NextResponse.json({ notes, degraded, analyzed: recentMedia.length });
   } catch (err) {

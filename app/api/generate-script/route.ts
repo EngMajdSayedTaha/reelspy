@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { generateScript } from "@/lib/ai/claude";
+import { generateScript, type BrandVoice } from "@/lib/ai/claude";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
@@ -74,11 +74,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "caption or reel_id is required." }, { status: 400 });
   }
 
+  // Per-user brand voice drives the AI persona (B2). Best-effort: a missing row
+  // or unset value just falls back to the neutral persona in the prompt builder.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("brand_voice")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const { script: generated, degraded } = await generateScript({
     caption: sourceCaption,
     platform,
     tone,
     customContext: custom_context,
+    brandVoice: (profile?.brand_voice as BrandVoice | null) ?? null,
   });
 
   // Don't persist the placeholder when the AI failed — saving a fake script
