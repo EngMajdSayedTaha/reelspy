@@ -1,0 +1,90 @@
+import { describe, it, expect } from "vitest";
+import {
+  ENTITLEMENTS,
+  UNLIMITED,
+  entitlementsFor,
+  limitFor,
+  isUnlimited,
+  withinLimit,
+  formatLimit,
+} from "@/lib/billing/entitlements";
+import type { AiTier } from "@/lib/ai/tier";
+
+const TIERS: AiTier[] = ["free", "creator", "pro", "studio"];
+
+describe("entitlements — tier caps (money logic)", () => {
+  it("defines every tier with a full entitlement shape", () => {
+    for (const tier of TIERS) {
+      const e = ENTITLEMENTS[tier];
+      expect(e).toBeDefined();
+      for (const key of ["accounts", "scripts_mo", "transcripts_mo", "automations", "publish_targets"] as const) {
+        expect(typeof e[key]).toBe("number");
+      }
+    }
+  });
+
+  it("locks in the founder-set caps that gate paid features", () => {
+    expect(ENTITLEMENTS.free).toMatchObject({ accounts: 3, scripts_mo: 10, automations: 0 });
+    expect(ENTITLEMENTS.creator).toMatchObject({ accounts: 10, scripts_mo: 60, automations: 3 });
+    expect(ENTITLEMENTS.pro).toMatchObject({ accounts: 25, scripts_mo: 200, automations: 10 });
+    expect(ENTITLEMENTS.studio.scripts_mo).toBe(UNLIMITED);
+    expect(ENTITLEMENTS.studio.transcripts_mo).toBe(UNLIMITED);
+  });
+
+  it("free tier cannot create automations (paywall floor)", () => {
+    expect(withinLimit("free", "automations", 0)).toBe(false);
+  });
+
+  it("caps rise monotonically across paid tiers for account slots", () => {
+    expect(ENTITLEMENTS.creator.accounts).toBeGreaterThan(ENTITLEMENTS.free.accounts);
+    expect(ENTITLEMENTS.pro.accounts).toBeGreaterThan(ENTITLEMENTS.creator.accounts);
+    expect(ENTITLEMENTS.studio.accounts).toBeGreaterThan(ENTITLEMENTS.pro.accounts);
+  });
+});
+
+describe("entitlementsFor / limitFor", () => {
+  it("returns the tier's entitlements", () => {
+    expect(entitlementsFor("pro")).toBe(ENTITLEMENTS.pro);
+    expect(limitFor("creator", "scripts_mo")).toBe(60);
+  });
+
+  it("falls back to free for an unknown tier", () => {
+    expect(entitlementsFor("enterprise" as AiTier)).toBe(ENTITLEMENTS.free);
+    expect(limitFor("garbage" as AiTier, "accounts")).toBe(ENTITLEMENTS.free.accounts);
+  });
+});
+
+describe("isUnlimited", () => {
+  it("treats any negative sentinel as unlimited", () => {
+    expect(isUnlimited(UNLIMITED)).toBe(true);
+    expect(isUnlimited(-1)).toBe(true);
+    expect(isUnlimited(0)).toBe(false);
+    expect(isUnlimited(10)).toBe(false);
+  });
+});
+
+describe("withinLimit — the count-based chokepoint check", () => {
+  it("allows consumption strictly below the cap", () => {
+    expect(withinLimit("free", "accounts", 0)).toBe(true);
+    expect(withinLimit("free", "accounts", 2)).toBe(true);
+  });
+
+  it("blocks at and beyond the cap", () => {
+    expect(withinLimit("free", "accounts", 3)).toBe(false);
+    expect(withinLimit("free", "accounts", 4)).toBe(false);
+  });
+
+  it("never blocks an unlimited entitlement", () => {
+    expect(withinLimit("studio", "scripts_mo", 0)).toBe(true);
+    expect(withinLimit("studio", "scripts_mo", 999_999)).toBe(true);
+  });
+});
+
+describe("formatLimit — UI copy", () => {
+  it("renders unlimited as a word, finite as the number", () => {
+    expect(formatLimit(UNLIMITED)).toBe("Unlimited");
+    expect(formatLimit(-5)).toBe("Unlimited");
+    expect(formatLimit(0)).toBe("0");
+    expect(formatLimit(60)).toBe("60");
+  });
+});
