@@ -108,7 +108,7 @@ export function RateLimitStatus() {
 
   if (throttled) {
     return (
-      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-sm text-rose-200 sm:px-3">
+      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-2 text-sm text-danger sm:px-3">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         {/* The prose shrinks/clips first; the countdown stays visible. */}
         <span className="hidden truncate sm:inline">Instagram hourly limit reached — retry in&nbsp;</span>
@@ -127,7 +127,7 @@ export function RateLimitStatus() {
     <div
       className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs sm:px-3 ${
         near
-          ? "border-amber-500/40 bg-amber-500/10 text-amber-200"
+          ? "border-warning/40 bg-warning/10 text-warning"
           : "border-border-strong bg-surface-2 text-muted-foreground"
       }`}
       title={

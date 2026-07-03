@@ -164,7 +164,7 @@ function ExportMenu({
         downloadFile(`${slug}insights-${stamp}.md`, buildAiSummary(profile, media), "text/markdown"),
     },
     {
-      icon: copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />,
+      icon: copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />,
       label: copied ? "Copied!" : "Copy AI summary",
       onClick: copyAiSummary,
       keepOpen: true,
@@ -291,14 +291,14 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       </div>
 
       {data?.partial ? (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+        <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
           Instagram throttled part of this sync — some reels show basic metrics only. Sync again
           later for the rest.
         </p>
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-sm text-rose-300">
+        <p className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
           {error}
         </p>
       ) : null}
@@ -362,7 +362,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                   onClick={() => setTypeFilter(t.key)}
                   className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     typeFilter === t.key
-                      ? "bg-primary text-black"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
                   }`}
                 >
@@ -438,7 +438,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                         {isReelItem(item) ? "Reel" : (item.media_type ?? "Post").toLowerCase()}
                       </span>
                       {isTop ? (
-                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-black">
+                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
                           <TrendingUp className="h-3 w-3" />
                           Top performer
                         </span>

@@ -166,7 +166,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                 </span>
                 <span
                   className={`block text-xs ${
-                    user.connected ? "text-emerald-500" : "text-muted-foreground"
+                    user.connected ? "text-success" : "text-muted-foreground"
                   }`}
                 >
                   {user.connected ? "Connected" : "Not connected"}

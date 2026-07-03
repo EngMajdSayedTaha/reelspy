@@ -19,8 +19,8 @@ type AutomationsTabsProps = {
 };
 
 const STATUS_DOT: Record<ConnectionStatus, string> = {
-  connected: "bg-emerald-400",
-  warning: "bg-amber-400",
+  connected: "bg-success",
+  warning: "bg-warning",
   disconnected: "bg-subtle",
 };
 
@@ -34,7 +34,7 @@ function StatusDot({ status }: { status: ConnectionStatus }) {
   return (
     <span className="relative flex h-2 w-2" title={STATUS_LABEL[status]}>
       {status === "connected" ? (
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/60" />
       ) : null}
       <span className={cn("relative inline-flex h-2 w-2 rounded-full", STATUS_DOT[status])} />
     </span>

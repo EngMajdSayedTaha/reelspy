@@ -111,7 +111,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
           <button
             type="submit"
             disabled={isPending}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-black transition hover:bg-primary/90 disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -216,7 +216,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
               setSearch("");
               apply({ account: null, group: null, status: null, q: null });
             }}
-            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-300"
+            className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-danger/50 hover:text-danger"
           >
             <X className="h-3.5 w-3.5" />
             Clear

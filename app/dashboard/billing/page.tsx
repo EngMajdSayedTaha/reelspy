@@ -117,18 +117,18 @@ export default async function BillingPage({ searchParams }: PageProps) {
       </div>
 
       {checkout === "success" ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+        <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
           <CheckCircle2 className="h-4 w-4" /> Payment received — your plan is being activated. It
           may take a few seconds to appear.
         </div>
       ) : null}
       {checkout === "cancelled" ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
           <XCircle className="h-4 w-4" /> Checkout cancelled — no changes were made.
         </div>
       ) : null}
       {!stripeConfigured() ? (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
           Payments aren&apos;t live yet — plans are shown for preview. Check back soon.
         </div>
       ) : null}

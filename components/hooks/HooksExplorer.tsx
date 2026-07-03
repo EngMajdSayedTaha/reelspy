@@ -39,7 +39,7 @@ function HookRow({ item }: { item: HookItem }) {
           aria-label="Copy hook"
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
         >
-          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+          {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
         </button>
         <Link
           href={`/dashboard/generate/${item.reelId}`}

@@ -107,7 +107,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
         </Button>
       </div>
 
-      {error ? <p className="mt-3 text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="mt-3 text-sm text-danger">{error}</p> : null}
     </div>
   );
 }

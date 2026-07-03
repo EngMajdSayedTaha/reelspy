@@ -69,7 +69,7 @@ export default async function MyAccountPage() {
       </div>
 
       {igError ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-400">
+        <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm text-warning">
           {igError}
         </div>
       ) : null}
@@ -97,7 +97,7 @@ export default async function MyAccountPage() {
                 ? `@${insights.username}`
                 : profile?.username ?? user.email ?? "—"}
             </p>
-            <p className={`text-sm ${connected ? "text-emerald-400" : "text-rose-400"}`}>
+            <p className={`text-sm ${connected ? "text-success" : "text-danger"}`}>
               {connected ? "Connected" : "Not connected"}
             </p>
             {insights?.biography ? (

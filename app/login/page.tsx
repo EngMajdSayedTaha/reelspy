@@ -181,13 +181,13 @@ function LoginForm() {
           </div>
 
           {!isSupabaseConfigured ? (
-            <p className="text-sm text-amber-400">
+            <p className="text-sm text-warning">
               Fill Supabase values in .env.local before authentication.
             </p>
           ) : null}
 
           {error || queryError ? (
-            <p className="text-sm text-rose-400">{error ?? queryError}</p>
+            <p className="text-sm text-danger">{error ?? queryError}</p>
           ) : null}
           </CardContent>
         </Card>

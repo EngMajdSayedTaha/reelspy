@@ -146,7 +146,7 @@ function GroupChip({
         disabled={isPending}
         aria-label={`Delete group ${group.name}`}
         title="Delete group"
-        className="flex h-5 w-5 items-center justify-center rounded-full text-subtle transition hover:bg-rose-500/15 hover:text-rose-300 disabled:opacity-60"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-subtle transition hover:bg-danger/15 hover:text-danger disabled:opacity-60"
       >
         <X className="h-3.5 w-3.5" />
       </button>

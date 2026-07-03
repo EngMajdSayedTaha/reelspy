@@ -98,11 +98,11 @@ export function DmAutomationCard({
       className={`min-w-0 space-y-3.5 rounded-2xl border p-3.5 text-foreground transition-colors ${
         isActive
           ? "border-border bg-card hover:border-border-strong"
-          : "border-amber-500/40 border-dashed bg-background opacity-80"
+          : "border-warning/40 border-dashed bg-background opacity-80"
       }`}
     >
       {!isActive ? (
-        <div className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-300">
+        <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning">
           <PauseCircle className="h-4 w-4 shrink-0" />
           Paused — incoming DMs are ignored by this automation
         </div>
@@ -129,7 +129,7 @@ export function DmAutomationCard({
         </div>
         <Badge
           variant={isActive ? "default" : "outline"}
-          className={isActive ? "" : "border-amber-500/50 bg-amber-500/15 text-amber-300"}
+          className={isActive ? "" : "border-warning/50 bg-warning/15 text-warning"}
         >
           {isActive ? "Active" : "Paused"}
         </Badge>
@@ -209,7 +209,7 @@ export function DmAutomationCard({
               disabled={isPending}
               aria-label={isActive ? "Pause DM automation" : "Resume DM automation"}
               title={isActive ? "Pause" : "Resume"}
-              className={isActive ? "" : "border-amber-500/50 text-amber-300 hover:bg-amber-500/10"}
+              className={isActive ? "" : "border-warning/50 text-warning hover:bg-warning/10"}
             >
               <Power className="h-4 w-4" />
               {!isActive ? "Resume" : null}

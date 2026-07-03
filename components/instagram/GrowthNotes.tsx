@@ -160,7 +160,7 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
                   disabled={isLoading}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                     postCount === count
-                      ? "bg-primary text-black"
+                      ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
@@ -179,19 +179,19 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
       </div>
 
       {!connected ? (
-        <p className="relative text-sm text-amber-400">
+        <p className="relative text-sm text-warning">
           Connect Instagram to generate AI growth notes.
         </p>
       ) : null}
 
-      {error ? <p className="relative text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="relative text-sm text-danger">{error}</p> : null}
 
       {isLoading ? <AiThinking messages={THINKING_MESSAGES} className="relative" /> : null}
 
       {!isLoading && notes.length > 0 ? (
         <div className="relative space-y-2">
           {degraded ? (
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
               Showing general guidance — live AI notes weren&apos;t available this time. Try again in
               a moment.
             </p>

@@ -5,10 +5,11 @@
    instead of the OS `prefers-color-scheme`, so the in-app toggle wins. */
 @custom-variant dark (&:is(.dark *));
 
-/* Light theme (default). `.dark` below overrides for dark mode. The neon-yellow
-   brand accent stays in both; `--brand` is the *readable* accent for text/icons
-   (dark gold on light, yellow on dark) since pure yellow text is invisible on
-   white. */
+/* Light theme (default). `.dark` below overrides for dark mode. The brand accent
+   is violet `#6D28D9`; `--brand` is the *readable* accent for text/icons (violet
+   on light, a lighter violet on dark). Status colors are semantic tokens
+   (`--success`/`--warning`/`--danger`/`--info`) so components never hardcode
+   Tailwind palette shades — they auto-adapt per theme. */
 :root {
   --background: #f7f7f8;
   --foreground: #18181b;
@@ -16,50 +17,58 @@
   --card-foreground: #18181b;
   --popover: #ffffff;
   --popover-foreground: #18181b;
-  --primary: #f9e400;
-  --primary-foreground: #121212;
+  --primary: #6d28d9;
+  --primary-foreground: #ffffff;
   --secondary: #f1f1f3;
   --secondary-foreground: #18181b;
   --muted: #f1f1f3;
   --muted-foreground: #52525b;
-  --accent: #f9e400;
-  --accent-foreground: #121212;
+  --accent: #6d28d9;
+  --accent-foreground: #ffffff;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
+  --success: #059669;
+  --warning: #b45309;
+  --danger: #e11d48;
+  --info: #0284c7;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #f9e400;
+  --ring: #6d28d9;
   --surface-2: #f1f1f3;
   --border-strong: #d4d4d8;
   --subtle: #71717a;
-  --brand: #a16207;
+  --brand: #6d28d9;
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: #0d0d0d;
-  --foreground: #f4f4f5;
-  --card: #111111;
-  --card-foreground: #f4f4f5;
-  --popover: #111111;
-  --popover-foreground: #f4f4f5;
-  --primary: #f9e400;
-  --primary-foreground: #121212;
-  --secondary: #1a1a1a;
-  --secondary-foreground: #f4f4f5;
-  --muted: #1f1f1f;
-  --muted-foreground: #a1a1aa;
-  --accent: #f9e400;
-  --accent-foreground: #121212;
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card: #1e293b;
+  --card-foreground: #f1f5f9;
+  --popover: #1e293b;
+  --popover-foreground: #f1f5f9;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #7c3aed;
+  --accent-foreground: #ffffff;
   --destructive: #ef4444;
-  --destructive-foreground: #f4f4f5;
-  --border: #1f1f1f;
-  --input: #1f1f1f;
-  --ring: #f9e400;
-  --surface-2: #141414;
-  --border-strong: #262626;
-  --subtle: #71717a;
-  --brand: #f9e400;
+  --destructive-foreground: #f1f5f9;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #fb7185;
+  --info: #38bdf8;
+  --border: #24314a;
+  --input: #24314a;
+  --ring: #7c3aed;
+  --surface-2: #172033;
+  --border-strong: #334155;
+  --subtle: #64748b;
+  --brand: #a78bfa;
 }
 
 @theme inline {
@@ -83,6 +92,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -257,7 +270,7 @@ select:disabled,
     background: linear-gradient(
       105deg,
       transparent 40%,
-      rgba(249, 228, 0, 0.06) 50%,
+      rgba(124, 58, 237, 0.1) 50%,
       rgba(255, 255, 255, 0.05) 55%,
       transparent 65%
     );

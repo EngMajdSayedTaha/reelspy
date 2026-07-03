@@ -150,7 +150,7 @@ export function ReelCard({
               aria-label="Play reel inline"
               className="absolute inset-0 flex items-center justify-center"
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-primary group-hover:text-black">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground">
                 <Play className="ml-0.5 h-6 w-6 fill-current" />
               </span>
             </button>
@@ -170,7 +170,7 @@ export function ReelCard({
                 variant={reel.is_worked_on ? "default" : "outline"}
                 className={
                   reel.is_worked_on
-                    ? "bg-primary text-black"
+                    ? "bg-primary text-primary-foreground"
                     : "border-white/20 bg-black/50 text-white backdrop-blur-sm"
                 }
               >

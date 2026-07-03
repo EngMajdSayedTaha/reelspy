@@ -159,7 +159,7 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
           className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border-strong bg-background px-4 py-6 text-left transition hover:border-primary"
         >
           {file ? (
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            <CheckCircle2 className="h-5 w-5 text-success" />
           ) : (
             <Upload className="h-5 w-5 text-muted-foreground" />
           )}
@@ -238,7 +238,7 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
           })}
         </div>
         {!anyConnected ? (
-          <p className="text-xs text-amber-500">
+          <p className="text-xs text-warning">
             Connect at least one platform on the Connections tab to start posting.
           </p>
         ) : null}
@@ -260,7 +260,7 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
             tailored caption for each one.
           </p>
         ) : selected.size === 0 ? (
-          <p className="text-xs text-amber-500">Select a platform above to customize its caption.</p>
+          <p className="text-xs text-warning">Select a platform above to customize its caption.</p>
         ) : (
           <div className="space-y-3">
             {Array.from(selected).map((platform) => (

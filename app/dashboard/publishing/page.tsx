@@ -29,12 +29,12 @@ type PostRow = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  published: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-  done: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
-  failed: "border-rose-500/40 bg-rose-500/10 text-rose-400",
-  publishing: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-  processing: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-  scheduled: "border-sky-500/40 bg-sky-500/10 text-sky-400",
+  published: "border-success/40 bg-success/10 text-success",
+  done: "border-success/40 bg-success/10 text-success",
+  failed: "border-danger/40 bg-danger/10 text-danger",
+  publishing: "border-warning/40 bg-warning/10 text-warning",
+  processing: "border-warning/40 bg-warning/10 text-warning",
+  scheduled: "border-info/40 bg-info/10 text-info",
   pending: "border-border-strong bg-border-strong/40 text-muted-foreground",
   draft: "border-border-strong bg-border-strong/40 text-muted-foreground",
 };
@@ -166,7 +166,7 @@ export default async function PublishingPage() {
                         {job.status === "failed" ? <RetryButton jobId={job.id} /> : null}
                         {job.status === "failed" && job.error_message ? (
                           <span
-                            className="max-w-full truncate text-xs text-rose-400 sm:max-w-[16rem]"
+                            className="max-w-full truncate text-xs text-danger sm:max-w-[16rem]"
                             title={job.error_message}
                           >
                             {job.error_message}

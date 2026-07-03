@@ -59,8 +59,8 @@ export function ConnectionCard({
   const badge = !connected
     ? { label: "Not connected", cls: "border-border-strong bg-border-strong/50 text-muted-foreground" }
     : needsReconnect
-      ? { label: "Reconnect needed", cls: "border-rose-500/40 bg-rose-500/10 text-rose-400" }
-      : { label: "Connected", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400" };
+      ? { label: "Reconnect needed", cls: "border-danger/40 bg-danger/10 text-danger" }
+      : { label: "Connected", cls: "border-success/40 bg-success/10 text-success" };
 
   const handleDisconnect = async () => {
     if (!disconnectHref) return;

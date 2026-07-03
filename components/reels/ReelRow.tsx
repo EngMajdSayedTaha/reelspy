@@ -152,7 +152,7 @@ export function ReelRow({
           </div>
           <Badge
             variant={reel.is_worked_on ? "default" : "outline"}
-            className={reel.is_worked_on ? "bg-primary text-black" : ""}
+            className={reel.is_worked_on ? "bg-primary text-primary-foreground" : ""}
           >
             {reel.is_worked_on ? "Worked On" : "New"}
           </Badge>

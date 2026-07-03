@@ -90,9 +90,9 @@ function Item({ ok, children }: { ok: boolean | null; children: React.ReactNode 
   return (
     <li className="flex items-start gap-2">
       {ok === true ? (
-        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
       ) : ok === false ? (
-        <Circle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+        <Circle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
       ) : (
         <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
       )}

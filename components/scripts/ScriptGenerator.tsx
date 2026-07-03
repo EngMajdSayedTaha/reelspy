@@ -176,7 +176,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
             </div>
 
             {reelFetchError ? (
-              <p className="text-sm text-rose-400">{reelFetchError}</p>
+              <p className="text-sm text-danger">{reelFetchError}</p>
             ) : null}
 
             {isFetchingReel ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
@@ -265,7 +265,7 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
             {isLoading ? "Generating..." : "Generate Script"}
           </Button>
 
-          {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
 
           {isLoading ? <AiThinking messages={SCRIPT_LOADING_MESSAGES} /> : null}
         </div>
@@ -274,14 +274,14 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
       {result?.script ? (
         <div className="space-y-2">
           {result.degraded ? (
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-300">
+            <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
               This is a generic placeholder — the AI didn&apos;t respond in time, so no real
               script was generated (and it wasn&apos;t saved). Tap Generate Script again in a
               moment.
             </p>
           ) : reelId ? (
             result.grounded ? (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1 text-xs font-medium text-emerald-300">
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2.5 py-1 text-xs font-medium text-success">
                 Grounded on transcript ✓
               </span>
             ) : (

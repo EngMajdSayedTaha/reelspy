@@ -141,7 +141,7 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
         >
           {state.connected ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+              <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
                 <Check className="h-4 w-4" /> Instagram connected.
               </div>
               <ContinueLink to={2} />
@@ -216,7 +216,7 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
         >
           {state.activated ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+              <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
                 <Check className="h-4 w-4" /> You wrote your first script. You&apos;re all set!
               </div>
               <FinishButton href="/dashboard" label="Go to dashboard" withIcon />

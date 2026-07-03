@@ -107,22 +107,22 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
       </div>
 
       {success === "connected" ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+        <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
           <CheckCircle2 className="h-4 w-4" /> Account connected successfully.
         </div>
       ) : null}
       {success === "disconnected" ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
           <AlertTriangle className="h-4 w-4" /> Account disconnected. You can reconnect below.
         </div>
       ) : null}
       {errorMessage ? (
-        <div className="space-y-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+        <div className="space-y-2 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" /> {errorMessage}
           </div>
           {detail ? (
-            <p className="rounded-md border border-rose-500/20 bg-rose-500/5 p-2 font-mono text-xs text-rose-300/80">
+            <p className="rounded-md border border-danger/20 bg-danger/5 p-2 font-mono text-xs text-danger/80">
               {detail}
             </p>
           ) : null}
@@ -157,7 +157,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           }}
         >
           {!metaReady ? (
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-300">
+            <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
               Instagram connection isn&apos;t configured on the server yet.
             </p>
           ) : showSetupDetails ? (

@@ -62,7 +62,7 @@ export function ScriptOutput({ script }: ScriptOutputProps) {
         </div>
 
         {/* CTA */}
-        <div className="rounded-md border-l-2 border-emerald-500/50 bg-background p-3">
+        <div className="rounded-md border-l-2 border-success/50 bg-background p-3">
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-wide text-subtle">CTA</p>
             <CopyButton text={script.cta} />

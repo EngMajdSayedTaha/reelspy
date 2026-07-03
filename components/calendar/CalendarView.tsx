@@ -43,7 +43,7 @@ type CalendarViewProps = {
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-border-strong",
   ready: "bg-blue-500/70",
-  published: "bg-emerald-500/70",
+  published: "bg-success/70",
 };
 
 const MONTH_NAMES = [
@@ -372,7 +372,7 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                     <span
                       className={`rounded-full border px-2 py-0.5 text-xs ${
                         s.status === "published"
-                          ? "border-emerald-500/50 text-emerald-400"
+                          ? "border-success/50 text-success"
                           : s.status === "ready"
                           ? "border-blue-500/50 text-blue-400"
                           : "border-border-strong text-muted-foreground"
@@ -387,7 +387,7 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                       type="button"
                       disabled={isPending}
                       onClick={() => unschedule(s.id)}
-                      className="ml-auto text-xs text-subtle transition hover:text-rose-400 disabled:opacity-50"
+                      className="ml-auto text-xs text-subtle transition hover:text-danger disabled:opacity-50"
                     >
                       Unschedule
                     </button>

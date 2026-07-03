@@ -174,7 +174,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading your reels…
               </p>
             ) : reelsError ? (
-              <p className="text-sm text-amber-300">{reelsError}</p>
+              <p className="text-sm text-warning">{reelsError}</p>
             ) : reels.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No reels available — every reel already has an automation, or your account has no
@@ -287,7 +287,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {error ? <p className="text-sm text-rose-400">{error}</p> : <span className="hidden sm:block" />}
+        {error ? <p className="text-sm text-danger">{error}</p> : <span className="hidden sm:block" />}
         <Button
           type="button"
           onClick={submit}

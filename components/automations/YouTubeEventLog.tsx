@@ -7,10 +7,10 @@ type YouTubeEventLogProps = {
 
 function StatusBadge({ status }: { status: AutomationEventStatus }) {
   const styles: Record<AutomationEventStatus, string> = {
-    sent: "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
-    failed: "border-rose-500/50 bg-rose-500/15 text-rose-300",
+    sent: "border-success/50 bg-success/15 text-success",
+    failed: "border-danger/50 bg-danger/15 text-danger",
     pending: "border-border-strong bg-border-strong/10 text-muted-foreground",
-    skipped: "border-amber-500/50 bg-amber-500/15 text-amber-300",
+    skipped: "border-warning/50 bg-warning/15 text-warning",
   };
   return (
     <Badge variant="outline" className={styles[status]}>
@@ -74,7 +74,7 @@ export function YouTubeEventLog({ events }: YouTubeEventLogProps) {
                 <div className="flex flex-col gap-1">
                   <StatusBadge status={event.reply_status} />
                   {event.reply_error ? (
-                    <span className="max-w-[200px] truncate text-xs text-rose-400" title={event.reply_error}>
+                    <span className="max-w-[200px] truncate text-xs text-danger" title={event.reply_error}>
                       {event.reply_error}
                     </span>
                   ) : null}

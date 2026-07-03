@@ -79,8 +79,8 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 onClick={() => settle(true)}
                 className={`h-9 rounded-lg px-4 text-sm font-semibold transition ${
                   options.destructive
-                    ? "bg-rose-500 text-white hover:bg-rose-500/90"
-                    : "bg-primary text-black hover:bg-primary/90"
+                    ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }`}
               >
                 {options.confirmText ?? "Confirm"}

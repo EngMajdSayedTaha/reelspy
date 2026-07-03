@@ -29,7 +29,7 @@ export default function DashboardError({
       <button
         type="button"
         onClick={() => reset()}
-        className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary/90"
+        className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
       >
         <RefreshCw className="h-4 w-4" />
         Try again

@@ -152,7 +152,7 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {error ? <p className="text-sm text-rose-400">{error}</p> : <span className="hidden sm:block" />}
+        {error ? <p className="text-sm text-danger">{error}</p> : <span className="hidden sm:block" />}
         <Button type="button" onClick={submit} disabled={isPending} className="w-full sm:w-auto">
           {isPending ? "Creating…" : "Create YouTube Automation"}
         </Button>

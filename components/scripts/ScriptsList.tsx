@@ -53,7 +53,7 @@ const STATUS_OPTIONS = ["draft", "ready", "published"] as const;
 const STATUS_COLORS: Record<string, string> = {
   draft: "border-border-strong text-muted-foreground",
   ready: "border-blue-500/50 text-blue-400",
-  published: "border-emerald-500/50 text-emerald-400",
+  published: "border-success/50 text-success",
 };
 
 const FILTER_OPTIONS = ["all", "draft", "ready", "published"] as const;
@@ -289,7 +289,7 @@ function ScriptCard({
           type="button"
           disabled={isPending}
           onClick={handleDelete}
-          className="text-xs text-subtle transition hover:text-rose-400 disabled:opacity-50"
+          className="text-xs text-subtle transition hover:text-danger disabled:opacity-50"
         >
           Delete
         </button>

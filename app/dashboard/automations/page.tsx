@@ -41,7 +41,7 @@ const EVENT_LOG_LIMIT = 50;
 
 function Notice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+    <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <p>{children}</p>
     </div>

@@ -131,7 +131,7 @@ function Pill({
       onClick={onClick}
       className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
         active
-          ? "bg-primary text-black"
+          ? "bg-primary text-primary-foreground"
           : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
       }`}
     >
@@ -189,7 +189,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   return (
     <span
       className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-        up ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+        up ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
       }`}
     >
       {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
