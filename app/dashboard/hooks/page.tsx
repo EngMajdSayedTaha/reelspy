@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { HooksExplorer } from "@/components/hooks/HooksExplorer";
+import { SavedHooksLibrary, type SavedHook } from "@/components/hooks/SavedHooksLibrary";
 import { extractHook } from "@/lib/utils/hook";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,6 +16,17 @@ type ReelRow = {
     | null;
 };
 
+type SavedHookRow = {
+  id: string;
+  text: string;
+  tags: string[] | null;
+  reel_id: string | null;
+  tracked_reels:
+    | { ig_permalink: string | null; inspiration_accounts: { ig_username: string } | { ig_username: string }[] | null }
+    | { ig_permalink: string | null; inspiration_accounts: { ig_username: string } | { ig_username: string }[] | null }[]
+    | null;
+};
+
 export type HookItem = {
   reelId: string;
   hook: string;
@@ -23,11 +35,13 @@ export type HookItem = {
   viralScore: number | null;
 };
 
+function firstOf<T>(v: T | T[] | null | undefined): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? (v[0] ?? null) : v;
+}
+
 function usernameOf(row: ReelRow): string {
-  const acc = Array.isArray(row.inspiration_accounts)
-    ? row.inspiration_accounts[0]
-    : row.inspiration_accounts;
-  return acc?.ig_username ?? "unknown";
+  return firstOf(row.inspiration_accounts)?.ig_username ?? "unknown";
 }
 
 export default async function HooksPage() {
@@ -41,22 +55,40 @@ export default async function HooksPage() {
     redirect("/login");
   }
 
-  const { data, error } = await supabase
-    .from("tracked_reels")
-    .select("id, transcript, caption, ig_permalink, viral_score, inspiration_accounts(ig_username)")
-    .eq("user_id", user.id)
-    .eq("transcript_status", "ready")
-    .not("transcript", "is", null)
-    .order("viral_score", { ascending: false, nullsFirst: false })
-    .limit(300);
+  const [reelsRes, savedRes] = await Promise.all([
+    supabase
+      .from("tracked_reels")
+      .select("id, transcript, caption, ig_permalink, viral_score, inspiration_accounts(ig_username)")
+      .eq("user_id", user.id)
+      .eq("transcript_status", "ready")
+      .not("transcript", "is", null)
+      .order("viral_score", { ascending: false, nullsFirst: false })
+      .limit(300),
+    supabase
+      .from("saved_hooks")
+      .select("id, text, tags, reel_id, tracked_reels(ig_permalink, inspiration_accounts(ig_username))")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(500),
+  ]);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (reelsRes.error) throw new Error(reelsRes.error.message);
+  if (savedRes.error) throw new Error(savedRes.error.message);
 
-  const rows = (data ?? []) as ReelRow[];
+  const savedHooks: SavedHook[] = ((savedRes.data ?? []) as SavedHookRow[]).map((row) => {
+    const reel = firstOf(row.tracked_reels);
+    return {
+      id: row.id,
+      text: row.text,
+      tags: row.tags ?? [],
+      reelId: row.reel_id,
+      permalink: reel?.ig_permalink ?? null,
+      username: firstOf(reel?.inspiration_accounts)?.ig_username ?? null,
+    };
+  });
+  const savedTexts = savedHooks.map((h) => h.text);
 
-  const hooks: HookItem[] = rows
+  const suggestions: HookItem[] = ((reelsRes.data ?? []) as ReelRow[])
     .map((row) => {
       const hook = extractHook(row.transcript);
       if (!hook) return null;
@@ -71,22 +103,32 @@ export default async function HooksPage() {
     .filter((item): item is HookItem => item !== null);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="space-y-1">
         <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Hook Library</h1>
         <p className="text-sm text-muted-foreground">
-          The opening lines of every reel you&apos;ve transcribed — search, steal the structure, remix.
+          Save the opening lines that stop the scroll, tag them by niche or angle, and reuse
+          them in any script.
         </p>
       </div>
 
-      {hooks.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-          No hooks yet. Generate transcripts for some reels (open a reel → Generate transcript) and
-          their opening lines will appear here.
-        </div>
-      ) : (
-        <HooksExplorer hooks={hooks} />
-      )}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-foreground">Saved hooks</h2>
+        <SavedHooksLibrary hooks={savedHooks} />
+      </section>
+
+      {suggestions.length > 0 ? (
+        <section className="space-y-3">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-foreground">From your transcripts</h2>
+            <p className="text-sm text-muted-foreground">
+              Opening lines pulled from every reel you&apos;ve transcribed — save the good ones to
+              your library.
+            </p>
+          </div>
+          <HooksExplorer hooks={suggestions} savedTexts={savedTexts} />
+        </section>
+      ) : null}
     </div>
   );
 }

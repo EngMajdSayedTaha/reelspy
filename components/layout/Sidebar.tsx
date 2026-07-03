@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   UserSearch,
   Clapperboard,
+  Bookmark,
   ScrollText,
   Camera,
   MessageCircleReply,
@@ -30,8 +31,7 @@ const links: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/accounts", label: "Accounts", icon: UserSearch },
   { href: "/dashboard/feed", label: "Feed", icon: Clapperboard },
-  // Hooks section is hidden from navigation for now — the page, data, and
-  // logic remain intact and reachable by direct URL.
+  { href: "/dashboard/hooks", label: "Hooks", icon: Bookmark },
   {
     href: "/dashboard/scripts",
     label: "Scripts",

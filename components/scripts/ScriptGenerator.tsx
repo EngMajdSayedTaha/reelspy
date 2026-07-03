@@ -47,6 +47,9 @@ type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 type ScriptGeneratorProps = {
   reelId?: string;
   initialCaption?: string;
+  /** Pre-fills the custom-context box — e.g. a saved hook sent over from the
+   *  Hook Library "Use in script" action (W4). */
+  initialContext?: string;
   /** The source reel's transcript state, so we can warn upfront (before
    *  generating) when grounding will be degraded to caption-only (W1/B7). */
   transcriptStatus?: TranscriptStatus | null;
@@ -65,12 +68,13 @@ const DEGRADED_HINTS: Record<Exclude<TranscriptStatus, "ready">, string> = {
 export function ScriptGenerator({
   reelId,
   initialCaption = "",
+  initialContext = "",
   transcriptStatus,
 }: ScriptGeneratorProps) {
   const [caption, setCaption] = useState(initialCaption);
   const [platform, setPlatform] = useState<string>("Instagram Reels");
   const [tone, setTone] = useState<string>("Direct");
-  const [customContext, setCustomContext] = useState("");
+  const [customContext, setCustomContext] = useState(initialContext);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedResponse | null>(null);
