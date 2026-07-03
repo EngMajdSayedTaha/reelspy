@@ -28,7 +28,8 @@ create table profiles (
   fb_page_name text,
   fb_page_access_token text,            -- SERVER ONLY (revoked from browser roles)
   webhook_subscribed_at timestamptz,
-  brand_voice jsonb                     -- per-user AI persona (niche/audience/offer/tone/language)
+  brand_voice jsonb,                    -- per-user AI persona (niche/audience/offer/tone/language)
+  onboarded_at timestamptz              -- first-run wizard completion marker (L7); null = not done
 );
 
 alter table profiles enable row level security;
@@ -40,10 +41,10 @@ create policy "Users can manage own profile"
 revoke all on table profiles from anon, authenticated;
 grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
               ig_token_refreshed_at, fb_page_id, fb_page_name,
-              webhook_subscribed_at, created_at, brand_voice)
+              webhook_subscribed_at, created_at, brand_voice, onboarded_at)
   on profiles to authenticated;
 grant insert (id, username) on profiles to authenticated;
-grant update (id, username, brand_voice) on profiles to authenticated;
+grant update (id, username, brand_voice, onboarded_at) on profiles to authenticated;
 
 -- Auto-create a profile row when a new auth user signs up.
 create or replace function public.handle_new_user()
