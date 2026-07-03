@@ -160,6 +160,26 @@ alter table generated_scripts enable row level security;
 create policy "Users can manage own scripts"
   on generated_scripts for all using (auth.uid() = user_id);
 
+-- ── saved_hooks — persistent hook library (W4/V1) ────────────────────────────
+-- User-curated opening lines (from a transcript or typed manually), tagged and
+-- reusable when generating scripts. reel_id SET NULL so a hook outlives its reel.
+create table saved_hooks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  reel_id uuid references tracked_reels(id) on delete set null,
+  text text not null,
+  tags text[] not null default '{}',
+  source text not null default 'manual' check (source in ('transcript', 'manual')),
+  created_at timestamptz not null default now(),
+  unique (user_id, text)
+);
+alter table saved_hooks enable row level security;
+create policy "Users can manage own saved hooks"
+  on saved_hooks for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index saved_hooks_user_created_idx on saved_hooks (user_id, created_at desc);
+create index saved_hooks_tags_idx on saved_hooks using gin (tags);
+
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Global snapshot cache — shared dedup layer. Each public account/reel is    ║
 -- ║ fetched from Meta at most once per TTL and shared across all users.        ║

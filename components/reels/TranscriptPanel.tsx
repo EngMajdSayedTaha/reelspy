@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy, Download, FileText, Loader2, RefreshCw } from "lucide-react";
+import { useState, useTransition } from "react";
+import { BookmarkPlus, Check, Copy, Download, FileText, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
+import { extractHook } from "@/lib/utils/hook";
+import { saveHook } from "@/app/dashboard/hooks/actions";
 
 const TRANSCRIPT_LOADING_MESSAGES = [
   "Fetching the reel…",
@@ -51,6 +53,8 @@ export function TranscriptPanel({
   const [language, setLanguage] = useState<string | null>(initialLanguage);
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [hookSaved, setHookSaved] = useState(false);
+  const [savingHook, startSaveHook] = useTransition();
 
   const hasTranscript = Boolean(transcript && status === "ready");
   const hasSrt = Boolean(srt && status === "ready");
@@ -65,6 +69,26 @@ export function TranscriptPanel({
     } catch {
       toast.error("Could not copy transcript.");
     }
+  };
+
+  // Save this reel's opening line to the persistent hook library (W4). The hook
+  // is the first sentence of the transcript — same derivation the library uses.
+  const saveHookFromTranscript = () => {
+    const hook = extractHook(transcript);
+    if (!hook) {
+      toast.error("Couldn't find a hook in this transcript.");
+      return;
+    }
+    setHookSaved(true);
+    startSaveHook(async () => {
+      try {
+        await saveHook({ text: hook, reelId, source: "transcript" });
+        toast.success("Hook saved to your library");
+      } catch {
+        setHookSaved(false);
+        toast.error("Could not save the hook.");
+      }
+    });
   };
 
   const downloadSrt = () => {
@@ -129,6 +153,25 @@ export function TranscriptPanel({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {hasTranscript && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={saveHookFromTranscript}
+              disabled={savingHook || hookSaved}
+              className="shrink-0"
+              title="Save this reel's opening line to your hook library"
+            >
+              {hookSaved ? (
+                <Check className="h-4 w-4 text-success" />
+              ) : (
+                <BookmarkPlus className="h-4 w-4" />
+              )}
+              {hookSaved ? "Saved" : "Save hook"}
+            </Button>
+          )}
+
           {hasTranscript && (
             <Button
               type="button"

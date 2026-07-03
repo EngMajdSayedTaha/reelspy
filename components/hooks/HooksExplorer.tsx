@@ -1,17 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, Search, Sparkles } from "lucide-react";
+import { BookmarkPlus, Check, Copy, ExternalLink, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { saveHook } from "@/app/dashboard/hooks/actions";
 import type { HookItem } from "@/app/dashboard/hooks/page";
 
 type HooksExplorerProps = {
   hooks: HookItem[];
+  // Texts already in the saved library, so we can mark suggestions as saved.
+  savedTexts: string[];
 };
 
-function HookRow({ item }: { item: HookItem }) {
+function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boolean }) {
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(initiallySaved);
+  const [pending, startTransition] = useTransition();
 
   const copy = async () => {
     try {
@@ -24,6 +29,20 @@ function HookRow({ item }: { item: HookItem }) {
     }
   };
 
+  const save = () => {
+    if (saved) return;
+    setSaved(true);
+    startTransition(async () => {
+      try {
+        await saveHook({ text: item.hook, reelId: item.reelId, source: "transcript" });
+        toast.success("Saved to your library");
+      } catch {
+        setSaved(false);
+        toast.error("Could not save hook");
+      }
+    });
+  };
+
   return (
     <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card p-4">
       <div className="min-w-0 space-y-1.5">
@@ -32,6 +51,20 @@ function HookRow({ item }: { item: HookItem }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saved || pending}
+          title={saved ? "Saved to library" : "Save to library"}
+          aria-label={saved ? "Saved to library" : "Save to library"}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
+            saved
+              ? "border-success/40 bg-success/10 text-success"
+              : "border-border-strong bg-surface-2 text-muted-foreground hover:border-primary/60 hover:text-brand"
+          } disabled:opacity-100`}
+        >
+          {saved ? <Check className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
+        </button>
         <button
           type="button"
           onClick={copy}
@@ -64,8 +97,9 @@ function HookRow({ item }: { item: HookItem }) {
   );
 }
 
-export function HooksExplorer({ hooks }: HooksExplorerProps) {
+export function HooksExplorer({ hooks, savedTexts }: HooksExplorerProps) {
   const [query, setQuery] = useState("");
+  const savedSet = useMemo(() => new Set(savedTexts), [savedTexts]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -95,7 +129,7 @@ export function HooksExplorer({ hooks }: HooksExplorerProps) {
 
       <div className="stagger grid gap-3">
         {filtered.map((item) => (
-          <HookRow key={item.reelId} item={item} />
+          <HookRow key={item.reelId} item={item} initiallySaved={savedSet.has(item.hook)} />
         ))}
       </div>
     </div>

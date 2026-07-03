@@ -4,7 +4,18 @@ import { ScriptGenerator } from "@/components/scripts/ScriptGenerator";
 import { ScriptsList, type ScriptRow } from "@/components/scripts/ScriptsList";
 import { deleteScript, updateScriptStatus, scheduleScript } from "./actions";
 
-export default async function ScriptsPage() {
+type ScriptsPageProps = {
+  searchParams: Promise<{ hook?: string }>;
+};
+
+export default async function ScriptsPage({ searchParams }: ScriptsPageProps) {
+  const { hook } = await searchParams;
+  // A saved hook arrives via ?hook= from the Hook Library "Use in script" action.
+  // Frame it as guidance so the generator opens with it. Cap defensively.
+  const initialContext = hook
+    ? `Open with this exact hook: "${hook.slice(0, 400)}"`
+    : "";
+
   const supabase = await createClient();
 
   const {
@@ -41,7 +52,7 @@ export default async function ScriptsPage() {
         </p>
       </div>
 
-      <ScriptGenerator />
+      <ScriptGenerator initialContext={initialContext} />
 
       <ScriptsList
         scripts={scripts}
