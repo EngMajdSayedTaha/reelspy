@@ -25,6 +25,7 @@ type FeedControlsProps = {
 };
 
 const SORT_OPTIONS = [
+  { value: "outperforming", label: "Outperforming" },
   { value: "recent", label: "Newest" },
   { value: "views", label: "Most viewed" },
   { value: "likes", label: "Most liked" },
