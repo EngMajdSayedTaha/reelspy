@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Settings2, ExternalLink } from "lucide-react";
+import { Settings2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
@@ -31,6 +31,7 @@ type PostRow = {
 const STATUS_STYLES: Record<string, string> = {
   published: "border-success/40 bg-success/10 text-success",
   done: "border-success/40 bg-success/10 text-success",
+  partial: "border-warning/40 bg-warning/10 text-warning",
   failed: "border-danger/40 bg-danger/10 text-danger",
   publishing: "border-warning/40 bg-warning/10 text-warning",
   processing: "border-warning/40 bg-warning/10 text-warning",
@@ -84,6 +85,14 @@ export default async function PublishingPage() {
 
   const previewHandle = profile?.username || user.email?.split("@")[0] || "your_account";
 
+  // Posts that finished with at least one failed target — surface them up top so
+  // a partial/failed publish isn't buried in the history list.
+  const needsAttention = (posts ?? []).filter(
+    (p) =>
+      (p.status === "partial" || p.status === "failed") &&
+      p.publish_jobs.some((j) => j.status === "failed")
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -101,6 +110,22 @@ export default async function PublishingPage() {
       </div>
 
       <PublishComposer connected={connected} handle={previewHandle} />
+
+      {needsAttention.length > 0 ? (
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-foreground">
+              {needsAttention.length} post{needsAttention.length === 1 ? "" : "s"} didn&apos;t fully publish
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              Some platforms failed. Review the per-platform errors below and hit{" "}
+              <span className="font-medium text-foreground">Retry</span> — only the failed target re-runs,
+              so nothing gets double-posted.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {/* History */}
       <div className="space-y-3">

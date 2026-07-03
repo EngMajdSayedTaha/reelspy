@@ -18,6 +18,8 @@ import { instagramAdapter } from "./adapters/instagram";
 import { facebookAdapter } from "./adapters/facebook";
 import { tiktokAdapter, refreshTikTokToken } from "./adapters/tiktok";
 import { youtubeAdapter, refreshYouTubeToken } from "./adapters/youtube";
+import { track } from "@/lib/analytics/track";
+import { notifyPublishFailure, type FailedTarget } from "@/lib/email/publish-failure";
 import type {
   PlatformAdapter,
   Platform,
@@ -168,6 +170,7 @@ export async function dispatchPost(
 
   let published = 0;
   let failed = 0;
+  const failedTargets: FailedTarget[] = [];
 
   for (const job of jobs) {
     await admin
@@ -204,27 +207,74 @@ export async function dispatchPost(
         })
         .eq("id", job.id);
       published += 1;
+      void track(post.user_id, "publish_job_finished", {
+        platform: job.platform,
+        status: "success",
+        post_id: postId,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const errorText = message.slice(0, 500);
       await admin
         .from("publish_jobs")
         .update({
           status: "failed",
-          error_message: message.slice(0, 500),
+          error_message: errorText,
           updated_at: new Date().toISOString(),
         })
         .eq("id", job.id);
       failed += 1;
+      failedTargets.push({ platform: job.platform, error: errorText });
+      void track(post.user_id, "publish_job_finished", {
+        platform: job.platform,
+        status: "failed",
+        post_id: postId,
+      });
     }
   }
 
+  // Honest post status computed over ALL of the post's jobs, not just the ones
+  // that ran this pass — a retry re-dispatches a single job, so we must look at
+  // the whole set to know whether the post is fully done, partial, or failed.
+  const { data: allJobs } = await admin
+    .from("publish_jobs")
+    .select("status")
+    .eq("post_id", postId)
+    .returns<{ status: string }[]>();
+
+  const succeeded = allJobs?.filter((j) => j.status === "published").length ?? 0;
+  const stillFailed = allJobs?.filter((j) => j.status === "failed").length ?? 0;
+  const postStatus =
+    stillFailed === 0 ? "done" : succeeded > 0 ? "partial" : "failed";
+
   await admin
     .from("publish_posts")
-    .update({
-      status: failed === 0 ? "done" : published > 0 ? "done" : "failed",
-      updated_at: new Date().toISOString(),
-    })
+    .update({ status: postStatus, updated_at: new Date().toISOString() })
     .eq("id", postId);
+
+  // One summary email per publish with at least one failed target. Fail-open:
+  // notification errors never affect the returned result.
+  if (failed > 0) {
+    try {
+      const { data: userRes } = await admin.auth.admin.getUserById(post.user_id);
+      const to = userRes?.user?.email;
+      if (to) {
+        await notifyPublishFailure({
+          to,
+          postTitle: post.title || post.caption || "Untitled post",
+          // Overall successes across all targets (a retry re-runs one job), so
+          // the "partial vs all-failed" copy reflects the post's true state.
+          published: succeeded,
+          failed: failedTargets,
+        });
+      }
+    } catch (err) {
+      console.warn(
+        "[dispatchPost] failure notification skipped:",
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
 
   return { postId, published, failed };
 }
