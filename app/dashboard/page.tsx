@@ -14,6 +14,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getOnboardingState } from "@/lib/onboarding/state";
+import { SetupChecklist } from "@/components/onboarding/SetupChecklist";
 
 type StatCardProps = {
   label: string;
@@ -49,6 +51,14 @@ export default async function DashboardPage() {
   if (!user) {
     redirect("/login");
   }
+
+  // First-run routing (L7/B3): send brand-new users straight into the wizard;
+  // users who've started but not activated get the checklist card below.
+  const onboarding = await getOnboardingState(supabase, user.id);
+  if (!onboarding.complete && onboarding.completedCount === 0) {
+    redirect("/dashboard/onboarding");
+  }
+  const showChecklist = !onboarding.complete && !onboarding.activated;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -118,6 +128,8 @@ export default async function DashboardPage() {
           Your content intelligence command center.
         </p>
       </div>
+
+      {showChecklist ? <SetupChecklist state={onboarding} /> : null}
 
       <div className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
