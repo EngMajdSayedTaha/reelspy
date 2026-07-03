@@ -53,7 +53,7 @@ export function ScriptOutput({ script }: ScriptOutputProps) {
         </div>
 
         {/* Body */}
-        <div className="rounded-md border-l-2 border-blue-500/50 bg-background p-3">
+        <div className="rounded-md border-l-2 border-info/50 bg-background p-3">
           <div className="flex items-center justify-between">
             <p className="text-xs uppercase tracking-wide text-subtle">Body</p>
             <CopyButton text={script.body} />

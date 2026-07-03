@@ -42,12 +42,31 @@ type GeneratedResponse = {
   error?: string;
 };
 
+type TranscriptStatus = "none" | "pending" | "ready" | "failed";
+
 type ScriptGeneratorProps = {
   reelId?: string;
   initialCaption?: string;
+  /** The source reel's transcript state, so we can warn upfront (before
+   *  generating) when grounding will be degraded to caption-only (W1/B7). */
+  transcriptStatus?: TranscriptStatus | null;
 };
 
-export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGeneratorProps) {
+// Upfront note shown before generating when a tracked reel has no usable
+// transcript — so the user knows the script won't be grounded on the audio.
+const DEGRADED_HINTS: Record<Exclude<TranscriptStatus, "ready">, string> = {
+  failed:
+    "Transcription failed for this reel — this script will be based on the caption only. Retry it in the transcript panel above to ground on the actual audio.",
+  pending:
+    "The transcript is still processing — you can generate a caption-only draft now, or wait for grounding.",
+  none: "No transcript yet — add one in the panel above to ground the script on the reel's audio, or generate a caption-only draft.",
+};
+
+export function ScriptGenerator({
+  reelId,
+  initialCaption = "",
+  transcriptStatus,
+}: ScriptGeneratorProps) {
   const [caption, setCaption] = useState(initialCaption);
   const [platform, setPlatform] = useState<string>("Instagram Reels");
   const [tone, setTone] = useState<string>("Direct");
@@ -255,6 +274,18 @@ export function ScriptGenerator({ reelId, initialCaption = "" }: ScriptGenerator
               className="resize-none"
             />
           </div>
+
+          {reelId && transcriptStatus && transcriptStatus !== "ready" ? (
+            <p
+              className={
+                transcriptStatus === "failed"
+                  ? "rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning"
+                  : "rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+              }
+            >
+              {DEGRADED_HINTS[transcriptStatus]}
+            </p>
+          ) : null}
 
           <Button
             type="button"

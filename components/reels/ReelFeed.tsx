@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Inbox } from "lucide-react";
+import Link from "next/link";
+import { Inbox, Sparkles } from "lucide-react";
 import { ReelCard } from "@/components/reels/ReelCard";
 import { ReelRow } from "@/components/reels/ReelRow";
 import { FeedViewToggle, type FeedView } from "@/components/reels/FeedViewToggle";
@@ -32,6 +33,7 @@ type ReelFeedProps = {
   discardAction: (formData: FormData) => Promise<void>;
   favoriteAction: (formData: FormData) => Promise<void>;
   hasFilters?: boolean;
+  hasAccounts?: boolean;
 };
 
 const STORAGE_KEY = "reelspy:feedView";
@@ -46,6 +48,7 @@ export function ReelFeed({
   discardAction,
   favoriteAction,
   hasFilters,
+  hasAccounts,
 }: ReelFeedProps) {
   // Default to grid for a deterministic first paint, then hydrate the saved
   // preference after mount (localStorage isn't available during SSR).
@@ -65,6 +68,37 @@ export function ReelFeed({
   }
 
   if (reels.length === 0) {
+    // First run: no accounts tracked yet → send them to the setup wizard rather
+    // than telling them to "sync" something they haven't set up.
+    if (!hasFilters && !hasAccounts) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-background px-6 py-16 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Sparkles className="h-6 w-6 text-brand" />
+          </span>
+          <p className="text-sm font-medium text-foreground">Let&apos;s set up your feed</p>
+          <p className="max-w-sm text-sm text-subtle">
+            Connect Instagram and add a few inspiration accounts to start tracking and scoring
+            their reels.
+          </p>
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+            <Link
+              href="/dashboard/onboarding"
+              className="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+            >
+              Set up ReelSpy
+            </Link>
+            <Link
+              href="/dashboard/accounts"
+              className="flex h-10 items-center rounded-lg border border-border-strong px-4 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              Add accounts manually
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong bg-background px-6 py-16 text-center">
         <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
@@ -76,7 +110,7 @@ export function ReelFeed({
         <p className="max-w-sm text-sm text-subtle">
           {hasFilters
             ? "Try clearing filters or syncing more accounts."
-            : "Connect Instagram and run a sync to populate your feed."}
+            : "Run a sync to pull the latest reels from your tracked accounts."}
         </p>
       </div>
     );

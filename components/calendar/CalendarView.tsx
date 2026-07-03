@@ -42,7 +42,7 @@ type CalendarViewProps = {
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-border-strong",
-  ready: "bg-blue-500/70",
+  ready: "bg-info/70",
   published: "bg-success/70",
 };
 
@@ -374,7 +374,7 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                         s.status === "published"
                           ? "border-success/50 text-success"
                           : s.status === "ready"
-                          ? "border-blue-500/50 text-blue-400"
+                          ? "border-info/50 text-info"
                           : "border-border-strong text-muted-foreground"
                       }`}
                     >

@@ -74,7 +74,11 @@ export default async function GenerateScriptPage({ params }: PageProps) {
             initialLanguage={reel.transcript_lang ?? null}
           />
 
-          <ScriptGenerator reelId={reel.id} initialCaption={reel.caption ?? ""} />
+          <ScriptGenerator
+            reelId={reel.id}
+            initialCaption={reel.caption ?? ""}
+            transcriptStatus={(reel.transcript_status as TranscriptStatus | null) ?? "none"}
+          />
         </div>
       </div>
     </div>

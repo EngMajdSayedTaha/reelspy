@@ -52,7 +52,7 @@ type ScriptsListProps = {
 const STATUS_OPTIONS = ["draft", "ready", "published"] as const;
 const STATUS_COLORS: Record<string, string> = {
   draft: "border-border-strong text-muted-foreground",
-  ready: "border-blue-500/50 text-blue-400",
+  ready: "border-info/50 text-info",
   published: "border-success/50 text-success",
 };
 
@@ -163,7 +163,7 @@ function ScriptCard({
             <span className="text-xs text-subtle">{script.platform}</span>
           ) : null}
           {script.scheduled_date ? (
-            <span className="text-xs text-blue-400">Scheduled: {script.scheduled_date}</span>
+            <span className="text-xs text-info">Scheduled: {script.scheduled_date}</span>
           ) : null}
         </div>
         <p className="text-xs text-subtle">
@@ -266,7 +266,7 @@ function ScriptCard({
         <button
           type="button"
           onClick={() => setShowSchedule((v) => !v)}
-          className="text-xs text-subtle hover:text-blue-400 transition"
+          className="text-xs text-subtle hover:text-info transition"
         >
           Schedule
         </button>

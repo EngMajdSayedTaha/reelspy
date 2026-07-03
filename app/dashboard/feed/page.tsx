@@ -123,6 +123,15 @@ export default async function FeedPage({
 
   const accounts = (accountRows ?? []) as { id: string; ig_username: string }[];
 
+  // Does the user track any accounts at all (active or paused)? Drives the
+  // first-run empty state, which routes to onboarding rather than telling a
+  // brand-new user to "sync" something they haven't set up yet.
+  const { count: accountsTotal } = await supabase
+    .from("inspiration_accounts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+  const hasAccounts = (accountsTotal ?? 0) > 0;
+
   // Groups for the filter dropdown.
   const { data: groupRows } = await supabase
     .from("account_groups")
@@ -312,6 +321,7 @@ export default async function FeedPage({
         discardAction={setReelDiscarded}
         favoriteAction={setReelFavorited}
         hasFilters={hasFilters}
+        hasAccounts={hasAccounts}
       />
 
       <FeedPagination page={page} totalPages={totalPages} total={total} perPage={perPage} />
