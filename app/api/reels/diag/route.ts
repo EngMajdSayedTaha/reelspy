@@ -10,6 +10,21 @@ import { getReelMetadata, probeYtDlp } from "@/lib/media/ytdlp";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// The ?transcribe=1 path runs the full yt-dlp + Whisper pipeline (minutes of
+// compute per call), so it's restricted to an explicit allowlist of user IDs
+// via DIAG_ALLOWED_USER_IDS (comma-separated). Fails CLOSED: if the env var is
+// unset, no one can trigger the heavy pipeline through this diagnostic route.
+// The cheap metadata-only path stays open to any authenticated user.
+function diagTranscribeAllowed(userId: string): boolean {
+  const raw = process.env.DIAG_ALLOWED_USER_IDS?.trim();
+  if (!raw) return false;
+  return raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .includes(userId);
+}
+
 // yt-dlp will happily fetch ANY url it's given (including internal/metadata
 // endpoints), so only Instagram reel URLs are accepted here.
 function isInstagramUrl(raw: string): boolean {
@@ -39,6 +54,13 @@ export async function GET(request: Request) {
 
   if (url && !isInstagramUrl(url)) {
     return NextResponse.json({ error: "Only Instagram URLs are supported." }, { status: 400 });
+  }
+
+  if (transcribe && !diagTranscribeAllowed(user.id)) {
+    return NextResponse.json(
+      { error: "Running the transcription pipeline via diagnostics is restricted." },
+      { status: 403 }
+    );
   }
 
   const ytdlp = await probeYtDlp();

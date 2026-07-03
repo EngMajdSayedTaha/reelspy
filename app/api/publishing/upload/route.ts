@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { presignPutUrl, r2Configured } from "@/lib/storage/r2";
+import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Issues a one-time presigned PUT URL for the private Cloudflare R2 bucket. The
 // browser uploads the file straight to R2 with this URL (a plain fetch PUT), so
@@ -37,6 +38,17 @@ export async function POST(request: Request) {
   const contentType = body.contentType ?? "video/mp4";
   if (!ALLOWED.has(contentType)) {
     return NextResponse.json({ error: "Only MP4, MOV, or WebM videos are supported." }, { status: 400 });
+  }
+
+  // Only genuine, well-formed presign attempts count against quota (bad
+  // content-type is rejected above). Each granted URL authorizes an unbounded
+  // R2 upload, so cap the rate a single user can request them.
+  const limit = await consumeUserAction(supabase, user.id, "upload_presign");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: rateLimitMessage("upload_presign", limit.retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
+    );
   }
 
   const ext = contentType === "video/quicktime" ? "mov" : contentType === "video/webm" ? "webm" : "mp4";

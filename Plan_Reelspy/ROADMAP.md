@@ -9,8 +9,8 @@ Execution order: L4/L8 → L1 → L2 → L3 → L5 → L6 → L7 → L10/L11 →
 
 | # | Item | Tag | Effort | Status | Notes |
 |---|---|---|---|---|---|
-| L4 | Rate-limit the unmetered heavy routes (B6) | BLOCKER | 0.5 ev | todo | |
-| L8 | Cron cadence / Vercel Pro (B5) | BLOCKER | 0.5 ev | todo | batch with L4 |
+| L4 | Rate-limit the unmetered heavy routes (B6) | BLOCKER | 0.5 ev | done | throttled reel-from-link (shares `transcript` bucket) + new `upload_presign` limit; diag `?transcribe=1` gated behind `DIAG_ALLOWED_USER_IDS` (fail-closed) |
+| L8 | Cron cadence / Vercel Pro (B5) | BLOCKER | 0.5 ev | done | `publish-due` → `*/5`, added `poll-comments */10`; needs Vercel Pro live |
 | L1 | De-persona AI prompts (B2) | BLOCKER, WEDGE | 2 ev | todo | #1 product defect |
 | L2 | Transcript-grounded scripts (W1) | WEDGE | 2 ev | todo | |
 | L3 | Claude for paid tiers + tool-use JSON (W2) | WEDGE | 2 ev | todo | |
@@ -55,3 +55,4 @@ Execution order: L4/L8 → L1 → L2 → L3 → L5 → L6 → L7 → L10/L11 →
 
 ## Session log
 <!-- Append one entry per session: date, item(s) touched, what shipped, what's left, decisions made -->
+- **2026-07-03 — L4 + L8 (B6, B5).** Shipped: (1) `reel-from-link` now calls `consumeUserAction(..., "transcript")` before the yt-dlp+Whisper pipeline — reuses the existing `transcript` bucket since it's the same pipeline. (2) New `upload_presign` action (default 60/hr, `RL_UPLOAD_PRESIGN_PER_HOUR`) enforced in `publishing/upload`. (3) `diag?transcribe=1` gated behind `DIAG_ALLOWED_USER_IDS` allowlist, **fail-closed** (unset ⇒ nobody); cheap metadata-only diag path stays open. (4) `vercel.json`: `publish-due` `0 0 * * *` → `*/5 * * * *`, added `poll-comments */10 * * * *`. No DB migration (RPC takes arbitrary `p_action`). Decisions: reel-from-link shares the transcript quota rather than a new bucket; diag fails closed rather than throttling. Left: L8 cadence assumes Vercel Pro is live before launch (founder decision #3); GH Actions fallback per B5 if Pro is rejected.

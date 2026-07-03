@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getReelMetadata, YtDlpUnavailableError } from "@/lib/media/ytdlp";
 import { transcribeReel } from "@/lib/transcription";
+import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -61,6 +62,16 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "That doesn't look like an Instagram reel link." },
       { status: 400 }
+    );
+  }
+
+  // Same yt-dlp + Whisper pipeline as the per-reel transcript route, so it
+  // shares the "transcript" bucket — a loop here burns the same compute/quota.
+  const limit = await consumeUserAction(supabase, user.id, "transcript");
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: rateLimitMessage("transcript", limit.retryAfterSeconds) },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
     );
   }
 

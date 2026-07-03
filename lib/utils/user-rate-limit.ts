@@ -26,6 +26,12 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_TRANSCRIPT_PER_HOUR", 20),
     windowSeconds: 3600,
   },
+  // Cheap to serve (just mints a presigned URL) but each one authorizes an
+  // unbounded upload to R2, so cap how many a single user can request per hour.
+  upload_presign: {
+    limit: numEnv("RL_UPLOAD_PRESIGN_PER_HOUR", 60),
+    windowSeconds: 3600,
+  },
 };
 
 export type UserActionResult = { allowed: boolean; retryAfterSeconds: number };
@@ -63,6 +69,7 @@ export function rateLimitMessage(action: keyof typeof USER_ACTION_LIMITS, retryA
     generate_script: "generate scripts",
     growth_notes: "generate growth notes",
     transcript: "request transcripts",
+    upload_presign: "upload videos",
   };
   return `You're doing that a lot. You can ${label[action] ?? "do that"} again in about ${mins} min.`;
 }
