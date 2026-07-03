@@ -193,6 +193,10 @@ function LoginForm() {
         </Card>
 
         <p className="mt-6 text-center text-xs text-subtle">
+          <a href="/terms" className="hover:text-foreground">
+            Terms
+          </a>
+          <span className="mx-2">·</span>
           <a href="/privacy" className="hover:text-foreground">
             Privacy Policy
           </a>

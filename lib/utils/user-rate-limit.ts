@@ -32,6 +32,12 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_UPLOAD_PRESIGN_PER_HOUR", 60),
     windowSeconds: 3600,
   },
+  // Full data export (PDPL). Reads across every user-owned table, so keep it low
+  // — a handful per hour is plenty for a genuine "download my data" request.
+  account_export: {
+    limit: numEnv("RL_ACCOUNT_EXPORT_PER_HOUR", 5),
+    windowSeconds: 3600,
+  },
 };
 
 export type UserActionResult = { allowed: boolean; retryAfterSeconds: number };

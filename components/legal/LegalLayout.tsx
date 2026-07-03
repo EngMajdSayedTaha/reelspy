@@ -40,6 +40,9 @@ export function LegalLayout({
         </div>
 
         <footer className="mt-12 flex gap-4 border-t border-border pt-6 text-sm text-muted-foreground">
+          <Link href="/terms" className="hover:text-brand">
+            Terms of Service
+          </Link>
           <Link href="/privacy" className="hover:text-brand">
             Privacy Policy
           </Link>
