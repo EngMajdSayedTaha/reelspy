@@ -2,11 +2,12 @@
 // free stays on the NVIDIA Llama path. The tier→model mapping lives in
 // lib/ai/provider.ts; this module only answers "what tier is this user on".
 //
-// Stripe billing + entitlements (L6/B1) is not built yet, so there is no
-// subscriptions table to read. Until then the tier comes from an env default —
-// which lets the founder exercise the paid Claude path pre-launch by setting
-// AI_DEFAULT_TIER=pro. When L6 lands, replace resolveUserTier's body with a
-// subscriptions lookup keyed on the user id (the signature already takes it).
+// Tier now comes from the Stripe-written `subscriptions` table (L6/B1) via
+// lib/billing/subscription.ts. When a user has no ACTIVE subscription we fall
+// back to AI_DEFAULT_TIER — which stays "free" in prod but lets the founder
+// exercise the paid Claude path pre-launch (or before their first checkout) by
+// setting AI_DEFAULT_TIER=pro. The subscription lookup fails open, so a missing
+// table / DB blip degrades to that env default rather than breaking generation.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -24,12 +25,14 @@ function envDefaultTier(): AiTier {
   return isAiTier(raw) ? (raw as AiTier) : "free";
 }
 
-// Resolve a user's AI tier. Currently env-driven (see module note); the
-// `supabase`/`userId` params are accepted now so L6 can swap in the real
-// subscriptions lookup without touching any caller.
+// Resolve a user's AI tier: an ACTIVE Stripe subscription wins; otherwise the
+// env default (free in prod). Imported lazily to avoid a module cycle
+// (billing/subscription.ts → ai/tier.ts for the AiTier type).
 export async function resolveUserTier(
-  _supabase: SupabaseClient,
-  _userId: string
+  supabase: SupabaseClient,
+  userId: string
 ): Promise<AiTier> {
-  return envDefaultTier();
+  const { activeTierFromSubscription } = await import("@/lib/billing/subscription");
+  const subTier = await activeTierFromSubscription(supabase, userId);
+  return subTier ?? envDefaultTier();
 }
