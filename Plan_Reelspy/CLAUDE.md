@@ -12,8 +12,10 @@ signup→first-script activation SLA.
 **North Star metric:** Weekly Loop Completions (WLC) — see `plan/05-instrumentation.md`.
 
 ## Founder decisions already made (don't re-litigate these)
-1. **Palette**: rebrand at launch from neon-yellow `#f9e400` to violet `#6D28D9` /
-   emerald `#10B981` / ink `#0F172A`. See `plan/02-launch-blockers.md` → B9.
+1. **Palette**: neon-yellow `#f9e400` brand accent on ink/near-black surfaces —
+   the violet rebrand was reverted; keep the app yellow. The semantic status
+   tokens (`--success`/`--warning`/`--danger`/`--info`) introduced alongside it
+   are retained. See `plan/02-launch-blockers.md` → B9.
 2. **AI engine**: Claude (Haiku 4.5 default, Sonnet for Pro/Studio) for paid tiers; free
    tier may stay on NVIDIA Llama-3.1-8B. See `plan/03-wedge-quality.md` → W2.
 3. **Cron infra**: upgrade to Vercel Pro at launch (5-min publish cadence). Fallback is

@@ -26,9 +26,9 @@ import {
   type MediaItem,
 } from "@/lib/instagram/insights-export";
 
-// On-brand palette — violet is the hero metric, the rest are calm accents.
+// On-brand palette — yellow is the hero metric, the rest are calm accents.
 const COLORS = {
-  views: "#7C3AED",
+  views: "#F9E400",
   reach: "#FBBF24",
   likes: "#F472B6",
   comments: "#60A5FA",

@@ -59,7 +59,7 @@ export async function notifyPublishFailure(params: {
     </p>
     <ul style="font-size:14px;color:#0F172A;padding-left:18px;margin:0 0 20px">${rowsHtml}</ul>
     <a href="${deepLink}"
-       style="display:inline-block;background:#6D28D9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">
+       style="display:inline-block;background:#F9E400;color:#121212;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">
       Review &amp; retry
     </a>
     <p style="font-size:12px;color:#94A3B8;margin:20px 0 0">
