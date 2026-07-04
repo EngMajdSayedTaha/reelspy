@@ -147,60 +147,6 @@ export async function probeYtDlp(): Promise<YtDlpProbe> {
   }
 }
 
-export type ReelInfo = {
-  id: string | null;
-  description: string | null;
-  uploader: string | null;
-  uploader_id: string | null;
-  thumbnail: string | null;
-};
-
-// Lightweight metadata fetch — only text fields, no format enumeration.
-// Used for the "paste a link" flow in the script generator.
-export async function getReelInfo(url: string): Promise<ReelInfo> {
-  const binary = await resolveBinary();
-  const cookies = await cookieArgs();
-
-  const args = [
-    "--dump-single-json",
-    "--skip-download",
-    "--no-warnings",
-    "--no-cache-dir",
-    ...cookies,
-    url,
-  ];
-
-  let stdout: string;
-  try {
-    ({ stdout } = await execFileAsync(binary, args, {
-      maxBuffer: 8 * 1024 * 1024,
-      timeout: 30_000,
-      env: { ...process.env, TMPDIR: "/tmp", HOME: "/tmp" },
-    }));
-  } catch (err) {
-    const e = err as { stderr?: string; message?: string };
-    const detail = (e.stderr?.trim() || e.message || "yt-dlp failed").toString();
-    throw new Error(detail.slice(0, 400));
-  }
-
-  const info = JSON.parse(stdout) as {
-    id?: string;
-    description?: string;
-    title?: string;
-    uploader?: string;
-    uploader_id?: string;
-    thumbnail?: string;
-  };
-
-  return {
-    id: info.id ?? null,
-    description: info.description ?? info.title ?? null,
-    uploader: info.uploader ?? null,
-    uploader_id: info.uploader_id ?? null,
-    thumbnail: info.thumbnail ?? null,
-  };
-}
-
 // Runs `yt-dlp --dump-single-json --skip-download` to fetch metadata + a direct
 // media URL WITHOUT downloading the video binary.
 export async function getReelMetadata(url: string): Promise<ReelMetadata> {

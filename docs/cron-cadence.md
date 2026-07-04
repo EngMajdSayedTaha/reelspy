@@ -23,6 +23,11 @@ GitHub Actions (`.github/workflows/`), each `curl`s its endpoint with
   is unaffected (it runs the dispatcher inline).
 - **`weekly-digest.yml`** (Mon 08:00) — enqueues one `send_digest` job per
   opted-in user; `run-jobs` sends them.
+- **`prune-events.yml`** (Sun 04:00) — event-log retention (roadmap V7). Deletes
+  rows past the retention window from `app_events` / `ai_usage` /
+  `automation_events` (`EVENT_RETENTION_DAYS`, default 365) and terminal jobs
+  (`JOBS_RETENTION_DAYS`, default 30) for PDPL data minimization + queue-table
+  hygiene. A no-op until data ages past the window.
 - **`poll-youtube-comments.yml`** — YouTube auto-reply poller.
 
 5 minutes is the finest granularity GitHub Actions cron supports, and scheduled

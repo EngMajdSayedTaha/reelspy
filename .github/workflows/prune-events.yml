@@ -1,0 +1,39 @@
+name: Prune event logs
+
+# Event-log retention (roadmap V7). Vercel Hobby only allows two daily crons and
+# both slots are used by the snapshot/token refreshers, so the retention prune
+# runs from GitHub Actions instead of vercel.json. It calls
+# /api/cron/prune-events, authenticated with CRON_SECRET (see lib/utils/cron.ts),
+# deleting event/telemetry rows past the retention window (EVENT_RETENTION_DAYS,
+# default 365) and terminal jobs (JOBS_RETENTION_DAYS, default 30).
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#   Secret    CRON_SECRET   = the same value as the Vercel env var CRON_SECRET
+#   Variable  APP_BASE_URL  = https://<your-production-domain>   (no trailing slash)
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load.
+# Scheduled workflows run on the default branch only and auto-pause after 60 days
+# of repo inactivity.
+
+on:
+  schedule:
+    # Sundays 04:00 UTC — off-peak, away from the Monday 08:00 digest.
+    - cron: "0 4 * * 0"
+  workflow_dispatch: {}
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger event-log prune
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "Missing CRON_SECRET secret or APP_BASE_URL variable — see workflow header." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/prune-events"
