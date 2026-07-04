@@ -21,13 +21,16 @@ export type Entitlements = {
   transcripts_mo: number;
   automations: number;
   publish_targets: number;
+  // How many IG source accounts a user can connect + switch between (X4). Only
+  // Studio is multi-account; everyone else has a single connection.
+  ig_connections: number;
 };
 
 export const ENTITLEMENTS: Record<AiTier, Entitlements> = {
-  free: { accounts: 3, scripts_mo: 10, transcripts_mo: 5, automations: 0, publish_targets: 0 },
-  creator: { accounts: 10, scripts_mo: 60, transcripts_mo: 30, automations: 3, publish_targets: 1 },
-  pro: { accounts: 25, scripts_mo: 200, transcripts_mo: 100, automations: 10, publish_targets: 4 },
-  studio: { accounts: 50, scripts_mo: UNLIMITED, transcripts_mo: UNLIMITED, automations: 30, publish_targets: 4 },
+  free: { accounts: 3, scripts_mo: 10, transcripts_mo: 5, automations: 0, publish_targets: 0, ig_connections: 1 },
+  creator: { accounts: 10, scripts_mo: 60, transcripts_mo: 30, automations: 3, publish_targets: 1, ig_connections: 1 },
+  pro: { accounts: 25, scripts_mo: 200, transcripts_mo: 100, automations: 10, publish_targets: 4, ig_connections: 1 },
+  studio: { accounts: 50, scripts_mo: UNLIMITED, transcripts_mo: UNLIMITED, automations: 30, publish_targets: 4, ig_connections: 5 },
 };
 
 export type EntitlementKey = keyof Entitlements;

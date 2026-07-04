@@ -8,6 +8,7 @@ import {
   storeIgToken,
   storePageCredentials,
 } from "@/lib/instagram/token-store";
+import { setActiveIgConnection, upsertIgConnection } from "@/lib/instagram/connections";
 import {
   exchangeCodeForAccessToken,
   exchangeForLongLivedToken,
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest) {
     // Both are best-effort — a failure must not break the connect flow, the
     // Automations page surfaces a "reconnect" banner instead.
     let webhookWarning: string | null = null;
+    let webhookSubscribedAt: string | null = null;
     if (igAccount.pageId && igAccount.pageAccessToken) {
       try {
         await storePageCredentials(admin, user.id, {
@@ -104,12 +106,33 @@ export async function GET(request: NextRequest) {
         });
         await subscribePageToWebhooks(igAccount.pageId, igAccount.pageAccessToken);
         await markWebhookSubscribed(admin, user.id);
+        webhookSubscribedAt = new Date().toISOString();
       } catch (subscribeError) {
         console.error("Auto-reply webhook subscription failed", subscribeError);
         webhookWarning = "webhook_subscribe_failed";
       }
     } else {
       webhookWarning = "page_token_missing";
+    }
+
+    // Multi-account (X4): mirror this credential into ig_connections and make it
+    // the active research connection. Fail-open — a missing table (pre-migration)
+    // just no-ops, and the profiles write above remains the source of truth.
+    try {
+      const connectionId = await upsertIgConnection(admin, user.id, {
+        igUserId: igProfile.id,
+        username: igProfile.username,
+        token: longLivedToken,
+        expiresAt,
+        avatarUrl: igAccount.profilePictureUrl ?? null,
+        pageId: igAccount.pageId ?? null,
+        pageName: igAccount.pageName ?? null,
+        pageToken: igAccount.pageAccessToken ?? null,
+        webhookSubscribedAt,
+      });
+      if (connectionId) await setActiveIgConnection(admin, user.id, connectionId);
+    } catch (connError) {
+      console.error("ig_connections mirror failed (non-fatal)", connError);
     }
 
     const { error: accountError } = await supabase.from("inspiration_accounts").upsert(

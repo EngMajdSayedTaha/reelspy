@@ -11,6 +11,7 @@
 // authenticated user's id — this module does authorization-free storage only.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { clearIgConnections, getActiveIgCredentials } from "./connections";
 
 export type IgCredentials = {
   igUserId: string;
@@ -20,10 +21,20 @@ export type IgCredentials = {
 };
 
 // Returns the user's IG credentials, or null when not connected.
+//
+// Multi-account (X4): when the user has an ACTIVE ig_connections row, its
+// credential wins — that's how a Studio user switches which IG account drives
+// research. The lookup is fail-open (see connections.ts): no active connection /
+// missing table ⇒ null ⇒ we fall through to the legacy profiles.ig_* credential,
+// so behavior is unchanged until the migration is applied and a connection is
+// selected.
 export async function getIgCredentials(
   admin: SupabaseClient,
   userId: string
 ): Promise<IgCredentials | null> {
+  const active = await getActiveIgCredentials(admin, userId);
+  if (active) return active;
+
   const { data, error } = await admin
     .from("profiles")
     .select("ig_access_token, ig_user_id, ig_token_status, ig_token_expires_at")
@@ -78,6 +89,10 @@ export async function clearIgToken(admin: SupabaseClient, userId: string): Promi
     .eq("id", userId);
 
   if (error) throw new Error(error.message);
+
+  // Multi-account (X4): also drop the connection rows + active pointer so a
+  // disconnect fully clears the credential. Fail-open (no-op pre-migration).
+  await clearIgConnections(admin, userId);
 }
 
 // ── Facebook Page credentials (Auto-Reply module) ────────────────────────────

@@ -394,6 +394,48 @@ grant select (id, user_id, platform, account_id, account_name, account_username,
 grant update (is_active) on social_connections to authenticated;
 grant delete on table social_connections to authenticated;
 
+-- ── ig_connections — multi-account research credentials (X4) ─────────────────
+-- One row per connected IG *research* account; the active one (pointed at by
+-- profiles.active_ig_connection_id) drives Business Discovery / sync / insights /
+-- auto-reply. Back-compatible with the legacy single profiles.ig_* credential —
+-- the app fail-opens to profiles when there's no active connection. Token
+-- columns follow the H3 posture: revoked from browser roles, service-role only.
+create table ig_connections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  ig_user_id text not null,
+  username text,
+  display_name text,
+  avatar_url text,
+  access_token text,                       -- SERVER ONLY
+  token_expires_at timestamptz,
+  token_status text not null default 'active',
+  token_refreshed_at timestamptz,
+  fb_page_id text,
+  fb_page_name text,
+  fb_page_access_token text,               -- SERVER ONLY
+  webhook_subscribed_at timestamptz,
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, ig_user_id)
+);
+alter table ig_connections enable row level security;
+create policy "Users can read own ig connections"
+  on ig_connections for select using (auth.uid() = user_id);
+create index ig_connections_user_idx on ig_connections (user_id);
+revoke all on table ig_connections from anon, authenticated;
+grant select (id, user_id, ig_user_id, username, display_name, avatar_url,
+              token_status, token_expires_at, token_refreshed_at,
+              fb_page_id, fb_page_name, webhook_subscribed_at,
+              is_active, created_at, updated_at)
+  on ig_connections to authenticated;
+
+alter table profiles
+  add column if not exists active_ig_connection_id uuid
+    references ig_connections(id) on delete set null;
+grant select (active_ig_connection_id) on profiles to authenticated;
+
 create table publish_posts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,

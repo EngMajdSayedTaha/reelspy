@@ -1,7 +1,12 @@
 import { redirect } from "next/navigation";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ConnectionCard } from "@/components/publishing/ConnectionCard";
+import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
+import { listIgConnections } from "@/lib/instagram/connections";
+import { resolveUserTier } from "@/lib/ai/tier";
+import { limitFor } from "@/lib/billing/entitlements";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -96,6 +101,22 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   const tiktok = conns?.find((c) => c.platform === "tiktok" && c.is_active);
   const youtube = conns?.find((c) => c.platform === "youtube" && c.is_active);
 
+  // ── Studio multi-account workspaces (X4) ───────────────────────────────────
+  // Fail-open: listIgConnections returns [] when the table isn't there yet, so
+  // the switcher simply doesn't render pre-migration. activeId comes from the
+  // per-row flag (avoids selecting profiles.active_ig_connection_id, which
+  // wouldn't exist before the migration and would error the page query).
+  const admin = createAdminClient();
+  const [igConnections, tier] = await Promise.all([
+    listIgConnections(admin, user.id),
+    resolveUserTier(supabase, user.id),
+  ]);
+  const connectionCap = limitFor(tier, "ig_connections");
+  const activeConnectionId = igConnections.find((c) => c.isActive)?.id ?? null;
+  // Show once multi-account is relevant: the plan allows more than one, or the
+  // user already has more than one connected.
+  const showWorkspaces = igConnections.length > 0 && (connectionCap > 1 || igConnections.length > 1);
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -127,6 +148,14 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
             </p>
           ) : null}
         </div>
+      ) : null}
+
+      {showWorkspaces ? (
+        <WorkspaceSwitcher
+          connections={igConnections}
+          activeId={activeConnectionId}
+          connectionCap={connectionCap}
+        />
       ) : null}
 
       <div className="grid gap-4">
