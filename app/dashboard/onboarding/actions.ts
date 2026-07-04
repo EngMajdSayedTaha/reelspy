@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { track } from "@/lib/analytics/track";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, isUnlimited } from "@/lib/billing/entitlements";
-import type { BrandVoice } from "@/lib/ai/claude";
+import { isArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
 
 export type OnboardingActionState = { error?: string; ok?: boolean };
 
@@ -42,12 +42,15 @@ export async function saveBrandVoice(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized." };
 
+  const dialectRaw = formData.get("arabicDialect");
   const brandVoice: BrandVoice = {
     niche: readField(formData, "niche"),
     audience: readField(formData, "audience"),
     offer: readField(formData, "offer"),
     tone: readField(formData, "tone"),
     language: readField(formData, "language"),
+    // Arabic-first preset (X2): only persist a recognized dialect, else clear it.
+    arabicDialect: isArabicDialect(dialectRaw) ? dialectRaw : null,
   };
 
   if (!brandVoice.niche && !brandVoice.audience) {

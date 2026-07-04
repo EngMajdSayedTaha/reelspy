@@ -1,5 +1,11 @@
 import { aiConfigured, chat, type ChatUsage, type JsonTool } from "./provider";
 import type { AiTier } from "./tier";
+import { ARABIC_DIALECTS, isArabicDialect, type ArabicDialect, type BrandVoice } from "./brand-voice";
+
+// Re-export the pure brand-voice API so existing server importers of `claude.ts`
+// keep working; client components must import from `./brand-voice` directly.
+export { ARABIC_DIALECTS, isArabicDialect };
+export type { ArabicDialect, BrandVoice };
 
 // Forced-tool schemas for the Claude path (W2). Tool-use guarantees the model
 // returns a schema-valid JSON object, so the NVIDIA-era repair stack below is
@@ -46,19 +52,17 @@ export type GeneratedScript = {
 
 export type GrowthNote = string;
 
-// Per-user brand voice (profiles.brand_voice). Interpolated into the AI system
-// prompts so every creator's scripts/notes speak in THEIR voice — this is what
-// makes the product safe to sell to anyone but the founder. All fields optional;
-// collected during onboarding (B3). When absent the prompts fall back to a
-// neutral creator persona rather than the old hardcoded @majdst_codes one.
-export type BrandVoice = {
-  creator?: string | null;
-  niche?: string | null;
-  audience?: string | null;
-  offer?: string | null;
-  tone?: string | null;
-  language?: string | null;
-};
+// The hard language directive injected into the script system prompt when an
+// Arabic preset is chosen. Phrased as a requirement (not persona context) so the
+// model writes the whole script in Arabic regardless of the reel's language.
+function arabicDialectDirective(dialect: ArabicDialect): string {
+  const base =
+    "Write the ENTIRE script — hook, body, and CTA — in Arabic, in native Arabic phrasing (never a word-for-word translation of English). Arabic is right-to-left; do not transliterate into Latin letters.";
+  if (dialect === "gulf") {
+    return `${base} Use natural Gulf (Khaleeji / خليجي) dialect as spoken across the UAE and GCC — colloquial and conversational, the way real Gulf creators actually talk. Do NOT use formal Modern Standard Arabic.`;
+  }
+  return `${base} Use Modern Standard Arabic (الفصحى) — clear, correct, and understood across the Arab world, while staying natural and engaging for short-form video (not stiff or academic).`;
+}
 
 // Brand-voice values are user-supplied and get interpolated into the SYSTEM
 // prompt, so cap each field: it bounds token spend and blunts a user pasting a
@@ -84,13 +88,19 @@ function brandVoiceLines(bv?: BrandVoice | null): string[] {
   return rows.filter(([, v]) => v).map(([label, v]) => `${label}: ${v}`);
 }
 
-function buildScriptSystemPrompt(bv?: BrandVoice | null): string {
+// Exported for unit testing (the Arabic-preset directive must reach the prompt).
+export function buildScriptSystemPrompt(bv?: BrandVoice | null): string {
   const lines = brandVoiceLines(bv);
   const persona = lines.length
     ? `You are a content script generator for an Instagram creator. Write every script in THEIR voice, for THEIR audience, about THEIR niche:\n${lines.join("\n")}`
     : `You are a content script generator for an Instagram creator. Write in a clear, direct, authentic voice with no fluff, inferring a sensible angle from the inspiration reel's topic.`;
 
-  return `${persona}
+  const dialect = bv?.arabicDialect;
+  const languageRequirement = isArabicDialect(dialect)
+    ? `\n\nLANGUAGE REQUIREMENT: ${arabicDialectDirective(dialect)} This overrides the source reel's language and the "Primary language" field above.`
+    : "";
+
+  return `${persona}${languageRequirement}
 
 Given an inspiration reel — its transcript when available, plus its caption — generate an ORIGINAL script through this creator's lens: your own topic, your own angle, their voice. Never copy the original content.
 

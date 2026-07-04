@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { BrandVoice } from "@/lib/ai/claude";
+import { ARABIC_DIALECTS, type BrandVoice } from "@/lib/ai/brand-voice";
 import type { OnboardingActionState } from "@/app/dashboard/onboarding/actions";
 
 type SaveFn = (prev: OnboardingActionState, formData: FormData) => Promise<OnboardingActionState>;
@@ -119,6 +119,30 @@ export function BrandVoiceForm({ action, initial, submitLabel = "Save & continue
             maxLength={60}
           />
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="arabicDialect">
+          Arabic script preset <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <select
+          id="arabicDialect"
+          name="arabicDialect"
+          aria-label="Arabic script preset"
+          defaultValue={initial?.arabicDialect ?? ""}
+          disabled={isPending}
+          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+        >
+          <option value="">Off — match the reel / language above</option>
+          {ARABIC_DIALECTS.map((d) => (
+            <option key={d.value} value={d.value}>
+              {d.labelEn} ({d.labelAr})
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-subtle">
+          Force every generated script into Arabic — Gulf dialect or Modern Standard Arabic.
+        </p>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
