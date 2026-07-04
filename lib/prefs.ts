@@ -2,6 +2,8 @@
 // components and client widgets can read them without a DB round-trip. Nothing
 // sensitive lives here — it's UI tuning only.
 
+import { DEFAULT_LOCALE, normalizeLocale, type Locale } from "@/lib/i18n/config";
+
 export const PREFS_COOKIE = "reelspy_prefs";
 
 export type UserPrefs = {
@@ -11,6 +13,8 @@ export type UserPrefs = {
   syncLimit: number;
   /** Default feed page size. */
   feedPerPage: number;
+  /** Interface language (drives dir/lang). */
+  locale: Locale;
 };
 
 export const TOAST_MS_OPTIONS = [3000, 5000, 8000, 12000] as const;
@@ -21,6 +25,7 @@ export const DEFAULT_PREFS: UserPrefs = {
   toastMs: 5000,
   syncLimit: 25,
   feedPerPage: 10,
+  locale: DEFAULT_LOCALE,
 };
 
 function pick<T extends number>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -37,6 +42,7 @@ export function parsePrefs(raw: string | undefined | null): UserPrefs {
       toastMs: pick(json.toastMs, TOAST_MS_OPTIONS, DEFAULT_PREFS.toastMs),
       syncLimit: pick(json.syncLimit, SYNC_LIMIT_OPTIONS, DEFAULT_PREFS.syncLimit),
       feedPerPage: pick(json.feedPerPage, FEED_PER_PAGE_OPTIONS, DEFAULT_PREFS.feedPerPage),
+      locale: normalizeLocale(json.locale),
     };
   } catch {
     return DEFAULT_PREFS;

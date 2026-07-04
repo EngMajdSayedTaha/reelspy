@@ -3,26 +3,34 @@
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
-const TITLES: { match: (p: string) => boolean; label: string }[] = [
-  { match: (p) => p === "/dashboard", label: "Dashboard" },
-  { match: (p) => p.startsWith("/dashboard/accounts"), label: "Inspiration Accounts" },
-  { match: (p) => p.startsWith("/dashboard/feed"), label: "Feed" },
-  { match: (p) => p.startsWith("/dashboard/hooks"), label: "Hook Library" },
-  { match: (p) => p.startsWith("/dashboard/generate"), label: "Script Generator" },
-  { match: (p) => p.startsWith("/dashboard/scripts"), label: "Scripts Library" },
-  { match: (p) => p.startsWith("/dashboard/my-account"), label: "My Instagram" },
-  { match: (p) => p.startsWith("/dashboard/calendar"), label: "Content Calendar" },
-  { match: (p) => p.startsWith("/dashboard/settings"), label: "Settings" },
+type TitleKey = keyof Dict["titles"];
+
+const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
+  { match: (p) => p === "/dashboard", key: "dashboard" },
+  { match: (p) => p.startsWith("/dashboard/accounts"), key: "accounts" },
+  { match: (p) => p.startsWith("/dashboard/feed"), key: "feed" },
+  { match: (p) => p.startsWith("/dashboard/hooks"), key: "hooks" },
+  { match: (p) => p.startsWith("/dashboard/generate"), key: "generate" },
+  { match: (p) => p.startsWith("/dashboard/scripts"), key: "scripts" },
+  { match: (p) => p.startsWith("/dashboard/my-account"), key: "myAccount" },
+  { match: (p) => p.startsWith("/dashboard/publishing"), key: "publishing" },
+  { match: (p) => p.startsWith("/dashboard/calendar"), key: "calendar" },
+  { match: (p) => p.startsWith("/dashboard/connections"), key: "connections" },
+  { match: (p) => p.startsWith("/dashboard/billing"), key: "billing" },
+  { match: (p) => p.startsWith("/dashboard/settings"), key: "settings" },
 ];
 
 type TopBarProps = {
   onMenu: () => void;
+  dict: Dict;
 };
 
-export function TopBar({ onMenu }: TopBarProps) {
+export function TopBar({ onMenu, dict }: TopBarProps) {
   const pathname = usePathname();
-  const current = TITLES.find((t) => t.match(pathname))?.label ?? "ReelSpy";
+  const titleKey = TITLES.find((t) => t.match(pathname))?.key;
+  const current = titleKey ? dict.titles[titleKey] : "ReelSpy";
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur sm:px-6 lg:px-8">
@@ -30,7 +38,7 @@ export function TopBar({ onMenu }: TopBarProps) {
         <button
           type="button"
           onClick={onMenu}
-          aria-label="Open menu"
+          aria-label={dict.shell.openMenu}
           className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground lg:hidden"
         >
           <Menu className="h-5 w-5" />

@@ -24,29 +24,31 @@ import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { planFor } from "@/lib/billing/plans";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
-type NavLink = { href: string; label: string; icon: LucideIcon; matchPrefixes?: string[] };
+type NavKey = keyof Dict["nav"];
+type NavLink = { href: string; labelKey: NavKey; icon: LucideIcon; matchPrefixes?: string[] };
 
 const links: NavLink[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/accounts", label: "Accounts", icon: UserSearch },
-  { href: "/dashboard/feed", label: "Feed", icon: Clapperboard },
-  { href: "/dashboard/hooks", label: "Hooks", icon: Bookmark },
+  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch },
+  { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard },
+  { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark },
   {
     href: "/dashboard/scripts",
-    label: "Scripts",
+    labelKey: "scripts",
     icon: ScrollText,
     // /dashboard/generate/[reel_id] is the script-generation page for a reel —
     // part of the Scripts section even though it lives outside /dashboard/scripts.
     matchPrefixes: ["/dashboard/generate"],
   },
-  { href: "/dashboard/my-account", label: "My IG", icon: Camera },
-  { href: "/dashboard/automations", label: "Auto-Reply", icon: MessageCircleReply },
-  { href: "/dashboard/publishing", label: "Publishing", icon: Send },
-  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-  { href: "/dashboard/connections", label: "Connections", icon: Plug },
-  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera },
+  { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply },
+  { href: "/dashboard/publishing", labelKey: "publishing", icon: Send },
+  { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar },
+  { href: "/dashboard/connections", labelKey: "connections", icon: Plug },
+  { href: "/dashboard/billing", labelKey: "billing", icon: CreditCard },
+  { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
 ];
 
 function isActive(pathname: string, link: NavLink): boolean {
@@ -61,9 +63,10 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   user: SidebarUser | null;
+  dict: Dict;
 };
 
-export function Sidebar({ open, onClose, user }: SidebarProps) {
+export function Sidebar({ open, onClose, user, dict }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -78,8 +81,10 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
       ) : null}
 
       <aside
-        className={`fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col border-r border-border bg-background p-5 transition-transform duration-200 lg:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
+        className={`fixed start-0 top-0 z-40 flex h-screen w-[240px] flex-col border-e border-border bg-background p-5 transition-transform duration-200 lg:translate-x-0 ${
+          // Hidden drawer slides toward the start edge — left in LTR, right in
+          // RTL (rtl: flips the sign so it tucks off the correct side).
+          open ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
         }`}
       >
         <div className="mb-8 flex items-center justify-between px-2">
@@ -89,7 +94,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close menu"
+            aria-label={dict.shell.closeMenu}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground lg:hidden"
           >
             <X className="h-5 w-5" />
@@ -112,10 +117,10 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                 }`}
               >
                 {active ? (
-                  <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
+                  <span className="absolute start-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
                 ) : null}
                 <Icon className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
-                {link.label}
+                {dict.nav[link.labelKey]}
               </Link>
             );
           })}
@@ -128,7 +133,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
               onClick={onClose}
               className="flex items-center justify-between rounded-lg bg-secondary/60 px-3 py-2 text-xs transition hover:bg-secondary"
             >
-              <span className="text-muted-foreground">Plan</span>
+              <span className="text-muted-foreground">{dict.shell.plan}</span>
               <span
                 className={`font-medium ${
                   user.tier === "free" ? "text-foreground" : "text-brand"
@@ -169,7 +174,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                     user.connected ? "text-success" : "text-muted-foreground"
                   }`}
                 >
-                  {user.connected ? "Connected" : "Not connected"}
+                  {user.connected ? dict.shell.connected : dict.shell.notConnected}
                 </span>
               </span>
             </Link>

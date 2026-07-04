@@ -114,6 +114,12 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Arabic locale (roadmap X1): swap in the Arabic variable font. Geist is
+   latin-only, so without this Arabic glyphs fall back to system fonts. */
+html[lang="ar"] body {
+  font-family: var(--font-arabic), var(--font-geist-sans), sans-serif;
+}
+
 /* Snappier taps on touch devices (no double-tap zoom delay on controls). */
 button,
 a,

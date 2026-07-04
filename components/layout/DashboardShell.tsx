@@ -6,13 +6,16 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
 export function DashboardShell({
   children,
   user,
+  dict,
 }: {
   children: ReactNode;
   user: SidebarUser | null;
+  dict: Dict;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -20,9 +23,10 @@ export function DashboardShell({
   return (
     <ConfirmProvider>
       <div className="min-h-screen bg-background text-foreground">
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
-        <main className="min-h-screen lg:ml-[240px]">
-          <TopBar onMenu={() => setSidebarOpen(true)} />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} dict={dict} />
+        {/* logical margin so the RTL sidebar sits on the correct side */}
+        <main className="min-h-screen lg:ms-[240px]">
+          <TopBar onMenu={() => setSidebarOpen(true)} dict={dict} />
           {/* Keyed by route so every page entrance replays the fade-up.
               `overflow-x-clip` + `min-w-0` are a mobile safety net: no page can
               push the layout wider than the viewport (which on phones shows up

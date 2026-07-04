@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, IBM_Plex_Sans_Arabic } from "next/font/google";
+import { cookies } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { dirForLocale } from "@/lib/i18n/config";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,21 +18,33 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Arabic variable font (roadmap X1) — Geist ships latin-only, so Arabic text
+// falls back to system fonts without this. Applied via `[lang="ar"]` in
+// globals.css; the variable is always present so mixed content still renders.
+const plexArabic = IBM_Plex_Sans_Arabic({
+  variable: "--font-arabic",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "ReelSpy — Content Intelligence",
   description: "Track inspiration reels, spot what's rising, and turn the best ideas into scripts.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+
   return (
     <html
-      lang="en"
+      lang={locale}
+      dir={dirForLocale(locale)}
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider
@@ -40,7 +55,12 @@ export default function RootLayout({
         >
           {children}
           <CookieConsent />
-          <Toaster position="top-right" richColors closeButton />
+          {/* Mirror the toast corner in RTL so it sits on the same visual side. */}
+          <Toaster
+            position={dirForLocale(locale) === "rtl" ? "top-left" : "top-right"}
+            richColors
+            closeButton
+          />
         </ThemeProvider>
       </body>
     </html>

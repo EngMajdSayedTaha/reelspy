@@ -12,6 +12,7 @@ import {
   serializePrefs,
   type UserPrefs,
 } from "@/lib/prefs";
+import { normalizeLocale } from "@/lib/i18n/config";
 
 function pick<T extends number>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T {
   const n = Number(value);
@@ -23,6 +24,7 @@ export async function savePreferences(formData: FormData): Promise<void> {
     toastMs: pick(formData.get("toastMs"), TOAST_MS_OPTIONS, DEFAULT_PREFS.toastMs),
     syncLimit: pick(formData.get("syncLimit"), SYNC_LIMIT_OPTIONS, DEFAULT_PREFS.syncLimit),
     feedPerPage: pick(formData.get("feedPerPage"), FEED_PER_PAGE_OPTIONS, DEFAULT_PREFS.feedPerPage),
+    locale: normalizeLocale(formData.get("locale")),
   };
 
   const cookieStore = await cookies();

@@ -10,6 +10,7 @@ import {
   TOAST_MS_OPTIONS,
   type UserPrefs,
 } from "@/lib/prefs";
+import { LOCALES, LOCALE_LABELS } from "@/lib/i18n/config";
 
 type PreferencesFormProps = {
   initial: UserPrefs;
@@ -23,6 +24,7 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
   const [toastMs, setToastMs] = useState(initial.toastMs);
   const [syncLimit, setSyncLimit] = useState(initial.syncLimit);
   const [feedPerPage, setFeedPerPage] = useState(initial.feedPerPage);
+  const [locale, setLocale] = useState(initial.locale);
   const [isPending, startTransition] = useTransition();
 
   const save = () => {
@@ -30,10 +32,18 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
     data.set("toastMs", String(toastMs));
     data.set("syncLimit", String(syncLimit));
     data.set("feedPerPage", String(feedPerPage));
+    data.set("locale", locale);
+    const localeChanged = locale !== initial.locale;
     startTransition(async () => {
       try {
         await action(data);
         window.dispatchEvent(new CustomEvent("reelspy:prefs"));
+        // Language change flips dir/lang on <html>, which is set by the root
+        // layout server-side — a full reload is the clean way to re-render it.
+        if (localeChanged) {
+          window.location.reload();
+          return;
+        }
         toast.success("Preferences saved", { duration: toastMs });
       } catch {
         toast.error("Could not save preferences.");
@@ -52,6 +62,23 @@ export function PreferencesForm({ initial, action }: PreferencesFormProps) {
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <label className="space-y-1.5 text-sm">
+          <span className="text-muted-foreground">Language</span>
+          <select
+            value={locale}
+            disabled={isPending}
+            onChange={(e) => setLocale(e.target.value as UserPrefs["locale"])}
+            className={selectClass}
+          >
+            {LOCALES.map((l) => (
+              <option key={l} value={l}>
+                {LOCALE_LABELS[l]}
+              </option>
+            ))}
+          </select>
+          <span className="block text-xs text-subtle">Interface language and text direction.</span>
+        </label>
+
         <label className="space-y-1.5 text-sm">
           <span className="text-muted-foreground">Notification duration</span>
           <select
