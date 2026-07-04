@@ -11,8 +11,8 @@
 // shared MetaRateLimiter so the token bucket + circuit breaker govern it.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchAccountReels } from "./graph-api";
 import type { MetaRateLimiter } from "./rate-limit";
+import { createInstagramResearchSource } from "@/lib/research/instagram";
 import { numEnv } from "@/lib/utils/env";
 
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
@@ -73,21 +73,25 @@ export async function refreshAccountSnapshot(
     }
   }
 
-  const { reels, profile, error, rateLimited, retryAfterSeconds } = await fetchAccountReels(
-    callerIgUserId,
-    callerToken,
-    uname,
-    maxReels,
-    limiter
-  );
+  // Research platform abstraction (X5/H2): the snapshot layer talks to the
+  // source-agnostic ResearchSource contract, not Business Discovery directly.
+  // Instagram is the implementation today; a TikTok source slots in behind the
+  // same interface once it ships.
+  const source = createInstagramResearchSource({
+    igUserId: callerIgUserId,
+    token: callerToken,
+    limiter,
+  });
+  const { reels, profile, error, rateLimited, retryAfterSeconds } =
+    await source.getRecentReels(uname, maxReels);
 
   // Normalize the profile for both the snapshot row and the caller. The IG
   // avatar URL is signed + expiring, so we refresh it on every fetch.
   const snapshotProfile: SnapshotProfile | undefined = profile
     ? {
-        display_name: profile.username || uname,
-        followers_count: profile.followers_count ?? null,
-        avatar_url: profile.profile_picture_url ?? null,
+        display_name: profile.displayName || profile.username || uname,
+        followers_count: profile.followersCount ?? null,
+        avatar_url: profile.avatarUrl ?? null,
       }
     : undefined;
 
@@ -111,17 +115,17 @@ export async function refreshAccountSnapshot(
 
   if (reels.length > 0) {
     const rows = reels
-      .filter((r) => r.id && r.permalink)
+      .filter((r) => r.externalId && r.permalink)
       .map((r) => ({
         ig_username: uname,
-        ig_media_id: r.id,
+        ig_media_id: r.externalId,
         permalink: r.permalink!,
         caption: r.caption ?? null,
-        thumbnail_url: r.thumbnail_url ?? null,
-        view_count: r.view_count ?? 0,
-        like_count: r.like_count ?? 0,
-        comment_count: r.comments_count ?? 0,
-        posted_at: r.timestamp ?? null,
+        thumbnail_url: r.thumbnailUrl ?? null,
+        view_count: r.viewCount ?? 0,
+        like_count: r.likeCount ?? 0,
+        comment_count: r.commentCount ?? 0,
+        posted_at: r.postedAt ?? null,
         last_seen_at: new Date().toISOString(),
       }));
 
