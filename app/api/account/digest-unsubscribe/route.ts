@@ -14,7 +14,7 @@ function page(title: string, body: string): Response {
     <div style="max-width:420px;padding:32px;text-align:center">
       <h1 style="font-size:20px;margin:0 0 8px;color:#fff">${title}</h1>
       <p style="font-size:14px;color:#94A3B8;margin:0 0 20px">${body}</p>
-      <a href="https://reelspy-one.vercel.app/dashboard/settings" style="display:inline-block;background:#6D28D9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">Manage email settings</a>
+      <a href="https://reelspy-one.vercel.app/dashboard/settings" style="display:inline-block;background:#F9E400;color:#121212;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">Manage email settings</a>
     </div>
   </body></html>`;
   return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });

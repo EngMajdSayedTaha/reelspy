@@ -77,7 +77,7 @@ export function buildWeeklyDigest(data: WeeklyDigestData): {
             <span style="color:#64748B"> · score ${Math.round(r.score).toLocaleString("en-US")}</span>
           </div>
           <div style="font-size:13px;color:#475569;margin:2px 0 6px">${escapeHtml(truncate(r.caption ?? "No caption", 90))}</div>
-          <a href="${siteOrigin}/dashboard/generate/${r.reelId}" style="font-size:13px;color:#6D28D9;font-weight:600;text-decoration:none">Write a script →</a>
+          <a href="${siteOrigin}/dashboard/generate/${r.reelId}" style="font-size:13px;color:#a16207;font-weight:600;text-decoration:none">Write a script →</a>
           <a href="${escapeHtml(r.permalink)}" style="font-size:13px;color:#94A3B8;text-decoration:none;margin-left:12px">View reel</a>
         </td>
       </tr>`
@@ -89,7 +89,7 @@ export function buildWeeklyDigest(data: WeeklyDigestData): {
       (h) => `
       <li style="margin-bottom:8px;font-size:13px;color:#0F172A">
         &ldquo;${escapeHtml(truncate(h.text, 120))}&rdquo;
-        <a href="${siteOrigin}/dashboard/scripts?hook=${encodeURIComponent(h.text)}" style="color:#6D28D9;text-decoration:none;font-weight:600;margin-left:6px">Use →</a>
+        <a href="${siteOrigin}/dashboard/scripts?hook=${encodeURIComponent(h.text)}" style="color:#a16207;text-decoration:none;font-weight:600;margin-left:6px">Use →</a>
       </li>`
     )
     .join("");
@@ -103,7 +103,7 @@ export function buildWeeklyDigest(data: WeeklyDigestData): {
       risingReels.length > 0
         ? `<h2 style="font-size:15px;margin:0 0 4px">Rising in your niche</h2>
            <table style="width:100%;border-collapse:collapse;margin-bottom:20px">${reelRows}</table>`
-        : `<p style="font-size:14px;color:#475569;margin:0 0 20px">No new rising reels this week — <a href="${siteOrigin}/dashboard/feed" style="color:#6D28D9">sync your accounts</a> to refresh.</p>`
+        : `<p style="font-size:14px;color:#475569;margin:0 0 20px">No new rising reels this week — <a href="${siteOrigin}/dashboard/feed" style="color:#a16207">sync your accounts</a> to refresh.</p>`
     }
 
     ${
@@ -114,7 +114,7 @@ export function buildWeeklyDigest(data: WeeklyDigestData): {
     }
 
     <a href="${siteOrigin}/dashboard/feed"
-       style="display:inline-block;background:#6D28D9;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">
+       style="display:inline-block;background:#F9E400;color:#121212;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">
       Open ReelSpy
     </a>
 
