@@ -7,6 +7,7 @@ import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { rankRising, risingSinceIso } from "@/lib/reels/ranking";
 import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
 
 export type FeedReel = {
@@ -81,29 +82,7 @@ function mapOutperformRow(row: OutperformRow): FeedReel {
 // Non-existent UUID used to force an empty result set for an empty group.
 const NO_MATCH_ID = "00000000-0000-0000-0000-000000000000";
 
-const RISING_WINDOW_DAYS = 30;
 const RISING_LIMIT = 8;
-
-function risingSinceIso(): string {
-  return new Date(Date.now() - RISING_WINDOW_DAYS * 24 * 3_600_000).toISOString();
-}
-
-// Ranks reels by engagement velocity (viral_score per hour since posting), so a
-// fresh reel taking off outranks an older, already-viral one.
-function rankRising(candidates: FeedReel[], limit: number): FeedReel[] {
-  const now = Date.now();
-  return candidates
-    .map((reel) => {
-      const posted = reel.posted_at ? new Date(reel.posted_at).getTime() : now;
-      const ageHours = Math.max(0, (now - posted) / 3_600_000);
-      const velocity = (reel.viral_score ?? 0) / (ageHours + 2);
-      return { reel, velocity };
-    })
-    .filter((entry) => entry.velocity > 0)
-    .sort((a, b) => b.velocity - a.velocity)
-    .slice(0, limit)
-    .map((entry) => entry.reel);
-}
 
 const SORT_COLUMNS: Record<string, string> = {
   recent: "posted_at",
