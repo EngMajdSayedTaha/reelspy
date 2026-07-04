@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plug } from "lucide-react";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
+import { DigestToggle } from "@/components/settings/DigestToggle";
 import { DangerZone } from "@/components/settings/DangerZone";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
@@ -17,6 +18,12 @@ export default async function SettingsPage() {
 
   const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("digest_opt_out")
+    .eq("id", user.id)
+    .maybeSingle();
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -25,6 +32,8 @@ export default async function SettingsPage() {
       </div>
 
       <PreferencesForm initial={prefs} action={savePreferences} />
+
+      <DigestToggle initialOptOut={Boolean(profile?.digest_opt_out)} />
 
       {/* Connecting/managing social accounts now lives in one place. */}
       <Link

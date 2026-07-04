@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_PREFS,
   FEED_PER_PAGE_OPTIONS,
@@ -36,4 +37,22 @@ export async function savePreferences(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/dashboard", "layout");
+}
+
+// Weekly digest opt-in/out (V3/W6). Writes the DB flag via the user's own
+// client (RLS + the digest_opt_out update grant scope it to the owner).
+export async function setDigestOptOut(optOut: boolean): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ digest_opt_out: optOut })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/settings");
 }
