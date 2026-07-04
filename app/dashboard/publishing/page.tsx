@@ -85,6 +85,16 @@ export default async function PublishingPage() {
 
   const previewHandle = profile?.username || user.email?.split("@")[0] || "your_account";
 
+  // Whether each platform can actually post publicly. TikTok & YouTube force
+  // private/self-only until their app audit passes; the founder flips these env
+  // flags post-audit and the composer's warning disappears on its own.
+  const publicAllowed: Record<Platform, boolean> = {
+    instagram: true,
+    facebook: true,
+    tiktok: process.env.TIKTOK_ALLOW_PUBLIC === "true",
+    youtube: process.env.YOUTUBE_ALLOW_PUBLIC === "true",
+  };
+
   // Posts that finished with at least one failed target — surface them up top so
   // a partial/failed publish isn't buried in the history list.
   const needsAttention = (posts ?? []).filter(
@@ -109,7 +119,7 @@ export default async function PublishingPage() {
         </Button>
       </div>
 
-      <PublishComposer connected={connected} handle={previewHandle} />
+      <PublishComposer connected={connected} handle={previewHandle} publicAllowed={publicAllowed} />
 
       {needsAttention.length > 0 ? (
         <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">

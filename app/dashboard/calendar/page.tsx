@@ -7,6 +7,7 @@ import {
 } from "@/components/calendar/CalendarView";
 import type { Platform } from "@/lib/publishing/types";
 import { scheduleScript, unscheduleScript } from "../scripts/actions";
+import { reschedulePost } from "../publishing/actions";
 
 type PublishPostRow = {
   id: string;
@@ -77,6 +78,7 @@ export default async function CalendarPage() {
         posts={posts}
         scheduleAction={scheduleScript}
         unscheduleAction={unscheduleScript}
+        reschedulePostAction={reschedulePost}
       />
     </div>
   );

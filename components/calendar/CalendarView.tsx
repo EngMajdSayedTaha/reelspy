@@ -38,6 +38,7 @@ type CalendarViewProps = {
   posts: CalendarPost[];
   scheduleAction: (scriptId: string, date: string) => Promise<void>;
   unscheduleAction: (scriptId: string) => Promise<void>;
+  reschedulePostAction: (input: { postId: string; scheduledAt: string }) => Promise<void>;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -45,6 +46,42 @@ const STATUS_COLORS: Record<string, string> = {
   ready: "bg-info/70",
   published: "bg-success/70",
 };
+
+// Publish-post status → calendar visuals, kept in lockstep with the Publishing
+// page's StatusBadge so a partial/failed post reads the same on both screens.
+const POST_STATUS_DOT: Record<string, string> = {
+  scheduled: "bg-info",
+  publishing: "bg-warning",
+  processing: "bg-warning",
+  partial: "bg-warning",
+  done: "bg-success",
+  published: "bg-success",
+  failed: "bg-danger",
+};
+
+const POST_STATUS_CHIP: Record<string, string> = {
+  scheduled: "bg-info/15 text-info",
+  publishing: "bg-warning/15 text-warning",
+  processing: "bg-warning/15 text-warning",
+  partial: "bg-warning/15 text-warning",
+  done: "bg-success/15 text-success",
+  published: "bg-success/15 text-success",
+  failed: "bg-danger/15 text-danger",
+};
+
+function postDot(status: string) {
+  return POST_STATUS_DOT[status] ?? "bg-primary";
+}
+
+function postChip(status: string) {
+  return POST_STATUS_CHIP[status] ?? "bg-primary/15 text-brand";
+}
+
+// Only a still-`scheduled` post can be moved; once it's publishing/done/failed
+// the content is already in flight, so it's read-only on the calendar.
+function isReschedulable(post: CalendarPost) {
+  return post.status === "scheduled";
+}
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -70,7 +107,13 @@ function formatTime(value: string | null): string {
   return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction }: CalendarViewProps) {
+export function CalendarView({
+  scripts,
+  posts,
+  scheduleAction,
+  unscheduleAction,
+  reschedulePostAction,
+}: CalendarViewProps) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -130,11 +173,42 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
     });
   };
 
+  // Move a scheduled post to a new day, preserving its local time-of-day (the
+  // calendar only knows the target day; the hour comes from the existing slot).
+  const reschedulePost = (postId: string, date: string) => {
+    const post = posts.find((p) => p.id === postId);
+    if (!post || !post.scheduled_at || !isReschedulable(post)) return;
+    const existing = new Date(post.scheduled_at);
+    const currentDay = toDateStr(
+      existing.getFullYear(),
+      existing.getMonth(),
+      existing.getDate()
+    );
+    if (currentDay === date) return;
+    const [y, m, d] = date.split("-").map(Number);
+    const next = new Date(y, m - 1, d, existing.getHours(), existing.getMinutes(), 0, 0);
+    startTransition(async () => {
+      try {
+        await reschedulePostAction({ postId, scheduledAt: next.toISOString() });
+        toast.success(`Post moved to ${date}`);
+      } catch {
+        toast.error("Could not reschedule the post.");
+      }
+    });
+  };
+
+  // Drag payloads are prefixed so a day cell can tell a planning script from a
+  // publish post: "script:<id>" vs "post:<id>".
+  const handleDropOnDay = (payload: string, date: string) => {
+    if (payload.startsWith("post:")) reschedulePost(payload.slice(5), date);
+    else if (payload.startsWith("script:")) moveTo(payload.slice(7), date);
+  };
+
   const onDrop = (e: React.DragEvent, date: string) => {
     e.preventDefault();
     setDragOverDate(null);
-    const scriptId = e.dataTransfer.getData("text/plain");
-    if (scriptId) moveTo(scriptId, date);
+    const payload = e.dataTransfer.getData("text/plain");
+    if (payload) handleDropOnDay(payload, date);
   };
 
   const onDayClick = (dateStr: string) => {
@@ -191,6 +265,17 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
               ›
             </Button>
           </div>
+        </div>
+
+        {/* Legend — two layers share the grid: planning (scripts) and live
+            publishing (posts). Consolidated onto one surface for publishing GA. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-subtle">
+          <span className="inline-flex items-center gap-1.5">
+            <GripVertical className="h-3 w-3" /> Script — drag onto a day to plan it
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Send className="h-3 w-3 text-info" /> Scheduled post — drag to reschedule
+          </span>
         </div>
 
         {placingScript ? (
@@ -257,7 +342,7 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                     status dots instead — tapping the day opens the detail. */}
                 <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
                   {dayPosts.slice(0, 4).map((p) => (
-                    <span key={p.id} className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    <span key={p.id} className={`h-1.5 w-1.5 rounded-full ${postDot(p.status)}`} />
                   ))}
                   {dayScripts.slice(0, 4).map((s) => (
                     <span
@@ -273,27 +358,49 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                 </div>
 
                 <div className="mt-1 hidden space-y-0.5 sm:block">
-                  {dayPosts.slice(0, 2).map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={(e) => e.stopPropagation()}
-                      title={`${p.title || p.caption || "Scheduled post"} — ${p.platforms
-                        .map((pl) => PLATFORM_SHORT[pl] ?? pl)
-                        .join(", ")} · ${formatTime(p.scheduled_at)}`}
-                      className="flex items-center gap-1 truncate rounded bg-primary/15 px-1 py-0.5 text-[10px] leading-tight text-brand"
-                    >
-                      <Send className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">
-                        {formatTime(p.scheduled_at)} {p.title || p.caption || "Post"}
-                      </span>
-                    </div>
-                  ))}
+                  {dayPosts.slice(0, 2).map((p) => {
+                    const movable = isReschedulable(p);
+                    return (
+                      <div
+                        key={p.id}
+                        draggable={movable}
+                        onDragStart={
+                          movable
+                            ? (e) => {
+                                e.dataTransfer.setData("text/plain", `post:${p.id}`);
+                                e.dataTransfer.effectAllowed = "move";
+                              }
+                            : undefined
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedDate(dateStr);
+                        }}
+                        title={`${p.title || p.caption || "Scheduled post"} — ${p.platforms
+                          .map((pl) => PLATFORM_SHORT[pl] ?? pl)
+                          .join(", ")} · ${formatTime(p.scheduled_at)}${
+                          movable ? " · drag to reschedule" : ""
+                        }`}
+                        className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] leading-tight ${postChip(
+                          p.status
+                        )} ${movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+                      >
+                        <Send className="h-2.5 w-2.5 shrink-0" />
+                        <span className="truncate">
+                          {formatTime(p.scheduled_at)} {p.title || p.caption || "Post"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {dayPosts.length > 2 ? (
+                    <p className="text-[10px] text-subtle">+{dayPosts.length - 2} more</p>
+                  ) : null}
                   {dayScripts.slice(0, 2).map((s) => (
                     <div
                       key={s.id}
                       draggable
                       onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", s.id);
+                        e.dataTransfer.setData("text/plain", `script:${s.id}`);
                         e.dataTransfer.effectAllowed = "move";
                       }}
                       onClick={(e) => {
@@ -355,11 +462,22 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                           {PLATFORM_SHORT[pl] ?? pl}
                         </span>
                       ))}
-                      <span className="ml-auto text-[10px] capitalize text-subtle">{p.status}</span>
+                      <span
+                        className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] capitalize ${postChip(
+                          p.status
+                        )}`}
+                      >
+                        {p.status}
+                      </span>
                     </div>
                     <p className="mt-2 text-sm text-foreground">
                       {p.title || p.caption || "Scheduled post"}
                     </p>
+                    {isReschedulable(p) ? (
+                      <p className="mt-1.5 text-[10px] text-subtle">
+                        Drag this post to another day to reschedule it.
+                      </p>
+                    ) : null}
                   </Link>
                 ))}
               </div>
@@ -417,7 +535,11 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
         }}
         onDrop={(e) => {
           e.preventDefault();
-          const scriptId = e.dataTransfer.getData("text/plain");
+          // Only scripts return to the tray; a post can't be "unscheduled" (it
+          // must go live somewhere, sometime), so post payloads are ignored here.
+          const payload = e.dataTransfer.getData("text/plain");
+          if (!payload.startsWith("script:")) return;
+          const scriptId = payload.slice(7);
           const script = scripts.find((s) => s.id === scriptId);
           if (script?.scheduled_date) unschedule(scriptId);
         }}
@@ -449,7 +571,7 @@ export function CalendarView({ scripts, posts, scheduleAction, unscheduleAction 
                 key={s.id}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData("text/plain", s.id);
+                  e.dataTransfer.setData("text/plain", `script:${s.id}`);
                   e.dataTransfer.effectAllowed = "move";
                 }}
                 onClick={() => setPlacingId((prev) => (prev === s.id ? null : s.id))}

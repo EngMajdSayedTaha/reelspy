@@ -195,6 +195,61 @@ export async function updateScheduledPost(input: UpdatePostInput): Promise<void>
   revalidatePath("/dashboard/calendar");
 }
 
+const rescheduleSchema = z.object({
+  postId: z.string().uuid(),
+  // ISO datetime in UTC; the calendar composes it from the target day + the
+  // post's existing local time-of-day.
+  scheduledAt: z.string().datetime(),
+});
+
+// Drag-to-reschedule from the calendar: move a still-`scheduled` post to a new
+// time without touching its copy. Same job-sync discipline as
+// updateScheduledPost — just the fire time changes.
+export async function reschedulePost(input: {
+  postId: string;
+  scheduledAt: string;
+}): Promise<void> {
+  const parsed = rescheduleSchema.parse(input);
+  const user = await requireUser();
+  const admin = createAdminClient();
+
+  const { data: post } = await admin
+    .from("publish_posts")
+    .select("id, user_id, status")
+    .eq("id", parsed.postId)
+    .maybeSingle();
+  if (!post || post.user_id !== user.id) throw new Error("Post not found.");
+  if (post.status !== "scheduled") {
+    throw new Error("Only scheduled posts can be rescheduled.");
+  }
+
+  const { error } = await admin
+    .from("publish_posts")
+    .update({ scheduled_at: parsed.scheduledAt, updated_at: new Date().toISOString() })
+    .eq("id", parsed.postId);
+  if (error) throw new Error(error.message);
+
+  // Keep the durable publish job's fire time in sync (mirror updateScheduledPost).
+  const { data: bumped } = await admin
+    .from("jobs")
+    .update({ run_at: parsed.scheduledAt, updated_at: new Date().toISOString() })
+    .eq("dedup_key", `publish:${parsed.postId}`)
+    .eq("status", "queued")
+    .select("id");
+  if (!bumped || bumped.length === 0) {
+    await enqueueJob(admin, {
+      kind: "publish_post",
+      payload: { post_id: parsed.postId },
+      userId: user.id,
+      runAt: parsed.scheduledAt,
+      dedupKey: `publish:${parsed.postId}`,
+    });
+  }
+
+  revalidatePath("/dashboard/publishing");
+  revalidatePath("/dashboard/calendar");
+}
+
 export async function retryJob(jobId: string): Promise<void> {
   const user = await requireUser();
   const admin = createAdminClient();

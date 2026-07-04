@@ -13,6 +13,8 @@ type PublishPreviewProps = {
   perPlatform: boolean;
   platformCaptions: Record<Platform, string>;
   privacy: "public" | "private";
+  /** Which platforms can post publicly; pre-audit TikTok/YouTube are false. */
+  publicAllowed?: Record<Platform, boolean>;
   scheduled: boolean;
   scheduledAt: string;
   handle?: string;
@@ -68,6 +70,7 @@ export function PublishPreview({
   perPlatform,
   platformCaptions,
   privacy,
+  publicAllowed,
   scheduled,
   scheduledAt,
   handle = "your_account",
@@ -97,6 +100,12 @@ export function PublishPreview({
   }, [platform, perPlatform, platformCaptions, caption, hashtags]);
 
   const showTitle = Boolean(platform && TITLE_PLATFORMS.includes(platform) && title.trim());
+
+  // The shown platform's *effective* visibility: a "public" choice is still
+  // forced private when that platform's app audit is pending.
+  const forcedPrivate =
+    privacy === "public" && platform != null && publicAllowed?.[platform] === false;
+  const effectivePublic = privacy === "public" && !forcedPrivate;
 
   return (
     <div className="sticky top-6 space-y-3">
@@ -196,8 +205,9 @@ export function PublishPreview({
 
               {/* Meta: visibility + timing, reflecting the form below it. */}
               <div className="flex items-center gap-1.5 pt-1 text-[10px] text-muted-foreground">
-                {privacy === "public" ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                <span className="capitalize">{privacy === "public" ? "Public" : "Private"}</span>
+                {effectivePublic ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                <span className="capitalize">{effectivePublic ? "Public" : "Private"}</span>
+                {forcedPrivate ? <span className="text-warning">until audit</span> : null}
                 <span>·</span>
                 {scheduled && scheduledAt ? (
                   <span className="flex items-center gap-1">

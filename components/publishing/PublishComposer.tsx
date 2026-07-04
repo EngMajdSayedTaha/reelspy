@@ -17,11 +17,28 @@ type Props = {
   connected: Record<Platform, boolean>;
   /** Account handle shown in the live preview (e.g. "your_account"). */
   handle?: string;
+  /**
+   * Whether each platform can post publicly. TikTok/YouTube are false until
+   * their app audit passes (server reads *_ALLOW_PUBLIC). Defaults keep IG/FB
+   * public and the pre-audit platforms private-only.
+   */
+  publicAllowed?: Record<Platform, boolean>;
 };
 
 const ACCEPT = "video/mp4,video/quicktime,video/webm";
 
-export function PublishComposer({ connected, handle = "your_account" }: Props) {
+const DEFAULT_PUBLIC_ALLOWED: Record<Platform, boolean> = {
+  instagram: true,
+  facebook: true,
+  tiktok: false,
+  youtube: false,
+};
+
+export function PublishComposer({
+  connected,
+  handle = "your_account",
+  publicAllowed = DEFAULT_PUBLIC_ALLOWED,
+}: Props) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -46,6 +63,13 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
   const [busy, setBusy] = useState(false);
 
   const anyConnected = PLATFORMS.some((p) => connected[p]);
+
+  // Platforms still locked to private by their pending app audit (server flag).
+  const preAuditLocked = PLATFORMS.filter((p) => !publicAllowed[p]);
+  // Of the platforms actually selected, which will be forced private despite a
+  // "public" choice — the honest, per-selection version of the audit warning.
+  const selectedForcedPrivate =
+    privacy === "public" ? Array.from(selected).filter((p) => !publicAllowed[p]) : [];
 
   function toggle(platform: Platform) {
     if (!connected[platform]) return;
@@ -300,9 +324,17 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
             <option value="public">Public</option>
             <option value="private">Private / unlisted</option>
           </select>
-          <p className="text-xs text-subtle">
-            TikTok &amp; YouTube stay private until their app audit passes.
-          </p>
+          {selectedForcedPrivate.length > 0 ? (
+            <p className="text-xs text-warning">
+              {selectedForcedPrivate.map((p) => PLATFORM_LABELS[p]).join(" & ")} will still post
+              privately until {selectedForcedPrivate.length > 1 ? "their app audits pass" : "its app audit passes"}.
+            </p>
+          ) : preAuditLocked.length > 0 ? (
+            <p className="text-xs text-subtle">
+              {preAuditLocked.map((p) => PLATFORM_LABELS[p]).join(" & ")} stay private until their
+              app audit passes.
+            </p>
+          ) : null}
         </div>
         <div className="space-y-2">
           <Label className="flex items-center gap-2">
@@ -353,6 +385,7 @@ export function PublishComposer({ connected, handle = "your_account" }: Props) {
           perPlatform={perPlatform}
           platformCaptions={platformCaptions}
           privacy={privacy}
+          publicAllowed={publicAllowed}
           scheduled={scheduled}
           scheduledAt={scheduledAt}
           handle={handle}
