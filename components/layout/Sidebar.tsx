@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   UserSearch,
   Clapperboard,
+  Radar,
   Bookmark,
   ScrollText,
   Camera,
@@ -33,6 +34,7 @@ const links: NavLink[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
   { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch },
   { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard },
+  { href: "/dashboard/trends", labelKey: "trends", icon: Radar },
   { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark },
   {
     href: "/dashboard/scripts",

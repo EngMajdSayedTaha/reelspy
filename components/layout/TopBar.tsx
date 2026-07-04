@@ -11,6 +11,7 @@ const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
   { match: (p) => p === "/dashboard", key: "dashboard" },
   { match: (p) => p.startsWith("/dashboard/accounts"), key: "accounts" },
   { match: (p) => p.startsWith("/dashboard/feed"), key: "feed" },
+  { match: (p) => p.startsWith("/dashboard/trends"), key: "trends" },
   { match: (p) => p.startsWith("/dashboard/hooks"), key: "hooks" },
   { match: (p) => p.startsWith("/dashboard/generate"), key: "generate" },
   { match: (p) => p.startsWith("/dashboard/scripts"), key: "scripts" },
