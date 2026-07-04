@@ -44,7 +44,7 @@ flowchart TB
         MW[middleware.ts<br/>session guard]
         RH[Route Handlers<br/>/api/*]
         SA[Server Actions]
-        CRON[Cron Workers<br/>refresh-snapshots · refresh-tokens · publish-due]
+        CRON[Cron Workers<br/>refresh-snapshots · refresh-tokens · run-jobs queue]
     end
 
     subgraph Supabase["Supabase"]
@@ -344,11 +344,11 @@ flowchart TB
     LOOP --> CRED[resolve creds + refresh TikTok/YouTube tokens]
     CRED --> AD[platform adapter: IG / FB / TikTok / YouTube]
     AD --> WB[write remote_id/url/status per job]
-    CRON[publish-due cron] --> DISP
+    CRON[run-jobs worker: publish_post job] --> DISP
 ```
 
 - **R2 fixes the 413.** Videos go **browser → R2** via a presigned PUT (bytes never touch the serverless function, which has a payload cap). The dispatcher signs **one** 30-min GET URL and hands it to each platform adapter, which pulls the bytes directly.
-- **Idempotent fan-out.** A post has N `publish_jobs` (one per target). Only `pending` jobs run, so an inline "Post now" and the `publish-due` cron can't double-post. TikTok/YouTube access tokens are refreshed on the fly; unrefreshable connections are marked invalid. Adapters share a `PlatformAdapter` interface, so adding a platform is one file.
+- **Idempotent fan-out.** A post has N `publish_jobs` (one per target). Only `pending` jobs run, so an inline "Post now" and the queued `publish_post` job can't double-post. TikTok/YouTube access tokens are refreshed on the fly; unrefreshable connections are marked invalid. Adapters share a `PlatformAdapter` interface, so adding a platform is one file.
 - TikTok/YouTube default to **private** posts unless `*_ALLOW_PUBLIC` is set (required until each platform's API audit passes).
 
 ### 7.7 Scheduled workers (`vercel.json` + `app/api/cron/*`)
@@ -357,9 +357,10 @@ flowchart TB
 |---|---|---|
 | `refresh-snapshots` | `0 6 * * *` | Refresh stale account snapshots in batches (`SNAPSHOT_REFRESH_BATCH`) using a healthy token |
 | `refresh-tokens` | `30 3 * * *` | Refresh IG/long-lived tokens expiring within `TOKEN_REFRESH_WINDOW_DAYS` |
-| `publish-due` | `0 0 * * *` | Dispatch scheduled publish posts whose time has come (`PUBLISH_DUE_BATCH`) |
+| `run-jobs` | `*/5` (GH Actions) | **Durable job-queue worker (V4).** Claims due `jobs` rows and runs them by kind: `publish_post` (scheduled publishing), `transcribe_reel` (post-sync auto-transcribe), `send_digest` (weekly digest). Atomic `claim_jobs` RPC (`for update skip locked`) + exponential-backoff retries. |
+| `weekly-digest` | Mon 08:00 (GH Actions) | Fan out one `send_digest` job per opted-in user |
 
-Plus event-driven `poll-comments` / `poll-youtube-comments` as webhook fallbacks. All cron routes are guarded by a `CRON_SECRET` Bearer token (`lib/utils/cron.ts`).
+Plus event-driven `poll-comments` / `poll-youtube-comments` as webhook fallbacks. All cron routes are guarded by a `CRON_SECRET` Bearer token (`lib/utils/cron.ts`). The frequent workers run from GitHub Actions on Hobby (2 daily Vercel cron slots are spent); move `run-jobs` to a `*/2` Vercel cron on Pro — see `docs/cron-cadence.md`.
 
 ---
 
@@ -410,7 +411,7 @@ flowchart TB
 ```
 app/
   api/                 Route handlers (REST-ish + webhooks + cron)
-    cron/              refresh-snapshots · refresh-tokens · publish-due · poll-comments
+    cron/              refresh-snapshots · refresh-tokens · run-jobs · weekly-digest · poll-comments
     ig/                connect · callback · sync · webhooks · insights · my-reels · rate-limit
     social/[platform]/ TikTok/YouTube OAuth connect · callback · disconnect
     generate-script/   growth-notes/  publishing/upload/  reels/[id]/transcript/

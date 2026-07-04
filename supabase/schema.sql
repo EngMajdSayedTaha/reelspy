@@ -732,6 +732,73 @@ create table ai_usage (
 create index ai_usage_user_time_idx on ai_usage (user_id, created_at desc);
 alter table ai_usage enable row level security;  -- no policies: service-role only
 
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Durable job queue (H1 / V4)                                               ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+-- Worked by /api/cron/run-jobs. Producers: scheduled publishing, post-sync
+-- auto-transcribe, weekly digest fan-out. Service-role only (RLS on, no
+-- policies); claim_jobs is the atomic `for update skip locked` claim.
+create table jobs (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null,                     -- 'publish_post' | 'transcribe_reel' | 'send_digest'
+  payload jsonb not null default '{}',
+  user_id uuid references profiles(id) on delete cascade,
+  run_at timestamptz not null default now(),
+  attempts int not null default 0,
+  max_attempts int not null default 5,
+  locked_at timestamptz,
+  locked_by text,
+  status text not null default 'queued'
+    check (status in ('queued', 'running', 'done', 'failed')),
+  last_error text,
+  dedup_key text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table jobs enable row level security;  -- no policies: service-role only
+create index jobs_due_idx on jobs (status, run_at)
+  where status in ('queued', 'running');
+create unique index jobs_dedup_active_idx on jobs (dedup_key)
+  where dedup_key is not null and status in ('queued', 'running');
+
+create or replace function claim_jobs(
+  p_worker text,
+  p_kinds text[],
+  p_limit int,
+  p_lock_timeout_seconds int default 600
+) returns setof jobs
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+  update jobs j
+    set status = 'running',
+        locked_at = now(),
+        locked_by = p_worker,
+        attempts = j.attempts + 1,
+        updated_at = now()
+  where j.id in (
+    select id from jobs c
+    where c.kind = any(p_kinds)
+      and (
+        (c.status = 'queued' and c.run_at <= now())
+        or (
+          c.status = 'running'
+          and c.locked_at < now() - make_interval(secs => p_lock_timeout_seconds)
+        )
+      )
+    order by c.run_at
+    for update skip locked
+    limit greatest(1, p_limit)
+  )
+  returning j.*;
+end;
+$$;
+revoke all on function claim_jobs(text, text[], int, int) from public, anon, authenticated;
+grant execute on function claim_jobs(text, text[], int, int) to service_role;
+
 -- Derived analytics views (L5). security_invoker=on so the querying role's RLS
 -- applies (authenticated → 0 rows; service-role/SQL editor → all); browser access
 -- revoked. See migration 20260703c_instrumentation_views.sql for full notes.

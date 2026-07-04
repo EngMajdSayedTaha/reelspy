@@ -8,6 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./", import.meta.url)),
+      // `server-only` is a Next bundler marker with no node-resolvable module.
+      "server-only": fileURLToPath(new URL("./test/helpers/server-only-stub.ts", import.meta.url)),
     },
   },
   test: {

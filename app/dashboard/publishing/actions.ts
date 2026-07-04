@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchPost } from "@/lib/publishing/dispatcher";
+import { enqueueJob } from "@/lib/jobs/queue";
 import { deleteR2Object } from "@/lib/storage/r2";
 import { getConnection } from "@/lib/publishing/token-store";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
@@ -113,6 +114,16 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
     // Run inline so the user sees results on return. Dispatcher writes per-job
     // status; we don't throw on partial failure.
     await dispatchPost(admin, post.id);
+  } else {
+    // Scheduled: enqueue a durable publish job that fires at the scheduled time
+    // (V4). The cron worker claims it when due and runs the same dispatcher.
+    await enqueueJob(admin, {
+      kind: "publish_post",
+      payload: { post_id: post.id },
+      userId: user.id,
+      runAt: parsed.scheduledAt!,
+      dedupKey: `publish:${post.id}`,
+    });
   }
 
   revalidatePath("/dashboard/publishing");
@@ -160,6 +171,25 @@ export async function updateScheduledPost(input: UpdatePostInput): Promise<void>
     })
     .eq("id", parsed.postId);
   if (error) throw new Error(error.message);
+
+  // Keep the durable publish job's fire time in sync with the new schedule.
+  // Update the still-queued job in place; if none exists (e.g. a post scheduled
+  // before the queue), enqueue one.
+  const { data: bumped } = await admin
+    .from("jobs")
+    .update({ run_at: parsed.scheduledAt, updated_at: new Date().toISOString() })
+    .eq("dedup_key", `publish:${parsed.postId}`)
+    .eq("status", "queued")
+    .select("id");
+  if (!bumped || bumped.length === 0) {
+    await enqueueJob(admin, {
+      kind: "publish_post",
+      payload: { post_id: parsed.postId },
+      userId: user.id,
+      runAt: parsed.scheduledAt,
+      dedupKey: `publish:${parsed.postId}`,
+    });
+  }
 
   revalidatePath("/dashboard/publishing");
   revalidatePath("/dashboard/calendar");

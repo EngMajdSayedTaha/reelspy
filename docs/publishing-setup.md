@@ -44,10 +44,11 @@ Set the cron secret so the scheduler can run (already used by the other crons):
 CRON_SECRET=<long random string>
 ```
 
-The scheduled-post worker is `/api/cron/publish-due`. On **Vercel Pro** it runs
-every 5 minutes; it is **temporarily disabled on Hobby** (see
-[`cron-cadence.md`](./cron-cadence.md)) — re-add it to `vercel.json` after
-upgrading. "Post now" is unaffected (it runs the dispatcher inline).
+Scheduled posts are published by the durable job-queue worker
+`/api/cron/run-jobs` (roadmap V4). On **Hobby** it runs every 5 minutes from
+`.github/workflows/run-jobs.yml`; on **Vercel Pro** prefer a `*/2` Vercel cron
+(see [`cron-cadence.md`](./cron-cadence.md)). "Post now" is unaffected (it runs
+the dispatcher inline).
 
 ---
 
@@ -199,7 +200,7 @@ units, so about **6 uploads/day** until you request more in the audit.
 
 - [ ] Migration applied (`social_connections`, `publish_posts`, `publish_jobs`).
 - [ ] Cloudflare R2 bucket created (private) + CORS rule + `R2_*` env vars set.
-- [ ] `CRON_SECRET` set; `/api/cron/publish-due` scheduled.
+- [ ] `CRON_SECRET` set; `/api/cron/run-jobs` scheduled (GH Actions on Hobby, or a Vercel cron on Pro).
 - [ ] Instagram + Facebook connected (public posting works, no review).
 - [ ] TikTok connected (private now) → audit passed → `TIKTOK_ALLOW_PUBLIC=true`.
 - [ ] YouTube connected (private now) → verification + audit passed →
