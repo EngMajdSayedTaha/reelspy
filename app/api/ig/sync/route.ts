@@ -5,7 +5,7 @@ import { track } from "@/lib/analytics/track";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
 import { getIgCredentials } from "@/lib/instagram/token-store";
-import { autoTranscribeTopReels } from "@/lib/media/auto-transcribe";
+import { enqueueTopReelTranscriptions } from "@/lib/media/auto-transcribe";
 import { numEnv } from "@/lib/utils/env";
 
 // Paced requests + multi-account loops need a generous budget.
@@ -246,11 +246,11 @@ export async function POST(request: Request) {
     rateLimited: rateLimitHit,
   });
 
-  // W5/V2: once reels have landed, transcribe the top untranscribed ones in the
-  // background so their hooks/scripts are ready when the user opens them. Runs
-  // after the response is sent (bounded + quota-aware); never blocks the sync.
+  // W5/V2: once reels have landed, enqueue transcribe jobs for the top
+  // untranscribed ones (V4 durable queue). The cron worker does the Whisper work
+  // with quota discipline; here we just fan out jobs after the response is sent.
   if (totalInserted > 0 || totalUpdated > 0) {
-    after(() => autoTranscribeTopReels(admin, user.id));
+    after(() => enqueueTopReelTranscriptions(admin, user.id));
   }
 
   // Surface throttling as 429 + Retry-After so clients (and proxies) can back off

@@ -1,34 +1,49 @@
 # Cron cadence — Hobby vs Pro
 
-`vercel.json` currently ships the **Hobby-safe** cron set: the two daily jobs
-only. Vercel's Hobby plan caps you at **2 cron jobs, each at most once per day**,
-so the frequent publishing/comment crons are **temporarily disabled** until the
-project is on **Vercel Pro** (founder decision #3 / roadmap L8).
+`vercel.json` ships the **Hobby-safe** cron set: the two daily jobs only.
+Vercel's Hobby plan caps you at **2 cron jobs, each at most once per day**, so
+the frequent workers run from **GitHub Actions** until the project is on
+**Vercel Pro** (founder decision #3 / roadmap L8).
 
 ## Active now (Hobby)
+
+`vercel.json` (Vercel-scheduled):
 
 ```json
 { "path": "/api/cron/refresh-snapshots", "schedule": "0 6 * * *" }
 { "path": "/api/cron/refresh-tokens",    "schedule": "30 3 * * *" }
 ```
 
-## Re-enable after upgrading to Vercel Pro
+GitHub Actions (`.github/workflows/`), each `curl`s its endpoint with
+`CRON_SECRET`:
 
-Add these two entries back to the `crons` array in `vercel.json` and redeploy:
+- **`run-jobs.yml`** (`*/5`) — the durable job-queue worker (roadmap V4). Drains
+  the `jobs` table: scheduled publishing, post-sync auto-transcribe, and weekly
+  digest sends. This is what makes **scheduled posts auto-publish**; "Post now"
+  is unaffected (it runs the dispatcher inline).
+- **`weekly-digest.yml`** (Mon 08:00) — enqueues one `send_digest` job per
+  opted-in user; `run-jobs` sends them.
+- **`poll-youtube-comments.yml`** — YouTube auto-reply poller.
+
+5 minutes is the finest granularity GitHub Actions cron supports, and scheduled
+runs are best-effort (can be delayed under load).
+
+## Re-enable frequent crons after upgrading to Vercel Pro
+
+Add these to the `crons` array in `vercel.json` and redeploy. Once `run-jobs` is
+Vercel-scheduled you can disable `.github/workflows/run-jobs.yml`.
 
 ```json
-{ "path": "/api/cron/publish-due",   "schedule": "*/5 * * * *" },
+{ "path": "/api/cron/run-jobs",      "schedule": "*/2 * * * *" },
 { "path": "/api/cron/poll-comments", "schedule": "*/10 * * * *" }
 ```
 
-- **`publish-due` (`*/5`)** — the scheduled-post worker. While it's off,
-  scheduled posts do **not** auto-publish; "Post now" still works (it runs the
-  dispatcher inline). Publishing a scheduled post is deferred until this cron is
-  live on Pro.
+- **`run-jobs` (`*/2`)** — the job-queue worker (above). A tighter cadence than
+  the 5-min Actions floor shortens scheduled-publish latency.
 - **`poll-comments` (`*/10`)** — the webhook fallback that re-scans for
   comment→DM automation events. The **primary** path is the Meta webhook
   (processed inline via `after()`), so automations still fire in real time
   without it; this cron is only the safety net for missed webhooks.
 
 Everything else about these routes (auth via `CRON_SECRET`, idempotency) is
-unchanged — only the `vercel.json` schedule registration is gated on Pro.
+unchanged — only the schedule registration is gated on Pro.
