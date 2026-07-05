@@ -26,6 +26,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { planFor } from "@/lib/billing/plans";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Dict } from "@/lib/i18n/dictionaries";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type NavKey = keyof Dict["nav"];
 type NavLink = { href: string; labelKey: NavKey; icon: LucideIcon; matchPrefixes?: string[] };
@@ -65,11 +66,11 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   user: SidebarUser | null;
-  dict: Dict;
 };
 
-export function Sidebar({ open, onClose, user, dict }: SidebarProps) {
+export function Sidebar({ open, onClose, user }: SidebarProps) {
   const pathname = usePathname();
+  const dict = useDict();
 
   return (
     <>
