@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 export default function Error({
   error,
@@ -10,6 +11,8 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const dict = useDict();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -20,9 +23,9 @@ export default function Error({
         <AlertTriangle className="h-6 w-6 text-brand" />
       </span>
       <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
+        <h1 className="text-xl font-semibold text-foreground">{dict.common.somethingWentWrong}</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          An unexpected error occurred. You can try again, and if it keeps happening, reload the page.
+          {dict.errors.unexpectedMessage}
         </p>
       </div>
       <button
@@ -31,7 +34,7 @@ export default function Error({
         className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
       >
         <RefreshCw className="h-4 w-4" />
-        Try again
+        {dict.common.tryAgain}
       </button>
     </div>
   );
