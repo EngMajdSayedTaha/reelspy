@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Check, Camera, ArrowRight, Sparkles, Users, Mic } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingState, SUGGESTED_ACCOUNTS } from "@/lib/onboarding/state";
@@ -12,23 +13,35 @@ import {
   SyncButton,
   FinishButton,
 } from "@/components/onboarding/OnboardingControls";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
 import { saveBrandVoice } from "./actions";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const STEP_META = [
-  { n: 1, label: "Connect", icon: Camera },
-  { n: 2, label: "Brand voice", icon: Mic },
-  { n: 3, label: "Add accounts", icon: Users },
-  { n: 4, label: "First script", icon: Sparkles },
-] as const;
+function stepMeta(dict: Dict["onboarding"]) {
+  return [
+    { n: 1, label: dict.stepConnect, icon: Camera },
+    { n: 2, label: dict.stepBrandVoice, icon: Mic },
+    { n: 3, label: dict.stepAddAccounts, icon: Users },
+    { n: 4, label: dict.stepFirstScript, icon: Sparkles },
+  ] as const;
+}
 
-function Stepper({ active, doneMap }: { active: number; doneMap: boolean[] }) {
+function Stepper({
+  active,
+  doneMap,
+  stepMeta: steps,
+}: {
+  active: number;
+  doneMap: boolean[];
+  stepMeta: ReturnType<typeof stepMeta>;
+}) {
   return (
     <ol className="flex items-center gap-2 sm:gap-3">
-      {STEP_META.map((s, i) => {
+      {steps.map((s, i) => {
         const done = doneMap[i];
         const isActive = s.n === active;
         return (
@@ -49,7 +62,7 @@ function Stepper({ active, doneMap }: { active: number; doneMap: boolean[] }) {
             >
               {s.label}
             </span>
-            {i < STEP_META.length - 1 ? (
+            {i < steps.length - 1 ? (
               <span className="mx-1 hidden h-px flex-1 bg-border sm:block" />
             ) : null}
           </li>
@@ -79,6 +92,8 @@ function StepShell({
 
 export default async function OnboardingPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).onboarding;
   const supabase = await createClient();
   const {
     data: { user },
@@ -124,43 +139,42 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">Let&apos;s get you set up</h1>
+          <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">{dict.pageTitle}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Four quick steps to your first script — about ten minutes.
+            {dict.pageSubtitle}
           </p>
         </div>
-        <FinishButton href="/dashboard" label="Skip for now" variant="ghost" />
+        <FinishButton href="/dashboard" label={dict.skipForNow} variant="ghost" />
       </div>
 
-      <Stepper active={active} doneMap={doneMap} />
+      <Stepper active={active} doneMap={doneMap} stepMeta={stepMeta(dict)} />
 
       {active === 1 ? (
         <StepShell
-          title="Connect Instagram"
-          desc="ReelSpy pulls competitor reels through your Instagram Business account. It's the richest data source — but you can start with a ready-made starter pack and connect later."
+          title={dict.step1Title}
+          desc={dict.step1Desc}
         >
           {state.connected ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-                <Check className="h-4 w-4" /> Instagram connected.
+                <Check className="h-4 w-4" /> {dict.instagramConnected}
               </div>
-              <ContinueLink to={2} />
+              <ContinueLink to={2} dict={dict} />
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button asChild>
                   <a href="/api/ig/connect">
-                    <Camera className="h-4 w-4" /> Connect Instagram
+                    <Camera className="h-4 w-4" /> {dict.connectInstagram}
                   </a>
                 </Button>
                 <StarterPackButton />
               </div>
               <p className="text-xs text-muted-foreground">
-                A starter pack seeds a few popular accounts from our shared cache — zero setup, no
-                Instagram needed. {state.steps.source ? null : "Pick either to continue."}
+                {dict.starterPackHint} {state.steps.source ? null : dict.pickEitherToContinue}
               </p>
-              {state.steps.source ? <ContinueLink to={2} /> : null}
+              {state.steps.source ? <ContinueLink to={2} dict={dict} /> : null}
             </div>
           )}
         </StepShell>
@@ -168,42 +182,38 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
 
       {active === 2 ? (
         <StepShell
-          title="Your brand voice"
-          desc="This is what makes generated scripts sound like you and not a generic template. Two lines is enough to start — you can refine it later in Settings."
+          title={dict.step2Title}
+          desc={dict.step2Desc}
         >
           <BrandVoiceForm
             action={saveBrandVoice}
             initial={(profile?.brand_voice as BrandVoice | null) ?? null}
-            submitLabel="Save & continue"
+            submitLabel={dict.saveAndContinue}
             onSuccessHref="/dashboard/onboarding?step=3"
           />
           <div className="mt-4">
-            <BackLink to={1} />
+            <BackLink to={1} dict={dict} />
           </div>
         </StepShell>
       ) : null}
 
       {active === 3 ? (
         <StepShell
-          title={`Add ${SUGGESTED_ACCOUNTS}–5 accounts to track`}
-          desc="Pick creators in your niche whose reels you want to learn from. Add them by handle — they enrich automatically on the first sync."
+          title={dict.step3Title(SUGGESTED_ACCOUNTS)}
+          desc={dict.step3Desc}
         >
           <div className="space-y-4">
             <AddAccountsInline />
             <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">or</span>
+              <span className="text-xs text-muted-foreground">{dict.or}</span>
               <StarterPackButton />
             </div>
             <p className="text-sm text-muted-foreground">
-              Tracking <span className="font-medium text-foreground">{state.accountsCount}</span>{" "}
-              account{state.accountsCount === 1 ? "" : "s"}
-              {state.accountsCount < SUGGESTED_ACCOUNTS
-                ? ` — a few more makes your feed richer.`
-                : ` — nice, that's plenty to start.`}
+              {dict.trackingAccounts(state.accountsCount, state.accountsCount >= SUGGESTED_ACCOUNTS)}
             </p>
             <div className="flex items-center justify-between">
-              <BackLink to={2} />
-              {state.steps.accounts ? <ContinueLink to={4} /> : null}
+              <BackLink to={2} dict={dict} />
+              {state.steps.accounts ? <ContinueLink to={4} dict={dict} /> : null}
             </div>
           </div>
         </StepShell>
@@ -211,54 +221,52 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
 
       {active === 4 ? (
         <StepShell
-          title="Write your first script"
-          desc="This is the payoff — turn a competitor's reel into an original script in your voice."
+          title={dict.step4Title}
+          desc={dict.step4Desc}
         >
           {state.activated ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-                <Check className="h-4 w-4" /> You wrote your first script. You&apos;re all set!
+                <Check className="h-4 w-4" /> {dict.firstScriptDone}
               </div>
-              <FinishButton href="/dashboard" label="Go to dashboard" withIcon />
+              <FinishButton href="/dashboard" label={dict.goToDashboard} withIcon />
             </div>
           ) : topReelId ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                We picked your feed&apos;s top-performing reel to start from.
+                {dict.topReelPicked}
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button asChild>
                   <Link href={`/dashboard/generate/${topReelId}`}>
-                    <Sparkles className="h-4 w-4" /> Write my first script <ArrowRight className="h-4 w-4" />
+                    <Sparkles className="h-4 w-4" /> {dict.writeFirstScript} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
                   </Link>
                 </Button>
-                <FinishButton href="/dashboard" label="I'll do this later" variant="ghost" />
+                <FinishButton href="/dashboard" label={dict.illDoThisLater} variant="ghost" />
               </div>
             </div>
           ) : state.connected ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Sync your feed to pull the latest reels from the accounts you track, then pick one to
-                write from.
+                {dict.syncFeedPrompt}
               </p>
               <div className="flex items-center gap-3">
                 <SyncButton />
-                <BackLink to={3} />
+                <BackLink to={3} dict={dict} />
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Connect Instagram to pull reels from the accounts you track — that&apos;s what powers
-                script generation. You can also skip to the dashboard and explore first.
+                {dict.connectToPullReels}
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button asChild>
                   <a href="/api/ig/connect">
-                    <Camera className="h-4 w-4" /> Connect Instagram
+                    <Camera className="h-4 w-4" /> {dict.connectInstagram}
                   </a>
                 </Button>
-                <FinishButton href="/dashboard" label="Skip to dashboard" variant="ghost" />
+                <FinishButton href="/dashboard" label={dict.skipToDashboard} variant="ghost" />
               </div>
             </div>
           )}
@@ -268,23 +276,23 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
   );
 }
 
-function ContinueLink({ to }: { to: number }) {
+function ContinueLink({ to, dict }: { to: number; dict: Dict["onboarding"] }) {
   return (
     <Button asChild variant="default">
       <Link href={`/dashboard/onboarding?step=${to}`}>
-        Continue <ArrowRight className="h-4 w-4" />
+        {dict.continueLabel} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
       </Link>
     </Button>
   );
 }
 
-function BackLink({ to }: { to: number }) {
+function BackLink({ to, dict }: { to: number; dict: Dict["onboarding"] }) {
   return (
     <Link
       href={`/dashboard/onboarding?step=${to}`}
       className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
     >
-      Back
+      {dict.back}
     </Link>
   );
 }

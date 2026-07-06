@@ -105,6 +105,12 @@ const en = {
       ready: "Ready",
       published: "Published",
     } as Record<string, string>,
+
+    actions: {
+      unauthorized: "Unauthorized",
+      scriptIdRequired: "script_id required",
+      invalidDate: "Invalid date.",
+    },
   },
 };
 
@@ -205,6 +211,12 @@ export const scriptsAr: ScriptsDict = {
       draft: "مسودة",
       ready: "جاهز",
       published: "منشور",
+    },
+
+    actions: {
+      unauthorized: "غير مصرَّح",
+      scriptIdRequired: "معرّف النص مطلوب",
+      invalidDate: "تاريخ غير صالح.",
     },
   },
 };

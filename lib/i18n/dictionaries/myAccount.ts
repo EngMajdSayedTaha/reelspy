@@ -77,6 +77,7 @@ const en = {
     avgEngagementRateLabel: "avg engagement rate",
     interactionsLabel: "interactions",
     strongestDay: (day: string) => `${day} is your strongest posting day by average views.`,
+    weekdayTooltip: (day: string, views: string, posts: number) => `${day}: ${views} avg views (${posts} posts)`,
     untitled: "Untitled",
 
     // MyReelsInsights — relative time
@@ -101,6 +102,7 @@ const en = {
     },
     syncMyReels: "Sync my reels",
     syncing: "Syncing…",
+    exportLabel: "Export",
     downloadCsv: "Download CSV",
     downloadJson: "Download JSON",
     downloadAiSummary: "Download AI summary (.md)",
@@ -201,6 +203,7 @@ export const myAccountAr: MyAccountDict = {
     avgEngagementRateLabel: "متوسط معدل التفاعل",
     interactionsLabel: "التفاعلات",
     strongestDay: (day: string) => `${day} هو أقوى أيامك من حيث متوسط المشاهدات.`,
+    weekdayTooltip: (day: string, views: string, posts: number) => `${day}: ${views} متوسط مشاهدات (${posts} منشورًا)`,
     untitled: "بلا عنوان",
 
     justNow: "الآن",
@@ -223,6 +226,7 @@ export const myAccountAr: MyAccountDict = {
     },
     syncMyReels: "مزامنة ريلاتي",
     syncing: "جارٍ المزامنة…",
+    exportLabel: "تصدير",
     downloadCsv: "تنزيل CSV",
     downloadJson: "تنزيل JSON",
     downloadAiSummary: "تنزيل ملخص الذكاء الاصطناعي (.md)",

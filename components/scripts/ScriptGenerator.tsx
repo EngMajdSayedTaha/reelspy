@@ -9,20 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { notifyError, requestJson } from "@/lib/utils/api";
-
-const SCRIPT_LOADING_MESSAGES = [
-  "Reading the reel context…",
-  "Writing a scroll-stopping hook…",
-  "Shaping the script…",
-  "Adding a natural call to action…",
-];
-
-const REEL_FETCH_MESSAGES = [
-  "Fetching reel…",
-  "Extracting audio…",
-  "Transcribing with Whisper…",
-  "Almost done…",
-];
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 const PLATFORMS = ["Instagram Reels", "LinkedIn", "TikTok"] as const;
 const TONES = ["Casual", "Direct", "Educational"] as const;
@@ -55,22 +42,23 @@ type ScriptGeneratorProps = {
   transcriptStatus?: TranscriptStatus | null;
 };
 
-// Upfront note shown before generating when a tracked reel has no usable
-// transcript — so the user knows the script won't be grounded on the audio.
-const DEGRADED_HINTS: Record<Exclude<TranscriptStatus, "ready">, string> = {
-  failed:
-    "Transcription failed for this reel — this script will be based on the caption only. Retry it in the transcript panel above to ground on the actual audio.",
-  pending:
-    "The transcript is still processing — you can generate a caption-only draft now, or wait for grounding.",
-  none: "No transcript yet — add one in the panel above to ground the script on the reel's audio, or generate a caption-only draft.",
-};
-
 export function ScriptGenerator({
   reelId,
   initialCaption = "",
   initialContext = "",
   transcriptStatus,
 }: ScriptGeneratorProps) {
+  const dict = useDict();
+  const s = dict.scripts;
+
+  // Upfront note shown before generating when a tracked reel has no usable
+  // transcript — so the user knows the script won't be grounded on the audio.
+  const DEGRADED_HINTS: Record<Exclude<TranscriptStatus, "ready">, string> = {
+    failed: s.degradedHintFailed,
+    pending: s.degradedHintPending,
+    none: s.degradedHintNone,
+  };
+
   const [caption, setCaption] = useState(initialCaption);
   const [platform, setPlatform] = useState<string>("Instagram Reels");
   const [tone, setTone] = useState<string>("Direct");
@@ -101,9 +89,9 @@ export function ScriptGenerator({
         body: JSON.stringify({ url }),
       });
       setCaption(json.transcript);
-      toast.success("Transcript loaded");
+      toast.success(s.transcriptLoaded);
     } catch (err) {
-      setReelFetchError(err instanceof Error ? err.message : "Could not fetch reel.");
+      setReelFetchError(err instanceof Error ? err.message : s.couldNotFetchReel);
     } finally {
       setIsFetchingReel(false);
     }
@@ -131,12 +119,12 @@ export function ScriptGenerator({
 
       setResult(json);
       if (json.degraded) {
-        toast.warning("AI is unavailable right now — showing a placeholder. Try again in a moment.");
+        toast.warning(s.aiUnavailable);
       } else {
-        toast.success("Script generated");
+        toast.success(s.scriptGenerated);
       }
     } catch (error) {
-      setError(notifyError(error, "Failed to generate script."));
+      setError(notifyError(error, s.failedToGenerate));
       setResult(null);
     } finally {
       setIsLoading(false);
@@ -157,10 +145,10 @@ export function ScriptGenerator({
         timeoutMs: 300_000,
         body: JSON.stringify({}),
       });
-      toast.success("Transcript ready — regenerating");
+      toast.success(s.transcriptReadyRegenerating);
       await onGenerate();
     } catch (err) {
-      setError(notifyError(err, "Could not transcribe this reel. Try again shortly."));
+      setError(notifyError(err, s.couldNotTranscribe));
     } finally {
       setIsTranscribing(false);
     }
@@ -172,7 +160,7 @@ export function ScriptGenerator({
         <div className="space-y-4">
           {/* External reel link → transcript */}
           <div className="space-y-2">
-            <Label>Transcribe from Instagram Link</Label>
+            <Label>{s.transcribeFromLink}</Label>
             <div className="flex gap-2">
               <Input
                 placeholder="https://www.instagram.com/reel/..."
@@ -194,7 +182,7 @@ export function ScriptGenerator({
                 disabled={isFetchingReel || !reelUrl.trim()}
                 className="shrink-0"
               >
-                {isFetchingReel ? "Transcribing…" : "Transcribe"}
+                {isFetchingReel ? s.transcribing : s.transcribe}
               </Button>
             </div>
 
@@ -202,19 +190,19 @@ export function ScriptGenerator({
               <p className="text-sm text-danger">{reelFetchError}</p>
             ) : null}
 
-            {isFetchingReel ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
+            {isFetchingReel ? <AiThinking messages={s.reelFetchMessages} /> : null}
           </div>
 
           <div className="border-t border-border" />
 
           {/* Caption context */}
           <div className="space-y-2">
-            <Label htmlFor="caption">Reel Caption / Context</Label>
+            <Label htmlFor="caption">{s.captionLabel}</Label>
             <Textarea
               id="caption"
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
-              placeholder="Paste the inspiration reel caption here..."
+              placeholder={s.captionPlaceholder}
               rows={3}
               className="resize-none"
             />
@@ -223,7 +211,7 @@ export function ScriptGenerator({
           {/* Platform + Tone row */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Platform</Label>
+              <Label>{s.platformLabel}</Label>
               <div className="flex flex-wrap gap-2">
                 {PLATFORMS.map((p) => (
                   <button
@@ -243,20 +231,20 @@ export function ScriptGenerator({
             </div>
 
             <div className="space-y-2">
-              <Label>Tone</Label>
+              <Label>{s.toneLabel}</Label>
               <div className="flex flex-wrap gap-2">
-                {TONES.map((t) => (
+                {TONES.map((opt) => (
                   <button
-                    key={t}
+                    key={opt}
                     type="button"
-                    onClick={() => setTone(t)}
+                    onClick={() => setTone(opt)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition ${
-                      tone === t
+                      tone === opt
                         ? "border-primary bg-primary/10 text-brand"
                         : "border-border-strong text-muted-foreground hover:border-border-strong"
                     }`}
                   >
-                    {t}
+                    {s.tones[opt]}
                   </button>
                 ))}
               </div>
@@ -266,14 +254,14 @@ export function ScriptGenerator({
           {/* Custom context */}
           <div className="space-y-2">
             <Label htmlFor="custom-context">
-              Custom Context{" "}
-              <span className="text-xs text-subtle">(optional — add your angle or topic)</span>
+              {s.customContextLabel}{" "}
+              <span className="text-xs text-subtle">{s.customContextHint}</span>
             </Label>
             <Textarea
               id="custom-context"
               value={customContext}
               onChange={(e) => setCustomContext(e.target.value)}
-              placeholder="e.g. I want this to be about Angular signals..."
+              placeholder={s.customContextPlaceholder}
               rows={2}
               className="resize-none"
             />
@@ -297,12 +285,12 @@ export function ScriptGenerator({
             disabled={isLoading || (!caption && !reelId)}
             className="w-full sm:w-auto"
           >
-            {isLoading ? "Generating..." : "Generate Script"}
+            {isLoading ? s.generating : s.generate}
           </Button>
 
           {error ? <p className="text-sm text-danger">{error}</p> : null}
 
-          {isLoading ? <AiThinking messages={SCRIPT_LOADING_MESSAGES} /> : null}
+          {isLoading ? <AiThinking messages={s.generatingMessages} /> : null}
         </div>
       </div>
 
@@ -310,19 +298,17 @@ export function ScriptGenerator({
         <div className="space-y-2">
           {result.degraded ? (
             <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
-              This is a generic placeholder — the AI didn&apos;t respond in time, so no real
-              script was generated (and it wasn&apos;t saved). Tap Generate Script again in a
-              moment.
+              {s.placeholderNotice}
             </p>
           ) : reelId ? (
             result.grounded ? (
               <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2.5 py-1 text-xs font-medium text-success">
-                Grounded on transcript ✓
+                {s.groundedOnTranscript} ✓
               </span>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                  Caption only
+                  {s.captionOnly}
                 </span>
                 <Button
                   type="button"
@@ -331,12 +317,12 @@ export function ScriptGenerator({
                   onClick={onTranscribeAndGenerate}
                   disabled={isTranscribing || isLoading}
                 >
-                  {isTranscribing ? "Transcribing…" : "Transcribe first, then regenerate"}
+                  {isTranscribing ? s.transcribing : s.transcribeFirstThenRegenerate}
                 </Button>
               </div>
             )
           ) : null}
-          {isTranscribing ? <AiThinking messages={REEL_FETCH_MESSAGES} /> : null}
+          {isTranscribing ? <AiThinking messages={s.reelFetchMessages} /> : null}
           <ScriptOutput script={result.script} />
         </div>
       ) : null}
