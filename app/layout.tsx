@@ -6,7 +6,6 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { dirForLocale } from "@/lib/i18n/config";
-import { getDictionary } from "@/lib/i18n/dictionaries";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import "./globals.css";
 
@@ -40,7 +39,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
-  const dict = getDictionary(locale);
 
   return (
     <html
@@ -56,7 +54,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <I18nProvider dict={dict} locale={locale}>
+          <I18nProvider locale={locale}>
             {children}
             <CookieConsent />
             {/* Mirror the toast corner in RTL so it sits on the same visual side. */}

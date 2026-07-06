@@ -2,12 +2,14 @@
 
 // Client-side access to the translation dictionary + active locale, without
 // prop-drilling `dict` through every component tree. The root layout (a
-// server component) resolves the locale from the prefs cookie, looks up the
-// dictionary once, and passes both down as plain serializable props — every
-// client component below can then call `useDict()`/`useLocale()` directly.
+// server component) resolves the locale from the prefs cookie and passes
+// only that plain string down; the dictionary itself is looked up here, in
+// the client bundle, since some dictionary entries are functions (for
+// pluralized/parameterized strings) and functions can't cross the server →
+// client prop boundary that Next.js's RSC serialization enforces.
 
-import { createContext, useContext, type ReactNode } from "react";
-import type { Dict } from "@/lib/i18n/dictionaries";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/config";
 
 type I18nContextValue = { dict: Dict; locale: Locale };
@@ -15,11 +17,11 @@ type I18nContextValue = { dict: Dict; locale: Locale };
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({
-  dict,
   locale,
   children,
-}: I18nContextValue & { children: ReactNode }) {
-  return <I18nContext.Provider value={{ dict, locale }}>{children}</I18nContext.Provider>;
+}: { locale: Locale; children: ReactNode }) {
+  const value = useMemo(() => ({ dict: getDictionary(locale), locale }), [locale]);
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 
 export function useDict(): Dict {
