@@ -37,6 +37,9 @@ import {
   type Totals,
 } from "@/lib/instagram/insights-export";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
 const INITIAL_REELS = 6;
 
@@ -50,31 +53,19 @@ type MyReelsResponse = {
   error?: string;
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, dict: Dict["myAccount"]): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return dict.justNow;
+  if (seconds < 3600) return dict.minutesAgo(Math.floor(seconds / 60));
+  if (seconds < 86400) return dict.hoursAgo(Math.floor(seconds / 3600));
+  return dict.daysAgo(Math.floor(seconds / 86400));
 }
 
-const SORTS = [
-  { key: "recent", label: "Newest" },
-  { key: "views", label: "Most views" },
-  { key: "likes", label: "Most likes" },
-  { key: "comments", label: "Most comments" },
-  { key: "engagement", label: "Top engagement" },
-] as const;
+const SORT_KEYS = ["recent", "views", "likes", "comments", "engagement"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
 
-type SortKey = (typeof SORTS)[number]["key"];
-
-const TYPE_FILTERS = [
-  { key: "all", label: "All" },
-  { key: "reels", label: "Reels" },
-  { key: "posts", label: "Posts" },
-] as const;
-
-type TypeFilter = (typeof TYPE_FILTERS)[number]["key"];
+const TYPE_FILTER_KEYS = ["all", "reels", "posts"] as const;
+type TypeFilter = (typeof TYPE_FILTER_KEYS)[number];
 
 function sortMedia(items: MediaItem[], sort: SortKey): MediaItem[] {
   const val = {
@@ -118,6 +109,7 @@ function ExportMenu({
   totals: Totals | null;
   media: MediaItem[];
 }) {
+  const dict = useDict().myAccount;
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -147,25 +139,29 @@ function ExportMenu({
 
   const items = [
     {
+      key: "csv",
       icon: <FileSpreadsheet className="h-3.5 w-3.5" />,
-      label: "Download CSV",
+      label: dict.downloadCsv,
       onClick: () => downloadFile(`${slug}insights-${stamp}.csv`, buildInsightsCsv(media), "text/csv"),
     },
     {
+      key: "json",
       icon: <FileJson className="h-3.5 w-3.5" />,
-      label: "Download JSON",
+      label: dict.downloadJson,
       onClick: () =>
         downloadFile(`${slug}insights-${stamp}.json`, buildInsightsJson(profile, totals, media), "application/json"),
     },
     {
+      key: "md",
       icon: <FileText className="h-3.5 w-3.5" />,
-      label: "Download AI summary (.md)",
+      label: dict.downloadAiSummary,
       onClick: () =>
         downloadFile(`${slug}insights-${stamp}.md`, buildAiSummary(profile, media), "text/markdown"),
     },
     {
+      key: "copy",
       icon: copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />,
-      label: copied ? "Copied!" : "Copy AI summary",
+      label: copied ? dict.copied : dict.copyAiSummary,
       onClick: copyAiSummary,
       keepOpen: true,
     },
@@ -175,27 +171,27 @@ function ExportMenu({
     <div ref={ref} className="relative">
       <Button type="button" variant="outline" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <Download className="h-4 w-4" />
-        Export
+        {dict.exportLabel}
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
       </Button>
       {open ? (
-        <div className="absolute right-0 top-full z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-border-strong bg-surface-2 p-1 shadow-xl">
+        <div className="absolute end-0 top-full z-20 mt-1.5 w-56 overflow-hidden rounded-xl border border-border-strong bg-surface-2 p-1 shadow-xl">
           {items.map((item) => (
             <button
-              key={item.label}
+              key={item.key}
               type="button"
               onClick={() => {
                 item.onClick();
                 if (!item.keepOpen) setOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-start text-xs text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
             >
               <span className="text-subtle">{item.icon}</span>
               {item.label}
             </button>
           ))}
           <p className="border-t border-border px-2.5 py-1.5 text-[10px] text-subtle">
-            The AI summary is formatted to paste straight into a chat.
+            {dict.aiSummaryHint}
           </p>
         </div>
       ) : null}
@@ -204,6 +200,10 @@ function ExportMenu({
 }
 
 export function MyReelsInsights({ connected }: { connected: boolean }) {
+  const fullDict = useDict();
+  const dict = fullDict.myAccount;
+  const commonDict = fullDict.common;
+  const locale = useLocale();
   const [data, setData] = useState<MyReelsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(connected);
   const [error, setError] = useState<string | null>(null);
@@ -224,13 +224,13 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Could not load your Instagram insights.");
+        setError(dict.loadError);
       }
-      notifyError(err, "Could not load your Instagram insights.");
+      notifyError(err, dict.loadError);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dict]);
 
   useEffect(() => {
     if (connected) {
@@ -269,11 +269,10 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Clapperboard className="h-5 w-5 text-brand" />
-            My Reels &amp; Insights
+            {dict.myReelsHeading}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Everything Instagram shares about your own content — views, reach, saves, shares and
-            watch time.
+            {dict.myReelsSubtitle}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -281,19 +280,18 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
             {media.length > 0 ? <ExportMenu profile={profile} totals={totals} media={media} /> : null}
             <Button type="button" variant="outline" onClick={() => load(true)} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              {isLoading ? "Syncing…" : "Sync my reels"}
+              {isLoading ? dict.syncing : dict.syncMyReels}
             </Button>
           </div>
           {data?.synced_at ? (
-            <p className="text-[11px] text-subtle">Updated {timeAgo(data.synced_at)}</p>
+            <p className="text-[11px] text-subtle">{dict.updated(timeAgo(data.synced_at, dict))}</p>
           ) : null}
         </div>
       </div>
 
       {data?.partial ? (
         <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
-          Instagram throttled part of this sync — some reels show basic metrics only. Sync again
-          later for the rest.
+          {dict.partialSyncWarning}
         </p>
       ) : null}
 
@@ -321,22 +319,22 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
 
       {totals && totals.analyzed > 0 ? (
         <div className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatBox icon={<Eye className="h-3.5 w-3.5" />} label="Views" value={formatCompact(totals.views)} />
-          <StatBox icon={<Users className="h-3.5 w-3.5" />} label="Reach" value={formatCompact(totals.reach)} />
-          <StatBox icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={formatCompact(totals.likes)} />
+          <StatBox icon={<Eye className="h-3.5 w-3.5" />} label={dict.metrics.views} value={formatCompact(totals.views)} />
+          <StatBox icon={<Users className="h-3.5 w-3.5" />} label={dict.metrics.reach} value={formatCompact(totals.reach)} />
+          <StatBox icon={<Heart className="h-3.5 w-3.5" />} label={dict.metrics.likes} value={formatCompact(totals.likes)} />
           <StatBox
             icon={<MessageCircle className="h-3.5 w-3.5" />}
-            label="Comments"
+            label={dict.metrics.comments}
             value={formatCompact(totals.comments)}
           />
-          <StatBox icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={formatCompact(totals.saved)} />
-          <StatBox icon={<Send className="h-3.5 w-3.5" />} label="Shares" value={formatCompact(totals.shares)} />
+          <StatBox icon={<Bookmark className="h-3.5 w-3.5" />} label={dict.metrics.saved} value={formatCompact(totals.saved)} />
+          <StatBox icon={<Send className="h-3.5 w-3.5" />} label={dict.metrics.shares} value={formatCompact(totals.shares)} />
         </div>
       ) : null}
 
       {totals && totals.analyzed > 0 ? (
         <p className="text-xs text-subtle">
-          Totals across your {totals.analyzed} most recent posts with full insights.
+          {dict.totalsAcross(totals.analyzed)}
         </p>
       ) : null}
 
@@ -346,7 +344,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
 
       {!isLoading && media.length === 0 && !error ? (
         <div className="rounded-xl border border-dashed border-border-strong p-5 text-center text-sm text-muted-foreground">
-          No posts found on your account yet. Post a reel, then sync again.
+          {dict.noPostsFound}
         </div>
       ) : null}
 
@@ -355,34 +353,34 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
           {/* Grid controls: content type + sort order */}
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <div className="flex items-center gap-1.5">
-              {TYPE_FILTERS.map((t) => (
+              {TYPE_FILTER_KEYS.map((key) => (
                 <button
-                  key={t.key}
+                  key={key}
                   type="button"
-                  onClick={() => setTypeFilter(t.key)}
+                  onClick={() => setTypeFilter(key)}
                   className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                    typeFilter === t.key
+                    typeFilter === key
                       ? "bg-primary text-primary-foreground"
                       : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
                   }`}
                 >
-                  {t.label}
+                  {dict.typeFilters[key]}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-subtle">
-                Showing {visible.length} of {sorted.length}
+                {dict.showingOf(visible.length, sorted.length)}
               </span>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
-                aria-label="Sort posts"
+                aria-label={dict.sortPostsAria}
                 className="h-8 rounded-lg border border-border bg-surface-2 px-2 text-xs text-muted-foreground outline-none transition-colors hover:border-border-strong focus:border-primary/50"
               >
-                {SORTS.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label}
+                {SORT_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {dict.sorts[key]}
                   </option>
                 ))}
               </select>
@@ -391,7 +389,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
 
           {sorted.length === 0 ? (
             <p className="rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-muted-foreground">
-              Nothing matches this filter.
+              {dict.nothingMatchesFilter}
             </p>
           ) : (
             <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -399,7 +397,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                 const ins = item.insights;
                 const isTop = top != null && item.id === top.id;
                 const posted = item.timestamp
-                  ? new Date(item.timestamp).toLocaleDateString("en-US", {
+                  ? new Date(item.timestamp).toLocaleDateString(intlLocale(locale), {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
@@ -424,7 +422,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={thumb}
-                          alt={item.caption?.slice(0, 60) ?? "Instagram post"}
+                          alt={item.caption?.slice(0, 60) ?? dict.instagramPostAlt}
                           loading="lazy"
                           referrerPolicy="no-referrer"
                           className="absolute inset-0 h-full w-full object-cover"
@@ -434,17 +432,17 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                           <Clapperboard className="h-10 w-10 text-subtle" />
                         </span>
                       )}
-                      <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
-                        {isReelItem(item) ? "Reel" : (item.media_type ?? "Post").toLowerCase()}
+                      <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
+                        {isReelItem(item) ? dict.reelBadge : dict.postBadge}
                       </span>
                       {isTop ? (
-                        <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                        <span className="absolute end-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
                           <TrendingUp className="h-3 w-3" />
-                          Top performer
+                          {dict.topPerformerBadge}
                         </span>
                       ) : null}
                       {ins?.views != null ? (
-                        <span className="absolute bottom-2 left-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                        <span className="absolute bottom-2 start-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
                           <Eye className="h-3 w-3" />
                           {formatCompact(ins.views)}
                         </span>
@@ -461,27 +459,27 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                         <Metric
                           icon={<Heart className="h-3.5 w-3.5" />}
                           value={formatCompact(ins?.likes ?? item.like_count)}
-                          label="Likes"
+                          label={dict.metrics.likes}
                         />
                         <Metric
                           icon={<MessageCircle className="h-3.5 w-3.5" />}
                           value={formatCompact(ins?.comments ?? item.comments_count)}
-                          label="Comments"
+                          label={dict.metrics.comments}
                         />
                         {ins?.reach != null ? (
-                          <Metric icon={<Users className="h-3.5 w-3.5" />} value={formatCompact(ins.reach)} label="Reach" />
+                          <Metric icon={<Users className="h-3.5 w-3.5" />} value={formatCompact(ins.reach)} label={dict.metrics.reach} />
                         ) : null}
                         {ins?.saved != null ? (
-                          <Metric icon={<Bookmark className="h-3.5 w-3.5" />} value={formatCompact(ins.saved)} label="Saves" />
+                          <Metric icon={<Bookmark className="h-3.5 w-3.5" />} value={formatCompact(ins.saved)} label={dict.metrics.saved} />
                         ) : null}
                         {ins?.shares != null ? (
-                          <Metric icon={<Send className="h-3.5 w-3.5" />} value={formatCompact(ins.shares)} label="Shares" />
+                          <Metric icon={<Send className="h-3.5 w-3.5" />} value={formatCompact(ins.shares)} label={dict.metrics.shares} />
                         ) : null}
                         {ins?.avg_watch_time_ms != null ? (
                           <Metric
                             icon={<Clock className="h-3.5 w-3.5" />}
                             value={`${(ins.avg_watch_time_ms / 1000).toFixed(1)}s`}
-                            label="Average watch time"
+                            label={dict.metrics.averageWatchTime}
                           />
                         ) : null}
                       </div>
@@ -498,12 +496,12 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                 {showAll ? (
                   <>
                     <ChevronUp className="h-4 w-4" />
-                    Show less
+                    {commonDict.showLess}
                   </>
                 ) : (
                   <>
                     <ChevronDown className="h-4 w-4" />
-                    Show all {sorted.length} posts
+                    {dict.showAllPosts(sorted.length)}
                   </>
                 )}
               </Button>

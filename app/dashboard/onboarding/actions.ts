@@ -1,11 +1,14 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { track } from "@/lib/analytics/track";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, isUnlimited } from "@/lib/billing/entitlements";
 import { isArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export type OnboardingActionState = { error?: string; ok?: boolean };
 
@@ -36,11 +39,14 @@ export async function saveBrandVoice(
   _prev: OnboardingActionState,
   formData: FormData
 ): Promise<OnboardingActionState> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Unauthorized." };
+  if (!user) return { error: dict.onboarding.unauthorized };
 
   const dialectRaw = formData.get("arabicDialect");
   const brandVoice: BrandVoice = {
@@ -54,7 +60,7 @@ export async function saveBrandVoice(
   };
 
   if (!brandVoice.niche && !brandVoice.audience) {
-    return { error: "Tell us at least your niche and who you're talking to." };
+    return { error: dict.onboarding.tellUsNicheAndAudience };
   }
 
   const { error } = await supabase
@@ -76,11 +82,14 @@ export type StarterPackState = { error?: string; added?: number };
 // (ig_account_snapshots) — accounts already fetched by other users, so this costs
 // ZERO Meta quota and needs no IG connection. Trimmed to the plan's account cap.
 export async function seedStarterPack(): Promise<StarterPackState> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Unauthorized." };
+  if (!user) return { error: dict.onboarding.unauthorized };
 
   const tier = await resolveUserTier(supabase, user.id);
   const cap = limitFor(tier, "accounts");
@@ -92,7 +101,7 @@ export async function seedStarterPack(): Promise<StarterPackState> {
   const used = usedCount ?? 0;
   const remaining = isUnlimited(cap) ? 12 : Math.max(0, cap - used);
   if (remaining === 0) {
-    return { error: "You've reached your plan's tracked-account limit." };
+    return { error: dict.onboarding.accountLimitReached };
   }
 
   // Pick the most-followed successfully-cached accounts as a sensible default
@@ -106,7 +115,7 @@ export async function seedStarterPack(): Promise<StarterPackState> {
     .limit(packSize);
 
   if (!snapshots || snapshots.length === 0) {
-    return { error: "No starter accounts are available yet — connect Instagram or add accounts manually." };
+    return { error: dict.onboarding.noStarterAccountsAvailable };
   }
 
   // Skip any the user already tracks.
@@ -122,7 +131,7 @@ export async function seedStarterPack(): Promise<StarterPackState> {
   const fresh = snapshots.filter((s) => !existingSet.has(s.ig_username));
 
   if (fresh.length === 0) {
-    return { error: "You already track the starter accounts." };
+    return { error: dict.onboarding.alreadyTrackStarterAccounts };
   }
 
   const { error } = await supabase.from("inspiration_accounts").insert(

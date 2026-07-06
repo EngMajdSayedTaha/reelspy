@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AlertDialog } from "radix-ui";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ConfirmOptions = {
   title?: string;
@@ -24,6 +25,7 @@ export function useConfirm(): ConfirmFn {
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const common = useDict().common;
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState<ConfirmOptions>({});
   const resolver = useRef<((value: boolean) => void) | null>(null);
@@ -58,7 +60,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <AlertDialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
           <AlertDialog.Content className="fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
             <AlertDialog.Title className="text-lg font-semibold text-foreground">
-              {options.title ?? "Are you sure?"}
+              {options.title ?? common.areYouSure}
             </AlertDialog.Title>
             {options.description ? (
               <AlertDialog.Description className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -72,7 +74,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 onClick={() => settle(false)}
                 className="h-9 rounded-lg border border-border-strong bg-surface-2 px-4 text-sm text-muted-foreground transition hover:border-border-strong"
               >
-                {options.cancelText ?? "Cancel"}
+                {options.cancelText ?? common.cancel}
               </button>
               <button
                 type="button"
@@ -83,7 +85,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 }`}
               >
-                {options.confirmText ?? "Confirm"}
+                {options.confirmText ?? common.confirm}
               </button>
             </div>
           </AlertDialog.Content>

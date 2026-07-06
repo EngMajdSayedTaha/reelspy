@@ -5,14 +5,19 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PaidTier } from "@/lib/billing/plans";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
-async function postJson(url: string, body?: unknown): Promise<{ url?: string; error?: string }> {
+async function postJson(
+  url: string,
+  fallbackError: string,
+  body?: unknown
+): Promise<{ url?: string; error?: string }> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json().catch(() => ({ error: "Something went wrong." }));
+  return res.json().catch(() => ({ error: fallbackError }));
 }
 
 // Start Checkout for a paid tier. Label + variant are set by the caller so the
@@ -28,16 +33,21 @@ export function SubscribeButton({
   variant?: "default" | "outline" | "secondary";
   disabled?: boolean;
 }) {
+  const dict = useDict();
   const [loading, setLoading] = useState(false);
 
   async function go() {
     setLoading(true);
-    const { url, error } = await postJson("/api/billing/checkout", { tier });
+    const { url, error } = await postJson(
+      "/api/billing/checkout",
+      dict.common.unknownError,
+      { tier }
+    );
     if (url) {
       window.location.href = url;
       return; // keep the spinner through the redirect
     }
-    toast.error(error ?? "Could not start checkout.");
+    toast.error(error ?? dict.billing.couldNotStartCheckout);
     setLoading(false);
   }
 
@@ -51,23 +61,24 @@ export function SubscribeButton({
 
 // Open the Stripe Billing Portal to update card / change plan / cancel.
 export function ManageBillingButton({ className }: { className?: string }) {
+  const dict = useDict();
   const [loading, setLoading] = useState(false);
 
   async function go() {
     setLoading(true);
-    const { url, error } = await postJson("/api/billing/portal");
+    const { url, error } = await postJson("/api/billing/portal", dict.common.unknownError);
     if (url) {
       window.location.href = url;
       return;
     }
-    toast.error(error ?? "Could not open billing portal.");
+    toast.error(error ?? dict.billing.couldNotOpenPortal);
     setLoading(false);
   }
 
   return (
     <Button onClick={go} variant="outline" disabled={loading} className={className}>
       {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-      Manage billing
+      {dict.billing.manageBilling}
     </Button>
   );
 }

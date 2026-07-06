@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AccountCard } from "@/components/accounts/AccountCard";
 import { AccountsFilter } from "@/components/accounts/AccountsFilter";
@@ -7,6 +8,8 @@ import { GroupsManager } from "@/components/accounts/GroupsManager";
 import { ImportFollowing } from "@/components/accounts/ImportFollowing";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
   addInspirationAccount,
   assignAccountGroup,
@@ -54,6 +57,8 @@ export default async function AccountsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const supabase = await createClient();
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
 
   const {
     data: { user },
@@ -142,10 +147,8 @@ export default async function AccountsPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Accounts</h1>
-        <p className="text-sm text-muted-foreground">
-          Save inspiration accounts you want ReelSpy to track and score.
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.accounts.page.title}</h1>
+        <p className="text-sm text-muted-foreground">{dict.accounts.page.subtitle}</p>
       </div>
 
       <AddAccountForm action={addInspirationAccount} groups={groups} />
@@ -161,7 +164,7 @@ export default async function AccountsPage({
 
       {counts.all === 0 && !q ? (
         <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-          No inspiration accounts yet. Add your first account above.
+          {dict.accounts.page.emptyState}
         </div>
       ) : (
         <>
@@ -172,7 +175,9 @@ export default async function AccountsPage({
 
           {accounts.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-              {q ? `No accounts match “${q}”.` : `No ${status} accounts.`}
+              {q
+                ? dict.accounts.page.noMatches(q)
+                : dict.accounts.page.noStatusAccounts(dict.accounts.filter[status])}
             </div>
           ) : (
             <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidIgUsername } from "@/lib/instagram/graph-api";
 import { track } from "@/lib/analytics/track";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit } from "@/lib/billing/entitlements";
-import { planFor } from "@/lib/billing/plans";
 import { ALL_NICHES, slugifyNiche } from "@/lib/trends/shared";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export type TrackAccountState = { ok?: boolean; tracked?: boolean; error?: string };
 
@@ -21,14 +23,17 @@ export async function trackNicheAccount(
   username: string,
   niche?: string
 ): Promise<TrackAccountState> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const fullDict = getDictionary(locale);
+  const dict = fullDict.trends.track;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: "Unauthorized." };
+  if (!user) return { error: dict.unauthorized };
 
   const ig = username.trim().replace(/^@+/, "").toLowerCase();
-  if (!isValidIgUsername(ig)) return { error: "That doesn't look like a valid Instagram username." };
+  if (!isValidIgUsername(ig)) return { error: dict.invalidUsername };
 
   // Already tracking? Idempotent success — the card just flips to "Tracking".
   const { data: existing } = await supabase
@@ -46,7 +51,7 @@ export async function trackNicheAccount(
     .eq("user_id", user.id);
   if (!withinLimit(tier, "accounts", count ?? 0)) {
     return {
-      error: `Your ${planFor(tier).name} plan tracks up to ${limitFor(tier, "accounts")} accounts. Upgrade in Billing to add more.`,
+      error: dict.planLimit(limitFor(tier, "accounts"), fullDict.billing.plans[tier].name),
     };
   }
 

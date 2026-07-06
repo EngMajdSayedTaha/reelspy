@@ -7,6 +7,7 @@ import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { rankRising, risingSinceIso } from "@/lib/reels/ranking";
 import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
 
@@ -125,6 +126,7 @@ export default async function FeedPage({
 
   const params = await searchParams;
   const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(prefs.locale).feed;
 
   const account = first(params.account) ?? "all";
   const group = first(params.group) ?? "all";
@@ -347,9 +349,9 @@ export default async function FeedPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">Feed</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">{dict.page.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Watch tracked reels inline, score performance, and turn the best ideas into scripts.
+            {dict.page.subtitle}
           </p>
         </div>
 

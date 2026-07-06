@@ -1,13 +1,14 @@
 "use client";
 
 import { LayoutGrid, Rows3, Clapperboard, type LucideIcon } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 export type FeedView = "grid" | "list" | "reels";
 
-const VIEWS: { value: FeedView; label: string; icon: LucideIcon }[] = [
-  { value: "grid", label: "Grid", icon: LayoutGrid },
-  { value: "list", label: "List", icon: Rows3 },
-  { value: "reels", label: "Reels", icon: Clapperboard },
+const VIEWS: { value: FeedView; icon: LucideIcon }[] = [
+  { value: "grid", icon: LayoutGrid },
+  { value: "list", icon: Rows3 },
+  { value: "reels", icon: Clapperboard },
 ];
 
 export function FeedViewToggle({
@@ -17,21 +18,23 @@ export function FeedViewToggle({
   value: FeedView;
   onChange: (view: FeedView) => void;
 }) {
+  const dict = useDict().feed.viewToggle;
   return (
     <div
       role="radiogroup"
-      aria-label="Feed layout"
+      aria-label={dict.ariaLabel}
       className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1"
     >
-      {VIEWS.map(({ value: v, label, icon: Icon }) => {
+      {VIEWS.map(({ value: v, icon: Icon }) => {
         const selected = value === v;
+        const label = dict[v];
         return (
           <button
             key={v}
             type="button"
             role="radio"
             aria-checked={selected}
-            title={`${label} view`}
+            title={dict.viewTitle(label)}
             onClick={() => onChange(v)}
             className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition ${
               selected

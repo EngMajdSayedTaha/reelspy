@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Heart } from "lucide-react";
 import { toast } from "sonner";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type FavoriteButtonProps = {
   reelId: string;
@@ -13,6 +14,7 @@ type FavoriteButtonProps = {
 // Optimistic, animated favorite toggle — the heart flips and pops instantly on
 // click while the server action runs in the background, so there's no lag.
 export function FavoriteButton({ reelId, favorite, action }: FavoriteButtonProps) {
+  const dict = useDict().feed.favorite;
   const [fav, setFav] = useState(favorite);
   const [synced, setSynced] = useState(favorite);
   const [pop, setPop] = useState(false);
@@ -41,7 +43,7 @@ export function FavoriteButton({ reelId, favorite, action }: FavoriteButtonProps
         await action(data);
       } catch {
         setFav(!next); // revert
-        toast.error("Could not update favorite.");
+        toast.error(dict.updateError);
       }
     });
   };
@@ -50,8 +52,8 @@ export function FavoriteButton({ reelId, favorite, action }: FavoriteButtonProps
     <button
       type="button"
       onClick={toggle}
-      aria-label={fav ? "Remove from favorites" : "Add to favorites"}
-      title={fav ? "Remove from favorites" : "Add to favorites"}
+      aria-label={fav ? dict.removeAria : dict.addAria}
+      title={fav ? dict.removeAria : dict.addAria}
       className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 ring-1 ring-white/20 backdrop-blur-sm transition active:scale-90"
     >
       <Heart

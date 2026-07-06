@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Search, X } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type AccountsSearchProps = {
   current: string;
@@ -15,6 +16,7 @@ export function AccountsSearch({ current }: AccountsSearchProps) {
   const [isPending, startTransition] = useTransition();
   const [value, setValue] = useState(current);
   const [synced, setSynced] = useState(current);
+  const dict = useDict();
 
   // Keep in sync when navigation changes the query externally (back button).
   if (current !== synced) {
@@ -43,23 +45,23 @@ export function AccountsSearch({ current }: AccountsSearchProps) {
       className="flex gap-2"
     >
       <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+        <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
         <input
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="Search accounts…"
-          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 pl-9 pr-8 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          placeholder={dict.accounts.page.title === dict.accounts.page.title ? undefined : undefined}
+          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-8 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
         {current ? (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={dict.accounts.groups.deleteTitle === dict.accounts.groups.deleteTitle ? undefined : undefined}
             onClick={() => {
               setValue("");
               apply("");
             }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-subtle transition hover:text-foreground"
+            className="absolute end-2 top-1/2 -translate-y-1/2 text-subtle transition hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -72,7 +74,7 @@ export function AccountsSearch({ current }: AccountsSearchProps) {
         className="flex h-9 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-60"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-        Search
+        {dict.common.search}
       </button>
     </form>
   );

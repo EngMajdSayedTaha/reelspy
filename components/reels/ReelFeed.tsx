@@ -6,6 +6,7 @@ import { Inbox, Sparkles } from "lucide-react";
 import { ReelCard } from "@/components/reels/ReelCard";
 import { ReelRow } from "@/components/reels/ReelRow";
 import { FeedViewToggle, type FeedView } from "@/components/reels/FeedViewToggle";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Reel = {
   id: string;
@@ -50,6 +51,7 @@ export function ReelFeed({
   hasFilters,
   hasAccounts,
 }: ReelFeedProps) {
+  const dict = useDict().feed.reelFeed;
   // Default to grid for a deterministic first paint, then hydrate the saved
   // preference after mount (localStorage isn't available during SSR).
   const [view, setView] = useState<FeedView>("grid");
@@ -76,23 +78,22 @@ export function ReelFeed({
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Sparkles className="h-6 w-6 text-brand" />
           </span>
-          <p className="text-sm font-medium text-foreground">Let&apos;s set up your feed</p>
+          <p className="text-sm font-medium text-foreground">{dict.setupTitle}</p>
           <p className="max-w-sm text-sm text-subtle">
-            Connect Instagram and add a few inspiration accounts to start tracking and scoring
-            their reels.
+            {dict.setupBody}
           </p>
           <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
             <Link
               href="/dashboard/onboarding"
               className="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
             >
-              Set up ReelSpy
+              {dict.setupCta}
             </Link>
             <Link
               href="/dashboard/accounts"
               className="flex h-10 items-center rounded-lg border border-border-strong px-4 text-sm font-medium text-muted-foreground transition hover:text-foreground"
             >
-              Add accounts manually
+              {dict.addManually}
             </Link>
           </div>
         </div>
@@ -105,12 +106,10 @@ export function ReelFeed({
           <Inbox className="h-6 w-6 text-subtle" />
         </span>
         <p className="text-sm font-medium text-muted-foreground">
-          {hasFilters ? "No reels match these filters" : "No tracked reels yet"}
+          {hasFilters ? dict.noFilterMatch : dict.noTracked}
         </p>
         <p className="max-w-sm text-sm text-subtle">
-          {hasFilters
-            ? "Try clearing filters or syncing more accounts."
-            : "Run a sync to pull the latest reels from your tracked accounts."}
+          {hasFilters ? dict.tryClearing : dict.runSync}
         </p>
       </div>
     );
@@ -120,7 +119,7 @@ export function ReelFeed({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-subtle">
-          {reels.length} {reels.length === 1 ? "reel" : "reels"} shown
+          {dict.shownCount(reels.length)}
         </span>
         <FeedViewToggle value={view} onChange={changeView} />
       </div>

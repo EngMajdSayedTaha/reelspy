@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { ScriptGenerator } from "@/components/scripts/ScriptGenerator";
 import { TranscriptPanel } from "@/components/reels/TranscriptPanel";
 import { ReelCard } from "@/components/reels/ReelCard";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import {
   markReelAsWorkedOn,
   setReelDiscarded,
@@ -17,6 +20,8 @@ type PageProps = {
 
 export default async function GenerateScriptPage({ params }: PageProps) {
   const { reel_id } = await params;
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
   const supabase = await createClient();
 
   const {
@@ -47,15 +52,15 @@ export default async function GenerateScriptPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Generate Script</h1>
-        <p className="text-sm text-muted-foreground">Create an original script from this reel inspiration.</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.scripts.generatePageTitle}</h1>
+        <p className="text-sm text-muted-foreground">{dict.scripts.generatePageSubtitle}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr] lg:items-start">
         {/* Source reel — same card as the feed, watchable inline. Capped and
             centered below lg so it doesn't blow up to full-bleed on phones. */}
         <div className="mx-auto w-full min-w-0 max-w-sm space-y-2 lg:mx-0 lg:max-w-none lg:sticky lg:top-20">
-          <p className="text-xs font-semibold uppercase tracking-wide text-subtle">Source reel</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-subtle">{dict.scripts.sourceReelLabel}</p>
           <ReelCard
             reel={reel}
             markWorkedAction={markReelAsWorkedOn}

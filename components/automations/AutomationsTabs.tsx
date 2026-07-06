@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Camera, MessageCircleReply, MessagesSquare, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ConnectionStatus = "connected" | "warning" | "disconnected";
 
@@ -24,15 +25,9 @@ const STATUS_DOT: Record<ConnectionStatus, string> = {
   disconnected: "bg-subtle",
 };
 
-const STATUS_LABEL: Record<ConnectionStatus, string> = {
-  connected: "Connected",
-  warning: "Needs attention",
-  disconnected: "Not connected",
-};
-
-function StatusDot({ status }: { status: ConnectionStatus }) {
+function StatusDot({ status, label }: { status: ConnectionStatus; label: string }) {
   return (
-    <span className="relative flex h-2 w-2" title={STATUS_LABEL[status]}>
+    <span className="relative flex h-2 w-2" title={label}>
       {status === "connected" ? (
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/60" />
       ) : null}
@@ -53,8 +48,15 @@ export function AutomationsTabs({
   ytBanner,
   youtube,
 }: AutomationsTabsProps) {
+  const dict = useDict().automations.tabs;
   const [platform, setPlatform] = useState<Platform>("instagram");
   const [igView, setIgView] = useState<IgView>("comments");
+
+  const statusLabel: Record<ConnectionStatus, string> = {
+    connected: dict.statusConnected,
+    warning: dict.statusWarning,
+    disconnected: dict.statusDisconnected,
+  };
 
   const platforms: Array<{
     key: Platform;
@@ -62,8 +64,8 @@ export function AutomationsTabs({
     icon: typeof Camera;
     status: ConnectionStatus;
   }> = [
-    { key: "instagram", label: "Instagram", icon: Camera, status: igStatus },
-    { key: "youtube", label: "YouTube", icon: PlayCircle, status: ytStatus },
+    { key: "instagram", label: dict.instagram, icon: Camera, status: igStatus },
+    { key: "youtube", label: dict.youtube, icon: PlayCircle, status: ytStatus },
   ];
 
   return (
@@ -72,7 +74,7 @@ export function AutomationsTabs({
           YouTube automations on separate surfaces instead of one long page. */}
       <div
         role="tablist"
-        aria-label="Automation platform"
+        aria-label={dict.platformAriaLabel}
         className="flex w-full gap-1 rounded-xl border border-border bg-card p-1 sm:w-auto sm:inline-flex"
       >
         {platforms.map((p) => {
@@ -94,7 +96,7 @@ export function AutomationsTabs({
             >
               <Icon className="h-4 w-4 shrink-0" />
               <span>{p.label}</span>
-              <StatusDot status={p.status} />
+              <StatusDot status={p.status} label={statusLabel[p.status]} />
             </button>
           );
         })}
@@ -108,20 +110,20 @@ export function AutomationsTabs({
               Scrolls horizontally on narrow phones instead of overflowing the page. */}
           <div
             role="tablist"
-            aria-label="Instagram automation type"
+            aria-label={dict.typeAriaLabel}
             className="flex gap-4 overflow-x-auto border-b border-border sm:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             <SubTab
               active={igView === "comments"}
               onClick={() => setIgView("comments")}
               icon={<MessageCircleReply className="h-4 w-4" />}
-              label="Comment Auto-Reply"
+              label={dict.commentAutoReply}
             />
             <SubTab
               active={igView === "dms"}
               onClick={() => setIgView("dms")}
               icon={<MessagesSquare className="h-4 w-4" />}
-              label="DM Auto-Reply"
+              label={dict.dmAutoReply}
             />
           </div>
 

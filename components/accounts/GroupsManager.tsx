@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Group = { id: string; name: string };
 
@@ -32,6 +33,9 @@ function GroupChip({
   deleteAction: DeleteFn;
   renameAction: RenameFn;
 }) {
+  const fullDict = useDict();
+  const dict = fullDict.accounts.groups;
+  const commonDelete = fullDict.common.delete;
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(group.name);
   const [synced, setSynced] = useState(group.name);
@@ -64,7 +68,7 @@ function GroupChip({
       return;
     }
     if (otherNames.includes(name.toLowerCase())) {
-      toast.error("A group with that name already exists.");
+      toast.error(dict.nameExistsError);
       return;
     }
     savedRef.current = true;
@@ -75,19 +79,19 @@ function GroupChip({
     startTransition(async () => {
       try {
         await renameAction(data);
-        toast.success("Group renamed");
+        toast.success(dict.renamedToast);
       } catch {
         setValue(group.name);
-        toast.error("Could not rename the group.");
+        toast.error(dict.renameError);
       }
     });
   };
 
   const remove = async () => {
     const ok = await confirm({
-      title: `Delete group “${group.name}”?`,
-      description: "Accounts in this group will be ungrouped (not deleted).",
-      confirmText: "Delete",
+      title: dict.deleteConfirmTitle(group.name),
+      description: dict.deleteConfirmDesc,
+      confirmText: commonDelete,
       destructive: true,
     });
     if (!ok) return;
@@ -97,16 +101,16 @@ function GroupChip({
     startTransition(async () => {
       try {
         await deleteAction(data);
-        toast.success(`Deleted “${group.name}”`);
+        toast.success(dict.deletedToast(group.name));
       } catch {
-        toast.error("Could not delete the group.");
+        toast.error(dict.deleteError);
       }
     });
   };
 
   if (editing) {
     return (
-      <span className="flex items-center rounded-full border border-primary/40 bg-surface-2 py-0.5 pl-2 pr-1">
+      <span className="flex items-center rounded-full border border-primary/40 bg-surface-2 py-0.5 ps-2 pe-1">
         <input
           ref={inputRef}
           value={value}
@@ -130,12 +134,12 @@ function GroupChip({
   }
 
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-border-strong bg-surface-2 py-1 pl-3 pr-1.5 text-sm text-foreground">
+    <span className="flex items-center gap-1.5 rounded-full border border-border-strong bg-surface-2 py-1 ps-3 pe-1.5 text-sm text-foreground">
       <button
         type="button"
         onClick={startEdit}
         disabled={isPending}
-        title="Click to rename"
+        title={dict.renameHint}
         className="transition hover:text-brand disabled:opacity-60"
       >
         {group.name}
@@ -144,8 +148,8 @@ function GroupChip({
         type="button"
         onClick={remove}
         disabled={isPending}
-        aria-label={`Delete group ${group.name}`}
-        title="Delete group"
+        aria-label={dict.deleteAria(group.name)}
+        title={dict.deleteTitle}
         className="flex h-5 w-5 items-center justify-center rounded-full text-subtle transition hover:bg-danger/15 hover:text-danger disabled:opacity-60"
       >
         <X className="h-3.5 w-3.5" />
@@ -155,13 +159,16 @@ function GroupChip({
 }
 
 export function GroupsManager({ groups, createAction, deleteAction, renameAction }: GroupsManagerProps) {
+  const fullDict = useDict();
+  const dict = fullDict.accounts.groups;
+  const commonSaving = fullDict.common.saving;
   const [name, setName] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const create = () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      toast.error("Enter a group name.");
+      toast.error(dict.enterNameError);
       return;
     }
     const data = new FormData();
@@ -174,9 +181,9 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
           return;
         }
         setName("");
-        toast.success(`Created “${trimmed}”`);
+        toast.success(dict.createdToast(trimmed));
       } catch {
-        toast.error("Could not create the group.");
+        toast.error(dict.createError);
       }
     });
   };
@@ -185,8 +192,8 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
     <div className="rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
         <FolderPlus className="h-4 w-4 text-brand" />
-        <p className="font-medium text-foreground">Groups</p>
-        <span className="text-xs text-subtle">Organize accounts (e.g. Angular, Memes)</span>
+        <p className="font-medium text-foreground">{dict.heading}</p>
+        <span className="text-xs text-subtle">{dict.hint}</span>
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
@@ -199,7 +206,7 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
               create();
             }
           }}
-          placeholder="New group name…"
+          placeholder={dict.newGroupPlaceholder}
           disabled={isPending}
           maxLength={40}
         />
@@ -210,7 +217,7 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
           onClick={create}
           disabled={isPending}
         >
-          {isPending ? "Saving…" : "Add Group"}
+          {isPending ? commonSaving : dict.addGroup}
         </Button>
       </div>
 
@@ -229,7 +236,7 @@ export function GroupsManager({ groups, createAction, deleteAction, renameAction
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-sm text-subtle">No groups yet. Create one above, then assign accounts.</p>
+        <p className="mt-3 text-sm text-subtle">{dict.noGroupsYet}</p>
       )}
     </div>
   );

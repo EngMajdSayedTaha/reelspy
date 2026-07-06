@@ -5,6 +5,7 @@ import { AtSign, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { switchActiveConnection } from "@/app/dashboard/connections/actions";
 import type { IgConnectionSummary } from "@/lib/instagram/connections";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Props = {
   connections: IgConnectionSummary[];
@@ -17,6 +18,8 @@ type Props = {
 // accounts and switches which one is active (drives Business Discovery / sync /
 // insights). "Connect another" appears while under the plan cap.
 export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Props) {
+  const fullDict = useDict();
+  const dict = fullDict.connections;
   const [active, setActive] = useState(activeId);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -34,7 +37,7 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
         return;
       }
       setActive(id);
-      toast.success("Switched active account");
+      toast.success(dict.switchedAccount);
     });
   };
 
@@ -42,9 +45,9 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
     <section className="rounded-2xl border border-border bg-card p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Workspaces</h2>
+          <h2 className="text-lg font-semibold text-foreground">{dict.workspacesHeading}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Switch which connected Instagram account drives research, sync and insights.
+            {dict.workspacesSubtitle}
           </p>
         </div>
         {canConnectMore ? (
@@ -52,7 +55,7 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
             href="/api/ig/connect"
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-brand"
           >
-            <Plus className="h-4 w-4" /> Connect another
+            <Plus className="h-4 w-4" /> {dict.connectAnother}
           </a>
         ) : null}
       </div>
@@ -92,13 +95,17 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
                     @{c.username ?? c.igUserId}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {c.tokenStatus === "invalid" ? "Needs reconnect" : isActive ? "Active" : "Tap to activate"}
+                    {c.tokenStatus === "invalid"
+                      ? dict.needsReconnect
+                      : isActive
+                        ? fullDict.common.active
+                        : dict.tapToActivate}
                   </span>
                 </span>
                 {isActive ? (
                   <Check className="h-4 w-4 shrink-0 text-brand" />
                 ) : loading ? (
-                  <span className="text-xs text-muted-foreground">Switching…</span>
+                  <span className="text-xs text-muted-foreground">{dict.switchingEllipsis}</span>
                 ) : null}
               </button>
             </li>

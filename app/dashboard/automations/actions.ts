@@ -1,17 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserTier } from "@/lib/ai/tier";
+import type { AiTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit } from "@/lib/billing/entitlements";
-import { planFor } from "@/lib/billing/plans";
 import { getPageCredentials, markWebhookSubscribed } from "@/lib/instagram/token-store";
 import {
   getPageSubscribedFields,
   subscribePageToWebhooks,
 } from "@/lib/auto-reply/graph-calls";
 import type { MatchMode } from "@/lib/auto-reply/types";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+
+async function getAutomationsDict() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale).automations;
+}
+
+async function planName(tier: AiTier): Promise<string> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale).billing.plans[tier].name;
+}
 
 type ActionState = { error?: string };
 
@@ -32,7 +45,10 @@ type ParsedAutomation = {
 };
 
 // Shared validation for create + update. Returns the row fields or an error.
-function parseAutomationFields(formData: FormData): ParsedAutomation | { error: string } {
+async function parseAutomationFields(
+  formData: FormData
+): Promise<ParsedAutomation | { error: string }> {
+  const dict = await getAutomationsDict();
   const modeRaw = formData.get("match_mode");
   const match_mode: MatchMode =
     modeRaw === "exact" ? "exact" : modeRaw === "any" ? "any" : "contains";
@@ -53,13 +69,13 @@ function parseAutomationFields(formData: FormData): ParsedAutomation | { error: 
 
   if (match_mode !== "any") {
     if (keywords.length === 0) {
-      return { error: "At least one keyword is required." };
+      return { error: dict.errors.keywordRequired };
     }
     if (keywords.length > MAX_KEYWORDS) {
-      return { error: `Use up to ${MAX_KEYWORDS} keywords per reel.` };
+      return { error: dict.errors.keywordsMaxPerReel(MAX_KEYWORDS) };
     }
     if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
-      return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
+      return { error: dict.errors.keywordsMaxLength(MAX_KEYWORD_LENGTH) };
     }
   }
 
@@ -73,19 +89,19 @@ function parseAutomationFields(formData: FormData): ParsedAutomation | { error: 
           .slice(0, MAX_TEMPLATES)
       : [];
   if (public_reply_templates.length === 0) {
-    public_reply_templates.push("Check your DMs 📩");
+    public_reply_templates.push(dict.form.defaultTemplate);
   }
   if (public_reply_templates.some((t) => t.length > MAX_TEMPLATE_LENGTH)) {
-    return { error: `Public replies must be ${MAX_TEMPLATE_LENGTH} characters or fewer.` };
+    return { error: dict.errors.templatesMaxLength(MAX_TEMPLATE_LENGTH) };
   }
 
   const dmRaw = formData.get("dm_message");
   const dm_message = typeof dmRaw === "string" ? dmRaw.trim() : "";
   if (!dm_message) {
-    return { error: "The DM message is required." };
+    return { error: dict.errors.dmMessageRequired };
   }
   if (dm_message.length > MAX_DM_LENGTH) {
-    return { error: `The DM message must be ${MAX_DM_LENGTH} characters or fewer.` };
+    return { error: dict.errors.dmMessageMaxLength(MAX_DM_LENGTH) };
   }
 
   const linkRaw = formData.get("dm_link");
@@ -94,11 +110,11 @@ function parseAutomationFields(formData: FormData): ParsedAutomation | { error: 
     try {
       const parsed = new URL(linkRaw.trim());
       if (parsed.protocol !== "https:") {
-        return { error: "The link must start with https://." };
+        return { error: dict.errors.linkMustBeHttps };
       }
       dm_link = parsed.toString();
     } catch {
-      return { error: "That doesn't look like a valid link." };
+      return { error: dict.errors.linkInvalid };
     }
   }
 
@@ -109,18 +125,19 @@ export async function createAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const mediaId = formData.get("ig_media_id");
   if (typeof mediaId !== "string" || !mediaId.trim()) {
-    return { error: "Pick one of your reels first." };
+    return { error: dict.errors.reelRequired };
   }
 
   // Plan limit (L6): auto-reply automations are gated per tier (Free gets 0, so
@@ -132,15 +149,13 @@ export async function createAutomation(
     .eq("user_id", user.id);
   if (!withinLimit(tier, "automations", count ?? 0)) {
     const cap = limitFor(tier, "automations");
+    const name = await planName(tier);
     return {
-      error:
-        cap === 0
-          ? `Auto-replies aren't included on the ${planFor(tier).name} plan. Upgrade in Billing to enable them.`
-          : `Your ${planFor(tier).name} plan allows up to ${cap} auto-replies. Upgrade in Billing for more.`,
+      error: cap === 0 ? dict.errors.planCapZero(name) : dict.errors.planCapReached(cap, name),
     };
   }
 
-  const parsed = parseAutomationFields(formData);
+  const parsed = await parseAutomationFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -160,7 +175,7 @@ export async function createAutomation(
 
   if (error) {
     if (error.code === "23505") {
-      return { error: "This reel already has an automation — edit it instead." };
+      return { error: dict.errors.reelAlreadyAutomated };
     }
     return { error: error.message };
   }
@@ -173,21 +188,22 @@ export async function updateAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const automationId = formData.get("automation_id");
   if (typeof automationId !== "string" || !automationId) {
-    return { error: "Automation id is required." };
+    return { error: dict.errors.automationIdRequired };
   }
 
-  const parsed = parseAutomationFields(formData);
+  const parsed = await parseAutomationFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -215,19 +231,20 @@ export type ResubscribeResult = { error?: string; fields?: string[] };
 // auto-reply existed and is subscribed only to `feed`. Reads the fields back so
 // the UI can confirm `messages` is now active.
 export async function resubscribeWebhooks(): Promise<ResubscribeResult> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const admin = createAdminClient();
   const page = await getPageCredentials(admin, user.id).catch(() => null);
   if (!page) {
-    return { error: "No Facebook Page connected — reconnect Instagram in Settings." };
+    return { error: dict.errors.noFacebookPage };
   }
 
   try {
@@ -251,7 +268,10 @@ type ParsedDmAutomation = {
   reply_link: string | null;
 };
 
-function parseDmAutomationFields(formData: FormData): ParsedDmAutomation | { error: string } {
+async function parseDmAutomationFields(
+  formData: FormData
+): Promise<ParsedDmAutomation | { error: string }> {
+  const dict = await getAutomationsDict();
   const modeRaw = formData.get("match_mode");
   const match_mode: MatchMode =
     modeRaw === "exact" ? "exact" : modeRaw === "any" ? "any" : "contains";
@@ -271,23 +291,23 @@ function parseDmAutomationFields(formData: FormData): ParsedDmAutomation | { err
 
   if (match_mode !== "any") {
     if (keywords.length === 0) {
-      return { error: "At least one keyword is required." };
+      return { error: dict.errors.keywordRequired };
     }
     if (keywords.length > MAX_KEYWORDS) {
-      return { error: `Use up to ${MAX_KEYWORDS} keywords.` };
+      return { error: dict.errors.keywordsMax(MAX_KEYWORDS) };
     }
     if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
-      return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
+      return { error: dict.errors.keywordsMaxLength(MAX_KEYWORD_LENGTH) };
     }
   }
 
   const replyRaw = formData.get("reply_message");
   const reply_message = typeof replyRaw === "string" ? replyRaw.trim() : "";
   if (!reply_message) {
-    return { error: "The reply message is required." };
+    return { error: dict.errors.replyMessageRequired };
   }
   if (reply_message.length > MAX_DM_LENGTH) {
-    return { error: `The reply message must be ${MAX_DM_LENGTH} characters or fewer.` };
+    return { error: dict.errors.replyMessageMaxLength(MAX_DM_LENGTH) };
   }
 
   const linkRaw = formData.get("reply_link");
@@ -296,11 +316,11 @@ function parseDmAutomationFields(formData: FormData): ParsedDmAutomation | { err
     try {
       const parsed = new URL(linkRaw.trim());
       if (parsed.protocol !== "https:") {
-        return { error: "The link must start with https://." };
+        return { error: dict.errors.linkMustBeHttps };
       }
       reply_link = parsed.toString();
     } catch {
-      return { error: "That doesn't look like a valid link." };
+      return { error: dict.errors.linkInvalid };
     }
   }
 
@@ -311,16 +331,17 @@ export async function createDmAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
-  const parsed = parseDmAutomationFields(formData);
+  const parsed = await parseDmAutomationFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -341,21 +362,22 @@ export async function updateDmAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const automationId = formData.get("automation_id");
   if (typeof automationId !== "string" || !automationId) {
-    return { error: "Automation id is required." };
+    return { error: dict.errors.automationIdRequired };
   }
 
-  const parsed = parseDmAutomationFields(formData);
+  const parsed = await parseDmAutomationFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -375,20 +397,21 @@ export async function updateDmAutomation(
 }
 
 export async function toggleDmAutomationActive(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
   const desired = formData.get("is_active");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase
@@ -405,19 +428,20 @@ export async function toggleDmAutomationActive(formData: FormData) {
 }
 
 export async function deleteDmAutomation(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase
@@ -434,20 +458,21 @@ export async function deleteDmAutomation(formData: FormData) {
 }
 
 export async function toggleAutomationActive(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
   const desired = formData.get("is_active");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase
@@ -464,19 +489,20 @@ export async function toggleAutomationActive(formData: FormData) {
 }
 
 export async function deleteAutomation(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase
@@ -522,9 +548,10 @@ function parseVideoId(raw: string): string | null {
 
 // Shared reply-field validation for create + update (keywords, match mode,
 // public reply templates). Comments-only — no DM fields.
-function parseYouTubeReplyFields(
+async function parseYouTubeReplyFields(
   formData: FormData
-): ParsedYouTubeAutomation | { error: string } {
+): Promise<ParsedYouTubeAutomation | { error: string }> {
+  const dict = await getAutomationsDict();
   const modeRaw = formData.get("match_mode");
   const match_mode: MatchMode =
     modeRaw === "exact" ? "exact" : modeRaw === "any" ? "any" : "contains";
@@ -544,13 +571,13 @@ function parseYouTubeReplyFields(
 
   if (match_mode !== "any") {
     if (keywords.length === 0) {
-      return { error: "At least one keyword is required." };
+      return { error: dict.errors.keywordRequired };
     }
     if (keywords.length > MAX_KEYWORDS) {
-      return { error: `Use up to ${MAX_KEYWORDS} keywords per video.` };
+      return { error: dict.errors.keywordsMaxPerVideo(MAX_KEYWORDS) };
     }
     if (keywords.some((k) => k.length > MAX_KEYWORD_LENGTH)) {
-      return { error: `Keywords must be ${MAX_KEYWORD_LENGTH} characters or fewer.` };
+      return { error: dict.errors.keywordsMaxLength(MAX_KEYWORD_LENGTH) };
     }
   }
 
@@ -564,10 +591,10 @@ function parseYouTubeReplyFields(
           .slice(0, MAX_TEMPLATES)
       : [];
   if (public_reply_templates.length === 0) {
-    return { error: "Write at least one public reply." };
+    return { error: dict.errors.publicReplyRequired };
   }
   if (public_reply_templates.some((t) => t.length > MAX_TEMPLATE_LENGTH)) {
-    return { error: `Replies must be ${MAX_TEMPLATE_LENGTH} characters or fewer.` };
+    return { error: dict.errors.ytTemplatesMaxLength(MAX_TEMPLATE_LENGTH) };
   }
 
   return { keywords, match_mode, public_reply_templates };
@@ -577,22 +604,23 @@ export async function createYouTubeAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const videoRaw = formData.get("video_id");
   const video_id = typeof videoRaw === "string" ? parseVideoId(videoRaw) : null;
   if (!video_id) {
-    return { error: "Enter a valid YouTube video link or 11-character video id." };
+    return { error: dict.errors.invalidVideoId };
   }
 
-  const parsed = parseYouTubeReplyFields(formData);
+  const parsed = await parseYouTubeReplyFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -608,7 +636,7 @@ export async function createYouTubeAutomation(
     .maybeSingle();
 
   if (!connection) {
-    return { error: "Connect your YouTube channel first (Publishing → Connections)." };
+    return { error: dict.errors.connectYoutubeFirst };
   }
 
   const titleRaw = formData.get("video_title");
@@ -625,7 +653,7 @@ export async function createYouTubeAutomation(
 
   if (error) {
     if (error.code === "23505") {
-      return { error: "This video already has an automation — edit it instead." };
+      return { error: dict.errors.videoAlreadyAutomated };
     }
     return { error: error.message };
   }
@@ -638,21 +666,22 @@ export async function updateYouTubeAutomation(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: dict.errors.unauthorized };
   }
 
   const automationId = formData.get("automation_id");
   if (typeof automationId !== "string" || !automationId) {
-    return { error: "Automation id is required." };
+    return { error: dict.errors.automationIdRequired };
   }
 
-  const parsed = parseYouTubeReplyFields(formData);
+  const parsed = await parseYouTubeReplyFields(formData);
   if ("error" in parsed) {
     return { error: parsed.error };
   }
@@ -672,20 +701,21 @@ export async function updateYouTubeAutomation(
 }
 
 export async function toggleYouTubeAutomationActive(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
   const desired = formData.get("is_active");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase
@@ -702,19 +732,20 @@ export async function toggleYouTubeAutomationActive(formData: FormData) {
 }
 
 export async function deleteYouTubeAutomation(formData: FormData) {
+  const dict = await getAutomationsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.errors.unauthorized);
   }
 
   const automationId = formData.get("automation_id");
 
   if (typeof automationId !== "string" || !automationId) {
-    throw new Error("Automation id is required.");
+    throw new Error(dict.errors.automationIdRequired);
   }
 
   const { error } = await supabase

@@ -1,13 +1,6 @@
-// Shell translation dictionaries (roadmap X1). Foundation scope: the app chrome
-// (sidebar nav, top-bar titles, common shell strings) so the shell renders
-// end-to-end in Arabic and the pattern is established. Page-body copy is
-// translated incrementally on top of this — add keys here and consume them via
-// `getDictionary(locale)` (server) or the `dict` prop threaded through the
-// dashboard shell (client). Every locale must define every key (typed by `Dict`
-// = the shape of the English dictionary), so a missing translation is a compile
-// error, not a silent English fallback.
-
-import type { Locale } from "@/lib/i18n/config";
+// Shell dictionary domain (roadmap X1): app chrome — sidebar nav, top-bar
+// titles, common shell strings, prefs labels. Composed into the root `Dict` by
+// `lib/i18n/dictionaries/index.ts`.
 
 const en = {
   nav: {
@@ -49,18 +42,28 @@ const en = {
     closeMenu: "Close menu",
     signOut: "Sign out",
     switchLanguage: "Switch language",
+    appName: "ReelSpy",
+    logoAlt: "ReelSpy logo",
   },
   prefs: {
     language: "Language",
     languageHint: "Interface language and text direction.",
   },
+  consent: {
+    ariaLabel: "Cookie consent",
+    message: "We use essential cookies to keep you signed in and remember your preferences. See our",
+    cookiePolicy: "Cookie Policy",
+    and: "and",
+    privacyPolicy: "Privacy Policy",
+    reject: "Reject",
+    accept: "Accept",
+  },
 };
 
-// The English dictionary defines the required shape (keys fixed, values string);
-// other locales must match it, so a missing key is a compile error.
-export type Dict = typeof en;
+export type ShellDict = typeof en;
+export const shellEn = en;
 
-const ar: Dict = {
+export const shellAr: ShellDict = {
   nav: {
     dashboard: "الرئيسية",
     accounts: "الحسابات",
@@ -100,15 +103,20 @@ const ar: Dict = {
     closeMenu: "إغلاق القائمة",
     signOut: "تسجيل الخروج",
     switchLanguage: "تبديل اللغة",
+    appName: "ريل سباي",
+    logoAlt: "شعار ريل سباي",
   },
   prefs: {
     language: "اللغة",
     languageHint: "لغة الواجهة واتجاه النص.",
   },
+  consent: {
+    ariaLabel: "موافقة ملفات تعريف الارتباط",
+    message: "نستخدم ملفات تعريف ارتباط أساسية لإبقائك مسجّلاً للدخول وتذكّر تفضيلاتك. راجع",
+    cookiePolicy: "سياسة ملفات تعريف الارتباط",
+    and: "و",
+    privacyPolicy: "سياسة الخصوصية",
+    reject: "رفض",
+    accept: "قبول",
+  },
 };
-
-const DICTIONARIES: Record<Locale, Dict> = { en, ar };
-
-export function getDictionary(locale: Locale): Dict {
-  return DICTIONARIES[locale] ?? en;
-}

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { trackNicheAccount } from "@/app/dashboard/trends/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Props = {
   username: string;
@@ -16,13 +17,15 @@ type Props = {
 // the user's own research funnel — seeds from the shared snapshot cache (no Meta
 // quota). Optimistic: flips to "Tracking" on success, reverts + toasts on error.
 export function TrackAccountButton({ username, niche, initialTracked }: Props) {
+  const fullDict = useDict();
+  const dict = fullDict.trends.track;
   const [tracked, setTracked] = useState(initialTracked);
   const [isPending, startTransition] = useTransition();
 
   if (tracked) {
     return (
       <span className="inline-flex items-center gap-1 rounded-lg bg-success/10 px-2.5 py-1.5 text-xs font-medium text-success">
-        <Check className="h-3.5 w-3.5" /> Tracking
+        <Check className="h-3.5 w-3.5" /> {dict.tracking}
       </span>
     );
   }
@@ -35,7 +38,7 @@ export function TrackAccountButton({ username, niche, initialTracked }: Props) {
         return;
       }
       setTracked(true);
-      toast.success(`Tracking @${username}`);
+      toast.success(dict.trackingToast(username));
     });
   };
 
@@ -46,7 +49,7 @@ export function TrackAccountButton({ username, niche, initialTracked }: Props) {
       disabled={isPending}
       className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-60"
     >
-      <Plus className="h-3.5 w-3.5" /> {isPending ? "Adding…" : "Track"}
+      <Plus className="h-3.5 w-3.5" /> {isPending ? dict.adding : fullDict.common.track}
     </button>
   );
 }

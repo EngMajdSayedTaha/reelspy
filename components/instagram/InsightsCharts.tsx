@@ -25,6 +25,10 @@ import {
   interactionsOf,
   type MediaItem,
 } from "@/lib/instagram/insights-export";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
+import type { Dict } from "@/lib/i18n/dictionaries";
+import type { Locale } from "@/lib/i18n/config";
 
 // On-brand palette — yellow is the hero metric, the rest are calm accents.
 const COLORS = {
@@ -39,78 +43,90 @@ const COLORS = {
 
 type MetricKey = keyof typeof COLORS;
 
-const METRICS: {
+type MetricDef = {
   key: MetricKey;
   label: string;
   icon: React.ReactNode;
   get: (m: MediaItem) => number | null;
   format: (v: number) => string;
-}[] = [
-  {
-    key: "views",
-    label: "Views",
-    icon: <Eye className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.views ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "reach",
-    label: "Reach",
-    icon: <Users className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.reach ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "likes",
-    label: "Likes",
-    icon: <Heart className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.likes ?? m.like_count ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "comments",
-    label: "Comments",
-    icon: <MessageCircle className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.comments ?? m.comments_count ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "saved",
-    label: "Saves",
-    icon: <Bookmark className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.saved ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "shares",
-    label: "Shares",
-    icon: <Send className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.shares ?? null,
-    format: formatCompact,
-  },
-  {
-    key: "watch",
-    label: "Watch time",
-    icon: <Clock className="h-3.5 w-3.5" />,
-    get: (m) => m.insights?.avg_watch_time_ms ?? null,
-    format: (v) => `${(v / 1000).toFixed(1)}s`,
-  },
-];
+};
 
-const RANGES = [
-  { key: "7", label: "7D", days: 7 },
-  { key: "30", label: "30D", days: 30 },
-  { key: "90", label: "90D", days: 90 },
-  { key: "all", label: "All", days: null },
-] as const;
+function buildMetrics(dict: Dict["myAccount"]["metrics"]): MetricDef[] {
+  return [
+    {
+      key: "views",
+      label: dict.views,
+      icon: <Eye className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.views ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "reach",
+      label: dict.reach,
+      icon: <Users className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.reach ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "likes",
+      label: dict.likes,
+      icon: <Heart className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.likes ?? m.like_count ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "comments",
+      label: dict.comments,
+      icon: <MessageCircle className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.comments ?? m.comments_count ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "saved",
+      label: dict.saved,
+      icon: <Bookmark className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.saved ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "shares",
+      label: dict.shares,
+      icon: <Send className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.shares ?? null,
+      format: formatCompact,
+    },
+    {
+      key: "watch",
+      label: dict.watch,
+      icon: <Clock className="h-3.5 w-3.5" />,
+      get: (m) => m.insights?.avg_watch_time_ms ?? null,
+      format: (v) => `${(v / 1000).toFixed(1)}s`,
+    },
+  ];
+}
 
-type RangeKey = (typeof RANGES)[number]["key"];
+type RangeDef = { key: RangeKey; label: string; days: number | null };
+type RangeKey = "7" | "30" | "90" | "all";
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+function buildRanges(dict: Dict["myAccount"]["ranges"]): RangeDef[] {
+  return [
+    { key: "7", label: dict.d7, days: 7 },
+    { key: "30", label: dict.d30, days: 30 },
+    { key: "90", label: dict.d90, days: 90 },
+    { key: "all", label: dict.all, days: null },
+  ];
+}
 
-function shortDate(ts?: string): string {
+// Locale-correct short weekday names (Mon…Sun), replacing a hardcoded English
+// array — Jan 5, 2026 is a known Monday, used only as a formatting anchor.
+function weekdayLabels(locale: string): string[] {
+  const fmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2026, 0, 5 + i)));
+}
+
+function shortDate(ts: string | undefined, locale: Locale): string {
   if (!ts) return "";
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(ts).toLocaleDateString(intlLocale(locale), { month: "short", day: "numeric" });
 }
 
 function Pill({
@@ -161,7 +177,7 @@ function ChartCard({
         <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <span className="text-brand">{icon}</span>
           {title}
-          {hint ? <span className="ml-1 text-[11px] font-normal text-subtle">{hint}</span> : null}
+          {hint ? <span className="ms-1 text-[11px] font-normal text-subtle">{hint}</span> : null}
         </h3>
         {actions}
       </div>
@@ -225,9 +241,21 @@ function KpiCard({
 }
 
 /** Interactive bar chart of the selected metric per post, with avg line + tooltip. */
-function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: MetricKey }) {
+function MetricBarChart({
+  items,
+  metricKey,
+  metrics,
+  dict,
+  locale,
+}: {
+  items: MediaItem[];
+  metricKey: MetricKey;
+  metrics: MetricDef[];
+  dict: Dict["myAccount"];
+  locale: Locale;
+}) {
   const [hover, setHover] = useState<number | null>(null);
-  const metric = METRICS.find((m) => m.key === metricKey)!;
+  const metric = metrics.find((m) => m.key === metricKey)!;
 
   const data = items.map((m) => ({ item: m, value: metric.get(m) ?? 0 }));
   const max = Math.max(1, ...data.map((d) => d.value));
@@ -246,7 +274,7 @@ function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: M
       {hover != null ? (
         <ChartTooltip leftPct={((hover + 0.5) / n) * 100}>
           <p className="text-[10px] text-subtle">
-            {shortDate(data[hover].item.timestamp)} ·{" "}
+            {shortDate(data[hover].item.timestamp, locale)} ·{" "}
             {String(data[hover].item.media_product_type ?? data[hover].item.media_type ?? "post").toLowerCase()}
           </p>
           <p className="text-sm font-semibold" style={{ color: COLORS[metricKey] }}>
@@ -323,26 +351,26 @@ function MetricBarChart({ items, metricKey }: { items: MediaItem[]; metricKey: M
         })}
       </svg>
       <div className="mt-1 flex items-center justify-between text-[10px] text-subtle">
-        <span>{shortDate(data[0]?.item.timestamp)}</span>
+        <span>{shortDate(data[0]?.item.timestamp, locale)}</span>
         <span className="text-subtle">
-          avg {metric.format(mean)} · peak {metric.format(data[peakIdx]?.value ?? 0)}
+          {dict.avgPeak(metric.format(mean), metric.format(data[peakIdx]?.value ?? 0))}
         </span>
-        <span>{shortDate(data[data.length - 1]?.item.timestamp)}</span>
+        <span>{shortDate(data[data.length - 1]?.item.timestamp, locale)}</span>
       </div>
     </div>
   );
 }
 
 /** Donut of how total engagement splits across likes / comments / saves / shares. */
-function EngagementDonut({ items }: { items: MediaItem[] }) {
+function EngagementDonut({ items, dict }: { items: MediaItem[]; dict: Dict["myAccount"] }) {
   const [active, setActive] = useState<string | null>(null);
 
   const sumOf = (get: (m: MediaItem) => number) => items.reduce((a, m) => a + get(m), 0);
   const segments = [
-    { label: "Likes", value: sumOf((m) => m.insights?.likes ?? m.like_count ?? 0), color: COLORS.likes },
-    { label: "Comments", value: sumOf((m) => m.insights?.comments ?? m.comments_count ?? 0), color: COLORS.comments },
-    { label: "Saves", value: sumOf((m) => m.insights?.saved ?? 0), color: COLORS.saved },
-    { label: "Shares", value: sumOf((m) => m.insights?.shares ?? 0), color: COLORS.shares },
+    { label: dict.metrics.likes, value: sumOf((m) => m.insights?.likes ?? m.like_count ?? 0), color: COLORS.likes },
+    { label: dict.metrics.comments, value: sumOf((m) => m.insights?.comments ?? m.comments_count ?? 0), color: COLORS.comments },
+    { label: dict.metrics.saved, value: sumOf((m) => m.insights?.saved ?? 0), color: COLORS.saved },
+    { label: dict.metrics.shares, value: sumOf((m) => m.insights?.shares ?? 0), color: COLORS.shares },
   ].filter((s) => s.value > 0);
 
   const sum = segments.reduce((a, s) => a + s.value, 0);
@@ -384,7 +412,7 @@ function EngagementDonut({ items }: { items: MediaItem[] }) {
             {formatCompact(activeSeg ? activeSeg.value : sum)}
           </span>
           <span className="text-[10px] text-subtle">
-            {activeSeg ? activeSeg.label.toLowerCase() : "interactions"}
+            {activeSeg ? activeSeg.label : dict.interactionsLabel}
           </span>
         </div>
       </div>
@@ -404,7 +432,7 @@ function EngagementDonut({ items }: { items: MediaItem[] }) {
             </span>
             <span className="font-medium text-foreground">
               {formatCompact(s.value)}
-              <span className="ml-1 text-subtle">
+              <span className="ms-1 text-subtle">
                 {sum > 0 ? `${((s.value / sum) * 100).toFixed(0)}%` : "0%"}
               </span>
             </span>
@@ -416,13 +444,21 @@ function EngagementDonut({ items }: { items: MediaItem[] }) {
 }
 
 /** Engagement rate (interactions ÷ views) per post over time, with hover dots. */
-function EngagementRateLine({ items }: { items: MediaItem[] }) {
+function EngagementRateLine({
+  items,
+  dict,
+  locale,
+}: {
+  items: MediaItem[];
+  dict: Dict["myAccount"];
+  locale: Locale;
+}) {
   const [hover, setHover] = useState<number | null>(null);
 
   const data = items
     .map((m) => {
       const rate = engagementRateOf(m);
-      return rate == null ? null : { rate, date: shortDate(m.timestamp), item: m };
+      return rate == null ? null : { rate, date: shortDate(m.timestamp, locale), item: m };
     })
     .filter((d): d is { rate: number; date: string; item: MediaItem } => d != null);
 
@@ -448,9 +484,9 @@ function EngagementRateLine({ items }: { items: MediaItem[] }) {
     <div>
       <div className="mb-2 flex items-baseline gap-2">
         <span className="text-xl font-semibold text-brand">{avgRate.toFixed(1)}%</span>
-        <span className="text-xs text-subtle">avg engagement rate</span>
-        <span className="ml-auto text-[11px] text-subtle">
-          best {max.toFixed(1)}% · worst {min.toFixed(1)}%
+        <span className="text-xs text-subtle">{dict.avgEngagementRateLabel}</span>
+        <span className="ms-auto text-[11px] text-subtle">
+          {dict.bestWorst(max.toFixed(1), min.toFixed(1))}
         </span>
       </div>
       <div className="relative" onMouseLeave={() => setHover(null)}>
@@ -459,8 +495,8 @@ function EngagementRateLine({ items }: { items: MediaItem[] }) {
             <p className="text-[10px] text-subtle">{pts[hover].date}</p>
             <p className="text-sm font-semibold text-brand">{pts[hover].rate.toFixed(2)}% ER</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {formatCompact(pts[hover].item.insights?.views)} views ·{" "}
-              {formatCompact(interactionsOf(pts[hover].item))} interactions
+              {formatCompact(pts[hover].item.insights?.views)} {dict.metrics.views.toLowerCase()} ·{" "}
+              {formatCompact(interactionsOf(pts[hover].item))} {dict.interactionsLabel}
             </p>
           </ChartTooltip>
         ) : null}
@@ -510,7 +546,15 @@ function EngagementRateLine({ items }: { items: MediaItem[] }) {
 }
 
 /** Average views by weekday — when does this account perform best? */
-function BestDayChart({ items }: { items: MediaItem[] }) {
+function BestDayChart({
+  items,
+  dict,
+  weekdays,
+}: {
+  items: MediaItem[];
+  dict: Dict["myAccount"];
+  weekdays: string[];
+}) {
   const byDay: number[][] = Array.from({ length: 7 }, () => []);
   for (const m of items) {
     if (!m.timestamp) continue;
@@ -528,7 +572,7 @@ function BestDayChart({ items }: { items: MediaItem[] }) {
     <div>
       <div className="flex h-36 items-end gap-2">
         {avgs.map((v, i) => (
-          <div key={WEEKDAYS[i]} className="group flex flex-1 flex-col items-center gap-1">
+          <div key={weekdays[i]} className="group flex flex-1 flex-col items-center gap-1">
             <span
               className={`text-[10px] tabular-nums transition-opacity ${
                 i === bestIdx ? "text-brand" : "text-subtle opacity-0 group-hover:opacity-100"
@@ -541,24 +585,31 @@ function BestDayChart({ items }: { items: MediaItem[] }) {
                 i === bestIdx ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"
               }`}
               style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }}
-              title={`${WEEKDAYS[i]}: ${formatCompact(Math.round(v))} avg views (${byDay[i].length} posts)`}
+              title={dict.weekdayTooltip(weekdays[i], formatCompact(Math.round(v)), byDay[i].length)}
             />
             <span className={`text-[10px] ${i === bestIdx ? "font-semibold text-brand" : "text-subtle"}`}>
-              {WEEKDAYS[i]}
+              {weekdays[i]}
             </span>
           </div>
         ))}
       </div>
       <p className="mt-2 text-[11px] text-subtle">
-        <span className="font-medium text-brand">{WEEKDAYS[bestIdx]}</span> is your strongest
-        posting day by average views.
+        {dict.strongestDay(weekdays[bestIdx])}
       </p>
     </div>
   );
 }
 
 /** Top performers leaderboard with proportional bars. */
-function TopPerformers({ items }: { items: MediaItem[] }) {
+function TopPerformers({
+  items,
+  dict,
+  locale,
+}: {
+  items: MediaItem[];
+  dict: Dict["myAccount"];
+  locale: Locale;
+}) {
   const ranked = items
     .slice()
     .sort((a, b) => (b.insights?.views ?? 0) - (a.insights?.views ?? 0))
@@ -601,7 +652,7 @@ function TopPerformers({ items }: { items: MediaItem[] }) {
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs text-muted-foreground">
-                  {m.caption?.replace(/\s+/g, " ") || shortDate(m.timestamp) || "Untitled"}
+                  {m.caption?.replace(/\s+/g, " ") || shortDate(m.timestamp, locale) || dict.untitled}
                 </p>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
                   <div
@@ -610,9 +661,11 @@ function TopPerformers({ items }: { items: MediaItem[] }) {
                   />
                 </div>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 text-end">
                 <p className="text-xs font-semibold text-foreground">{formatCompact(views)}</p>
-                <p className="text-[10px] text-subtle">{rate != null ? `${rate.toFixed(1)}% ER` : "views"}</p>
+                <p className="text-[10px] text-subtle">
+                  {rate != null ? `${rate.toFixed(1)}% ER` : dict.metrics.views.toLowerCase()}
+                </p>
               </div>
             </a>
           </li>
@@ -623,6 +676,11 @@ function TopPerformers({ items }: { items: MediaItem[] }) {
 }
 
 export function InsightsCharts({ media, followers }: { media: MediaItem[]; followers?: number }) {
+  const dict = useDict().myAccount;
+  const locale = useLocale();
+  const metrics = useMemo(() => buildMetrics(dict.metrics), [dict]);
+  const ranges = useMemo(() => buildRanges(dict.ranges), [dict]);
+  const weekdays = useMemo(() => weekdayLabels(intlLocale(locale)), [locale]);
   const [range, setRange] = useState<RangeKey>("all");
   const [metric, setMetric] = useState<MetricKey>("views");
 
@@ -641,7 +699,7 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
   );
 
   const filtered = useMemo(() => {
-    const days = RANGES.find((r) => r.key === range)?.days;
+    const days = ranges.find((r) => r.key === range)?.days;
     if (!days) return analyzed;
     // Anchor the window to the newest analyzed post (pure across re-renders,
     // and keeps ranges meaningful even when the last sync is a few days old).
@@ -650,7 +708,7 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
     );
     const cutoff = newest - days * 24 * 3600 * 1000;
     return analyzed.filter((m) => m.timestamp && new Date(m.timestamp).getTime() >= cutoff);
-  }, [analyzed, range]);
+  }, [analyzed, range, ranges]);
 
   if (analyzed.length === 0) return null;
 
@@ -671,7 +729,7 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
     : null;
 
   // Some metrics only exist on part of the data — hide their tabs when empty.
-  const availableMetrics = METRICS.filter((m) => filtered.some((item) => (m.get(item) ?? 0) > 0));
+  const availableMetrics = metrics.filter((m) => filtered.some((item) => (m.get(item) ?? 0) > 0));
 
   return (
     <div className="space-y-4">
@@ -679,10 +737,10 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
           <Activity className="h-4 w-4 text-brand" />
-          Performance analytics
+          {dict.performanceAnalytics}
         </h3>
         <div className="flex items-center gap-1.5">
-          {RANGES.map((r) => (
+          {ranges.map((r) => (
             <Pill key={r.key} active={range === r.key} onClick={() => setRange(r.key)}>
               {r.label}
             </Pill>
@@ -692,31 +750,31 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
 
       {filtered.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border-strong p-4 text-center text-sm text-muted-foreground">
-          No analyzed posts in this time range — try a wider one.
+          {dict.noAnalyzedPosts}
         </p>
       ) : (
         <>
           {/* KPI strip with half-over-half trend deltas */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
-              label="Avg views / post"
+              label={dict.avgViewsPerPost}
               value={formatCompact(Math.round(avgViews))}
               delta={halfOverHalfDelta(viewsSeries)}
               icon={<Eye className="h-3.5 w-3.5" />}
             />
             <KpiCard
-              label="Engagement rate"
+              label={dict.engagementRate}
               value={engagementRate != null ? `${engagementRate.toFixed(1)}%` : "—"}
               delta={halfOverHalfDelta(rateSeries)}
               icon={<Heart className="h-3.5 w-3.5" />}
             />
             <KpiCard
-              label="Avg watch time"
+              label={dict.avgWatchTime}
               value={avgWatch != null ? `${(avgWatch / 1000).toFixed(1)}s` : "—"}
               icon={<Clock className="h-3.5 w-3.5" />}
             />
             <KpiCard
-              label={followers ? "Views vs followers" : "Posts analyzed"}
+              label={followers ? dict.viewsVsFollowers : dict.postsAnalyzed}
               value={
                 followers
                   ? `${((avgViews / followers) * 100).toFixed(1)}%`
@@ -728,9 +786,9 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
 
           {/* Main metric chart with switcher */}
           <ChartCard
-            title="Per-post performance"
+            title={dict.perPostPerformance}
             icon={<BarChart3 className="h-4 w-4" />}
-            hint="hover a bar · click to open the post"
+            hint={dict.hoverBarHint}
             actions={
               <div className="flex max-w-full items-center gap-1.5 overflow-x-auto pb-0.5">
                 {availableMetrics.map((m) => (
@@ -745,38 +803,41 @@ export function InsightsCharts({ media, followers }: { media: MediaItem[]; follo
             <MetricBarChart
               items={filtered}
               metricKey={availableMetrics.some((m) => m.key === metric) ? metric : "views"}
+              metrics={metrics}
+              dict={dict}
+              locale={locale}
             />
           </ChartCard>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title="Engagement mix" icon={<PieChart className="h-4 w-4" />}>
-              <EngagementDonut items={filtered} />
+            <ChartCard title={dict.engagementMix} icon={<PieChart className="h-4 w-4" />}>
+              <EngagementDonut items={filtered} dict={dict} />
             </ChartCard>
             <ChartCard
-              title="Best day to post"
+              title={dict.bestDayToPost}
               icon={<CalendarDays className="h-4 w-4" />}
-              hint="avg views by weekday"
+              hint={dict.avgViewsByWeekdayHint}
             >
-              <BestDayChart items={filtered} />
+              <BestDayChart items={filtered} dict={dict} weekdays={weekdays} />
             </ChartCard>
           </div>
 
           {filtered.length >= 2 ? (
             <ChartCard
-              title="Engagement rate trend"
+              title={dict.engagementRateTrend}
               icon={<LineChartIcon className="h-4 w-4" />}
-              hint="interactions ÷ views per post"
+              hint={dict.interactionsPerViewsHint}
             >
-              <EngagementRateLine items={filtered} />
+              <EngagementRateLine items={filtered} dict={dict} locale={locale} />
             </ChartCard>
           ) : null}
 
           <ChartCard
-            title="Top performers"
+            title={dict.topPerformers}
             icon={<Trophy className="h-4 w-4" />}
-            hint="by views in this range"
+            hint={dict.byViewsHint}
           >
-            <TopPerformers items={filtered} />
+            <TopPerformers items={filtered} dict={dict} locale={locale} />
           </ChartCard>
         </>
       )}

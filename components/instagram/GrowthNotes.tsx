@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiThinking } from "@/components/ui/ai-thinking";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type GrowthNotesProps = {
   connected?: boolean;
@@ -18,13 +19,6 @@ type NotesResponse = {
 
 const POST_COUNTS = [10, 20, 50] as const;
 type PostCount = (typeof POST_COUNTS)[number];
-
-const THINKING_MESSAGES = [
-  "Reading your recent posts…",
-  "Spotting engagement patterns…",
-  "Comparing timing and formats…",
-  "Writing data-backed recommendations…",
-];
 
 // Reveals an array of notes one after another, word by word, like an AI typing
 // its answer. Notes not yet reached stay hidden; the active one shows a caret.
@@ -73,7 +67,7 @@ function TypewriterNotes({ notes }: { notes: string[] }) {
             <span>
               {isActive ? progress.text : note}
               {isActive ? (
-                <span className="ml-0.5 inline-block w-1.5 animate-pulse text-brand">▍</span>
+                <span className="ms-0.5 inline-block w-1.5 animate-pulse text-brand">▍</span>
               ) : null}
             </span>
           </li>
@@ -84,6 +78,7 @@ function TypewriterNotes({ notes }: { notes: string[] }) {
 }
 
 export function GrowthNotes({ connected = false }: GrowthNotesProps) {
+  const dict = useDict().myAccount;
   const [isLoading, setIsLoading] = useState(false);
   const [notes, setNotes] = useState<string[]>([]);
   const [degraded, setDegraded] = useState(false);
@@ -113,7 +108,7 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
       const json = (await response.json()) as NotesResponse;
 
       if (!response.ok || json.error) {
-        setError(json.error ?? "Failed to generate notes.");
+        setError(json.error ?? dict.failedToGenerateNotes);
       } else {
         setNotes(json.notes ?? []);
         setDegraded(Boolean(json.degraded));
@@ -122,8 +117,8 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
     } catch (err) {
       setError(
         err instanceof DOMException && err.name === "AbortError"
-          ? "This took too long and timed out. Please try again."
-          : "Failed to generate notes."
+          ? dict.notesTimedOut
+          : dict.failedToGenerateNotes
       );
     } finally {
       clearTimeout(timer);
@@ -134,23 +129,23 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
   return (
     <section className="relative space-y-4 overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 text-foreground">
       {/* Soft brand glow in the corner to make the AI card feel alive. */}
-      <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -end-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
 
       <div className="relative flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
             <Sparkles className="h-5 w-5 text-brand" />
-            AI Growth Notes
+            {dict.growthNotesHeading}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Data-backed recommendations generated from your most recent posts.
+            {dict.growthNotesSubtitle}
           </p>
         </div>
 
         <div className="flex flex-col items-end gap-2">
           {/* Post-count selector — controls how many recent posts the AI reads. */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-subtle">Analyze last</span>
+            <span className="text-[11px] text-subtle">{dict.analyzeLast}</span>
             <div className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-0.5">
               {POST_COUNTS.map((count) => (
                 <button
@@ -168,32 +163,31 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
                 </button>
               ))}
             </div>
-            <span className="text-[11px] text-subtle">posts</span>
+            <span className="text-[11px] text-subtle">{dict.postsUnit}</span>
           </div>
 
           <Button type="button" onClick={generate} disabled={isLoading || !connected}>
             <Sparkles className={`h-4 w-4 ${isLoading ? "animate-pulse" : ""}`} />
-            {isLoading ? "Analyzing…" : notes.length > 0 ? "Regenerate" : "Generate Notes"}
+            {isLoading ? dict.analyzing : notes.length > 0 ? dict.regenerate : dict.generateNotes}
           </Button>
         </div>
       </div>
 
       {!connected ? (
         <p className="relative text-sm text-warning">
-          Connect Instagram to generate AI growth notes.
+          {dict.connectToGenerateNotes}
         </p>
       ) : null}
 
       {error ? <p className="relative text-sm text-danger">{error}</p> : null}
 
-      {isLoading ? <AiThinking messages={THINKING_MESSAGES} className="relative" /> : null}
+      {isLoading ? <AiThinking messages={dict.growthNotesThinkingMessages} className="relative" /> : null}
 
       {!isLoading && notes.length > 0 ? (
         <div className="relative space-y-2">
           {degraded ? (
             <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-warning">
-              Showing general guidance — live AI notes weren&apos;t available this time. Try again in
-              a moment.
+              {dict.notesDegraded}
             </p>
           ) : null}
 
@@ -202,7 +196,7 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
           {!degraded && analyzed != null ? (
             <p className="flex items-center gap-1.5 pt-1 text-[11px] text-subtle">
               <TrendingUp className="h-3 w-3" />
-              Based on your {analyzed} most recent {analyzed === 1 ? "post" : "posts"}.
+              {dict.basedOnPosts(analyzed)}
             </p>
           ) : null}
         </div>
@@ -210,8 +204,7 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
 
       {!isLoading && notes.length === 0 && !error && connected ? (
         <p className="relative text-sm text-subtle">
-          Pick how many recent posts to analyze, then generate AI recommendations from your
-          Instagram data.
+          {dict.pickHowMany}
         </p>
       ) : null}
     </section>

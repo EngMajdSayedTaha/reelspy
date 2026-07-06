@@ -1,11 +1,15 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 import type { AutomationEvent, AutomationEventStatus } from "@/lib/auto-reply/types";
 
 type EventLogProps = {
   events: AutomationEvent[];
 };
 
-function StatusBadge({ status }: { status: AutomationEventStatus }) {
+function StatusBadge({ status, label }: { status: AutomationEventStatus; label: string }) {
   const styles: Record<AutomationEventStatus, string> = {
     sent: "border-success/50 bg-success/15 text-success",
     failed: "border-danger/50 bg-danger/15 text-danger",
@@ -14,39 +18,42 @@ function StatusBadge({ status }: { status: AutomationEventStatus }) {
   };
   return (
     <Badge variant="outline" className={styles[status]}>
-      {status}
+      {label}
     </Badge>
   );
 }
 
 // Server-rendered activity log: one row per comment the bot acted on.
 export function EventLog({ events }: EventLogProps) {
+  const dict = useDict().automations.eventLog;
+  const locale = useLocale();
+
   if (events.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-        No activity yet. When a follower comments one of your keywords, it shows up here.
+        {dict.emptyIg}
       </div>
     );
   }
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-card">
-      <table className="w-full min-w-[680px] text-left text-sm">
+      <table className="w-full min-w-[680px] text-start text-sm">
         <thead>
           <tr className="border-b border-border text-xs uppercase tracking-wide text-subtle">
-            <th className="px-4 py-3 font-medium">When</th>
-            <th className="px-4 py-3 font-medium">Follower</th>
-            <th className="px-4 py-3 font-medium">Comment</th>
-            <th className="px-4 py-3 font-medium">Keyword</th>
-            <th className="px-4 py-3 font-medium">Reply</th>
-            <th className="px-4 py-3 font-medium">DM</th>
+            <th className="px-4 py-3 font-medium">{dict.whenHeader}</th>
+            <th className="px-4 py-3 font-medium">{dict.followerHeader}</th>
+            <th className="px-4 py-3 font-medium">{dict.commentHeader}</th>
+            <th className="px-4 py-3 font-medium">{dict.keywordHeader}</th>
+            <th className="px-4 py-3 font-medium">{dict.replyHeader}</th>
+            <th className="px-4 py-3 font-medium">{dict.dmHeader}</th>
           </tr>
         </thead>
         <tbody>
           {events.map((event) => (
             <tr key={event.id} className="border-b border-secondary last:border-b-0">
               <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                {new Date(event.created_at).toLocaleString("en-US", {
+                {new Date(event.created_at).toLocaleString(intlLocale(locale), {
                   month: "short",
                   day: "numeric",
                   hour: "2-digit",
@@ -64,7 +71,7 @@ export function EventLog({ events }: EventLogProps) {
               <td className="whitespace-nowrap px-4 py-3">
                 {event.matched_keyword ? (
                   <Badge variant="outline" className="border-border-strong text-muted-foreground">
-                    {event.matched_keyword === "*" ? "any" : event.matched_keyword}
+                    {event.matched_keyword === "*" ? dict.anyKeyword : event.matched_keyword}
                   </Badge>
                 ) : (
                   "—"
@@ -72,7 +79,7 @@ export function EventLog({ events }: EventLogProps) {
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
-                  <StatusBadge status={event.public_reply_status} />
+                  <StatusBadge status={event.public_reply_status} label={dict.statusLabels[event.public_reply_status]} />
                   {event.public_reply_error ? (
                     <span className="max-w-[200px] truncate text-xs text-danger" title={event.public_reply_error}>
                       {event.public_reply_error}
@@ -82,7 +89,7 @@ export function EventLog({ events }: EventLogProps) {
               </td>
               <td className="px-4 py-3">
                 <div className="flex flex-col gap-1">
-                  <StatusBadge status={event.dm_status} />
+                  <StatusBadge status={event.dm_status} label={dict.statusLabels[event.dm_status]} />
                   {event.dm_error ? (
                     <span className="max-w-[200px] truncate text-xs text-danger" title={event.dm_error}>
                       {event.dm_error}

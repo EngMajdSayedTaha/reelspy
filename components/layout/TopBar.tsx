@@ -5,7 +5,7 @@ import { Menu } from "lucide-react";
 import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
 import { LanguageSwitch } from "@/components/layout/LanguageSwitch";
 import type { Dict } from "@/lib/i18n/dictionaries";
-import type { Locale } from "@/lib/i18n/config";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 
 type TitleKey = keyof Dict["titles"];
 
@@ -27,14 +27,14 @@ const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
 
 type TopBarProps = {
   onMenu: () => void;
-  dict: Dict;
-  locale: Locale;
 };
 
-export function TopBar({ onMenu, dict, locale }: TopBarProps) {
+export function TopBar({ onMenu }: TopBarProps) {
   const pathname = usePathname();
+  const dict = useDict();
+  const locale = useLocale();
   const titleKey = TITLES.find((t) => t.match(pathname))?.key;
-  const current = titleKey ? dict.titles[titleKey] : "ReelSpy";
+  const current = titleKey ? dict.titles[titleKey] : dict.shell.appName;
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur sm:px-6 lg:px-8">

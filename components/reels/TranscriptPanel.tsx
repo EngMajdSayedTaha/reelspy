@@ -7,15 +7,7 @@ import { AiThinking } from "@/components/ui/ai-thinking";
 import { Button } from "@/components/ui/button";
 import { extractHook } from "@/lib/utils/hook";
 import { saveHook } from "@/app/dashboard/hooks/actions";
-
-const TRANSCRIPT_LOADING_MESSAGES = [
-  "Fetching the reel…",
-  "Listening to the audio…",
-  "Writing down every word…",
-  "Catching the hook and pacing…",
-  "Cleaning up the text…",
-  "Almost there…",
-];
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type TranscriptStatus = "none" | "pending" | "ready" | "failed";
 
@@ -46,6 +38,7 @@ export function TranscriptPanel({
   initialSource,
   initialLanguage,
 }: TranscriptPanelProps) {
+  const dict = useDict().feed.transcript;
   const [transcript, setTranscript] = useState<string | null>(initialTranscript);
   const [srt, setSrt] = useState<string | null>(initialSrt);
   const [status, setStatus] = useState<TranscriptStatus>(initialStatus);
@@ -64,10 +57,10 @@ export function TranscriptPanel({
     try {
       await navigator.clipboard.writeText(transcript);
       setCopied(true);
-      toast.success("Transcript copied.");
+      toast.success(dict.copiedToast);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error("Could not copy transcript.");
+      toast.error(dict.copyError);
     }
   };
 
@@ -76,17 +69,17 @@ export function TranscriptPanel({
   const saveHookFromTranscript = () => {
     const hook = extractHook(transcript);
     if (!hook) {
-      toast.error("Couldn't find a hook in this transcript.");
+      toast.error(dict.hookNotFoundError);
       return;
     }
     setHookSaved(true);
     startSaveHook(async () => {
       try {
         await saveHook({ text: hook, reelId, source: "transcript" });
-        toast.success("Hook saved to your library");
+        toast.success(dict.hookSavedToast);
       } catch {
         setHookSaved(false);
-        toast.error("Could not save the hook.");
+        toast.error(dict.hookSaveError);
       }
     });
   };
@@ -103,9 +96,9 @@ export function TranscriptPanel({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      toast.success("Downloaded .srt file.");
+      toast.success(dict.downloadedToast);
     } catch {
-      toast.error("Could not download the .srt file.");
+      toast.error(dict.downloadError);
     }
   };
 
@@ -121,7 +114,7 @@ export function TranscriptPanel({
 
       if (!response.ok || json.error) {
         setStatus("failed");
-        toast.error(json.error ?? "Could not generate transcript.");
+        toast.error(json.error ?? dict.generateError);
         return;
       }
 
@@ -130,10 +123,10 @@ export function TranscriptPanel({
       setStatus(json.status ?? "ready");
       setSource(json.source ?? null);
       setLanguage(json.language ?? null);
-      toast.success(json.cached ? "Loaded saved transcript." : "Transcript ready.");
+      toast.success(json.cached ? dict.cachedToast : dict.readyToast);
     } catch {
       setStatus("failed");
-      toast.error("Could not generate transcript.");
+      toast.error(dict.generateError);
     } finally {
       setIsLoading(false);
     }
@@ -144,10 +137,10 @@ export function TranscriptPanel({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="h-4 w-4 shrink-0 text-brand" />
-          <p className="font-medium text-foreground">Reel Transcript</p>
+          <p className="font-medium text-foreground">{dict.heading}</p>
           {hasTranscript && source ? (
             <span className="truncate text-xs text-subtle">
-              AI transcription{language ? ` · ${language}` : ""}
+              {dict.aiTranscriptionLabel(language)}
             </span>
           ) : null}
         </div>
@@ -161,14 +154,14 @@ export function TranscriptPanel({
               onClick={saveHookFromTranscript}
               disabled={savingHook || hookSaved}
               className="shrink-0"
-              title="Save this reel's opening line to your hook library"
+              title={dict.saveHookTitle}
             >
               {hookSaved ? (
                 <Check className="h-4 w-4 text-success" />
               ) : (
                 <BookmarkPlus className="h-4 w-4" />
               )}
-              {hookSaved ? "Saved" : "Save hook"}
+              {hookSaved ? dict.saved : dict.saveHookButton}
             </Button>
           )}
 
@@ -185,7 +178,7 @@ export function TranscriptPanel({
               ) : (
                 <Copy className="h-4 w-4" />
               )}
-              {copied ? "Copied!" : "Copy"}
+              {copied ? dict.copiedButton : dict.copyButton}
             </Button>
           )}
 
@@ -196,10 +189,10 @@ export function TranscriptPanel({
               variant="outline"
               onClick={downloadSrt}
               className="shrink-0"
-              title="Download timed captions (.srt) matching the audio"
+              title={dict.srtTitle}
             >
               <Download className="h-4 w-4" />
-              .srt
+              {dict.srtButton}
             </Button>
           )}
 
@@ -216,26 +209,24 @@ export function TranscriptPanel({
             ) : hasTranscript ? (
               <RefreshCw className="h-4 w-4" />
             ) : null}
-            {isLoading ? "Transcribing…" : hasTranscript ? "Regenerate" : "Generate transcript"}
+            {isLoading ? dict.transcribing : hasTranscript ? dict.regenerateButton : dict.generateButton}
           </Button>
         </div>
       </div>
 
       {isLoading ? (
-        <AiThinking messages={TRANSCRIPT_LOADING_MESSAGES} className="mt-3" />
+        <AiThinking messages={dict.loadingMessages} className="mt-3" />
       ) : hasTranscript ? (
         <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-background p-3 leading-relaxed text-foreground">
           {transcript}
         </div>
       ) : status === "failed" ? (
         <p className="mt-3 text-subtle">
-          We couldn&apos;t transcribe this reel. It may be private, very long, or temporarily
-          unavailable — try again in a bit.
+          {dict.failedMessage}
         </p>
       ) : (
         <p className="mt-3 text-subtle">
-          Generate the spoken transcript of this reel to study its hook, pacing, and structure.
-          You can copy the text or download timed captions as an .srt file that matches the audio.
+          {dict.introMessage}
         </p>
       )}
     </div>

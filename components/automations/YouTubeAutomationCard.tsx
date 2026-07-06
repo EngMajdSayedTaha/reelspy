@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDict } from "@/lib/i18n/I18nProvider";
 import type { YouTubeAutomation } from "@/lib/auto-reply/types";
 
 type ActionState = { error?: string };
@@ -28,6 +29,8 @@ export function YouTubeAutomationCard({
   deleteAction,
 }: YouTubeAutomationCardProps) {
   const confirm = useConfirm();
+  const dict = useDict().automations.ytCard;
+  const common = useDict().common;
   const isActive = automation.is_active;
 
   const [editing, setEditing] = useState(false);
@@ -45,18 +48,18 @@ export function YouTubeAutomationCard({
     startTransition(async () => {
       try {
         await toggleActiveAction(data);
-        toast.success(isActive ? "YouTube automation paused" : "YouTube automation resumed");
+        toast.success(isActive ? dict.toastPaused : dict.toastResumed);
       } catch {
-        toast.error("Could not update the automation.");
+        toast.error(dict.toastUpdateError);
       }
     });
   };
 
   const handleDelete = async () => {
     const ok = await confirm({
-      title: "Delete this YouTube automation?",
-      description: "Comments on this video will no longer get an auto-reply.",
-      confirmText: "Delete",
+      title: dict.confirmDeleteTitle,
+      description: dict.confirmDeleteDesc,
+      confirmText: common.delete,
       destructive: true,
     });
     if (!ok) return;
@@ -66,9 +69,9 @@ export function YouTubeAutomationCard({
     startTransition(async () => {
       try {
         await deleteAction(data);
-        toast.success("YouTube automation deleted");
+        toast.success(dict.toastDeleted);
       } catch {
-        toast.error("Could not delete the automation.");
+        toast.error(dict.toastDeleteError);
       }
     });
   };
@@ -87,9 +90,9 @@ export function YouTubeAutomationCard({
           return;
         }
         setEditing(false);
-        toast.success("YouTube automation updated");
+        toast.success(dict.toastUpdated);
       } catch {
-        toast.error("Could not update the automation.");
+        toast.error(dict.toastUpdateError);
       }
     });
   };
@@ -105,7 +108,7 @@ export function YouTubeAutomationCard({
       {!isActive ? (
         <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning">
           <PauseCircle className="h-4 w-4 shrink-0" />
-          Paused — comments on this video are ignored
+          {dict.pausedNotice}
         </div>
       ) : null}
 
@@ -126,7 +129,7 @@ export function YouTubeAutomationCard({
           <div className="mt-1 flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
-                Any comment
+                {dict.anyComment}
               </Badge>
             ) : (
               automation.keywords.map((keyword) => (
@@ -141,7 +144,7 @@ export function YouTubeAutomationCard({
           variant={isActive ? "default" : "outline"}
           className={isActive ? "" : "border-warning/50 bg-warning/15 text-warning"}
         >
-          {isActive ? "Active" : "Paused"}
+          {isActive ? dict.active : dict.paused}
         </Badge>
       </div>
 
@@ -149,7 +152,7 @@ export function YouTubeAutomationCard({
         <div className="space-y-3">
           {automation.match_mode !== "any" ? (
             <div className="space-y-1.5">
-              <Label htmlFor={`yt_keywords_${automation.id}`}>Keywords (comma separated)</Label>
+              <Label htmlFor={`yt_keywords_${automation.id}`}>{dict.keywordsLabel}</Label>
               <Input
                 id={`yt_keywords_${automation.id}`}
                 value={keywords}
@@ -159,7 +162,7 @@ export function YouTubeAutomationCard({
             </div>
           ) : null}
           <div className="space-y-1.5">
-            <Label htmlFor={`yt_templates_${automation.id}`}>Public replies (one per line)</Label>
+            <Label htmlFor={`yt_templates_${automation.id}`}>{dict.publicRepliesLabel}</Label>
             <Textarea
               id={`yt_templates_${automation.id}`}
               rows={3}
@@ -170,7 +173,7 @@ export function YouTubeAutomationCard({
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" className="flex-1" onClick={handleSave} disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
+              {isPending ? common.saving : common.save}
             </Button>
             <Button
               type="button"
@@ -179,16 +182,16 @@ export function YouTubeAutomationCard({
               onClick={() => setEditing(false)}
               disabled={isPending}
             >
-              Cancel
+              {common.cancel}
             </Button>
           </div>
         </div>
       ) : (
         <>
           <p className="line-clamp-2 text-xs text-subtle">
-            Reply: {automation.public_reply_templates[0] ?? "—"}
+            {dict.replyPrefix} {automation.public_reply_templates[0] ?? "—"}
             {automation.public_reply_templates.length > 1
-              ? ` (+${automation.public_reply_templates.length - 1} more)`
+              ? dict.moreCount(automation.public_reply_templates.length - 1)
               : ""}
           </p>
 
@@ -202,7 +205,7 @@ export function YouTubeAutomationCard({
               disabled={isPending}
             >
               <Pencil className="h-4 w-4" />
-              Edit
+              {common.edit}
             </Button>
             <Button
               type="button"
@@ -210,12 +213,12 @@ export function YouTubeAutomationCard({
               variant="outline"
               onClick={handleToggleActive}
               disabled={isPending}
-              aria-label={isActive ? "Pause YouTube automation" : "Resume YouTube automation"}
-              title={isActive ? "Pause" : "Resume"}
+              aria-label={isActive ? dict.pauseAria : dict.resumeAria}
+              title={isActive ? dict.pauseTitle : dict.resume}
               className={isActive ? "" : "border-warning/50 text-warning hover:bg-warning/10"}
             >
               <Power className="h-4 w-4" />
-              {!isActive ? "Resume" : null}
+              {!isActive ? dict.resume : null}
             </Button>
             <Button
               type="button"
@@ -223,8 +226,8 @@ export function YouTubeAutomationCard({
               variant="outline"
               onClick={handleDelete}
               disabled={isPending}
-              aria-label="Delete YouTube automation"
-              title="Delete YouTube automation"
+              aria-label={dict.deleteAria}
+              title={dict.deleteTitle}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

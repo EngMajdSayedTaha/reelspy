@@ -6,6 +6,8 @@ import { ExternalLink, History, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type SourceAccount = { ig_username: string; avatar_url: string | null };
 
@@ -59,6 +61,7 @@ const STATUS_COLORS: Record<string, string> = {
 const FILTER_OPTIONS = ["all", "draft", "ready", "published"] as const;
 
 function CopyButton({ text }: { text: string }) {
+  const dict = useDict();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -70,7 +73,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       className="text-xs text-subtle transition hover:text-brand"
     >
-      {copied ? "Copied!" : "Copy"}
+      {copied ? dict.scripts.copied : dict.scripts.copy}
     </button>
   );
 }
@@ -88,6 +91,9 @@ function ScriptCard({
   scheduleAction: (id: string, date: string) => Promise<void>;
   highlight?: boolean;
 }) {
+  const dict = useDict();
+  const locale = useLocale();
+  const s = dict.scripts;
   const confirm = useConfirm();
   const [expanded, setExpanded] = useState(Boolean(highlight));
   const [isPending, startTransition] = useTransition();
@@ -103,9 +109,9 @@ function ScriptCard({
     startTransition(async () => {
       try {
         await updateStatusAction(script.id, newStatus);
-        toast.success(`Moved to ${newStatus}`);
+        toast.success(s.movedTo(s.statuses[newStatus]));
       } catch {
-        toast.error("Could not update the script status.");
+        toast.error(s.couldNotUpdateStatus);
       }
     });
   };
@@ -116,18 +122,18 @@ function ScriptCard({
       try {
         await scheduleAction(script.id, scheduleDate);
         setShowSchedule(false);
-        toast.success(`Scheduled for ${scheduleDate}`);
+        toast.success(s.scheduledFor(scheduleDate));
       } catch {
-        toast.error("Could not schedule the script.");
+        toast.error(s.couldNotSchedule);
       }
     });
   };
 
   const handleDelete = async () => {
     const ok = await confirm({
-      title: "Delete this script?",
-      description: "This can't be undone.",
-      confirmText: "Delete",
+      title: s.deleteTitle,
+      description: s.deleteDescription,
+      confirmText: dict.common.delete,
       destructive: true,
     });
     if (!ok) return;
@@ -137,9 +143,9 @@ function ScriptCard({
         const formData = new FormData();
         formData.set("script_id", script.id);
         await deleteAction(formData);
-        toast.success("Script deleted");
+        toast.success(s.scriptDeleted);
       } catch {
-        toast.error("Could not delete the script.");
+        toast.error(s.couldNotDelete);
       }
     });
   };
@@ -157,17 +163,17 @@ function ScriptCard({
           <span
             className={`rounded-full border px-2 py-0.5 text-xs ${STATUS_COLORS[status] ?? STATUS_COLORS.draft}`}
           >
-            {status}
+            {s.statuses[status]}
           </span>
           {script.platform ? (
             <span className="text-xs text-subtle">{script.platform}</span>
           ) : null}
           {script.scheduled_date ? (
-            <span className="text-xs text-info">Scheduled: {script.scheduled_date}</span>
+            <span className="text-xs text-info">{s.scheduledOn(script.scheduled_date)}</span>
           ) : null}
         </div>
         <p className="text-xs text-subtle">
-          {new Date(script.created_at).toLocaleDateString("en-US", {
+          {new Date(script.created_at).toLocaleDateString(intlLocale(locale), {
             month: "short",
             day: "numeric",
             year: "numeric",
@@ -182,29 +188,29 @@ function ScriptCard({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={sourceReel.thumbnail_url}
-              alt="Source reel"
+              alt={s.sourceReelLabel}
               referrerPolicy="no-referrer"
               className="h-12 w-9 shrink-0 rounded-md object-cover"
             />
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] uppercase tracking-wide text-subtle">Source reel</p>
+            <p className="text-[10px] uppercase tracking-wide text-subtle">{s.sourceReelLabel}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {sourceAccount ? `@${sourceAccount.ig_username}` : "Tracked reel"}
+              {sourceAccount ? `@${sourceAccount.ig_username}` : s.trackedReel}
             </p>
           </div>
           <Link
             href={`/dashboard/generate/${sourceReel.id}`}
             className="shrink-0 text-xs text-brand underline-offset-4 hover:underline"
           >
-            Open
+            {s.open}
           </Link>
           <a
             href={sourceReel.ig_permalink}
             target="_blank"
             rel="noreferrer"
-            title="Open on Instagram"
-            aria-label="Open on Instagram"
+            title={s.openOnInstagram}
+            aria-label={s.openOnInstagram}
             className="shrink-0 text-subtle transition hover:text-brand"
           >
             <ExternalLink className="h-3.5 w-3.5" />
@@ -214,7 +220,7 @@ function ScriptCard({
 
       {/* Hook always visible */}
       <div>
-        <p className="text-xs uppercase tracking-wide text-subtle">Hook</p>
+        <p className="text-xs uppercase tracking-wide text-subtle">{s.hook}</p>
         <p className="mt-0.5 text-sm text-foreground">{script.hook}</p>
       </div>
 
@@ -222,11 +228,11 @@ function ScriptCard({
       {expanded ? (
         <>
           <div>
-            <p className="text-xs uppercase tracking-wide text-subtle">Body</p>
+            <p className="text-xs uppercase tracking-wide text-subtle">{s.body}</p>
             <p className="mt-0.5 whitespace-pre-line text-sm text-foreground">{script.body}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-wide text-subtle">CTA</p>
+            <p className="text-xs uppercase tracking-wide text-subtle">{s.cta}</p>
             <p className="mt-0.5 text-sm text-foreground">{script.cta}</p>
           </div>
         </>
@@ -237,16 +243,16 @@ function ScriptCard({
         <div className="flex gap-2">
           <input
             type="date"
-            aria-label="Publish date"
+            aria-label={s.publishDateLabel}
             value={scheduleDate}
             onChange={(e) => setScheduleDate(e.target.value)}
             className="rounded-md border border-border-strong bg-background px-2 py-1 text-sm text-foreground"
           />
           <Button type="button" size="sm" onClick={handleSchedule} disabled={isPending || !scheduleDate}>
-            Save
+            {dict.common.save}
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={() => setShowSchedule(false)}>
-            Cancel
+            {dict.common.cancel}
           </Button>
         </div>
       ) : null}
@@ -258,7 +264,7 @@ function ScriptCard({
           onClick={() => setExpanded((v) => !v)}
           className="text-xs text-subtle hover:text-foreground transition"
         >
-          {expanded ? "Collapse" : "Expand"}
+          {expanded ? s.collapse : s.expand}
         </button>
 
         <CopyButton text={fullScript} />
@@ -268,19 +274,19 @@ function ScriptCard({
           onClick={() => setShowSchedule((v) => !v)}
           className="text-xs text-subtle hover:text-info transition"
         >
-          Schedule
+          {s.schedule}
         </button>
 
-        <div className="ml-auto flex gap-1">
-          {STATUS_OPTIONS.filter((s) => s !== status).map((s) => (
+        <div className="ms-auto flex gap-1">
+          {STATUS_OPTIONS.filter((opt) => opt !== status).map((opt) => (
             <button
-              key={s}
+              key={opt}
               type="button"
               disabled={isPending}
-              onClick={() => handleStatusChange(s)}
+              onClick={() => handleStatusChange(opt)}
               className="rounded border border-border-strong px-2 py-0.5 text-xs text-muted-foreground transition hover:border-border-strong disabled:opacity-40"
             >
-              → {s}
+              <span className="inline-block rtl:-scale-x-100">→</span> {s.statuses[opt]}
             </button>
           ))}
         </div>
@@ -291,7 +297,7 @@ function ScriptCard({
           onClick={handleDelete}
           className="text-xs text-subtle transition hover:text-danger disabled:opacity-50"
         >
-          Delete
+          {dict.common.delete}
         </button>
       </div>
     </article>
@@ -299,6 +305,8 @@ function ScriptCard({
 }
 
 export function ScriptsList({ scripts, deleteAction, updateStatusAction, scheduleAction }: ScriptsListProps) {
+  const dict = useDict();
+  const t = dict.scripts;
   const [filter, setFilter] = useState<"all" | "draft" | "ready" | "published">("all");
   const [query, setQuery] = useState("");
   // When opened from the calendar via /dashboard/scripts?script=<id>, highlight
@@ -341,7 +349,7 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
             <History className="h-4 w-4 text-brand" />
-            History
+            {t.history}
           </span>
           <div className="flex gap-2">
             {FILTER_OPTIONS.map((f) => (
@@ -349,24 +357,24 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
                 key={f}
                 type="button"
                 onClick={() => setFilter(f)}
-                className={`text-sm capitalize transition ${
+                className={`text-sm transition ${
                   filter === f ? "text-brand" : "text-subtle hover:text-foreground"
                 }`}
               >
-                {f} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})
+                {t.statuses[f]} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})
               </button>
             ))}
           </div>
         </div>
 
         <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search scripts…"
-            className="h-8 w-48 rounded-lg border border-border-strong bg-surface-2 pl-8 pr-2 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60"
+            placeholder={t.searchPlaceholder}
+            className="h-8 w-48 rounded-lg border border-border-strong bg-surface-2 ps-8 pe-2 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60"
           />
         </div>
       </div>
@@ -374,10 +382,10 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
           {query
-            ? `No scripts match “${query}”.`
+            ? t.noScriptsMatch(query)
             : filter === "all"
-              ? "No scripts yet. Generate one above or from the Feed page."
-              : `No ${filter} scripts.`}
+              ? t.noScriptsYet
+              : t.noStatusScripts(t.statuses[filter].toLowerCase())}
         </div>
       ) : (
         <div className="grid gap-3">
