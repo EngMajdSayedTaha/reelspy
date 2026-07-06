@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ActionState = { error?: string };
 type ActionFn = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
@@ -17,6 +18,7 @@ type AddAccountFormProps = {
 };
 
 export function AddAccountForm({ action, groups }: AddAccountFormProps) {
+  const dict = useDict().accounts;
   const [username, setUsername] = useState("");
   const [groupId, setGroupId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
   const submit = () => {
     const handle = username.trim().replace(/^@+/, "");
     if (!handle) {
-      setError("Instagram username is required.");
+      setError(dict.actions.usernameRequired);
       return;
     }
     setError(null);
@@ -45,10 +47,12 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
         setUsername("");
         const groupName = groups.find((g) => g.id === groupId)?.name;
         toast.success(
-          `Added @${handle.toLowerCase()}${groupName ? ` to “${groupName}”` : ""}`
+          groupName
+            ? dict.addForm.addedToGroupToast(handle.toLowerCase(), groupName)
+            : dict.addForm.addedToast(handle.toLowerCase())
         );
       } catch {
-        const message = "Could not add the account. Please try again.";
+        const message = dict.addForm.addFailedToast;
         setError(message);
         toast.error(message);
       }
@@ -59,7 +63,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
     <div className="rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
         <div className="space-y-2">
-          <Label htmlFor="ig_username">Instagram Username</Label>
+          <Label htmlFor="ig_username">{dict.addForm.usernameLabel}</Label>
           <Input
             id="ig_username"
             name="ig_username"
@@ -78,16 +82,16 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
 
         {groups.length > 0 ? (
           <div className="space-y-2">
-            <Label htmlFor="add_group">Group</Label>
+            <Label htmlFor="add_group">{dict.addForm.groupLabel}</Label>
             <select
               id="add_group"
-              aria-label="Group for the new account"
+              aria-label={dict.addForm.groupSelectAria}
               value={groupId}
               disabled={isPending}
               onChange={(e) => setGroupId(e.target.value)}
               className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:w-44"
             >
-              <option value="">No group</option>
+              <option value="">{dict.noGroupOption}</option>
               {groups.map((group) => (
                 <option key={group.id} value={group.id}>
                   {group.name}
@@ -103,7 +107,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
           onClick={submit}
           disabled={isPending}
         >
-          {isPending ? "Adding..." : "Add Account"}
+          {isPending ? dict.addForm.adding : dict.addForm.addButton}
         </Button>
       </div>
 

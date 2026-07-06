@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { Check, Copy, ExternalLink, PenLine, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { Check, Copy, ExternalLink, Search, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { deleteHook, setHookTags } from "@/app/dashboard/hooks/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 export type SavedHook = {
   id: string;
@@ -20,6 +21,7 @@ function useInScriptHref(text: string): string {
 }
 
 function HookCard({ hook }: { hook: SavedHook }) {
+  const dict = useDict().hooks.library;
   const [tags, setTags] = useState<string[]>(hook.tags);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -30,10 +32,10 @@ function HookCard({ hook }: { hook: SavedHook }) {
     try {
       await navigator.clipboard.writeText(hook.text);
       setCopied(true);
-      toast.success("Hook copied");
+      toast.success(dict.copiedToast);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Could not copy");
+      toast.error(dict.copyError);
     }
   };
 
@@ -45,7 +47,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
         await setHookTags({ id: hook.id, tags: next });
       } catch {
         setTags(previous);
-        toast.error("Could not update tags");
+        toast.error(dict.tagsUpdateError);
       }
     });
   };
@@ -63,9 +65,9 @@ function HookCard({ hook }: { hook: SavedHook }) {
     startTransition(async () => {
       try {
         await deleteHook(hook.id);
-        toast.success("Hook removed");
+        toast.success(dict.removedToast);
       } catch {
-        toast.error("Could not remove hook");
+        toast.error(dict.removeError);
       }
     });
   };
@@ -78,16 +80,16 @@ function HookCard({ hook }: { hook: SavedHook }) {
           <button
             type="button"
             onClick={copy}
-            title="Copy hook"
-            aria-label="Copy hook"
+            title={dict.copyTitle}
+            aria-label={dict.copyAria}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
           >
             {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
           </button>
           <Link
             href={useInScriptHref(hook.text)}
-            title="Use in a script"
-            aria-label="Use in a script"
+            title={dict.useInScriptTitle}
+            aria-label={dict.useInScriptAria}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
           >
             <Sparkles className="h-4 w-4" />
@@ -97,8 +99,8 @@ function HookCard({ hook }: { hook: SavedHook }) {
               href={hook.permalink}
               target="_blank"
               rel="noreferrer"
-              title="Open original reel"
-              aria-label="Open original reel"
+              title={dict.openReelTitle}
+              aria-label={dict.openReelAria}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
             >
               <ExternalLink className="h-4 w-4" />
@@ -108,8 +110,8 @@ function HookCard({ hook }: { hook: SavedHook }) {
             type="button"
             onClick={remove}
             disabled={pending}
-            title="Remove hook"
-            aria-label="Remove hook"
+            title={dict.removeTitle}
+            aria-label={dict.removeAria}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-destructive/60 hover:text-destructive disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
@@ -130,7 +132,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
             <button
               type="button"
               onClick={() => removeTag(t)}
-              aria-label={`Remove tag ${t}`}
+              aria-label={dict.removeTagAria(t)}
               className="text-subtle hover:text-destructive"
             >
               <X className="h-3 w-3" />
@@ -155,7 +157,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
                 setEditing(false);
               }
             }}
-            placeholder="tag…"
+            placeholder={dict.addTagPlaceholder}
             className="h-6 w-24 rounded-full border border-border-strong bg-surface-2 px-2 text-xs text-foreground outline-none focus:border-primary/60"
           />
         ) : (
@@ -164,7 +166,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
             onClick={() => setEditing(true)}
             className="inline-flex items-center gap-1 rounded-full border border-dashed border-border-strong px-2 py-0.5 text-xs text-subtle transition hover:border-primary/60 hover:text-brand"
           >
-            <Tag className="h-3 w-3" /> tag
+            <Tag className="h-3 w-3" /> {dict.addTagButton}
           </button>
         )}
       </div>
@@ -173,6 +175,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
 }
 
 export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
+  const dict = useDict().hooks.library;
   const [query, setQuery] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
@@ -199,9 +202,7 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
   if (hooks.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-        No saved hooks yet. Save a reel&apos;s opening line from the{" "}
-        <PenLine className="inline h-3.5 w-3.5" /> transcript panel or the suggestions below, and
-        it&apos;ll live here — tag it and reuse it in any script.
+        {dict.emptyState}
       </div>
     );
   }
@@ -209,13 +210,13 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
   return (
     <div className="space-y-4">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+        <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search saved hooks…"
-          className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 pl-9 pr-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          placeholder={dict.searchPlaceholder}
+          className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
       </div>
 
@@ -244,14 +245,14 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
               onClick={() => setActiveTags([])}
               className="rounded-full px-2 py-0.5 text-xs text-subtle underline-offset-2 hover:text-foreground hover:underline"
             >
-              clear
+              {dict.clearButton}
             </button>
           ) : null}
         </div>
       ) : null}
 
       <p className="px-1 text-xs text-subtle">
-        {filtered.length} {filtered.length === 1 ? "hook" : "hooks"}
+        {dict.count(filtered.length)}
       </p>
 
       <div className="grid gap-3">

@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { HooksExplorer } from "@/components/hooks/HooksExplorer";
 import { SavedHooksLibrary, type SavedHook } from "@/components/hooks/SavedHooksLibrary";
 import { extractHook } from "@/lib/utils/hook";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type ReelRow = {
   id: string;
@@ -45,6 +48,8 @@ function usernameOf(row: ReelRow): string {
 }
 
 export default async function HooksPage() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).hooks;
   const supabase = await createClient();
 
   const {
@@ -105,25 +110,23 @@ export default async function HooksPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Hook Library</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Save the opening lines that stop the scroll, tag them by niche or angle, and reuse
-          them in any script.
+          {dict.page.subtitle}
         </p>
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Saved hooks</h2>
+        <h2 className="text-lg font-semibold text-foreground">{dict.page.savedHeading}</h2>
         <SavedHooksLibrary hooks={savedHooks} />
       </section>
 
       {suggestions.length > 0 ? (
         <section className="space-y-3">
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold text-foreground">From your transcripts</h2>
+            <h2 className="text-lg font-semibold text-foreground">{dict.page.fromTranscriptsHeading}</h2>
             <p className="text-sm text-muted-foreground">
-              Opening lines pulled from every reel you&apos;ve transcribed — save the good ones to
-              your library.
+              {dict.page.fromTranscriptsSubtitle}
             </p>
           </div>
           <HooksExplorer hooks={suggestions} savedTexts={savedTexts} />

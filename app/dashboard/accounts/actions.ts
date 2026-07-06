@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,13 +12,21 @@ import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
 import { planFor } from "@/lib/billing/plans";
 import type { AiTier } from "@/lib/ai/tier";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type ActionState = { error?: string };
 
+async function dict() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale);
+}
+
 // Copy for a hit tracked-account cap (L6). Names the plan + limit so the user
 // knows what upgrading buys them.
-function accountLimitError(tier: AiTier): string {
-  return `Your ${planFor(tier).name} plan tracks up to ${limitFor(tier, "accounts")} accounts. Upgrade in Billing to add more.`;
+async function accountLimitError(tier: AiTier): Promise<string> {
+  const d = await dict();
+  return d.accounts.actions.accountLimit(planFor(tier).name, limitFor(tier, "accounts"));
 }
 
 // Count a user's tracked accounts (head-only, no rows pulled).
@@ -37,28 +46,29 @@ export async function addInspirationAccount(
   formData: FormData
 ): Promise<ActionState> {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: d.accounts.actions.unauthorized };
   }
 
   const usernameValue = formData.get("ig_username");
 
   if (typeof usernameValue !== "string") {
-    return { error: "Instagram username is required." };
+    return { error: d.accounts.actions.usernameRequired };
   }
 
   const igUsername = usernameValue.trim().replace(/^@+/, "").toLowerCase();
 
   if (!igUsername) {
-    return { error: "Instagram username is required." };
+    return { error: d.accounts.actions.usernameRequired };
   }
 
   if (!isValidIgUsername(igUsername)) {
-    return { error: "Usernames can only contain letters, numbers, dots and underscores (max 30)." };
+    return { error: d.accounts.actions.invalidUsername };
   }
 
   // Plan limit (L6): enforce the tracked-account cap before spending any Meta
@@ -74,7 +84,7 @@ export async function addInspirationAccount(
     const tier = await resolveUserTier(supabase, user.id);
     const used = await countTrackedAccounts(supabase, user.id);
     if (!withinLimit(tier, "accounts", used)) {
-      return { error: accountLimitError(tier) };
+      return { error: await accountLimitError(tier) };
     }
   }
 
@@ -89,7 +99,7 @@ export async function addInspirationAccount(
       .eq("user_id", user.id)
       .maybeSingle();
     if (!group) {
-      return { error: "Group not found." };
+      return { error: d.accounts.actions.groupNotFound };
     }
   }
 
@@ -100,7 +110,7 @@ export async function addInspirationAccount(
 
   if (!credentials) {
     return {
-      error: "Connect your Instagram account first (Settings → Instagram) before adding inspiration accounts.",
+      error: d.accounts.actions.connectInstagramFirst,
     };
   }
 
@@ -116,7 +126,7 @@ export async function addInspirationAccount(
 
   if (discoveryError || !igProfile) {
     return {
-      error: discoveryError ?? "Account not found or not a Business/Creator account.",
+      error: discoveryError ?? d.accounts.actions.accountNotFound,
     };
   }
 
@@ -163,17 +173,18 @@ export async function bulkAddInspirationAccounts(
   formData: FormData
 ): Promise<BulkAddState> {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: d.accounts.actions.unauthorized };
   }
 
   const raw = formData.get("usernames");
   if (typeof raw !== "string" || !raw.trim()) {
-    return { error: "No usernames provided." };
+    return { error: d.accounts.actions.noUsernamesProvided };
   }
 
   const candidates = Array.from(
@@ -186,17 +197,17 @@ export async function bulkAddInspirationAccounts(
   );
 
   if (candidates.length === 0) {
-    return { error: "No usernames provided." };
+    return { error: d.accounts.actions.noUsernamesProvided };
   }
   if (candidates.length > 300) {
-    return { error: "That's a lot at once — import up to 300 accounts at a time." };
+    return { error: d.accounts.actions.tooManyUsernames };
   }
 
   const invalid = candidates.filter((u) => !isValidIgUsername(u));
   const usernames = candidates.filter((u) => isValidIgUsername(u));
 
   if (usernames.length === 0) {
-    return { error: "None of those look like valid Instagram usernames.", invalid };
+    return { error: d.accounts.actions.noneValidUsernames, invalid };
   }
 
   const groupValue = formData.get("group_id");
@@ -209,7 +220,7 @@ export async function bulkAddInspirationAccounts(
       .eq("user_id", user.id)
       .maybeSingle();
     if (!group) {
-      return { error: "Group not found." };
+      return { error: d.accounts.actions.groupNotFound };
     }
   }
 
@@ -236,7 +247,7 @@ export async function bulkAddInspirationAccounts(
         fresh = fresh.slice(0, remaining);
       }
       if (remaining === 0) {
-        return { error: accountLimitError(tier), existing: existingSet.size, limited };
+        return { error: await accountLimitError(tier), existing: existingSet.size, limited };
       }
     }
   }
@@ -277,32 +288,33 @@ export async function createAccountGroup(
   formData: FormData
 ): Promise<ActionState> {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { error: "Unauthorized." };
+    return { error: d.accounts.actions.unauthorized };
   }
 
   const nameValue = formData.get("name");
   if (typeof nameValue !== "string") {
-    return { error: "Group name is required." };
+    return { error: d.accounts.actions.groupNameRequired };
   }
 
   const name = nameValue.trim();
   if (!name) {
-    return { error: "Group name is required." };
+    return { error: d.accounts.actions.groupNameRequired };
   }
   if (name.length > 40) {
-    return { error: "Group name must be 40 characters or fewer." };
+    return { error: d.accounts.actions.groupNameTooLong };
   }
 
   const { error } = await supabase.from("account_groups").insert({ user_id: user.id, name });
 
   if (error) {
     if (error.code === "23505") {
-      return { error: "A group with that name already exists." };
+      return { error: d.accounts.actions.groupNameExists };
     }
     return { error: error.message };
   }
@@ -314,17 +326,18 @@ export async function createAccountGroup(
 
 export async function deleteAccountGroup(formData: FormData) {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(d.accounts.actions.unauthorized);
   }
 
   const groupId = formData.get("group_id");
   if (typeof groupId !== "string" || !groupId) {
-    throw new Error("Group id is required.");
+    throw new Error(d.accounts.actions.groupIdRequired);
   }
 
   const { error } = await supabase
@@ -343,27 +356,28 @@ export async function deleteAccountGroup(formData: FormData) {
 
 export async function renameAccountGroup(formData: FormData) {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(d.accounts.actions.unauthorized);
   }
 
   const groupId = formData.get("group_id");
   const nameValue = formData.get("name");
 
   if (typeof groupId !== "string" || !groupId) {
-    throw new Error("Group id is required.");
+    throw new Error(d.accounts.actions.groupIdRequired);
   }
 
   const name = typeof nameValue === "string" ? nameValue.trim() : "";
   if (!name) {
-    throw new Error("Group name is required.");
+    throw new Error(d.accounts.actions.groupNameRequired);
   }
   if (name.length > 40) {
-    throw new Error("Group name must be 40 characters or fewer.");
+    throw new Error(d.accounts.actions.groupNameTooLong);
   }
 
   const { error } = await supabase
@@ -374,7 +388,7 @@ export async function renameAccountGroup(formData: FormData) {
 
   if (error) {
     if (error.code === "23505") {
-      throw new Error("A group with that name already exists.");
+      throw new Error(d.accounts.actions.groupNameExists);
     }
     throw new Error(error.message);
   }
@@ -385,19 +399,20 @@ export async function renameAccountGroup(formData: FormData) {
 
 export async function assignAccountGroup(formData: FormData) {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(d.accounts.actions.unauthorized);
   }
 
   const accountId = formData.get("account_id");
   const groupValue = formData.get("group_id");
 
   if (typeof accountId !== "string" || !accountId) {
-    throw new Error("Account id is required.");
+    throw new Error(d.accounts.actions.accountIdRequired);
   }
 
   const groupId = typeof groupValue === "string" && groupValue ? groupValue : null;
@@ -411,7 +426,7 @@ export async function assignAccountGroup(formData: FormData) {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!group) {
-      throw new Error("Group not found.");
+      throw new Error(d.accounts.actions.groupNotFound);
     }
   }
 
@@ -431,19 +446,20 @@ export async function assignAccountGroup(formData: FormData) {
 
 export async function toggleAccountActive(formData: FormData) {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(d.accounts.actions.unauthorized);
   }
 
   const accountId = formData.get("account_id");
   const desired = formData.get("is_active");
 
   if (typeof accountId !== "string" || !accountId) {
-    throw new Error("Account id is required.");
+    throw new Error(d.accounts.actions.accountIdRequired);
   }
 
   const isActive = desired === "true";
@@ -464,18 +480,19 @@ export async function toggleAccountActive(formData: FormData) {
 
 export async function removeInspirationAccount(formData: FormData) {
   const supabase = await createClient();
+  const d = await dict();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(d.accounts.actions.unauthorized);
   }
 
   const accountId = formData.get("account_id");
 
   if (typeof accountId !== "string" || !accountId) {
-    throw new Error("Account id is required.");
+    throw new Error(d.accounts.actions.accountIdRequired);
   }
 
   const { error } = await supabase

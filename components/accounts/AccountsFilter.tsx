@@ -2,23 +2,25 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type AccountsFilterProps = {
   current: string;
   counts: { all: number; active: number; paused: number };
 };
 
-const OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-] as const;
-
 export function AccountsFilter({ current, counts }: AccountsFilterProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const dict = useDict();
+
+  const OPTIONS = [
+    { value: "all", label: dict.accounts.filter.all },
+    { value: "active", label: dict.accounts.filter.active },
+    { value: "paused", label: dict.accounts.filter.paused },
+  ] as const;
 
   const select = (value: string) => {
     const next = new URLSearchParams(searchParams.toString());

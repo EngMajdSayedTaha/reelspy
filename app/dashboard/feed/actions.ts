@@ -1,22 +1,31 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+
+async function feedActionsDict() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale).feed.actions;
+}
 
 export async function markReelAsWorkedOn(formData: FormData) {
+  const dict = await feedActionsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.unauthorized);
   }
 
   const reelId = formData.get("reel_id");
 
   if (typeof reelId !== "string" || !reelId) {
-    throw new Error("Reel id is required.");
+    throw new Error(dict.reelIdRequired);
   }
 
   const { error } = await supabase
@@ -37,18 +46,19 @@ export async function markReelAsWorkedOn(formData: FormData) {
 }
 
 export async function setReelDiscarded(formData: FormData) {
+  const dict = await feedActionsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.unauthorized);
   }
 
   const reelId = formData.get("reel_id");
   if (typeof reelId !== "string" || !reelId) {
-    throw new Error("Reel id is required.");
+    throw new Error(dict.reelIdRequired);
   }
 
   const discarded = formData.get("discarded") === "true";
@@ -70,18 +80,19 @@ export async function setReelDiscarded(formData: FormData) {
 }
 
 export async function setReelFavorited(formData: FormData) {
+  const dict = await feedActionsDict();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    throw new Error("Unauthorized");
+    throw new Error(dict.unauthorized);
   }
 
   const reelId = formData.get("reel_id");
   if (typeof reelId !== "string" || !reelId) {
-    throw new Error("Reel id is required.");
+    throw new Error(dict.reelIdRequired);
   }
 
   const favorite = formData.get("favorite") === "true";

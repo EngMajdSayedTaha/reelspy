@@ -1,7 +1,10 @@
+"use client";
+
 import { Flame } from "lucide-react";
 import { ReelCard } from "@/components/reels/ReelCard";
 import { RisingGroupFilter } from "@/components/reels/RisingGroupFilter";
 import type { FeedReel } from "@/app/dashboard/feed/page";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Group = { id: string; name: string };
 
@@ -22,14 +25,15 @@ export function RisingNow({
   discardAction,
   favoriteAction,
 }: RisingNowProps) {
+  const dict = useDict().feed.rising;
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Flame className="h-5 w-5 text-brand" />
-          <h2 className="text-lg font-semibold text-foreground">Rising now</h2>
+          <h2 className="text-lg font-semibold text-foreground">{dict.heading}</h2>
           <span className="hidden text-xs text-subtle sm:inline">
-            Fastest-growing reels by engagement-per-hour (last 30 days)
+            {dict.subheading}
           </span>
         </div>
 
@@ -38,7 +42,7 @@ export function RisingNow({
 
       {reels.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border-strong bg-background px-4 py-6 text-center text-sm text-subtle">
-          No rising reels in this group yet.
+          {dict.emptyState}
         </div>
       ) : (
         // Bleeds to the screen edge on phones so the 340px cards fit and

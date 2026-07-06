@@ -19,6 +19,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/reels/FavoriteButton";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type Reel = {
   id: string;
@@ -105,13 +107,15 @@ export function ReelCard({
   discardAction,
   favoriteAction,
 }: ReelCardProps) {
+  const dict = useDict().feed.reelCard;
+  const locale = useLocale();
   const { username, avatar } = getSource(reel);
   const [playing, setPlaying] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
   const postedLabel = reel.posted_at
-    ? new Date(reel.posted_at).toLocaleDateString("en-US", {
+    ? new Date(reel.posted_at).toLocaleDateString(intlLocale(locale), {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -125,7 +129,7 @@ export function ReelCard({
         {playing ? (
           <iframe
             src={toEmbedUrl(reel.ig_permalink)}
-            title={`Reel by @${username}`}
+            title={dict.reelByAlt(username)}
             className="absolute inset-0 h-full w-full"
             loading="lazy"
             allow="encrypted-media; clipboard-write"
@@ -137,7 +141,7 @@ export function ReelCard({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={reel.thumbnail_url}
-                alt={reel.caption ?? `Reel by @${username}`}
+                alt={reel.caption ?? dict.reelByAlt(username)}
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
@@ -156,16 +160,16 @@ export function ReelCard({
             <button
               type="button"
               onClick={() => setPlaying(true)}
-              aria-label="Play reel inline"
+              aria-label={dict.playAria}
               className="absolute inset-0 flex items-center justify-center"
             >
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm transition group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground">
-                <Play className="ml-0.5 h-6 w-6 fill-current" />
+                <Play className="ms-0.5 h-6 w-6 fill-current" />
               </span>
             </button>
 
             {/* Favorite toggle */}
-            <div className="absolute left-2 top-2 z-10">
+            <div className="absolute start-2 top-2 z-10">
               <FavoriteButton
                 reelId={reel.id}
                 favorite={Boolean(reel.is_favorite)}
@@ -178,10 +182,8 @@ export function ReelCard({
                 far this reel beats its own account's typical reel. */}
             {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
               <div
-                className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
-                title={`This reel beat @${username}'s typical reel by ${formatOutperform(
-                  reel.outperform_ratio
-                )} (vs the account's median score).`}
+                className="absolute start-2 top-2 flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+                title={dict.outperformTooltip(username, formatOutperform(reel.outperform_ratio))}
               >
                 <TrendingUp className="h-3.5 w-3.5" />
                 {formatOutperform(reel.outperform_ratio)}
@@ -189,7 +191,7 @@ export function ReelCard({
             ) : null}
 
             {/* Status badge */}
-            <div className="absolute right-2 top-2">
+            <div className="absolute end-2 top-2">
               <Badge
                 variant={reel.is_worked_on ? "default" : "outline"}
                 className={
@@ -198,24 +200,24 @@ export function ReelCard({
                     : "border-white/20 bg-black/50 text-white backdrop-blur-sm"
                 }
               >
-                {reel.is_worked_on ? "Worked On" : "New"}
+                {reel.is_worked_on ? dict.worked : dict.new}
               </Badge>
             </div>
 
             {/* Views overlay (most relevant reel metric) */}
-            <div className="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+            <div className="absolute bottom-2 start-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
               <Eye className="h-3.5 w-3.5" />
-              {formatCompact(reel.view_count)} views
+              {formatCompact(reel.view_count)} {dict.viewsSuffix}
             </div>
 
             {/* Transcript indicator */}
             {reel.transcript_status === "ready" ? (
               <div
-                className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-brand backdrop-blur-sm"
-                title="Transcript available"
+                className="absolute bottom-2 end-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-1 text-xs font-medium text-brand backdrop-blur-sm"
+                title={dict.transcriptAvailable}
               >
                 <Captions className="h-3.5 w-3.5" />
-                Transcript
+                {dict.transcriptAvailable}
               </div>
             ) : null}
           </>
@@ -258,21 +260,21 @@ export function ReelCard({
 
         {/* Caption */}
         <p className="line-clamp-2 min-h-[2.5rem] break-words text-sm text-muted-foreground">
-          {reel.caption ?? "No caption available."}
+          {reel.caption ?? dict.noCaption}
         </p>
 
         {/* Metrics */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-          <Metric icon={<Heart className="h-4 w-4" />} value={formatCompact(reel.like_count)} label="Likes" />
+          <Metric icon={<Heart className="h-4 w-4" />} value={formatCompact(reel.like_count)} label={dict.likesLabel} />
           <Metric
             icon={<MessageCircle className="h-4 w-4" />}
             value={formatCompact(reel.comment_count)}
-            label="Comments"
+            label={dict.commentsLabel}
           />
           <Metric
             icon={<Flame className="h-4 w-4" />}
             value={formatCompact(reel.viral_score)}
-            label="Viral score"
+            label={dict.viralScoreLabel}
             accent
           />
         </div>
@@ -281,8 +283,8 @@ export function ReelCard({
         <div className="mt-auto flex items-center gap-2 pt-1">
           <Button asChild size="sm" className="flex-1">
             <Link href={`/dashboard/generate/${reel.id}`}>
-              <Sparkles className="mr-1.5 h-4 w-4" />
-              Script
+              <Sparkles className="me-1.5 h-4 w-4" />
+              {dict.scriptButton}
             </Link>
           </Button>
 
@@ -293,7 +295,7 @@ export function ReelCard({
               size="sm"
               variant="outline"
               disabled={Boolean(reel.is_worked_on)}
-              title={reel.is_worked_on ? "Already marked" : "Mark as worked on"}
+              title={reel.is_worked_on ? dict.markWorkedTitleDone : dict.markWorkedTitleTodo}
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -306,8 +308,8 @@ export function ReelCard({
               type="submit"
               size="sm"
               variant="outline"
-              title={reel.is_discarded ? "Restore reel" : "Discard (don't show again)"}
-              aria-label={reel.is_discarded ? "Restore reel" : "Discard reel"}
+              title={reel.is_discarded ? dict.restoreTitle : dict.discardTitle}
+              aria-label={reel.is_discarded ? dict.restoreAria : dict.discardAria}
             >
               {reel.is_discarded ? (
                 <RotateCcw className="h-4 w-4" />
@@ -322,8 +324,8 @@ export function ReelCard({
               href={reel.ig_permalink}
               target="_blank"
               rel="noreferrer"
-              title="Open in Instagram"
-              aria-label="Open in Instagram"
+              title={dict.openInstagramTitle}
+              aria-label={dict.openInstagramAria}
             >
               <ExternalLink className="h-4 w-4" />
             </a>

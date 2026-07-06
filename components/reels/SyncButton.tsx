@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getClientPrefs } from "@/lib/prefs";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
+import { useDict } from "@/lib/i18n/I18nProvider";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
 type SyncResult = {
   inserted?: number;
@@ -17,17 +19,18 @@ type SyncResult = {
   errors?: string[];
 };
 
-function formatWindow(seconds?: number): string {
-  if (!seconds || seconds <= 0) return "about an hour";
+function formatWindow(dict: Dict["feed"]["sync"], seconds?: number): string {
+  if (!seconds || seconds <= 0) return dict.aboutAnHour;
   const mins = Math.ceil(seconds / 60);
-  if (mins < 60) return `about ${mins} min`;
+  if (mins < 60) return dict.aboutMinutes(mins);
   const hrs = Math.round(mins / 60);
-  return `about ${hrs} hr${hrs > 1 ? "s" : ""}`;
+  return dict.aboutHours(hrs);
 }
 
 const LIMIT_OPTIONS = [25, 50, 100, 200];
 
 export function SyncButton() {
+  const dict = useDict().feed.sync;
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
   const [limit, setLimit] = useState(25);
@@ -50,19 +53,17 @@ export function SyncButton() {
 
       const skipped = json.skippedFresh ?? 0;
       toast.success(
-        `Synced: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed${
-          skipped > 0 ? ` · ${skipped} already up to date` : ""
+        `${dict.syncedToast(json.inserted ?? 0, json.updated ?? 0)}${
+          skipped > 0 ? dict.alreadyUpToDateSuffix(skipped) : ""
         }`
       );
 
       // Partial throttle (some reels synced from cache, then we paused).
       if (json.rateLimited) {
-        toast.warning(
-          `Instagram's hourly limit was reached — paused early. Try again in ${formatWindow(
-            json.retryAfterSeconds
-          )}.`,
-          { icon: "⏳", duration: 8000 }
-        );
+        toast.warning(dict.rateLimitedToast(formatWindow(dict, json.retryAfterSeconds)), {
+          icon: "⏳",
+          duration: 8000,
+        });
         window.dispatchEvent(
           new CustomEvent("reelspy:ratelimit", {
             detail: { retryAfterSeconds: json.retryAfterSeconds },
@@ -77,19 +78,17 @@ export function SyncButton() {
     } catch (error) {
       // A full 429 (nothing synced) gets a clear, friendly message + cooldown.
       if (error instanceof ApiError && error.status === 429) {
-        toast.error(
-          `Instagram's hourly request limit was reached. Try again in ${formatWindow(
-            error.retryAfterSeconds
-          )}.`,
-          { icon: "⏳", duration: 8000 }
-        );
+        toast.error(dict.hourlyLimitToast(formatWindow(dict, error.retryAfterSeconds)), {
+          icon: "⏳",
+          duration: 8000,
+        });
         window.dispatchEvent(
           new CustomEvent("reelspy:ratelimit", {
             detail: { retryAfterSeconds: error.retryAfterSeconds },
           })
         );
       } else {
-        notifyError(error, "Sync failed. Check your Instagram connection.");
+        notifyError(error, dict.syncFailed);
       }
     } finally {
       setIsSyncing(false);
@@ -99,17 +98,17 @@ export function SyncButton() {
   return (
     <div className="flex items-center gap-2">
       <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className="hidden sm:inline">Per account</span>
+        <span className="hidden sm:inline">{dict.perAccountLabel}</span>
         <select
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
           disabled={isSyncing}
-          aria-label="Reels to sync per account"
+          aria-label={dict.perAccountAria}
           className="h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
         >
           {LIMIT_OPTIONS.map((n) => (
             <option key={n} value={n}>
-              {n} reels
+              {dict.reelsOption(n)}
             </option>
           ))}
         </select>
@@ -117,7 +116,7 @@ export function SyncButton() {
 
       <Button type="button" size="lg" onClick={handleSyncAll} disabled={isSyncing}>
         <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-        {isSyncing ? "Syncing…" : "Sync All"}
+        {isSyncing ? dict.syncing : dict.syncAllButton}
       </Button>
     </div>
   );
