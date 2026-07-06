@@ -3,7 +3,9 @@
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
+import { LanguageSwitch } from "@/components/layout/LanguageSwitch";
 import type { Dict } from "@/lib/i18n/dictionaries";
+import type { Locale } from "@/lib/i18n/config";
 
 type TitleKey = keyof Dict["titles"];
 
@@ -26,9 +28,10 @@ const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
 type TopBarProps = {
   onMenu: () => void;
   dict: Dict;
+  locale: Locale;
 };
 
-export function TopBar({ onMenu, dict }: TopBarProps) {
+export function TopBar({ onMenu, dict, locale }: TopBarProps) {
   const pathname = usePathname();
   const titleKey = TITLES.find((t) => t.match(pathname))?.key;
   const current = titleKey ? dict.titles[titleKey] : "ReelSpy";
@@ -51,6 +54,7 @@ export function TopBar({ onMenu, dict }: TopBarProps) {
       <div className="flex min-w-0 items-center gap-3">
         {/* Global Instagram sync budget — visible on every page. */}
         <RateLimitStatus />
+        <LanguageSwitch locale={locale} label={dict.shell.switchLanguage} />
         <span className="hidden h-2 w-2 animate-pulse rounded-full bg-primary sm:inline" />
       </div>
     </header>

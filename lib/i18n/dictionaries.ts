@@ -48,6 +48,7 @@ const en = {
     openMenu: "Open menu",
     closeMenu: "Close menu",
     signOut: "Sign out",
+    switchLanguage: "Switch language",
   },
   prefs: {
     language: "Language",
@@ -98,6 +99,7 @@ const ar: Dict = {
     openMenu: "فتح القائمة",
     closeMenu: "إغلاق القائمة",
     signOut: "تسجيل الخروج",
+    switchLanguage: "تبديل اللغة",
   },
   prefs: {
     language: "اللغة",

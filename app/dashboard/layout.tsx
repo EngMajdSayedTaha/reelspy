@@ -10,7 +10,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale);
   return (
-    <DashboardShell user={user} dict={dict}>
+    <DashboardShell user={user} dict={dict} locale={locale}>
       {children}
     </DashboardShell>
   );
