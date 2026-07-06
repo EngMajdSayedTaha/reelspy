@@ -15,14 +15,15 @@ export async function LegalLayout({
   children: React.ReactNode;
 }) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
-  const t = getDictionary(locale).legal.common;
+  const dict = getDictionary(locale);
+  const t = dict.legal.common;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
           <Link href="/" className="flex items-center gap-2">
-            <LogoMark size={28} />
+            <LogoMark size={28} ariaLabel={dict.shell.logoAlt} />
             <span className="text-sm font-semibold">
               Reel<span className="text-brand">Spy</span>
             </span>

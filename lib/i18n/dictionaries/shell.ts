@@ -42,6 +42,7 @@ const en = {
     closeMenu: "Close menu",
     signOut: "Sign out",
     appName: "ReelSpy",
+    logoAlt: "ReelSpy logo",
   },
   prefs: {
     language: "Language",
@@ -101,6 +102,7 @@ export const shellAr: ShellDict = {
     closeMenu: "إغلاق القائمة",
     signOut: "تسجيل الخروج",
     appName: "ريل سباي",
+    logoAlt: "شعار ريل سباي",
   },
   prefs: {
     language: "اللغة",

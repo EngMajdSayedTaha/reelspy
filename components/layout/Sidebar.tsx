@@ -91,7 +91,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
       >
         <div className="mb-8 flex items-center justify-between px-2">
           <Link href="/dashboard" onClick={onClose}>
-            <Logo size={32} />
+            <Logo size={32} ariaLabel={dict.shell.logoAlt} />
           </Link>
           <button
             type="button"

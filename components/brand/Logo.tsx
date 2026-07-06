@@ -7,9 +7,10 @@ type LogoMarkProps = {
   size?: number;
   animated?: boolean;
   className?: string;
+  ariaLabel?: string;
 };
 
-export function LogoMark({ size = 32, animated = true, className }: LogoMarkProps) {
+export function LogoMark({ size = 32, animated = true, className, ariaLabel = "ReelSpy logo" }: LogoMarkProps) {
   return (
     <svg
       width={size}
@@ -17,7 +18,7 @@ export function LogoMark({ size = 32, animated = true, className }: LogoMarkProp
       viewBox="0 0 64 64"
       fill="none"
       role="img"
-      aria-label="ReelSpy logo"
+      aria-label={ariaLabel}
       className={className}
     >
       <rect width="64" height="64" rx="14" fill="#F9E400" />
@@ -61,12 +62,13 @@ type LogoProps = {
   animated?: boolean;
   withWordmark?: boolean;
   className?: string;
+  ariaLabel?: string;
 };
 
-export function Logo({ size = 32, animated = true, withWordmark = true, className }: LogoProps) {
+export function Logo({ size = 32, animated = true, withWordmark = true, className, ariaLabel }: LogoProps) {
   return (
     <span className={`inline-flex items-center gap-2 ${className ?? ""}`}>
-      <LogoMark size={size} animated={animated} />
+      <LogoMark size={size} animated={animated} ariaLabel={ariaLabel} />
       {withWordmark ? (
         <span
           className="font-semibold tracking-tight text-foreground"

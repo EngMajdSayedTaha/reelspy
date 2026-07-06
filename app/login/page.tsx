@@ -123,7 +123,7 @@ function LoginForm() {
 
       <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <LogoMark size={48} />
+          <LogoMark size={48} ariaLabel={dict.shell.logoAlt} />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Reel<span className="text-brand">Spy</span>
