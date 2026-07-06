@@ -4,8 +4,12 @@ import Link from "next/link";
 import { Plug, ArrowRight } from "lucide-react";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { DigestToggle } from "@/components/settings/DigestToggle";
+import { QuizSettingsSection } from "@/components/settings/QuizSettingsSection";
 import { DangerZone } from "@/components/settings/DangerZone";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getQuizNicheChips } from "@/lib/onboarding/niche-chips";
+import type { BrandVoice } from "@/lib/ai/brand-voice";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { savePreferences } from "./actions";
@@ -21,11 +25,11 @@ export default async function SettingsPage() {
   const dict = getDictionary(prefs.locale);
   const t = dict.settings;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("digest_opt_out")
-    .eq("id", user.id)
-    .maybeSingle();
+  const [{ data: profile }, quizNicheChips] = await Promise.all([
+    supabase.from("profiles").select("digest_opt_out, brand_voice").eq("id", user.id).maybeSingle(),
+    getQuizNicheChips(createAdminClient()),
+  ]);
+  const brandVoice = (profile?.brand_voice as BrandVoice | null) ?? null;
 
   return (
     <div className="space-y-6">
@@ -37,6 +41,8 @@ export default async function SettingsPage() {
       <PreferencesForm initial={prefs} action={savePreferences} />
 
       <DigestToggle initialOptOut={Boolean(profile?.digest_opt_out)} />
+
+      <QuizSettingsSection brandVoice={brandVoice} nicheChips={quizNicheChips} />
 
       {/* Connecting/managing social accounts now lives in one place. */}
       <Link

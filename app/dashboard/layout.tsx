@@ -1,24 +1,11 @@
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { listNiches } from "@/lib/trends/niche";
+import { getQuizNicheChips } from "@/lib/onboarding/niche-chips";
 import { brandVoiceFilled } from "@/lib/onboarding/state";
 import type { BrandVoice } from "@/lib/ai/brand-voice";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { getSidebarUser } from "@/lib/user/sidebar-user";
-
-// Curated fallback niches so the quiz's chip row isn't empty on a brand-new
-// deployment, before any Niche Radar aggregate data exists (account_groups).
-const CURATED_NICHES = [
-  "real estate",
-  "fitness",
-  "beauty",
-  "fashion",
-  "food",
-  "finance",
-  "travel",
-  "tech",
-];
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -44,9 +31,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     tourCompleted = Boolean(profile?.tour_completed_at);
 
     if (showQuiz) {
-      const admin = createAdminClient();
-      const niches = await listNiches(admin, { limit: 12 }).catch(() => []);
-      quizNicheChips = [...new Set([...niches.map((n) => n.niche), ...CURATED_NICHES])].slice(0, 10);
+      quizNicheChips = await getQuizNicheChips(createAdminClient());
     }
   }
 

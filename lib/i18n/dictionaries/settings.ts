@@ -43,6 +43,12 @@ const en = {
       offToast: "Weekly digest off",
       updateError: "Could not update your preference",
     },
+    quiz: {
+      title: "Niche & preferences quiz",
+      description:
+        "Revisit your niche, audience, offer, tone and language — used to personalize your dashboard and account suggestions.",
+      button: "Edit my answers",
+    },
     danger: {
       title: "Data & privacy",
       description: "Download a copy of your data, or permanently delete your account.",
@@ -101,6 +107,12 @@ export const settingsAr: SettingsDict = {
       onToast: "تم تفعيل الملخص الأسبوعي",
       offToast: "تم إيقاف الملخص الأسبوعي",
       updateError: "تعذّر تحديث تفضيلك",
+    },
+    quiz: {
+      title: "اختبار المجال والتفضيلات",
+      description:
+        "راجع مجالك وجمهورك وعرضك ونبرتك ولغتك — تُستخدم لتخصيص لوحة تحكمك واقتراحات الحسابات.",
+      button: "تعديل إجاباتي",
     },
     danger: {
       title: "البيانات والخصوصية",
