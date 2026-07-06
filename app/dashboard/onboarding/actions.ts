@@ -3,10 +3,13 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, isUnlimited } from "@/lib/billing/entitlements";
-import { isArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
+import { isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
+import { listNiches } from "@/lib/trends/niche";
+import { resolveNicheSlug } from "@/lib/suggestions/accounts";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -171,4 +174,106 @@ export async function finishOnboarding(): Promise<void> {
   await track(user.id, "onboarding_step", { step: "complete" });
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/onboarding");
+}
+
+export type QuizAnswers = {
+  niche: string;
+  audience?: string | null;
+  offer?: string | null;
+  tone?: string | null;
+  language?: string | null;
+  arabicDialect?: ArabicDialect | null;
+};
+
+// One-time onboarding quiz popup (replaces the auto-redirect into the full
+// wizard for brand-new users — see app/dashboard/page.tsx). Read-merge-writes
+// brand_voice like saveBrandVoice above, then resolves the niche onto the
+// Niche Radar taxonomy ONCE here so the suggestion engine never re-runs the
+// AI/string match on every page load (lib/suggestions/accounts.ts).
+export async function completeQuiz(answers: QuizAnswers): Promise<OnboardingActionState> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: dict.onboarding.unauthorized };
+
+  const niche = answers.niche.trim().slice(0, FIELD_CAPS.niche);
+  if (!niche) return { error: dict.onboarding.tellUsNicheAndAudience };
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("brand_voice")
+    .eq("id", user.id)
+    .maybeSingle();
+  const current = (existing?.brand_voice as BrandVoice | null) ?? {};
+
+  const brandVoice: BrandVoice = {
+    ...current,
+    niche,
+    audience: answers.audience?.trim().slice(0, FIELD_CAPS.audience) || current.audience || null,
+    offer: answers.offer?.trim().slice(0, FIELD_CAPS.offer) || current.offer || null,
+    tone: answers.tone?.trim().slice(0, FIELD_CAPS.tone) || current.tone || null,
+    language: answers.language?.trim().slice(0, FIELD_CAPS.language) || current.language || null,
+    arabicDialect: isArabicDialect(answers.arabicDialect)
+      ? answers.arabicDialect
+      : (current.arabicDialect ?? null),
+  };
+
+  const admin = createAdminClient();
+  const niches = await listNiches(admin).catch(() => []);
+  const nicheSlug = await resolveNicheSlug(niche, niches);
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      brand_voice: brandVoice,
+      quiz_completed_at: new Date().toISOString(),
+      niche_slug: nicheSlug,
+    })
+    .eq("id", user.id);
+  if (error) return { error: error.message };
+
+  await track(user.id, "quiz_completed", { niche, nicheSlug });
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/accounts");
+  return { ok: true };
+}
+
+// Skip the quiz. Idempotent — the popup must never reappear once dismissed.
+export async function dismissQuiz(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("profiles")
+    .update({ quiz_completed_at: new Date().toISOString() })
+    .eq("id", user.id)
+    .is("quiz_completed_at", null);
+
+  await track(user.id, "quiz_skipped");
+  revalidatePath("/dashboard");
+}
+
+// Mark the product tour finished / skipped. driver.js's onDestroyed fires for
+// both, so this is one-shot either way — idempotent like the other markers.
+export async function completeTour(): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase
+    .from("profiles")
+    .update({ tour_completed_at: new Date().toISOString() })
+    .eq("id", user.id)
+    .is("tour_completed_at", null);
+
+  await track(user.id, "tour_completed");
 }

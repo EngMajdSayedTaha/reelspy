@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -17,6 +18,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingState } from "@/lib/onboarding/state";
 import { SetupChecklist } from "@/components/onboarding/SetupChecklist";
+import { SuggestedAccountsSection } from "@/components/suggestions/SuggestedAccountsSection";
+import { SuggestionsSkeleton } from "@/components/suggestions/SuggestionsSkeleton";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -59,12 +62,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // First-run routing (L7/B3): send brand-new users straight into the wizard;
-  // users who've started but not activated get the checklist card below.
+  // First-run routing (L7/B3): brand-new users see the onboarding quiz popup
+  // instead (mounted in DashboardShell) — the full wizard stays reachable via
+  // the checklist card below for anyone not yet activated.
   const onboarding = await getOnboardingState(supabase, user.id);
-  if (!onboarding.complete && onboarding.completedCount === 0) {
-    redirect("/dashboard/onboarding");
-  }
   const showChecklist = !onboarding.complete && !onboarding.activated;
 
   const { data: profile } = await supabase
@@ -181,7 +182,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div data-tour="quick-actions" className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           {t.quickActions.heading}
         </h2>
@@ -206,6 +207,10 @@ export default async function DashboardPage() {
           />
         </div>
       </div>
+
+      <Suspense fallback={<SuggestionsSkeleton rows={3} />}>
+        <SuggestedAccountsSection userId={user.id} variant="widget" limit={3} />
+      </Suspense>
     </div>
   );
 }

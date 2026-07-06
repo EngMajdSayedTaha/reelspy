@@ -11,12 +11,14 @@ type Props = {
   niche?: string;
   /** True when the user already tracks this account. */
   initialTracked: boolean;
+  /** Attribution for app_events (e.g. "suggestions" vs the default "niche_radar"). */
+  source?: string;
 };
 
 // "Track account" for a niche-radar card (X3). Turns cross-user discovery into
 // the user's own research funnel — seeds from the shared snapshot cache (no Meta
 // quota). Optimistic: flips to "Tracking" on success, reverts + toasts on error.
-export function TrackAccountButton({ username, niche, initialTracked }: Props) {
+export function TrackAccountButton({ username, niche, initialTracked, source }: Props) {
   const fullDict = useDict();
   const dict = fullDict.trends.track;
   const [tracked, setTracked] = useState(initialTracked);
@@ -32,7 +34,7 @@ export function TrackAccountButton({ username, niche, initialTracked }: Props) {
 
   const track = () => {
     startTransition(async () => {
-      const result = await trackNicheAccount(username, niche);
+      const result = await trackNicheAccount(username, niche, source);
       if (result.error) {
         toast.error(result.error);
         return;

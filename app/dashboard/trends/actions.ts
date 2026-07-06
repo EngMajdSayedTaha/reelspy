@@ -21,7 +21,8 @@ export type TrackAccountState = { ok?: boolean; tracked?: boolean; error?: strin
 // inherits the categorization. Cap-enforced like every other add path (L6).
 export async function trackNicheAccount(
   username: string,
-  niche?: string
+  niche?: string,
+  source: string = "niche_radar"
 ): Promise<TrackAccountState> {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const fullDict = getDictionary(locale);
@@ -98,7 +99,7 @@ export async function trackNicheAccount(
   });
   if (error) return { error: error.message };
 
-  await track(user.id, "account_added", { bulk: false, source: "niche_radar" });
+  await track(user.id, "account_added", { bulk: false, source });
   revalidatePath("/dashboard/trends");
   revalidatePath("/dashboard/accounts");
   revalidatePath("/dashboard/feed");

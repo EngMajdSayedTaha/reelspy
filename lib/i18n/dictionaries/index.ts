@@ -24,9 +24,12 @@ import { legalEn, legalAr } from "./legal";
 import { myAccountEn, myAccountAr } from "./myAccount";
 import { onboardingEn, onboardingAr } from "./onboarding";
 import { publishingEn, publishingAr } from "./publishing";
+import { quizEn, quizAr } from "./quiz";
 import { scriptsEn, scriptsAr } from "./scripts";
 import { settingsEn, settingsAr } from "./settings";
+import { suggestionsEn, suggestionsAr } from "./suggestions";
 import { themeEn, themeAr } from "./theme";
+import { tourEn, tourAr } from "./tour";
 import { trendsEn, trendsAr } from "./trends";
 
 const en = {
@@ -46,9 +49,12 @@ const en = {
   ...myAccountEn,
   ...onboardingEn,
   ...publishingEn,
+  ...quizEn,
   ...scriptsEn,
   ...settingsEn,
+  ...suggestionsEn,
   ...themeEn,
+  ...tourEn,
   ...trendsEn,
 };
 
@@ -71,9 +77,12 @@ const ar: Dict = {
   ...myAccountAr,
   ...onboardingAr,
   ...publishingAr,
+  ...quizAr,
   ...scriptsAr,
   ...settingsAr,
+  ...suggestionsAr,
   ...themeAr,
+  ...tourAr,
   ...trendsAr,
 };
 

@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AccountCard } from "@/components/accounts/AccountCard";
+import { SuggestedAccountsSection } from "@/components/suggestions/SuggestedAccountsSection";
+import { SuggestionsSkeleton } from "@/components/suggestions/SuggestionsSkeleton";
 import { AccountsFilter } from "@/components/accounts/AccountsFilter";
 import { AccountsSearch } from "@/components/accounts/AccountsSearch";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
@@ -163,9 +166,14 @@ export default async function AccountsPage({
       />
 
       {counts.all === 0 && !q ? (
-        <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
-          {dict.accounts.page.emptyState}
-        </div>
+        <>
+          <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
+            {dict.accounts.page.emptyState}
+          </div>
+          <Suspense fallback={<SuggestionsSkeleton />}>
+            <SuggestedAccountsSection userId={user.id} variant="hero" />
+          </Suspense>
+        </>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -195,6 +203,10 @@ export default async function AccountsPage({
           )}
 
           <FeedPagination page={page} totalPages={totalPages} total={total} perPage={PER_PAGE} />
+
+          <Suspense fallback={<SuggestionsSkeleton />}>
+            <SuggestedAccountsSection userId={user.id} variant="strip" />
+          </Suspense>
         </>
       )}
     </div>

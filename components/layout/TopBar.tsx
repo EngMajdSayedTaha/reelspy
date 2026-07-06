@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu } from "lucide-react";
+import { HelpCircle, Menu } from "lucide-react";
 import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
+import { useTour } from "@/components/tour/AppTour";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
@@ -31,6 +32,7 @@ type TopBarProps = {
 export function TopBar({ onMenu }: TopBarProps) {
   const pathname = usePathname();
   const dict = useDict();
+  const { startTour } = useTour();
   const titleKey = TITLES.find((t) => t.match(pathname))?.key;
   const current = titleKey ? dict.titles[titleKey] : dict.shell.appName;
 
@@ -41,6 +43,7 @@ export function TopBar({ onMenu }: TopBarProps) {
           type="button"
           onClick={onMenu}
           aria-label={dict.shell.openMenu}
+          data-tour="topbar-menu"
           className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground lg:hidden"
         >
           <Menu className="h-5 w-5" />
@@ -50,6 +53,15 @@ export function TopBar({ onMenu }: TopBarProps) {
         <span className="truncate font-medium text-foreground">{current}</span>
       </div>
       <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={startTour}
+          aria-label={dict.tour.takeTour}
+          title={dict.tour.takeTour}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+        >
+          <HelpCircle className="h-[18px] w-[18px]" />
+        </button>
         {/* Global Instagram sync budget — visible on every page. */}
         <RateLimitStatus />
         <span className="hidden h-2 w-2 animate-pulse rounded-full bg-primary sm:inline" />

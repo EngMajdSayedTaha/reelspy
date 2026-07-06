@@ -42,7 +42,7 @@ export type OnboardingState = {
 // this, but a single account is enough to progress).
 export const SUGGESTED_ACCOUNTS = 3;
 
-function brandVoiceFilled(bv: BrandVoice | null | undefined): boolean {
+export function brandVoiceFilled(bv: BrandVoice | null | undefined): boolean {
   if (!bv) return false;
   return Boolean((bv.niche && bv.niche.trim()) || (bv.audience && bv.audience.trim()));
 }

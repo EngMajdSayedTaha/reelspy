@@ -25,7 +25,7 @@ export async function SetupChecklist({ state }: { state: OnboardingState }) {
   const pct = Math.round((state.completedCount / 4) * 100);
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5">
+    <div data-tour="setup-checklist" className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-base font-semibold text-foreground">{dict.finishSettingUp}</h2>

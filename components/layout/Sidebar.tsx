@@ -28,13 +28,20 @@ import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type NavKey = keyof Dict["nav"];
-type NavLink = { href: string; labelKey: NavKey; icon: LucideIcon; matchPrefixes?: string[] };
+type NavLink = {
+  href: string;
+  labelKey: NavKey;
+  icon: LucideIcon;
+  matchPrefixes?: string[];
+  /** data-tour hook for the product tour (components/tour/AppTour.tsx). */
+  tourKey?: string;
+};
 
 const links: NavLink[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch },
-  { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard },
-  { href: "/dashboard/trends", labelKey: "trends", icon: Radar },
+  { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch, tourKey: "nav-accounts" },
+  { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard, tourKey: "nav-feed" },
+  { href: "/dashboard/trends", labelKey: "trends", icon: Radar, tourKey: "nav-trends" },
   { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark },
   {
     href: "/dashboard/scripts",
@@ -43,8 +50,9 @@ const links: NavLink[] = [
     // /dashboard/generate/[reel_id] is the script-generation page for a reel —
     // part of the Scripts section even though it lives outside /dashboard/scripts.
     matchPrefixes: ["/dashboard/generate"],
+    tourKey: "nav-scripts",
   },
-  { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera },
+  { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera, tourKey: "nav-my-account" },
   { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply },
   { href: "/dashboard/publishing", labelKey: "publishing", icon: Send },
   { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar },
@@ -112,6 +120,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                 key={link.href}
                 href={link.href}
                 onClick={onClose}
+                data-tour={link.tourKey}
                 className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition lg:py-2 ${
                   active
                     ? "bg-primary/10 text-brand"
