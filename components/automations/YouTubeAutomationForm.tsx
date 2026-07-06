@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ActionState = { error?: string };
 type ActionFn = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
@@ -16,25 +17,26 @@ type YouTubeAutomationFormProps = {
 };
 
 export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
+  const dict = useDict().automations;
   const [videoId, setVideoId] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
   const [keywords, setKeywords] = useState("");
   const [matchMode, setMatchMode] = useState<"contains" | "exact" | "any">("contains");
-  const [templates, setTemplates] = useState("Check the description for the link 👇");
+  const [templates, setTemplates] = useState(dict.ytForm.defaultTemplate);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const submit = () => {
     if (!videoId.trim()) {
-      setError("Enter a YouTube video link or id.");
+      setError(dict.ytForm.videoRequired);
       return;
     }
     if (matchMode !== "any" && !keywords.trim()) {
-      setError("At least one keyword is required.");
+      setError(dict.errors.keywordRequired);
       return;
     }
     if (!templates.trim()) {
-      setError("Write at least one public reply.");
+      setError(dict.errors.publicReplyRequired);
       return;
     }
     setError(null);
@@ -57,9 +59,9 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
         setVideoId("");
         setVideoTitle("");
         setKeywords("");
-        toast.success("YouTube automation created — matching comments now get a public reply.");
+        toast.success(dict.ytForm.createSuccess);
       } catch {
-        const message = "Could not create the automation. Please try again.";
+        const message = dict.ytForm.createError;
         setError(message);
         toast.error(message);
       }
@@ -70,16 +72,16 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
     <div className="space-y-4 rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
         <MonitorPlay className="h-4 w-4 text-brand" />
-        <h2 className="text-sm font-semibold text-foreground">New YouTube automation</h2>
+        <h2 className="text-sm font-semibold text-foreground">{dict.ytForm.newAutomation}</h2>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="yt_automation_video">Video link or id</Label>
+            <Label htmlFor="yt_automation_video">{dict.ytForm.videoLabel}</Label>
             <Input
               id="yt_automation_video"
-              placeholder="https://youtube.com/watch?v=… or 11-char id"
+              placeholder={dict.ytForm.videoPlaceholder}
               value={videoId}
               onChange={(e) => setVideoId(e.target.value)}
               disabled={isPending}
@@ -87,10 +89,10 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="yt_automation_title">Label (optional)</Label>
+            <Label htmlFor="yt_automation_title">{dict.ytForm.labelOptional}</Label>
             <Input
               id="yt_automation_title"
-              placeholder="My launch video"
+              placeholder={dict.ytForm.labelPlaceholder}
               value={videoTitle}
               onChange={(e) => setVideoTitle(e.target.value)}
               disabled={isPending}
@@ -98,7 +100,7 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="yt_automation_match_mode">Match</Label>
+            <Label htmlFor="yt_automation_match_mode">{dict.ytForm.matchLabel}</Label>
             <select
               id="yt_automation_match_mode"
               value={matchMode}
@@ -110,9 +112,9 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
               }
               className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
-              <option value="contains">Comment contains a keyword</option>
-              <option value="exact">Comment is exactly a keyword</option>
-              <option value="any">Any comment (no keywords needed)</option>
+              <option value="contains">{dict.ytForm.matchContains}</option>
+              <option value="exact">{dict.ytForm.matchExact}</option>
+              <option value="any">{dict.ytForm.matchAny}</option>
             </select>
           </div>
         </div>
@@ -120,16 +122,14 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
         <div className="min-w-0 space-y-4">
           {matchMode === "any" ? (
             <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Every new comment on this video gets a reply — your channel&apos;s own comments are
-              always ignored. Only comments posted after you create the automation are answered, so
-              the existing backlog isn&apos;t touched.
+              {dict.ytForm.anyCommentHint}
             </p>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="yt_automation_keywords">Keywords (comma separated)</Label>
+              <Label htmlFor="yt_automation_keywords">{dict.ytForm.keywordsLabel}</Label>
               <Input
                 id="yt_automation_keywords"
-                placeholder="link, guide, free"
+                placeholder={dict.ytForm.keywordsPlaceholder}
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 disabled={isPending}
@@ -138,11 +138,11 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="yt_automation_templates">Public replies (one per line, rotated)</Label>
+            <Label htmlFor="yt_automation_templates">{dict.ytForm.publicRepliesLabel}</Label>
             <Textarea
               id="yt_automation_templates"
               rows={3}
-              placeholder={"Check the description for the link 👇\nJust pinned it for you!"}
+              placeholder={dict.ytForm.publicRepliesPlaceholder}
               value={templates}
               onChange={(e) => setTemplates(e.target.value)}
               disabled={isPending}
@@ -154,7 +154,7 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {error ? <p className="text-sm text-danger">{error}</p> : <span className="hidden sm:block" />}
         <Button type="button" onClick={submit} disabled={isPending} className="w-full sm:w-auto">
-          {isPending ? "Creating…" : "Create YouTube Automation"}
+          {isPending ? dict.ytForm.creating : dict.ytForm.createAutomation}
         </Button>
       </div>
     </div>

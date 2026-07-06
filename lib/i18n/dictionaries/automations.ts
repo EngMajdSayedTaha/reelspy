@@ -247,6 +247,12 @@ const en = {
       emptyYt:
         "No activity yet. When someone comments a matching keyword on a linked video, it shows up here.",
       anyKeyword: "any",
+      statusLabels: {
+        sent: "Sent",
+        failed: "Failed",
+        pending: "Pending",
+        skipped: "Skipped",
+      } as Record<string, string>,
     },
     errors: {
       unauthorized: "Unauthorized.",
@@ -522,6 +528,12 @@ export const automationsAr: AutomationsDict = {
       emptyDm: "لا يوجد نشاط بعد. عندما يرسل لك أحدهم رسالة تحتوي على كلمة مفتاحية مطابقة، ستظهر هنا.",
       emptyYt: "لا يوجد نشاط بعد. عندما يعلّق أحدهم بكلمة مفتاحية مطابقة على فيديو مرتبط، سيظهر هنا.",
       anyKeyword: "أي",
+      statusLabels: {
+        sent: "تم الإرسال",
+        failed: "فشل",
+        pending: "قيد الانتظار",
+        skipped: "تم التخطي",
+      },
     },
     errors: {
       unauthorized: "غير مصرّح.",
