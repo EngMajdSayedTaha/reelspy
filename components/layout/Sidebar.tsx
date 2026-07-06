@@ -84,9 +84,11 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
 
       <aside
         className={`fixed start-0 top-0 z-40 flex h-screen w-[240px] flex-col border-e border-border bg-background p-5 transition-transform duration-200 lg:translate-x-0 ${
-          // Hidden drawer slides toward the start edge — left in LTR, right in
-          // RTL (rtl: flips the sign so it tucks off the correct side).
-          open ? "translate-x-0" : "-translate-x-full rtl:translate-x-full"
+          // Off-canvas slide is mobile-only (max-lg:) so it never competes with
+          // the `lg:translate-x-0` desktop rule. Without max-lg, `rtl:` classes
+          // carry a `[dir="rtl"]` attribute selector, which out-specifies plain
+          // `lg:` classes and pushed the sidebar off-screen on desktop in RTL.
+          open ? "translate-x-0" : "max-lg:-translate-x-full max-lg:rtl:translate-x-full"
         }`}
       >
         <div className="mb-8 flex items-center justify-between px-2">

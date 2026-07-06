@@ -3,8 +3,9 @@
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
+import { LanguageSwitch } from "@/components/layout/LanguageSwitch";
 import type { Dict } from "@/lib/i18n/dictionaries";
-import { useDict } from "@/lib/i18n/I18nProvider";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 
 type TitleKey = keyof Dict["titles"];
 
@@ -31,6 +32,7 @@ type TopBarProps = {
 export function TopBar({ onMenu }: TopBarProps) {
   const pathname = usePathname();
   const dict = useDict();
+  const locale = useLocale();
   const titleKey = TITLES.find((t) => t.match(pathname))?.key;
   const current = titleKey ? dict.titles[titleKey] : dict.shell.appName;
 
@@ -52,6 +54,7 @@ export function TopBar({ onMenu }: TopBarProps) {
       <div className="flex min-w-0 items-center gap-3">
         {/* Global Instagram sync budget — visible on every page. */}
         <RateLimitStatus />
+        <LanguageSwitch locale={locale} label={dict.shell.switchLanguage} />
         <span className="hidden h-2 w-2 animate-pulse rounded-full bg-primary sm:inline" />
       </div>
     </header>
