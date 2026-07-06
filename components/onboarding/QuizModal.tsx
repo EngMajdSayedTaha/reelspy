@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ARABIC_DIALECTS, isArabicDialect, type ArabicDialect } from "@/lib/ai/brand-voice";
+import { ARABIC_DIALECTS, isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
 import { completeQuiz, dismissQuiz } from "@/app/dashboard/onboarding/actions";
 import { useTour } from "@/components/tour/AppTour";
 import { useDict } from "@/lib/i18n/I18nProvider";
@@ -16,38 +16,62 @@ import { useDict } from "@/lib/i18n/I18nProvider";
 type Props = {
   /** Popular niches to offer as one-tap chips (Niche Radar + curated defaults). */
   nicheChips: string[];
+  /** Prefill from the user's existing brand_voice — used when re-opened from Settings. */
+  initial?: BrandVoice | null;
+  /**
+   * "onboarding" (default): the one-time, non-dismissable first-login popup —
+   * skipping calls dismissQuiz so it never reappears. "edit": opened on demand
+   * from Settings to revise answers — closing just closes, no dismissal write.
+   */
+  mode?: "onboarding" | "edit";
+  /** Edit mode only: called after skip/finish so the parent can unmount this. */
+  onClose?: () => void;
 };
 
 const TOTAL_STEPS = 3;
 
 // One-time onboarding popup (replaces the auto-redirect into the full wizard
-// for brand-new users). Everything collected here feeds profiles.brand_voice,
-// which powers every AI prompt in the app — see app/dashboard/onboarding/actions.ts.
-// Only the niche step is required; steps 2-3 are skippable via Next, and the
-// whole quiz can be skipped via the "Skip for now" link. Not dismissable by
-// clicking outside/Escape — skipping is always an explicit, one-shot choice.
-export function QuizModal({ nicheChips }: Props) {
+// for brand-new users), also reused read-write from Settings (mode="edit") so
+// users can revisit and change their answers later. Everything collected here
+// feeds profiles.brand_voice, which powers every AI prompt in the app — see
+// app/dashboard/onboarding/actions.ts. Only the niche step is required; steps
+// 2-3 are skippable via Next. In onboarding mode the whole quiz can only be
+// skipped via the "Skip for now" link — not dismissable by clicking outside or
+// Escape, since skipping is meant to be an explicit, one-shot choice. Edit mode
+// behaves like a normal cancellable dialog instead.
+export function QuizModal({ nicheChips, initial, mode = "onboarding", onClose }: Props) {
   const dict = useDict();
   const t = dict.quiz;
+  const isEdit = mode === "edit";
   const { startTour } = useTour();
   const [open, setOpen] = useState(true);
   const [step, setStep] = useState(1);
   const [pending, startTransition] = useTransition();
 
-  const [niche, setNiche] = useState("");
-  const [audience, setAudience] = useState("");
-  const [offer, setOffer] = useState("");
-  const [tone, setTone] = useState("");
-  const [language, setLanguage] = useState("");
-  const [arabicDialect, setArabicDialect] = useState<ArabicDialect | "">("");
+  const [niche, setNiche] = useState(initial?.niche ?? "");
+  const [audience, setAudience] = useState(initial?.audience ?? "");
+  const [offer, setOffer] = useState(initial?.offer ?? "");
+  const [tone, setTone] = useState(initial?.tone ?? "");
+  const [language, setLanguage] = useState(initial?.language ?? "");
+  const [arabicDialect, setArabicDialect] = useState<ArabicDialect | "">(
+    initial?.arabicDialect ?? ""
+  );
 
   const close = () => {
     setOpen(false);
-    startTour();
+    if (isEdit) {
+      onClose?.();
+    } else {
+      startTour();
+    }
   };
 
   const skip = () => {
     if (pending) return;
+    if (isEdit) {
+      close();
+      return;
+    }
     startTransition(async () => {
       await dismissQuiz();
       close();
@@ -80,8 +104,8 @@ export function QuizModal({ nicheChips }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
         <Dialog.Content
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => !isEdit && e.preventDefault()}
+          onPointerDownOutside={(e) => !isEdit && e.preventDefault()}
           className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
         >
           <div className="mb-5 flex items-center justify-center gap-1.5">
@@ -227,7 +251,7 @@ export function QuizModal({ nicheChips }: Props) {
               disabled={pending}
               className="text-sm text-muted-foreground underline-offset-2 hover:underline disabled:opacity-60"
             >
-              {t.skipForNow}
+              {isEdit ? dict.common.cancel : t.skipForNow}
             </button>
             <div className="flex items-center gap-2">
               {step > 1 ? (
