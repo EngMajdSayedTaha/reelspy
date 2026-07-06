@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -16,6 +17,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getOnboardingState } from "@/lib/onboarding/state";
 import { SetupChecklist } from "@/components/onboarding/SetupChecklist";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type StatCardProps = {
   label: string;
@@ -42,6 +45,10 @@ function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
 }
 
 export default async function DashboardPage() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+  const t = dict.dashboard;
+
   const supabase = await createClient();
 
   const {
@@ -116,60 +123,58 @@ export default async function DashboardPage() {
   const favoritesCount = favoritesCountResult.count ?? 0;
   const scheduledCount = scheduledCountResult.count ?? 0;
   const publishedCount = publishedCountResult.count ?? 0;
-  const username = profile?.username ?? user.email ?? "creator";
+  const username = profile?.username ?? user.email ?? t.fallbackName;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          Welcome back, {username}
+          {t.welcomeBack(username)}
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your content intelligence command center.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
       {showChecklist ? <SetupChecklist state={onboarding} /> : null}
 
       <div className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
-          label="Inspiration Accounts"
+          label={t.stats.inspirationAccounts}
           value={String(accountsCount)}
           icon={UserSearch}
           href="/dashboard/accounts"
         />
         <StatCard
-          label="Tracked Reels"
+          label={t.stats.trackedReels}
           value={String(reelsCount)}
           icon={Clapperboard}
           href="/dashboard/feed"
         />
         <StatCard
-          label="Scripts Generated"
+          label={t.stats.scriptsGenerated}
           value={String(scriptsCount)}
           icon={ScrollText}
           href="/dashboard/scripts"
         />
         <StatCard
-          label="Posts Published"
+          label={t.stats.postsPublished}
           value={String(publishedCount)}
           icon={Send}
           href="/dashboard/publishing"
         />
         <StatCard
-          label="Reels Worked On"
+          label={t.stats.reelsWorkedOn}
           value={String(workedCount)}
           icon={CheckCircle2}
           href="/dashboard/feed?status=worked"
         />
         <StatCard
-          label="Favorites"
+          label={t.stats.favorites}
           value={String(favoritesCount)}
           icon={Heart}
           href="/dashboard/feed?status=favorites"
         />
         <StatCard
-          label="Scheduled Scripts"
+          label={t.stats.scheduledScripts}
           value={String(scheduledCount)}
           icon={CalendarCheck}
           href="/dashboard/calendar"
@@ -178,26 +183,26 @@ export default async function DashboardPage() {
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Quick actions
+          {t.quickActions.heading}
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <QuickAction
             href="/dashboard/accounts"
             icon={UserSearch}
-            title="Add accounts"
-            desc="Track new creators"
+            title={t.quickActions.addAccounts.title}
+            desc={t.quickActions.addAccounts.desc}
           />
           <QuickAction
             href="/dashboard/feed"
             icon={RefreshCw}
-            title="Sync feed"
-            desc="Pull the latest reels"
+            title={t.quickActions.syncFeed.title}
+            desc={t.quickActions.syncFeed.desc}
           />
           <QuickAction
             href="/dashboard/scripts"
             icon={Sparkles}
-            title="Write a script"
-            desc="Turn ideas into content"
+            title={t.quickActions.writeScript.title}
+            desc={t.quickActions.writeScript.desc}
           />
         </div>
       </div>
@@ -228,7 +233,7 @@ function QuickAction({
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-xs text-subtle">{desc}</p>
       </div>
-      <ArrowRight className="h-4 w-4 text-subtle transition group-hover:translate-x-0.5 group-hover:text-brand" />
+      <ArrowRight className="h-4 w-4 text-subtle transition rtl:rotate-180 group-hover:translate-x-0.5 group-hover:text-brand rtl:group-hover:-translate-x-0.5" />
     </Link>
   );
 }

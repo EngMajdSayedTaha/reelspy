@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { getClientPrefs } from "@/lib/prefs";
 import { notifyError, requestJson } from "@/lib/utils/api";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type Account = {
   id: string;
@@ -51,6 +53,9 @@ export function AccountCard({
   toggleActiveAction,
 }: AccountCardProps) {
   const confirm = useConfirm();
+  const dict = useDict();
+  const locale = useLocale();
+  const t = dict.accounts.card;
   const isActive = account.is_active !== false;
 
   // Controlled group value so the dropdown reflects the saved group immediately.
@@ -87,10 +92,10 @@ export function AccountCard({
       try {
         await assignGroupAction(data);
         const groupName = groups.find((g) => g.id === value)?.name;
-        toast.success(value ? `Moved to “${groupName}”` : "Removed from group");
+        toast.success(value ? t.movedToGroupToast(groupName ?? "") : t.removedFromGroupToast);
       } catch {
         setGroupId(previous); // revert optimistic change
-        toast.error("Could not update the group.");
+        toast.error(t.groupUpdateError);
       }
     });
   };
@@ -103,12 +108,12 @@ export function AccountCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ account_id: account.id, limit: syncLimit }),
       });
-      toast.success(`@${account.ig_username}: +${json.inserted ?? 0} new · ${json.updated ?? 0} refreshed`);
+      toast.success(t.syncResultToast(account.ig_username, json.inserted ?? 0, json.updated ?? 0));
       if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
       }
     } catch (error) {
-      notifyError(error, "Sync failed.");
+      notifyError(error, t.syncFailedToast);
     } finally {
       setIsSyncing(false);
     }
@@ -121,18 +126,18 @@ export function AccountCard({
     startAction(async () => {
       try {
         await toggleActiveAction(data);
-        toast.success(isActive ? `Paused @${account.ig_username}` : `Activated @${account.ig_username}`);
+        toast.success(isActive ? t.pausedToast(account.ig_username) : t.activatedToast(account.ig_username));
       } catch {
-        toast.error("Could not update the account.");
+        toast.error(t.accountUpdateError);
       }
     });
   };
 
   const handleRemove = async () => {
     const ok = await confirm({
-      title: `Remove @${account.ig_username}?`,
-      description: "This also deletes its tracked reels. This can't be undone.",
-      confirmText: "Remove",
+      title: t.removeConfirmTitle(account.ig_username),
+      description: t.removeConfirmDesc,
+      confirmText: dict.common.remove,
       destructive: true,
     });
     if (!ok) return;
@@ -142,9 +147,9 @@ export function AccountCard({
     startAction(async () => {
       try {
         await removeAction(data);
-        toast.success(`Removed @${account.ig_username}`);
+        toast.success(t.removedToast(account.ig_username));
       } catch {
-        toast.error("Could not remove the account.");
+        toast.error(t.removeError);
       }
     });
   };
@@ -161,7 +166,7 @@ export function AccountCard({
       {!isActive ? (
         <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning">
           <PauseCircle className="h-4 w-4 shrink-0" />
-          Paused — hidden from the feed and skipped by syncs
+          {t.pausedBanner}
         </div>
       ) : null}
 
@@ -196,36 +201,36 @@ export function AccountCard({
           variant={isActive ? "default" : "outline"}
           className={isActive ? "" : "border-warning/50 bg-warning/15 text-warning"}
         >
-          {isActive ? "Active" : "Paused"}
+          {isActive ? t.activeBadge : t.pausedBadge}
         </Badge>
       </div>
 
       <div className="flex flex-col gap-1 text-sm text-muted-foreground">
         <p className="flex items-center gap-1.5">
           <Users className="h-4 w-4 text-subtle" />
-          {formatFollowers(account.followers_count)} followers
+          {formatFollowers(account.followers_count)} {t.followersSuffix}
         </p>
         <p className="text-xs text-subtle">
-          Last sync:{" "}
+          {t.lastSyncLabel}{" "}
           {account.last_synced_at
-            ? new Date(account.last_synced_at).toLocaleDateString("en-US")
-            : "Never"}
+            ? new Date(account.last_synced_at).toLocaleDateString(intlLocale(locale))
+            : t.never}
         </p>
       </div>
 
       <div className="flex items-center gap-2">
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <FolderClosed className="h-4 w-4 text-subtle" />
-          Group
+          {t.groupLabel}
         </label>
         <select
           value={groupId}
           disabled={busy}
-          aria-label="Assign group"
+          aria-label={t.groupSelectAria}
           onChange={(e) => onGroupChange(e.target.value)}
           className="h-9 flex-1 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
         >
-          <option value="">No group</option>
+          <option value="">{dict.accounts.noGroupOption}</option>
           {groups.map((group) => (
             <option key={group.id} value={group.id}>
               {group.name}
@@ -236,7 +241,7 @@ export function AccountCard({
 
       <div className="flex items-center gap-2">
         <select
-          aria-label="Reels to sync"
+          aria-label={t.syncSelectAria}
           value={syncLimit}
           disabled={busy}
           onChange={(e) => setSyncLimit(Number(e.target.value))}
@@ -258,7 +263,7 @@ export function AccountCard({
           disabled={busy}
         >
           <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
-          {isSyncing ? "Syncing…" : "Sync"}
+          {isSyncing ? t.syncing : t.syncButton}
         </Button>
 
         <Button
@@ -267,12 +272,12 @@ export function AccountCard({
           variant="outline"
           onClick={handleToggleActive}
           disabled={busy}
-          aria-label={isActive ? "Pause account" : "Activate account"}
-          title={isActive ? "Pause (hide from feed)" : "Activate (show in feed)"}
+          aria-label={isActive ? t.pauseAria : t.activateAria}
+          title={isActive ? t.pauseTitle : t.activateTitle}
           className={isActive ? "" : "border-warning/50 text-warning hover:bg-warning/10"}
         >
           <Power className="h-4 w-4" />
-          {!isActive ? "Resume" : null}
+          {!isActive ? t.resumeLabel : null}
         </Button>
 
         <Button
@@ -281,8 +286,8 @@ export function AccountCard({
           variant="outline"
           onClick={handleRemove}
           disabled={busy}
-          aria-label="Remove account"
-          title="Remove account"
+          aria-label={t.removeAria}
+          title={t.removeTitle}
         >
           <Trash2 className="h-4 w-4" />
         </Button>

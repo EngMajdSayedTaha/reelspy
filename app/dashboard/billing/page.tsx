@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Check, CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { getSubscription } from "@/lib/billing/subscription";
 import { entitlementsFor, formatLimit, isUnlimited } from "@/lib/billing/entitlements";
-import { PLANS, planFor, isPaidTier, type PaidTier } from "@/lib/billing/plans";
+import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SubscribeButton, ManageBillingButton } from "@/components/billing/BillingActions";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -80,6 +84,10 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const checkout = firstParam(params.checkout);
 
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+  const t = dict.billing;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -89,7 +97,6 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const tier = await resolveUserTier(supabase, user.id);
   const sub = await getSubscription(supabase, user.id);
   const ent = entitlementsFor(tier);
-  const currentPlan = planFor(tier);
 
   const [accountsUsed, automationsUsed, scriptsUsed, transcriptsUsed] = await Promise.all([
     count(supabase, "inspiration_accounts", user.id),
@@ -100,7 +107,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
   const hasSubscription = Boolean(sub?.stripeCustomerId);
   const renewLabel = sub?.currentPeriodEnd
-    ? new Date(sub.currentPeriodEnd).toLocaleDateString("en-US", {
+    ? new Date(sub.currentPeriodEnd).toLocaleDateString(intlLocale(locale), {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -110,26 +117,23 @@ export default async function BillingPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">Billing & plan</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your subscription and see how much of your plan you&apos;ve used this month.
-        </p>
+        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">{t.heading}</h1>
+        <p className="text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
       {checkout === "success" ? (
         <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-          <CheckCircle2 className="h-4 w-4" /> Payment received — your plan is being activated. It
-          may take a few seconds to appear.
+          <CheckCircle2 className="h-4 w-4" /> {t.checkoutSuccess}
         </div>
       ) : null}
       {checkout === "cancelled" ? (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          <XCircle className="h-4 w-4" /> Checkout cancelled — no changes were made.
+          <XCircle className="h-4 w-4" /> {t.checkoutCancelled}
         </div>
       ) : null}
       {!stripeConfigured() ? (
         <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          Payments aren&apos;t live yet — plans are shown for preview. Check back soon.
+          {t.paymentsPreview}
         </div>
       ) : null}
 
@@ -137,19 +141,19 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <Card>
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
-            {currentPlan.name} plan
+            {t.planLabel(t.plans[tier as "free" | "creator" | "pro" | "studio"].name)}
             <Badge variant={isPaidTier(tier) ? "default" : "secondary"}>
-              {isPaidTier(tier) ? "Active" : "Free"}
+              {isPaidTier(tier) ? t.active : t.free}
             </Badge>
           </CardTitle>
           <CardDescription>
             {hasSubscription && sub
               ? sub.cancelAtPeriodEnd && renewLabel
-                ? `Cancels on ${renewLabel}.`
+                ? t.cancelsOn(renewLabel)
                 : renewLabel
-                  ? `Renews on ${renewLabel}.`
-                  : `Status: ${sub.status}.`
-              : "You're on the free plan. Upgrade any time to raise your limits."}
+                  ? t.renewsOn(renewLabel)
+                  : t.statusLabel(sub.status)
+              : t.onFreePlan}
           </CardDescription>
           {hasSubscription ? (
             <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
@@ -158,10 +162,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
           ) : null}
         </CardHeader>
         <CardContent className="grid gap-4 pt-4 sm:grid-cols-2">
-          <UsageRow label="Tracked accounts" used={accountsUsed} limit={ent.accounts} />
-          <UsageRow label="Scripts this month" used={scriptsUsed} limit={ent.scripts_mo} />
-          <UsageRow label="Transcripts this month" used={transcriptsUsed} limit={ent.transcripts_mo} />
-          <UsageRow label="Auto-replies" used={automationsUsed} limit={ent.automations} />
+          <UsageRow label={t.usage.trackedAccounts} used={accountsUsed} limit={ent.accounts} />
+          <UsageRow label={t.usage.scriptsThisMonth} used={scriptsUsed} limit={ent.scripts_mo} />
+          <UsageRow
+            label={t.usage.transcriptsThisMonth}
+            used={transcriptsUsed}
+            limit={ent.transcripts_mo}
+          />
+          <UsageRow label={t.usage.autoReplies} used={automationsUsed} limit={ent.automations} />
         </CardContent>
       </Card>
 
@@ -172,6 +180,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
           const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);
           const currentIndex = PLANS.findIndex((p) => p.tier === tier);
           const isUpgrade = planIndex > currentIndex;
+          const planCopy = t.plans[plan.tier as "free" | "creator" | "pro" | "studio"];
           return (
             <Card
               key={plan.tier}
@@ -179,17 +188,26 @@ export default async function BillingPage({ searchParams }: PageProps) {
             >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  {plan.name}
-                  {isCurrent ? <Badge variant="secondary">Current</Badge> : null}
+                  {planCopy.name}
+                  {isCurrent ? <Badge variant="secondary">{t.current}</Badge> : null}
                 </CardTitle>
-                <CardDescription>{plan.tagline}</CardDescription>
+                <CardDescription>{planCopy.tagline}</CardDescription>
                 <div className="pt-1 text-2xl font-semibold text-foreground">
-                  {plan.priceAed === 0 ? "Free" : <>AED {plan.priceAed}<span className="text-sm font-normal text-muted-foreground">/mo</span></>}
+                  {plan.priceAed === 0 ? (
+                    t.free
+                  ) : (
+                    <>
+                      AED {plan.priceAed}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {t.perMonthSuffix}
+                      </span>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col gap-4">
                 <ul className="space-y-2 text-sm text-muted-foreground">
-                  {plan.highlights.map((h) => (
+                  {planCopy.highlights.map((h) => (
                     <li key={h} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       {h}
@@ -200,14 +218,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
                   {isPaidTier(plan.tier) && !isCurrent ? (
                     <SubscribeButton
                       tier={plan.tier as PaidTier}
-                      label={isUpgrade ? "Upgrade" : "Switch plan"}
+                      label={isUpgrade ? t.upgrade : t.switchPlan}
                       variant={isUpgrade ? "default" : "outline"}
                       disabled={!stripeConfigured()}
                     />
                   ) : isCurrent ? (
-                    <p className="text-center text-xs text-muted-foreground">Your current plan</p>
+                    <p className="text-center text-xs text-muted-foreground">{t.yourCurrentPlan}</p>
                   ) : (
-                    <p className="text-center text-xs text-muted-foreground">Included</p>
+                    <p className="text-center text-xs text-muted-foreground">{t.included}</p>
                   )}
                 </div>
               </CardContent>

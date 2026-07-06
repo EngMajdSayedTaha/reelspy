@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { AutomationCard } from "@/components/automations/AutomationCard";
 import { AutomationForm } from "@/components/automations/AutomationForm";
 import { AutomationsTabs } from "@/components/automations/AutomationsTabs";
@@ -67,6 +70,8 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 export default async function AutomationsPage() {
   const supabase = await createClient();
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).automations;
 
   const {
     data: { user },
@@ -164,49 +169,48 @@ export default async function AutomationsPage() {
 
   const igBanner = !connected ? (
     <Notice>
-      Connect your Instagram account first on the{" "}
+      {dict.banners.igConnectBefore}
       <Link href="/dashboard/connections" className="font-medium underline">
-        Connections
-      </Link>{" "}
-      page. Auto-Reply needs an Instagram Business/Creator account linked to a Facebook Page.
+        {dict.banners.connectionsLink}
+      </Link>
+      {dict.banners.igConnectAfter}
     </Notice>
   ) : needsReconnect ? (
     <Notice>
-      Your connection predates Auto-Reply. Go to{" "}
+      {dict.banners.igReconnectBefore}
       <Link href="/dashboard/connections" className="font-medium underline">
-        Connections
-      </Link>{" "}
-      and <span className="font-medium">reconnect</span> to grant the comment &amp; messaging
-      permissions and activate webhook delivery — until then, automations won&apos;t fire.
+        {dict.banners.connectionsLink}
+      </Link>
+      {dict.banners.igReconnectMiddle}
+      <span className="font-medium">{dict.banners.reconnect}</span>
+      {dict.banners.igReconnectAfter}
     </Notice>
   ) : null;
 
   const ytBanner = !ytConnected ? (
     <Notice>
-      Connect your YouTube channel first on the{" "}
+      {dict.banners.ytConnectBefore}
       <Link href="/dashboard/connections" className="font-medium underline">
-        Connections
-      </Link>{" "}
-      page to enable comment auto-reply.
+        {dict.banners.connectionsLink}
+      </Link>
+      {dict.banners.ytConnectAfter}
     </Notice>
   ) : ytNeedsReconnect ? (
     <Notice>
-      Your YouTube connection predates comment auto-reply. Go to{" "}
+      {dict.banners.ytReconnectBefore}
       <Link href="/dashboard/connections" className="font-medium underline">
-        Connections
-      </Link>{" "}
-      and <span className="font-medium">reconnect</span> to grant the comment permission
-      (youtube.force-ssl) — until then, replies can&apos;t be posted.
+        {dict.banners.connectionsLink}
+      </Link>
+      {dict.banners.ytReconnectMiddle}
+      <span className="font-medium">{dict.banners.reconnect}</span>
+      {dict.banners.ytReconnectAfter}
     </Notice>
   ) : null;
 
   // ── Instagram: comment-triggered auto-reply ──────────────────────────────
   const igCommentsPanel = (
     <div className="space-y-5">
-      <SectionIntro title="Comment → public reply + DM">
-        Link a reel to keywords. When a follower comments a keyword, ReelSpy replies publicly and DMs
-        them your link — automatically.
-      </SectionIntro>
+      <SectionIntro title={dict.ig.commentsTitle}>{dict.ig.commentsDesc}</SectionIntro>
 
       <AutomationForm
         action={createAutomation}
@@ -214,9 +218,7 @@ export default async function AutomationsPage() {
       />
 
       {automations.length === 0 ? (
-        <EmptyState>
-          No automations yet. Pick a reel above, choose your keywords, and write the DM to send.
-        </EmptyState>
+        <EmptyState>{dict.ig.commentsEmpty}</EmptyState>
       ) : (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {automations.map((automation) => (
@@ -232,7 +234,9 @@ export default async function AutomationsPage() {
       )}
 
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">Activity</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">
+          {dict.ig.activity}
+        </h3>
         <EventLog events={events} />
       </div>
     </div>
@@ -241,9 +245,7 @@ export default async function AutomationsPage() {
   // ── Instagram: DM-keyword auto-reply ─────────────────────────────────────
   const igDmsPanel = (
     <div className="space-y-5">
-      <SectionIntro title="Incoming DM keywords">
-        Answer incoming direct messages that contain your keywords. Story replies are always ignored.
-      </SectionIntro>
+      <SectionIntro title={dict.ig.dmsTitle}>{dict.ig.dmsDesc}</SectionIntro>
 
       {connected ? (
         <DmDiagnostics
@@ -255,10 +257,7 @@ export default async function AutomationsPage() {
       <DmAutomationForm action={createDmAutomation} />
 
       {dmAutomations.length === 0 ? (
-        <EmptyState>
-          No DM automations yet. Add keywords above (e.g. &ldquo;price&rdquo;, &ldquo;link&rdquo;) and
-          the reply to send.
-        </EmptyState>
+        <EmptyState>{dict.ig.dmsEmpty}</EmptyState>
       ) : (
         <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {dmAutomations.map((automation) => (
@@ -274,7 +273,9 @@ export default async function AutomationsPage() {
       )}
 
       <div className="space-y-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">DM Activity</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">
+          {dict.ig.dmActivity}
+        </h3>
         <DmEventLog events={dmEvents} />
       </div>
     </div>
@@ -283,20 +284,14 @@ export default async function AutomationsPage() {
   // ── YouTube: comment-triggered public reply ──────────────────────────────
   const youtubePanel = (
     <div className="space-y-5">
-      <SectionIntro title="Comment → public reply">
-        Link a YouTube video to keywords. When a viewer comments a keyword, ReelSpy posts a public
-        reply automatically. Only comments posted after you create the automation are answered.
-      </SectionIntro>
+      <SectionIntro title={dict.youtube.title}>{dict.youtube.desc}</SectionIntro>
 
       {ytConnected ? (
         <>
           <YouTubeAutomationForm action={createYouTubeAutomation} />
 
           {ytAutomations.length === 0 ? (
-            <EmptyState>
-              No YouTube automations yet. Paste a video link above, choose your keywords, and write
-              the reply to post.
-            </EmptyState>
+            <EmptyState>{dict.youtube.empty}</EmptyState>
           ) : (
             <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {ytAutomations.map((automation) => (
@@ -313,7 +308,7 @@ export default async function AutomationsPage() {
 
           <div className="space-y-2">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">
-              YouTube Activity
+              {dict.youtube.activity}
             </h3>
             <YouTubeEventLog events={ytEvents} />
           </div>
@@ -325,11 +320,8 @@ export default async function AutomationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Auto-Reply</h1>
-        <p className="text-sm text-muted-foreground">
-          Turn comments and DMs into automatic replies. Pick a platform, then set up your keyword
-          triggers.
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
+        <p className="text-sm text-muted-foreground">{dict.page.subtitle}</p>
       </div>
 
       <AutomationsTabs

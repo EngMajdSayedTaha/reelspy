@@ -18,6 +18,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/reels/FavoriteButton";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type Reel = {
   id: string;
@@ -71,12 +73,14 @@ export function ReelRow({
   discardAction,
   favoriteAction,
 }: ReelRowProps) {
+  const dict = useDict().feed.reelCard;
+  const locale = useLocale();
   const { username } = getSource(reel);
   const [playing, setPlaying] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const postedLabel = reel.posted_at
-    ? new Date(reel.posted_at).toLocaleDateString("en-US", {
+    ? new Date(reel.posted_at).toLocaleDateString(intlLocale(locale), {
         month: "short",
         day: "numeric",
       })
@@ -89,7 +93,7 @@ export function ReelRow({
         {playing ? (
           <iframe
             src={toEmbedUrl(reel.ig_permalink)}
-            title={`Reel by @${username}`}
+            title={dict.reelByAlt(username)}
             className="absolute inset-0 h-full w-full"
             loading="lazy"
             allow="encrypted-media; clipboard-write"
@@ -99,14 +103,14 @@ export function ReelRow({
           <button
             type="button"
             onClick={() => setPlaying(true)}
-            aria-label="Play reel inline"
+            aria-label={dict.playAria}
             className="absolute inset-0"
           >
             {reel.thumbnail_url && !imgError ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={reel.thumbnail_url}
-                alt={reel.caption ?? `Reel by @${username}`}
+                alt={reel.caption ?? dict.reelByAlt(username)}
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
@@ -120,12 +124,12 @@ export function ReelRow({
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition group-hover:opacity-100">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/55 text-white ring-1 ring-white/30 backdrop-blur-sm">
-                <Play className="ml-0.5 h-4 w-4 fill-current" />
+                <Play className="ms-0.5 h-4 w-4 fill-current" />
               </span>
             </span>
           </button>
         )}
-        <div className="absolute left-1 top-1 z-10">
+        <div className="absolute start-1 top-1 z-10">
           <FavoriteButton
             reelId={reel.id}
             favorite={Boolean(reel.is_favorite)}
@@ -147,19 +151,19 @@ export function ReelRow({
               @{username}
             </a>
             {postedLabel ? (
-              <span className="ml-2 text-xs text-subtle">{postedLabel}</span>
+              <span className="ms-2 text-xs text-subtle">{postedLabel}</span>
             ) : null}
           </div>
           <Badge
             variant={reel.is_worked_on ? "default" : "outline"}
             className={reel.is_worked_on ? "bg-primary text-primary-foreground" : ""}
           >
-            {reel.is_worked_on ? "Worked On" : "New"}
+            {reel.is_worked_on ? dict.worked : dict.new}
           </Badge>
         </div>
 
         <p className="line-clamp-2 break-words text-sm text-muted-foreground">
-          {reel.caption ?? "No caption available."}
+          {reel.caption ?? dict.noCaption}
         </p>
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -176,8 +180,8 @@ export function ReelRow({
             <Flame className="h-3.5 w-3.5" /> {formatCompact(reel.viral_score)}
           </span>
           {reel.transcript_status === "ready" ? (
-            <span className="flex items-center gap-1 text-brand" title="Transcript available">
-              <Captions className="h-3.5 w-3.5" /> Transcript
+            <span className="flex items-center gap-1 text-brand" title={dict.transcriptAvailable}>
+              <Captions className="h-3.5 w-3.5" /> {dict.transcriptAvailable}
             </span>
           ) : null}
         </div>
@@ -186,8 +190,8 @@ export function ReelRow({
         <div className="mt-auto flex items-center gap-2 pt-1">
           <Button asChild size="sm">
             <Link href={`/dashboard/generate/${reel.id}`}>
-              <Sparkles className="mr-1.5 h-4 w-4" />
-              Script
+              <Sparkles className="me-1.5 h-4 w-4" />
+              {dict.scriptButton}
             </Link>
           </Button>
 
@@ -198,7 +202,7 @@ export function ReelRow({
               size="sm"
               variant="outline"
               disabled={Boolean(reel.is_worked_on)}
-              title={reel.is_worked_on ? "Already marked" : "Mark as worked on"}
+              title={reel.is_worked_on ? dict.markWorkedTitleDone : dict.markWorkedTitleTodo}
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -211,8 +215,8 @@ export function ReelRow({
               type="submit"
               size="sm"
               variant="outline"
-              title={reel.is_discarded ? "Restore reel" : "Discard (don't show again)"}
-              aria-label={reel.is_discarded ? "Restore reel" : "Discard reel"}
+              title={reel.is_discarded ? dict.restoreTitle : dict.discardTitle}
+              aria-label={reel.is_discarded ? dict.restoreAria : dict.discardAria}
             >
               {reel.is_discarded ? (
                 <RotateCcw className="h-4 w-4" />
@@ -227,8 +231,8 @@ export function ReelRow({
               href={reel.ig_permalink}
               target="_blank"
               rel="noreferrer"
-              title="Open in Instagram"
-              aria-label="Open in Instagram"
+              title={dict.openInstagramTitle}
+              aria-label={dict.openInstagramAria}
             >
               <ExternalLink className="h-4 w-4" />
             </a>

@@ -5,6 +5,7 @@ import { CheckCircle2, Circle, HelpCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { ResubscribeResult } from "@/app/dashboard/automations/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type DmDiagnosticsProps = {
   /** profiles.webhook_subscribed_at — null when the page was never subscribed. */
@@ -17,6 +18,7 @@ type DmDiagnosticsProps = {
 // (no full reconnect needed) and read back whether Meta reports the `messages`
 // field, then list the two manual Meta-side steps we can't toggle for the user.
 export function DmDiagnostics({ subscribedAt, resubscribeAction }: DmDiagnosticsProps) {
+  const dict = useDict().automations.diagnostics;
   const [fields, setFields] = useState<string[] | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -34,14 +36,12 @@ export function DmDiagnostics({ subscribedAt, resubscribeAction }: DmDiagnostics
         }
         setFields(result.fields ?? []);
         if (result.fields?.includes("messages")) {
-          toast.success("Re-subscribed — the messages field is active. DMs should now deliver.");
+          toast.success(dict.toastResubscribedOk);
         } else {
-          toast.warning(
-            "Re-subscribed, but Meta isn't reporting the messages field yet. Complete the two manual steps below, then run this again."
-          );
+          toast.warning(dict.toastResubscribedWaiting);
         }
       } catch {
-        toast.error("Could not re-subscribe. Try again.");
+        toast.error(dict.toastError);
       }
     });
   };
@@ -51,35 +51,36 @@ export function DmDiagnostics({ subscribedAt, resubscribeAction }: DmDiagnostics
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <HelpCircle className="h-4 w-4 text-brand" />
-          <h3 className="font-semibold text-foreground">DM delivery check</h3>
+          <h3 className="font-semibold text-foreground">{dict.title}</h3>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={run} disabled={isPending}>
           <RefreshCw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-          {isPending ? "Checking…" : "Re-subscribe & check"}
+          {isPending ? dict.checking : dict.recheck}
         </Button>
       </div>
 
       <ul className="space-y-1.5 text-muted-foreground">
-        <Item ok={subscribed}>Page subscribed to webhooks</Item>
+        <Item ok={subscribed}>{dict.pageSubscribed}</Item>
         <Item ok={hasMessages}>
           <span>
-            <code className="rounded bg-secondary px-1 py-0.5 text-xs">messages</code> field active
-            on the page subscription
-            {hasMessages === null ? " (run the check above)" : ""}
+            <code className="rounded bg-secondary px-1 py-0.5 text-xs">{dict.messagesCode}</code>{" "}
+            {dict.messagesFieldActive}
+            {hasMessages === null ? dict.messagesFieldWaiting : ""}
           </span>
         </Item>
       </ul>
 
       <div className="space-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
-        <p className="font-medium text-foreground">Two steps only you can do in Meta:</p>
+        <p className="font-medium text-foreground">{dict.twoSteps}</p>
         <p>
-          1. App Dashboard → Products → Webhooks → Instagram object → subscribe the{" "}
-          <code className="rounded bg-secondary px-1 py-0.5">messages</code> field.
+          {dict.step1Before}{" "}
+          <code className="rounded bg-secondary px-1 py-0.5">{dict.step1Field}</code>
+          {dict.step1After}
         </p>
         <p>
-          2. On the IG account: Settings → Messages and story replies → Connected tools → turn{" "}
-          <span className="font-medium">&ldquo;Allow access to messages&rdquo;</span> ON. The app
-          must also be in Live mode.
+          {dict.step2Before}{" "}
+          <span className="font-medium">{dict.step2Emphasis}</span>
+          {dict.step2After}
         </p>
       </div>
     </div>

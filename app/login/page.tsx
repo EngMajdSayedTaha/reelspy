@@ -8,15 +8,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { useDict } from "@/lib/i18n/I18nProvider";
+import type { AuthDict } from "@/lib/i18n/dictionaries/auth";
 
-const queryErrorMap: Record<string, string> = {
-  missing_code: "Missing OAuth code. Please try signing in again.",
-  oauth_exchange_failed: "Google sign in failed. Please try again.",
-  user_not_found: "Could not load your user profile. Please retry.",
-  schema_missing: "Supabase schema is missing. Run supabase/schema.sql in SQL Editor.",
-  profile_upsert_failed: "Could not create your profile. Please retry.",
-  supabase_env_missing: "Supabase environment variables are missing.",
-};
+function getQueryErrorMap(auth: AuthDict["auth"]): Record<string, string> {
+  return {
+    missing_code: auth.errors.missingCode,
+    oauth_exchange_failed: auth.errors.oauthExchangeFailed,
+    user_not_found: auth.errors.userNotFound,
+    schema_missing: auth.errors.schemaMissing,
+    profile_upsert_failed: auth.errors.profileUpsertFailed,
+    supabase_env_missing: auth.errors.supabaseEnvMissing,
+  };
+}
 
 export default function LoginPage() {
   return (
@@ -29,6 +33,8 @@ export default function LoginPage() {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const dict = useDict();
+  const auth = dict.auth;
   const isSupabaseConfigured =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -40,6 +46,7 @@ function LoginForm() {
 
   const authError = searchParams.get("error");
   const authReason = searchParams.get("reason");
+  const queryErrorMap = getQueryErrorMap(auth);
   const baseQueryError = authError ? queryErrorMap[authError] ?? null : null;
   const queryError = baseQueryError
     ? authReason
@@ -49,7 +56,7 @@ function LoginForm() {
 
   const handleOAuth = async () => {
     if (!isSupabaseConfigured) {
-      setError("Supabase environment variables are missing.");
+      setError(auth.errors.supabaseEnvMissing);
       return;
     }
 
@@ -79,7 +86,7 @@ function LoginForm() {
 
   const handleEmailAuth = async (mode: "signin" | "signup") => {
     if (!isSupabaseConfigured) {
-      setError("Supabase environment variables are missing.");
+      setError(auth.errors.supabaseEnvMissing);
       return;
     }
 
@@ -104,7 +111,7 @@ function LoginForm() {
       router.push("/dashboard");
       router.refresh();
     } else {
-      setError("Signup successful. Check your email to verify your account.");
+      setError(auth.signupSuccessMessage);
       setIsLoading(false);
     }
   };
@@ -116,12 +123,12 @@ function LoginForm() {
 
       <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <LogoMark size={48} />
+          <LogoMark size={48} ariaLabel={dict.shell.logoAlt} />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Reel<span className="text-brand">Spy</span>
             </h1>
-            <p className="mt-1 text-sm text-subtle">Personal content intelligence</p>
+            <p className="mt-1 text-sm text-subtle">{auth.tagline}</p>
           </div>
         </div>
 
@@ -133,24 +140,24 @@ function LoginForm() {
             disabled={isLoading || !isSupabaseConfigured}
             type="button"
           >
-            Continue with Google
+            {auth.continueWithGoogle}
           </Button>
 
-          <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">or</div>
+          <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">{auth.or}</div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{auth.emailLabel}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={auth.emailPlaceholder}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{auth.passwordLabel}</Label>
             <Input
               id="password"
               type="password"
@@ -167,7 +174,7 @@ function LoginForm() {
               disabled={isLoading || !isSupabaseConfigured || !email || !password}
               type="button"
             >
-              Sign In
+              {auth.signIn}
             </Button>
             <Button
               className="flex-1"
@@ -176,13 +183,13 @@ function LoginForm() {
               type="button"
               variant="outline"
             >
-              Sign Up
+              {auth.signUp}
             </Button>
           </div>
 
           {!isSupabaseConfigured ? (
             <p className="text-sm text-warning">
-              Fill Supabase values in .env.local before authentication.
+              {auth.supabaseMissingWarning}
             </p>
           ) : null}
 
@@ -194,15 +201,15 @@ function LoginForm() {
 
         <p className="mt-6 text-center text-xs text-subtle">
           <a href="/terms" className="hover:text-foreground">
-            Terms
+            {auth.terms}
           </a>
           <span className="mx-2">·</span>
           <a href="/privacy" className="hover:text-foreground">
-            Privacy Policy
+            {auth.privacyPolicy}
           </a>
           <span className="mx-2">·</span>
           <a href="/cookies" className="hover:text-foreground">
-            Cookie Policy
+            {auth.cookiePolicy}
           </a>
         </p>
       </div>

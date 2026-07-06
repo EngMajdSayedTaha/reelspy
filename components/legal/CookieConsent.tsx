@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Cookie } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 const STORAGE_KEY = "reelspy:cookie-consent";
 
@@ -23,6 +24,7 @@ export function CookieConsent() {
   // `null` = not yet determined (SSR/first paint); banner stays hidden until we
   // know the stored choice, avoiding a flash.
   const [visible, setVisible] = useState(false);
+  const dict = useDict().consent;
 
   useEffect(() => {
     const check = () => {
@@ -47,7 +49,7 @@ export function CookieConsent() {
   return (
     <div
       role="dialog"
-      aria-label="Cookie consent"
+      aria-label={dict.ariaLabel}
       className="fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-2xl shadow-black/30 sm:flex-row sm:items-center sm:gap-4">
@@ -55,14 +57,13 @@ export function CookieConsent() {
           <Cookie className="h-5 w-5" />
         </span>
         <p className="flex-1 text-sm text-muted-foreground">
-          We use essential cookies to keep you signed in and remember your
-          preferences. See our{" "}
+          {dict.message}{" "}
           <Link href="/cookies" className="font-medium text-brand hover:underline">
-            Cookie Policy
+            {dict.cookiePolicy}
           </Link>{" "}
-          and{" "}
+          {dict.and}{" "}
           <Link href="/privacy" className="font-medium text-brand hover:underline">
-            Privacy Policy
+            {dict.privacyPolicy}
           </Link>
           .
         </p>
@@ -72,14 +73,14 @@ export function CookieConsent() {
             onClick={() => choose("rejected")}
             className="h-9 rounded-lg border border-border px-3 text-sm font-medium text-muted-foreground transition hover:bg-secondary hover:text-foreground"
           >
-            Reject
+            {dict.reject}
           </button>
           <button
             type="button"
             onClick={() => choose("accepted")}
             className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
           >
-            Accept
+            {dict.accept}
           </button>
         </div>
       </div>

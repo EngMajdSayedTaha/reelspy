@@ -9,10 +9,12 @@ import {
   PREFS_COOKIE,
   SYNC_LIMIT_OPTIONS,
   TOAST_MS_OPTIONS,
+  parsePrefs,
   serializePrefs,
   type UserPrefs,
 } from "@/lib/prefs";
 import { normalizeLocale } from "@/lib/i18n/config";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 function pick<T extends number>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T {
   const n = Number(value);
@@ -44,11 +46,13 @@ export async function savePreferences(formData: FormData): Promise<void> {
 // Weekly digest opt-in/out (V3/W6). Writes the DB flag via the user's own
 // client (RLS + the digest_opt_out update grant scope it to the owner).
 export async function setDigestOptOut(optOut: boolean): Promise<void> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).settings;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) throw new Error(dict.unauthorized);
 
   const { error } = await supabase
     .from("profiles")

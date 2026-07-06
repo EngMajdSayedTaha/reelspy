@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Search, X } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Account = { id: string; ig_username: string };
 type Group = { id: string; name: string };
@@ -24,29 +25,16 @@ type FeedControlsProps = {
   total: number;
 };
 
-const SORT_OPTIONS = [
-  { value: "outperforming", label: "Outperforming" },
-  { value: "recent", label: "Newest" },
-  { value: "views", label: "Most viewed" },
-  { value: "likes", label: "Most liked" },
-  { value: "comments", label: "Most comments" },
-  { value: "viral", label: "Viral score" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "new", label: "New only" },
-  { value: "all", label: "All reels" },
-  { value: "worked", label: "Worked on" },
-  { value: "favorites", label: "Favorites" },
-  { value: "discarded", label: "Discarded" },
-];
-
+const SORT_VALUES = ["outperforming", "recent", "views", "likes", "comments", "viral"] as const;
+const STATUS_VALUES = ["new", "all", "worked", "favorites", "discarded"] as const;
 const PER_PAGE_OPTIONS = ["10", "25"];
 
 const selectClass =
   "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:w-auto";
 
 export function FeedControls({ accounts, groups, current, statusCounts, total }: FeedControlsProps) {
+  const fullDict = useDict();
+  const dict = fullDict.feed.controls;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -100,13 +88,13 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <form onSubmit={onSearchSubmit} className="flex w-full gap-2 sm:w-auto sm:min-w-[230px] sm:flex-1">
           <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search captions…"
-              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 pl-9 pr-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+              placeholder={dict.searchPlaceholder}
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <button
@@ -119,7 +107,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             ) : (
               <Search className="h-4 w-4" />
             )}
-            {isPending ? "Searching…" : "Search"}
+            {isPending ? dict.searching : fullDict.common.search}
           </button>
         </form>
 
@@ -127,23 +115,23 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             wrapper dissolves (display: contents) into the flex-wrap row. */}
         <div className="grid grid-cols-2 gap-2 sm:contents">
         <SearchableSelect
-          ariaLabel="Filter by account"
+          ariaLabel={dict.filterByAccountAria}
           className="w-full sm:w-44"
           value={current.account}
           onChange={(value) => apply({ account: value })}
-          allOption={{ value: "all", label: "All accounts" }}
+          allOption={{ value: "all", label: dict.allAccountsOption }}
           options={accounts.map((a) => ({ value: a.id, label: `@${a.ig_username}` }))}
-          placeholder="Search accounts…"
+          placeholder={dict.searchAccountsPlaceholder}
         />
 
         {groups.length > 0 ? (
           <select
-            aria-label="Filter by group"
+            aria-label={dict.filterByGroupAria}
             className={selectClass}
             value={current.group}
             onChange={(e) => apply({ group: e.target.value })}
           >
-            <option value="all">All groups</option>
+            <option value="all">{dict.allGroupsOption}</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -153,14 +141,14 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         ) : null}
 
         <select
-          aria-label="Filter by status"
+          aria-label={dict.filterByStatusAria}
           className={selectClass}
           value={current.status}
           onChange={(e) => apply({ status: e.target.value })}
         >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label} ({statusCounts[o.value] ?? 0})
+          {STATUS_VALUES.map((value) => (
+            <option key={value} value={value}>
+              {dict.statusOptions[value]} ({statusCounts[value] ?? 0})
             </option>
           ))}
         </select>
@@ -168,22 +156,22 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         {/* Sort + direction share one grid cell on phones. */}
         <div className="flex gap-2 sm:contents">
           <select
-            aria-label="Sort by"
+            aria-label={dict.sortByAria}
             className={selectClass}
             value={current.sort}
             onChange={(e) => apply({ sort: e.target.value })}
           >
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
+            {SORT_VALUES.map((value) => (
+              <option key={value} value={value}>
+                {dict.sortOptions[value]}
               </option>
             ))}
           </select>
 
           <button
             type="button"
-            aria-label="Toggle sort direction"
-            title={current.order === "asc" ? "Ascending" : "Descending"}
+            aria-label={dict.toggleSortDirectionAria}
+            title={current.order === "asc" ? dict.ascendingTitle : dict.descendingTitle}
             onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
           >
@@ -196,7 +184,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         </div>
 
         <select
-          aria-label="Reels per page"
+          aria-label={dict.perPageAria}
           className={selectClass}
           value={current.perPage}
           // Always set pp explicitly: the page-level default comes from the
@@ -205,7 +193,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         >
           {PER_PAGE_OPTIONS.map((n) => (
             <option key={n} value={n}>
-              {n} / page
+              {dict.perPageOption(n)}
             </option>
           ))}
         </select>
@@ -220,15 +208,15 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-danger/50 hover:text-danger"
           >
             <X className="h-3.5 w-3.5" />
-            Clear
+            {dict.clearButton}
           </button>
         ) : null}
         </div>
       </div>
 
       <p className="mt-2 px-1 text-xs text-subtle">
-        {total} {total === 1 ? "reel" : "reels"}
-        {isFiltered ? " match your filters" : " tracked"}
+        {dict.reelsCount(total)}
+        {isFiltered ? dict.matchesFiltersSuffix : dict.trackedSuffix}
       </p>
     </div>
   );

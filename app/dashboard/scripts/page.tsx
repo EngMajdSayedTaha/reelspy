@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { ScriptGenerator } from "@/components/scripts/ScriptGenerator";
 import { ScriptsList, type ScriptRow } from "@/components/scripts/ScriptsList";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { deleteScript, updateScriptStatus, scheduleScript } from "./actions";
 
 type ScriptsPageProps = {
@@ -10,11 +13,12 @@ type ScriptsPageProps = {
 
 export default async function ScriptsPage({ searchParams }: ScriptsPageProps) {
   const { hook } = await searchParams;
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+
   // A saved hook arrives via ?hook= from the Hook Library "Use in script" action.
   // Frame it as guidance so the generator opens with it. Cap defensively.
-  const initialContext = hook
-    ? `Open with this exact hook: "${hook.slice(0, 400)}"`
-    : "";
+  const initialContext = hook ? dict.scripts.openWithHook(hook.slice(0, 400)) : "";
 
   const supabase = await createClient();
 
@@ -46,10 +50,8 @@ export default async function ScriptsPage({ searchParams }: ScriptsPageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Scripts</h1>
-        <p className="text-sm text-muted-foreground">
-          Generate new scripts and browse everything you&apos;ve created so far.
-        </p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.scripts.pageTitle}</h1>
+        <p className="text-sm text-muted-foreground">{dict.scripts.pageSubtitle}</p>
       </div>
 
       <ScriptGenerator initialContext={initialContext} />

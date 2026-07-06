@@ -23,9 +23,9 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { planFor } from "@/lib/billing/plans";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Dict } from "@/lib/i18n/dictionaries";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type NavKey = keyof Dict["nav"];
 type NavLink = { href: string; labelKey: NavKey; icon: LucideIcon; matchPrefixes?: string[] };
@@ -65,11 +65,11 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   user: SidebarUser | null;
-  dict: Dict;
 };
 
-export function Sidebar({ open, onClose, user, dict }: SidebarProps) {
+export function Sidebar({ open, onClose, user }: SidebarProps) {
   const pathname = usePathname();
+  const dict = useDict();
 
   return (
     <>
@@ -91,7 +91,7 @@ export function Sidebar({ open, onClose, user, dict }: SidebarProps) {
       >
         <div className="mb-8 flex items-center justify-between px-2">
           <Link href="/dashboard" onClick={onClose}>
-            <Logo size={32} />
+            <Logo size={32} ariaLabel={dict.shell.logoAlt} />
           </Link>
           <button
             type="button"
@@ -141,7 +141,7 @@ export function Sidebar({ open, onClose, user, dict }: SidebarProps) {
                   user.tier === "free" ? "text-foreground" : "text-brand"
                 }`}
               >
-                {planFor(user.tier).name}
+                {dict.billing.plans[user.tier].name}
               </span>
             </Link>
           ) : null}

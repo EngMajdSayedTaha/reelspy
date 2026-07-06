@@ -5,6 +5,7 @@ import { CheckSquare, ChevronDown, Square, Upload, UserPlus, Users } from "lucid
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { BulkAddState } from "@/app/dashboard/accounts/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Group = { id: string; name: string };
 
@@ -67,6 +68,9 @@ function extractUsernames(raw: string): string[] {
 }
 
 export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps) {
+  const fullDict = useDict();
+  const dict = fullDict.accounts.import;
+  const common = fullDict.common;
   const [open, setOpen] = useState(false);
   const [rawInput, setRawInput] = useState("");
   const [candidates, setCandidates] = useState<string[] | null>(null);
@@ -78,7 +82,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
   const parse = (text: string) => {
     const usernames = extractUsernames(text);
     if (usernames.length === 0) {
-      toast.error("No Instagram usernames found in that input.");
+      toast.error(dict.noUsernamesFoundError);
       return;
     }
     setCandidates(usernames.sort());
@@ -91,7 +95,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
       const text = await file.text();
       parse(text);
     } catch {
-      toast.error("Could not read that file.");
+      toast.error(dict.couldNotReadFileError);
     }
   };
 
@@ -111,7 +115,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
 
   const submit = () => {
     if (selected.length === 0) {
-      toast.error("Select at least one account.");
+      toast.error(dict.selectAtLeastOneError);
       return;
     }
     const data = new FormData();
@@ -125,18 +129,18 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
           toast.error(result.error);
           return;
         }
-        const parts = [`Added ${result.added ?? 0} account${(result.added ?? 0) === 1 ? "" : "s"}`];
-        if (result.existing) parts.push(`${result.existing} already tracked`);
-        if (result.invalid?.length) parts.push(`${result.invalid.length} invalid skipped`);
+        const parts = [dict.addedCountToast(result.added ?? 0)];
+        if (result.existing) parts.push(dict.existingCountToast(result.existing));
+        if (result.invalid?.length) parts.push(dict.invalidCountToast(result.invalid.length));
         toast.success(parts.join(" · "));
         if ((result.added ?? 0) > 0) {
-          toast.info("Profile photos and follower counts will fill in on the first sync.");
+          toast.info(dict.photosBackfillToast);
         }
         setCandidates(null);
         setRawInput("");
         setOpen(false);
       } catch {
-        toast.error("Import failed. Please try again.");
+        toast.error(dict.importFailedError);
       }
     });
   };
@@ -151,9 +155,9 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
       >
         <span className="flex items-center gap-2">
           <Users className="h-4 w-4 text-brand" />
-          <span className="font-medium">Import accounts you follow</span>
+          <span className="font-medium">{dict.toggleLabel}</span>
           <span className="hidden text-xs text-subtle sm:inline">
-            Fill your inspiration list in one go
+            {dict.toggleHint}
           </span>
         </span>
         <ChevronDown className={`h-4 w-4 text-subtle transition-transform ${open ? "rotate-180" : ""}`} />
@@ -164,19 +168,18 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
           {candidates === null ? (
             <>
               <p className="text-sm text-muted-foreground">
-                Instagram&apos;s API doesn&apos;t share your following list, but you can import it
-                in seconds: paste usernames below, or upload the{" "}
+                {dict.introPart1}{" "}
                 <span className="text-foreground">following.json</span> /{" "}
-                <span className="text-foreground">following.html</span> file from Instagram&apos;s{" "}
+                <span className="text-foreground">following.html</span> {dict.introPart2}{" "}
                 <a
                   href="https://www.instagram.com/download/request/"
                   target="_blank"
                   rel="noreferrer"
                   className="text-brand underline-offset-4 hover:underline"
                 >
-                  Download your information
+                  {dict.downloadLinkText}
                 </a>{" "}
-                export. You&apos;ll review the list before anything is added.
+                {dict.introPart3}
               </p>
 
               <textarea
@@ -190,11 +193,11 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={() => parse(rawInput)} disabled={!rawInput.trim()}>
                   <UserPlus className="h-4 w-4" />
-                  Review list
+                  {dict.reviewListButton}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => fileRef.current?.click()}>
                   <Upload className="h-4 w-4" />
-                  Upload export file
+                  {dict.uploadButton}
                 </Button>
                 <input
                   ref={fileRef}
@@ -209,8 +212,8 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">{selected.length}</span> of{" "}
-                  {candidates.length} accounts selected — untick any you don&apos;t want.
+                  <span className="font-semibold text-foreground">{selected.length}</span>{" "}
+                  {dict.selectedOfTotalSuffix(candidates.length)}
                 </p>
                 <div className="flex gap-2 text-xs">
                   <button
@@ -218,7 +221,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                     onClick={() => setExcluded(new Set())}
                     className="text-muted-foreground transition hover:text-brand"
                   >
-                    Select all
+                    {common.selectAll}
                   </button>
                   <span className="text-subtle">·</span>
                   <button
@@ -226,7 +229,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                     onClick={() => setExcluded(new Set(candidates))}
                     className="text-muted-foreground transition hover:text-brand"
                   >
-                    Clear all
+                    {common.clearAll}
                   </button>
                 </div>
               </div>
@@ -257,13 +260,13 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
               <div className="flex flex-wrap items-end gap-3">
                 {groups.length > 0 ? (
                   <label className="space-y-1 text-sm">
-                    <span className="text-muted-foreground">Add to group (optional)</span>
+                    <span className="text-muted-foreground">{dict.addToGroupLabel}</span>
                     <select
                       value={groupId}
                       onChange={(e) => setGroupId(e.target.value)}
                       className="block h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60"
                     >
-                      <option value="">No group</option>
+                      <option value="">{fullDict.accounts.noGroupOption}</option>
                       {groups.map((g) => (
                         <option key={g.id} value={g.id}>
                           {g.name}
@@ -274,7 +277,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                 ) : null}
 
                 <Button type="button" onClick={submit} disabled={isPending || selected.length === 0}>
-                  {isPending ? "Importing…" : `Add ${selected.length} account${selected.length === 1 ? "" : "s"}`}
+                  {isPending ? dict.importingButton : dict.addAccountsButton(selected.length)}
                 </Button>
                 <Button
                   type="button"
@@ -282,7 +285,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                   onClick={() => setCandidates(null)}
                   disabled={isPending}
                 >
-                  Back
+                  {common.back}
                 </Button>
               </div>
             </>

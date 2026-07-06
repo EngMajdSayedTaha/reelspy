@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
   CalendarView,
@@ -8,6 +9,8 @@ import {
 import type { Platform } from "@/lib/publishing/types";
 import { scheduleScript, unscheduleScript } from "../scripts/actions";
 import { reschedulePost } from "../publishing/actions";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type PublishPostRow = {
   id: string;
@@ -19,6 +22,8 @@ type PublishPostRow = {
 };
 
 export default async function CalendarPage() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).calendar;
   const supabase = await createClient();
 
   const {
@@ -66,10 +71,9 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Calendar</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
         <p className="text-sm text-muted-foreground">
-          Drag scripts onto a day to schedule them — scheduled posts from Publishing show up here
-          automatically.
+          {dict.subtitle}
         </p>
       </div>
 

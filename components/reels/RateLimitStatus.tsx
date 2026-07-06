@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Gauge } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Status = {
   throttled: boolean;
@@ -27,6 +28,7 @@ function formatCountdown(totalSeconds: number): string {
 // limit is hit, a clear cooldown countdown ("retry in mm:ss"). Polls the status
 // endpoint and reacts instantly to a 429 dispatched by the Sync button.
 export function RateLimitStatus() {
+  const dict = useDict().feed.rateLimit;
   const [status, setStatus] = useState<Status | null>(null);
   // Local ticking clock so the countdown updates every second without polling.
   const [retrySeconds, setRetrySeconds] = useState(0);
@@ -111,8 +113,8 @@ export function RateLimitStatus() {
       <div className="flex min-w-0 items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-2 text-sm text-danger sm:px-3">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         {/* The prose shrinks/clips first; the countdown stays visible. */}
-        <span className="hidden truncate sm:inline">Instagram hourly limit reached — retry in&nbsp;</span>
-        <span className="truncate sm:hidden">Rate limited&nbsp;·&nbsp;</span>
+        <span className="hidden truncate sm:inline">{dict.throttledLong}&nbsp;</span>
+        <span className="truncate sm:hidden">{dict.throttledShort}&nbsp;·&nbsp;</span>
         <span className="shrink-0 font-semibold tabular-nums">{formatCountdown(retrySeconds)}</span>
       </div>
     );
@@ -132,17 +134,17 @@ export function RateLimitStatus() {
       }`}
       title={
         status.userResetSeconds > 0
-          ? `Resets in ${formatCountdown(status.userResetSeconds)}`
-          : "Hourly Instagram sync budget"
+          ? dict.resetsIn(formatCountdown(status.userResetSeconds))
+          : dict.budgetTooltip
       }
     >
       <Gauge className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">
-        Sync budget{" "}
+        {dict.budgetLabel}{" "}
         <span className="font-semibold tabular-nums">
           {used}/{cap}
         </span>{" "}
-        this hour
+        {dict.perHourSuffix}
       </span>
     </div>
   );

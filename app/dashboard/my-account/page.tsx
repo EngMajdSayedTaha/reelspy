@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GrowthNotes } from "@/components/instagram/GrowthNotes";
@@ -9,6 +10,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { getMyInsights } from "@/lib/instagram/graph-api";
 import { readMyInsightsCache, type MyInsightsProfile } from "@/lib/instagram/my-insights";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 function formatNumber(n: number | null | undefined) {
   if (!n) return "0";
@@ -18,6 +21,9 @@ function formatNumber(n: number | null | undefined) {
 }
 
 export default async function MyAccountPage() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const fullDict = getDictionary(locale);
+  const dict = fullDict.myAccount;
   const supabase = await createClient();
 
   const {
@@ -53,8 +59,7 @@ export default async function MyAccountPage() {
       try {
         insights = await getMyInsights(credentials.igUserId, credentials.token);
       } catch {
-        igError =
-          "Could not load Instagram insights. Your token may have expired — reconnect in Settings.";
+        igError = dict.igLoadError;
       }
     }
   }
@@ -62,9 +67,9 @@ export default async function MyAccountPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">My IG</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
         <p className="text-sm text-muted-foreground">
-          Your Instagram account — full reel history, performance and insights.
+          {dict.pageSubtitle}
         </p>
       </div>
 
@@ -98,7 +103,7 @@ export default async function MyAccountPage() {
                 : profile?.username ?? user.email ?? "—"}
             </p>
             <p className={`text-sm ${connected ? "text-success" : "text-danger"}`}>
-              {connected ? "Connected" : "Not connected"}
+              {connected ? fullDict.shell.connected : fullDict.shell.notConnected}
             </p>
             {insights?.biography ? (
               <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{insights.biography}</p>
@@ -110,23 +115,23 @@ export default async function MyAccountPage() {
               <p className="text-2xl font-semibold text-foreground">
                 {insights ? formatNumber(insights.followers_count) : "—"}
               </p>
-              <p className="text-xs text-subtle">Followers</p>
+              <p className="text-xs text-subtle">{dict.followers}</p>
             </div>
             <div>
               <p className="text-2xl font-semibold text-foreground">
                 {insights ? formatNumber(insights.media_count) : "—"}
               </p>
-              <p className="text-xs text-subtle">Posts</p>
+              <p className="text-xs text-subtle">{dict.posts}</p>
             </div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="sm">
-            <Link href="/dashboard/connections">Manage Connection</Link>
+            <Link href="/dashboard/connections">{dict.manageConnection}</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href="/dashboard/feed">Go to Feed</Link>
+            <Link href="/dashboard/feed">{dict.goToFeed}</Link>
           </Button>
         </div>
       </section>
@@ -139,11 +144,11 @@ export default async function MyAccountPage() {
 
       {!connected ? (
         <div className="rounded-xl border border-dashed border-border-strong p-5 text-sm text-muted-foreground">
-          Connect your Instagram account in{" "}
+          {dict.connectPromptPrefix}{" "}
           <Link href="/dashboard/connections" className="text-brand hover:underline">
-            Connections
+            {fullDict.nav.connections}
           </Link>{" "}
-          to see analytics here.
+          {dict.connectPromptSuffix}
         </div>
       ) : null}
     </div>

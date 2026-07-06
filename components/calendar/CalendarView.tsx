@@ -5,6 +5,8 @@ import Link from "next/link";
 import { CalendarPlus, ExternalLink, GripVertical, Inbox, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
 
 export type CalendarScript = {
   id: string;
@@ -83,12 +85,17 @@ function isReschedulable(post: CalendarPost) {
   return post.status === "scheduled";
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+// Locale-correct month/weekday names, replacing hardcoded English arrays.
+function monthNames(locale: string): string[] {
+  const fmt = new Intl.DateTimeFormat(locale, { month: "long" });
+  return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2026, i, 1)));
+}
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+function dayNames(locale: string): string[] {
+  // Jan 4, 2026 is a Sunday — used only as a formatting anchor, Sun…Sat order.
+  const fmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2026, 0, 4 + i)));
+}
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -102,9 +109,9 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function formatTime(value: string | null): string {
+function formatTime(value: string | null, locale: string): string {
   if (!value) return "";
-  return new Date(value).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return new Date(value).toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 }
 
 export function CalendarView({
@@ -114,6 +121,11 @@ export function CalendarView({
   unscheduleAction,
   reschedulePostAction,
 }: CalendarViewProps) {
+  const dict = useDict().calendar;
+  const common = useDict().common;
+  const locale = useLocale();
+  const MONTH_NAMES = monthNames(intlLocale(locale));
+  const DAY_NAMES = dayNames(intlLocale(locale));
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -155,9 +167,9 @@ export function CalendarView({
     startTransition(async () => {
       try {
         await scheduleAction(scriptId, date);
-        toast.success(`Scheduled for ${date}`);
+        toast.success(dict.scheduledForDate(date));
       } catch {
-        toast.error("Could not schedule the script.");
+        toast.error(dict.couldNotSchedule);
       }
     });
   };
@@ -166,9 +178,9 @@ export function CalendarView({
     startTransition(async () => {
       try {
         await unscheduleAction(scriptId);
-        toast.success("Moved back to unscheduled");
+        toast.success(dict.movedBackToUnscheduled);
       } catch {
-        toast.error("Could not unschedule the script.");
+        toast.error(dict.couldNotUnschedule);
       }
     });
   };
@@ -190,9 +202,9 @@ export function CalendarView({
     startTransition(async () => {
       try {
         await reschedulePostAction({ postId, scheduledAt: next.toISOString() });
-        toast.success(`Post moved to ${date}`);
+        toast.success(dict.postMovedTo(date));
       } catch {
-        toast.error("Could not reschedule the post.");
+        toast.error(dict.couldNotReschedulePost);
       }
     });
   };
@@ -258,10 +270,10 @@ export function CalendarView({
             {MONTH_NAMES[month]} {year}
           </h2>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={prevMonth} aria-label="Previous month">
+            <Button variant="outline" size="sm" onClick={prevMonth} aria-label={dict.previousMonth}>
               ‹
             </Button>
-            <Button variant="outline" size="sm" onClick={nextMonth} aria-label="Next month">
+            <Button variant="outline" size="sm" onClick={nextMonth} aria-label={dict.nextMonth}>
               ›
             </Button>
           </div>
@@ -271,23 +283,23 @@ export function CalendarView({
             publishing (posts). Consolidated onto one surface for publishing GA. */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-subtle">
           <span className="inline-flex items-center gap-1.5">
-            <GripVertical className="h-3 w-3" /> Script — drag onto a day to plan it
+            <GripVertical className="h-3 w-3" /> {dict.legendScript}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <Send className="h-3 w-3 text-info" /> Scheduled post — drag to reschedule
+            <Send className="h-3 w-3 text-info" /> {dict.legendPost}
           </span>
         </div>
 
         {placingScript ? (
           <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-brand">
             <span className="truncate">
-              Pick a day for “{placingScript.hook?.slice(0, 40) ?? "script"}”
+              {dict.pickDayFor(placingScript.hook?.slice(0, 40) ?? dict.fallbackScript)}
             </span>
             <button
               type="button"
               onClick={() => setPlacingId(null)}
               className="shrink-0 transition hover:text-foreground"
-              aria-label="Cancel placing"
+              aria-label={dict.cancelPlacing}
             >
               <X className="h-4 w-4" />
             </button>
@@ -376,10 +388,10 @@ export function CalendarView({
                           e.stopPropagation();
                           setSelectedDate(dateStr);
                         }}
-                        title={`${p.title || p.caption || "Scheduled post"} — ${p.platforms
+                        title={`${p.title || p.caption || dict.scheduledPostFallback} — ${p.platforms
                           .map((pl) => PLATFORM_SHORT[pl] ?? pl)
-                          .join(", ")} · ${formatTime(p.scheduled_at)}${
-                          movable ? " · drag to reschedule" : ""
+                          .join(", ")} · ${formatTime(p.scheduled_at, intlLocale(locale))}${
+                          movable ? ` · ${dict.dragToReschedule}` : ""
                         }`}
                         className={`flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] leading-tight ${postChip(
                           p.status
@@ -387,13 +399,13 @@ export function CalendarView({
                       >
                         <Send className="h-2.5 w-2.5 shrink-0" />
                         <span className="truncate">
-                          {formatTime(p.scheduled_at)} {p.title || p.caption || "Post"}
+                          {formatTime(p.scheduled_at, intlLocale(locale))} {p.title || p.caption || dict.postFallbackShort}
                         </span>
                       </div>
                     );
                   })}
                   {dayPosts.length > 2 ? (
-                    <p className="text-[10px] text-subtle">+{dayPosts.length - 2} more</p>
+                    <p className="text-[10px] text-subtle">{dict.moreCount(dayPosts.length - 2)}</p>
                   ) : null}
                   {dayScripts.slice(0, 2).map((s) => (
                     <div
@@ -407,16 +419,16 @@ export function CalendarView({
                         e.stopPropagation();
                         setSelectedDate(dateStr);
                       }}
-                      title={`${s.hook ?? "Script"} — click to view, drag to another day`}
+                      title={dict.scriptTooltip(s.hook ?? dict.fallbackScript)}
                       className={`cursor-grab truncate rounded px-1 py-0.5 text-[10px] leading-tight text-foreground active:cursor-grabbing ${
                         STATUS_COLORS[s.status ?? "draft"] ?? STATUS_COLORS.draft
                       }`}
                     >
-                      {s.hook?.slice(0, 25) ?? "Script"}
+                      {s.hook?.slice(0, 25) ?? dict.fallbackScript}
                     </div>
                   ))}
                   {dayScripts.length > 2 ? (
-                    <p className="text-[10px] text-subtle">+{dayScripts.length - 2} more</p>
+                    <p className="text-[10px] text-subtle">{dict.moreCount(dayScripts.length - 2)}</p>
                   ) : null}
                 </div>
               </div>
@@ -434,7 +446,7 @@ export function CalendarView({
                 onClick={() => setSelectedDate(null)}
                 className="text-xs text-subtle hover:text-foreground"
               >
-                Close
+                {common.close}
               </button>
             </div>
 
@@ -442,7 +454,7 @@ export function CalendarView({
             {selectedPosts.length > 0 ? (
               <div className="mb-3 space-y-2">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-brand">
-                  <Send className="h-3.5 w-3.5" /> Scheduled posts
+                  <Send className="h-3.5 w-3.5" /> {dict.scheduledPostsHeading}
                 </p>
                 {selectedPosts.map((p) => (
                   <Link
@@ -452,7 +464,7 @@ export function CalendarView({
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full border border-primary/40 px-2 py-0.5 text-xs text-brand">
-                        {formatTime(p.scheduled_at)}
+                        {formatTime(p.scheduled_at, intlLocale(locale))}
                       </span>
                       {p.platforms.map((pl) => (
                         <span
@@ -463,19 +475,19 @@ export function CalendarView({
                         </span>
                       ))}
                       <span
-                        className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] capitalize ${postChip(
+                        className={`ms-auto rounded-full px-1.5 py-0.5 text-[10px] ${postChip(
                           p.status
                         )}`}
                       >
-                        {p.status}
+                        {dict.postStatus[p.status] ?? p.status}
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-foreground">
-                      {p.title || p.caption || "Scheduled post"}
+                      {p.title || p.caption || dict.scheduledPostFallback}
                     </p>
                     {isReschedulable(p) ? (
                       <p className="mt-1.5 text-[10px] text-subtle">
-                        Drag this post to another day to reschedule it.
+                        {dict.dragToRescheduleHint}
                       </p>
                     ) : null}
                   </Link>
@@ -496,7 +508,7 @@ export function CalendarView({
                           : "border-border-strong text-muted-foreground"
                       }`}
                     >
-                      {s.status ?? "draft"}
+                      {dict.scriptStatus[s.status ?? "draft"] ?? dict.scriptStatus.draft}
                     </span>
                     {s.platform ? (
                       <span className="text-xs text-subtle">{s.platform}</span>
@@ -505,12 +517,12 @@ export function CalendarView({
                       type="button"
                       disabled={isPending}
                       onClick={() => unschedule(s.id)}
-                      className="ml-auto text-xs text-subtle transition hover:text-danger disabled:opacity-50"
+                      className="ms-auto text-xs text-subtle transition hover:text-danger disabled:opacity-50"
                     >
-                      Unschedule
+                      {dict.unschedule}
                     </button>
                   </div>
-                  <p className="mt-2 text-sm text-foreground">{s.hook ?? "No hook"}</p>
+                  <p className="mt-2 text-sm text-foreground">{s.hook ?? dict.noHookFallback}</p>
                   {/* Deep-link into the Scripts page so the user can read the full
                       script (hook + body + CTA), not just the calendar preview. */}
                   <Link
@@ -518,7 +530,7 @@ export function CalendarView({
                     className="mt-2 inline-flex items-center gap-1 text-xs text-brand underline-offset-4 hover:underline"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    Open in Scripts
+                    {dict.openInScripts}
                   </Link>
                 </div>
               ))}
@@ -547,21 +559,20 @@ export function CalendarView({
       >
         <div className="flex items-center gap-2">
           <CalendarPlus className="h-4 w-4 text-brand" />
-          <h3 className="text-sm font-semibold text-foreground">Unscheduled scripts</h3>
+          <h3 className="text-sm font-semibold text-foreground">{dict.unscheduledScriptsHeading}</h3>
           <span className="rounded-full bg-border px-1.5 text-xs text-muted-foreground">
             {unscheduled.length}
           </span>
         </div>
         <p className="text-xs text-subtle">
-          Drag a script onto a day — or tap it, then tap a day. Drop a scheduled chip here to
-          unschedule it.
+          {dict.dragHelperText}
         </p>
 
         {unscheduled.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border-strong p-4 text-center">
             <Inbox className="h-5 w-5 text-subtle" />
             <p className="text-xs text-subtle">
-              Nothing waiting. Generate scripts on the Scripts page.
+              {dict.emptyUnscheduled}
             </p>
           </div>
         ) : (
@@ -575,7 +586,7 @@ export function CalendarView({
                   e.dataTransfer.effectAllowed = "move";
                 }}
                 onClick={() => setPlacingId((prev) => (prev === s.id ? null : s.id))}
-                title="Drag onto a day, or tap then tap a day"
+                title={dict.dragOrTapHint}
                 className={`flex cursor-grab items-start gap-1.5 rounded-lg border p-2 text-xs transition active:cursor-grabbing ${
                   placingId === s.id
                     ? "border-primary bg-primary/10 text-brand"
@@ -583,7 +594,7 @@ export function CalendarView({
                 }`}
               >
                 <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />
-                <span className="line-clamp-2">{s.hook ?? "Untitled script"}</span>
+                <span className="line-clamp-2">{s.hook ?? dict.untitledScript}</span>
               </div>
             ))}
           </div>

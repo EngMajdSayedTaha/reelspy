@@ -9,6 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { isReelItem } from "@/lib/instagram/insights-export";
 import { requestJson } from "@/lib/utils/api";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
+import type { Locale } from "@/lib/i18n/config";
 
 type ActionState = { error?: string };
 type ActionFn = (prevState: ActionState, formData: FormData) => Promise<ActionState>;
@@ -35,16 +38,19 @@ type AutomationFormProps = {
   automatedMediaIds: string[];
 };
 
-function reelLabel(reel: MyReel): string {
+function reelLabel(reel: MyReel, locale: Locale, noCaption: string): string {
   const date = reel.timestamp
-    ? new Date(reel.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    ? new Date(reel.timestamp).toLocaleDateString(intlLocale(locale), { month: "short", day: "numeric" })
     : "";
   const caption = (reel.caption ?? "").replace(/\s+/g, " ").trim();
-  const snippet = caption ? caption.slice(0, 60) + (caption.length > 60 ? "…" : "") : "(no caption)";
+  const snippet = caption ? caption.slice(0, 60) + (caption.length > 60 ? "…" : "") : noCaption;
   return date ? `${date} — ${snippet}` : snippet;
 }
 
 export function AutomationForm({ action, automatedMediaIds }: AutomationFormProps) {
+  const fullDict = useDict();
+  const dict = fullDict.automations;
+  const locale = useLocale();
   const [reels, setReels] = useState<MyReel[]>([]);
   const [loadingReels, setLoadingReels] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +79,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           { cache: "no-store" }
         );
         if (!json.connected) {
-          setReelsError("Connect your Instagram account first (Settings → Instagram).");
+          setReelsError(dict.form.connectInstagramFirst);
           return;
         }
         const automated = new Set(automatedMediaIds);
@@ -82,13 +88,13 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
         );
         setReels(onlyReels);
       } catch {
-        setReelsError("Could not load your reels. Try refreshing the page.");
+        setReelsError(dict.form.couldNotLoadReels);
       } finally {
         setLoadingReels(false);
         setRefreshing(false);
       }
     },
-    [automatedMediaIds]
+    [automatedMediaIds, dict]
   );
 
   useEffect(() => {
@@ -100,15 +106,15 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
 
   const submit = () => {
     if (!mediaId) {
-      setError("Pick one of your reels first.");
+      setError(dict.errors.reelRequired);
       return;
     }
     if (matchMode !== "any" && !keywords.trim()) {
-      setError("At least one keyword is required.");
+      setError(dict.errors.keywordRequired);
       return;
     }
     if (!dmMessage.trim()) {
-      setError("The DM message is required.");
+      setError(dict.errors.dmMessageRequired);
       return;
     }
     setError(null);
@@ -137,9 +143,9 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
         setKeywords("");
         setDmMessage("");
         setDmLink("");
-        toast.success("Automation created — matching comments now get an auto-reply + DM.");
+        toast.success(dict.form.createSuccess);
       } catch {
-        const message = "Could not create the automation. Please try again.";
+        const message = dict.form.createError;
         setError(message);
         toast.error(message);
       }
@@ -150,35 +156,34 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
     <div className="space-y-4 rounded-xl border border-border bg-card p-4 text-foreground">
       <div className="flex items-center gap-2">
         <Clapperboard className="h-4 w-4 text-brand" />
-        <h2 className="text-sm font-semibold text-foreground">New automation</h2>
+        <h2 className="text-sm font-semibold text-foreground">{dict.form.newAutomation}</h2>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="automation_reel">Reel</Label>
+              <Label htmlFor="automation_reel">{dict.form.reelLabel}</Label>
               <button
                 type="button"
                 onClick={() => loadReels(true)}
                 disabled={isPending || refreshing}
                 className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
-                title="Pull your latest reels from Instagram — use this if a reel you just posted isn't listed yet."
+                title={dict.form.refreshTitle}
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Syncing…" : "Refresh"}
+                {refreshing ? dict.form.refreshSyncing : dict.form.refresh}
               </button>
             </div>
             {loadingReels ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading your reels…
+                <Loader2 className="h-4 w-4 animate-spin" /> {dict.form.loadingReels}
               </p>
             ) : reelsError ? (
               <p className="text-sm text-warning">{reelsError}</p>
             ) : reels.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No reels available — every reel already has an automation, or your account has no
-                reels yet.
+                {dict.form.noReelsAvailable}
               </p>
             ) : (
               <div className="flex min-w-0 items-center gap-3">
@@ -186,7 +191,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={selected.thumbnail_url}
-                    alt="Selected reel"
+                    alt=""
                     referrerPolicy="no-referrer"
                     className="h-14 w-10 shrink-0 rounded-md object-cover ring-1 ring-border-strong"
                   />
@@ -198,10 +203,10 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
                   onChange={(e) => setMediaId(e.target.value)}
                   className="h-9 w-full min-w-0 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                 >
-                  <option value="">Pick a reel…</option>
+                  <option value="">{dict.form.pickReel}</option>
                   {reels.map((reel) => (
                     <option key={reel.id} value={reel.id}>
-                      {reelLabel(reel)}
+                      {reelLabel(reel, locale, dict.card.noCaption)}
                     </option>
                   ))}
                 </select>
@@ -210,7 +215,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="automation_match_mode">Match</Label>
+            <Label htmlFor="automation_match_mode">{dict.form.matchLabel}</Label>
             <select
               id="automation_match_mode"
               value={matchMode}
@@ -222,24 +227,22 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
               }
               className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
-              <option value="contains">Comment contains a keyword</option>
-              <option value="exact">Comment is exactly a keyword</option>
-              <option value="any">Any comment (no keywords needed)</option>
+              <option value="contains">{dict.form.matchContains}</option>
+              <option value="exact">{dict.form.matchExact}</option>
+              <option value="any">{dict.form.matchAny}</option>
             </select>
           </div>
 
           {matchMode === "any" ? (
             <p className="rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Every comment on this reel gets the reply + DM (your own comments and the bot&apos;s
-              replies are always ignored). Great for &ldquo;comment anything and I&apos;ll DM you the
-              link&rdquo; CTAs — just mind Meta&apos;s ~200 calls/hour limit if the reel goes viral.
+              {dict.form.anyCommentHint}
             </p>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="automation_keywords">Keywords (comma separated)</Label>
+              <Label htmlFor="automation_keywords">{dict.form.keywordsLabel}</Label>
               <Input
                 id="automation_keywords"
-                placeholder="link, guide, free"
+                placeholder={dict.form.keywordsPlaceholder}
                 value={keywords}
                 onChange={(e) => setKeywords(e.target.value)}
                 disabled={isPending}
@@ -250,11 +253,11 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
 
         <div className="min-w-0 space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="automation_templates">Public replies (one per line, rotated)</Label>
+            <Label htmlFor="automation_templates">{dict.form.publicRepliesLabel}</Label>
             <Textarea
               id="automation_templates"
               rows={2}
-              placeholder={"Check your DMs 📩\nJust sent it — check your inbox!"}
+              placeholder={dict.form.publicRepliesPlaceholder}
               value={templates}
               onChange={(e) => setTemplates(e.target.value)}
               disabled={isPending}
@@ -262,11 +265,11 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="automation_dm">DM message</Label>
+            <Label htmlFor="automation_dm">{dict.form.dmMessageLabel}</Label>
             <Textarea
               id="automation_dm"
               rows={3}
-              placeholder="Hey! Here's the link you asked for 👇"
+              placeholder={dict.form.dmMessagePlaceholder}
               value={dmMessage}
               onChange={(e) => setDmMessage(e.target.value)}
               disabled={isPending}
@@ -274,10 +277,10 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="automation_link">Link (sent inside the DM)</Label>
+            <Label htmlFor="automation_link">{dict.form.linkLabel}</Label>
             <Input
               id="automation_link"
-              placeholder="https://your-link.com"
+              placeholder={dict.form.linkPlaceholder}
               value={dmLink}
               onChange={(e) => setDmLink(e.target.value)}
               disabled={isPending}
@@ -294,7 +297,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
           disabled={isPending || loadingReels}
           className="w-full sm:w-auto"
         >
-          {isPending ? "Creating…" : "Create Automation"}
+          {isPending ? dict.form.creating : dict.form.createAutomation}
         </Button>
       </div>
     </div>

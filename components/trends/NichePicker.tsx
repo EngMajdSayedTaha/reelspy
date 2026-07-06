@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ALL_NICHES, type NicheSummary } from "@/lib/trends/shared";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Props = {
   niches: NicheSummary[];
@@ -12,6 +13,7 @@ type Props = {
 // on mobile. Switching updates the `?niche=` param (server re-queries). "All
 // niches" = the whole userbase's tracked set.
 export function NichePicker({ niches, selected }: Props) {
+  const dict = useDict().trends.picker;
   const router = useRouter();
 
   const go = (niche: string) => {
@@ -19,13 +21,13 @@ export function NichePicker({ niches, selected }: Props) {
     router.push(url);
   };
 
-  const options = [{ niche: ALL_NICHES, label: "All niches", accountCount: 0 }, ...niches.map((n) => ({ niche: n.niche, label: n.niche, accountCount: n.accountCount }))];
+  const options = [{ niche: ALL_NICHES, label: dict.allNiches, accountCount: 0 }, ...niches.map((n) => ({ niche: n.niche, label: n.niche, accountCount: n.accountCount }))];
 
   return (
     <>
       {/* Mobile: select */}
       <select
-        aria-label="Niche"
+        aria-label={dict.ariaLabel}
         value={selected}
         onChange={(e) => go(e.target.value)}
         className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:hidden"

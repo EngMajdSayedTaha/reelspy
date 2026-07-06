@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Settings2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,8 @@ import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
 import { PublishComposer } from "@/components/publishing/PublishComposer";
 import { LocalDateTime } from "@/components/publishing/LocalDateTime";
 import { RetryButton, DeletePostButton, EditPostButton } from "@/components/publishing/PostActions";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 type JobRow = {
   id: string;
@@ -40,16 +43,26 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "border-border-strong bg-border-strong/40 text-muted-foreground",
 };
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({
+  status,
+  labels,
+}: {
+  status: string;
+  labels: Record<string, string>;
+}) {
   const cls = STATUS_STYLES[status] ?? STATUS_STYLES.pending;
   return (
-    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${cls}`}>
-      {status}
+    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {labels[status] ?? status}
     </span>
   );
 }
 
 export default async function PublishingPage() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+  const t = dict.publishing;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -107,14 +120,12 @@ export default async function PublishingPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Publishing</h1>
-          <p className="text-sm text-muted-foreground">
-            Upload once, post to Instagram, Facebook, TikTok &amp; YouTube — now or scheduled.
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.titles.publishing}</h1>
+          <p className="text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
         <Button asChild variant="outline">
           <Link href="/dashboard/connections">
-            <Settings2 className="h-4 w-4" /> Connections
+            <Settings2 className="h-4 w-4" /> {dict.nav.connections}
           </Link>
         </Button>
       </div>
@@ -125,13 +136,10 @@ export default async function PublishingPage() {
         <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="min-w-0 text-sm">
-            <p className="font-medium text-foreground">
-              {needsAttention.length} post{needsAttention.length === 1 ? "" : "s"} didn&apos;t fully publish
-            </p>
+            <p className="font-medium text-foreground">{t.postsDidntPublish(needsAttention.length)}</p>
             <p className="mt-0.5 text-muted-foreground">
-              Some platforms failed. Review the per-platform errors below and hit{" "}
-              <span className="font-medium text-foreground">Retry</span> — only the failed target re-runs,
-              so nothing gets double-posted.
+              {t.reviewFailedIntro}{" "}
+              <span className="font-medium text-foreground">{dict.common.retry}</span> {t.reviewFailedOutro}
             </p>
           </div>
         </div>
@@ -139,10 +147,10 @@ export default async function PublishingPage() {
 
       {/* History */}
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Recent posts</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t.recentPosts}</h2>
         {!posts || posts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-muted-foreground">
-            Nothing published yet. Your posts will show here with per-platform status.
+            {t.emptyHistory}
           </p>
         ) : (
           <ul className="space-y-3">
@@ -151,18 +159,18 @@ export default async function PublishingPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-foreground">
-                      {post.title || post.caption || "Untitled post"}
+                      {post.title || post.caption || t.untitledPost}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {post.scheduled_at ? (
-                        <LocalDateTime value={post.scheduled_at} prefix="Scheduled · " />
+                        <LocalDateTime value={post.scheduled_at} prefix={t.scheduledPrefix} />
                       ) : (
-                        <LocalDateTime value={post.created_at} prefix="Created · " />
+                        <LocalDateTime value={post.created_at} prefix={t.createdPrefix} />
                       )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <StatusBadge status={post.status} />
+                    <StatusBadge status={post.status} labels={t.status} />
                     {post.status === "scheduled" && post.scheduled_at ? (
                       <EditPostButton
                         postId={post.id}
@@ -186,14 +194,14 @@ export default async function PublishingPage() {
                         <span className="text-xs font-medium text-foreground">
                           {PLATFORM_LABELS[job.platform]}
                         </span>
-                        <StatusBadge status={job.status} />
+                        <StatusBadge status={job.status} labels={t.status} />
                         {job.remote_url ? (
                           <a
                             href={job.remote_url}
                             target="_blank"
                             rel="noreferrer"
                             className="text-muted-foreground hover:text-foreground"
-                            title="View post"
+                            title={t.viewPost}
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>

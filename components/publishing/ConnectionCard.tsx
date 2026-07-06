@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError, requestJson } from "@/lib/utils/api";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 // Icons live here (a client component) rather than being passed in as props —
 // component functions can't cross the Server→Client boundary.
@@ -53,24 +54,24 @@ export function ConnectionCard({
   disconnectConfirm,
 }: Props) {
   const confirm = useConfirm();
+  const dict = useDict();
+  const t = dict.publishing;
   const [busy, setBusy] = useState(false);
   const Icon = PLATFORM_ICONS[platform];
 
   const badge = !connected
-    ? { label: "Not connected", cls: "border-border-strong bg-border-strong/50 text-muted-foreground" }
+    ? { label: dict.shell.notConnected, cls: "border-border-strong bg-border-strong/50 text-muted-foreground" }
     : needsReconnect
-      ? { label: "Reconnect needed", cls: "border-danger/40 bg-danger/10 text-danger" }
-      : { label: "Connected", cls: "border-success/40 bg-success/10 text-success" };
+      ? { label: t.reconnectNeededBadge, cls: "border-danger/40 bg-danger/10 text-danger" }
+      : { label: dict.shell.connected, cls: "border-success/40 bg-success/10 text-success" };
 
   const handleDisconnect = async () => {
     if (!disconnectHref) return;
     const ok = await confirm({
-      title: disconnectConfirm?.title ?? `Disconnect ${PLATFORM_LABELS[platform]}?`,
-      description:
-        disconnectConfirm?.description ??
-        "ReelSpy will remove the saved connection. Reconnect anytime to resume posting.",
-      confirmText: "Disconnect",
-      cancelText: "Keep connected",
+      title: disconnectConfirm?.title ?? t.disconnectConfirmTitle(PLATFORM_LABELS[platform]),
+      description: disconnectConfirm?.description ?? t.disconnectDefaultDescription,
+      confirmText: dict.common.disconnect,
+      cancelText: t.keepConnected,
       destructive: true,
     });
     if (!ok) return;
@@ -79,7 +80,7 @@ export function ConnectionCard({
       await requestJson(disconnectHref, { method: "POST" });
       window.location.reload();
     } catch (error) {
-      notifyError(error, "Could not disconnect.");
+      notifyError(error, t.couldNotDisconnect);
       setBusy(false);
     }
   };
@@ -110,18 +111,18 @@ export function ConnectionCard({
         <div className="flex flex-wrap gap-2">
           {disabled ? (
             <Button disabled>
-              <Link2 className="h-4 w-4" /> Connect
+              <Link2 className="h-4 w-4" /> {dict.common.connect}
             </Button>
           ) : (
             <Button asChild variant={connected && !needsReconnect ? "outline" : "default"}>
               <a href={connectHref}>
                 {connected ? (
                   <>
-                    <RefreshCw className="h-4 w-4" /> Reconnect
+                    <RefreshCw className="h-4 w-4" /> {t.reconnectButton}
                   </>
                 ) : (
                   <>
-                    <Link2 className="h-4 w-4" /> Connect
+                    <Link2 className="h-4 w-4" /> {dict.common.connect}
                   </>
                 )}
               </a>
@@ -129,7 +130,7 @@ export function ConnectionCard({
           )}
           {connected && disconnectHref ? (
             <Button type="button" variant="outline" disabled={busy} onClick={handleDisconnect}>
-              <Unplug className="h-4 w-4" /> {busy ? "Removing…" : "Disconnect"}
+              <Unplug className="h-4 w-4" /> {busy ? t.removingEllipsis : dict.common.disconnect}
             </Button>
           ) : null}
         </div>

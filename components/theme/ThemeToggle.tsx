@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
-
-const OPTIONS: { value: string; label: string; icon: LucideIcon }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const dict = useDict();
   const [mounted, setMounted] = useState(false);
+
+  const options: { value: string; label: string; icon: LucideIcon }[] = [
+    { value: "light", label: dict.theme.light, icon: Sun },
+    { value: "dark", label: dict.theme.dark, icon: Moon },
+    { value: "system", label: dict.theme.system, icon: Monitor },
+  ];
 
   // next-themes only knows the real theme after mount; render a stable
   // placeholder during SSR/first paint to avoid a hydration mismatch.
@@ -26,10 +28,10 @@ export function ThemeToggle() {
   return (
     <div
       role="radiogroup"
-      aria-label="Color theme"
+      aria-label={dict.theme.colorTheme}
       className="flex items-center gap-1 rounded-lg border border-border bg-surface-2 p-1"
     >
-      {OPTIONS.map(({ value, label, icon: Icon }) => {
+      {options.map(({ value, label, icon: Icon }) => {
         const selected = active === value;
         return (
           <button

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDict } from "@/lib/i18n/I18nProvider";
 import type { DmAutomation } from "@/lib/auto-reply/types";
 
 type ActionState = { error?: string };
@@ -28,6 +29,8 @@ export function DmAutomationCard({
   deleteAction,
 }: DmAutomationCardProps) {
   const confirm = useConfirm();
+  const dict = useDict().automations.dmCard;
+  const common = useDict().common;
   const isActive = automation.is_active;
 
   const [editing, setEditing] = useState(false);
@@ -43,18 +46,18 @@ export function DmAutomationCard({
     startTransition(async () => {
       try {
         await toggleActiveAction(data);
-        toast.success(isActive ? "DM automation paused" : "DM automation resumed");
+        toast.success(isActive ? dict.toastPaused : dict.toastResumed);
       } catch {
-        toast.error("Could not update the automation.");
+        toast.error(dict.toastUpdateError);
       }
     });
   };
 
   const handleDelete = async () => {
     const ok = await confirm({
-      title: "Delete this DM automation?",
-      description: "Incoming messages will no longer get this auto-reply.",
-      confirmText: "Delete",
+      title: dict.confirmDeleteTitle,
+      description: dict.confirmDeleteDesc,
+      confirmText: common.delete,
       destructive: true,
     });
     if (!ok) return;
@@ -64,9 +67,9 @@ export function DmAutomationCard({
     startTransition(async () => {
       try {
         await deleteAction(data);
-        toast.success("DM automation deleted");
+        toast.success(dict.toastDeleted);
       } catch {
-        toast.error("Could not delete the automation.");
+        toast.error(dict.toastDeleteError);
       }
     });
   };
@@ -86,9 +89,9 @@ export function DmAutomationCard({
           return;
         }
         setEditing(false);
-        toast.success("DM automation updated");
+        toast.success(dict.toastUpdated);
       } catch {
-        toast.error("Could not update the automation.");
+        toast.error(dict.toastUpdateError);
       }
     });
   };
@@ -104,7 +107,7 @@ export function DmAutomationCard({
       {!isActive ? (
         <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-2.5 py-1.5 text-xs font-medium text-warning">
           <PauseCircle className="h-4 w-4 shrink-0" />
-          Paused — incoming DMs are ignored by this automation
+          {dict.pausedNotice}
         </div>
       ) : null}
 
@@ -116,7 +119,7 @@ export function DmAutomationCard({
           <div className="flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
-                Any message
+                {dict.anyMessage}
               </Badge>
             ) : (
               automation.keywords.map((keyword) => (
@@ -131,7 +134,7 @@ export function DmAutomationCard({
           variant={isActive ? "default" : "outline"}
           className={isActive ? "" : "border-warning/50 bg-warning/15 text-warning"}
         >
-          {isActive ? "Active" : "Paused"}
+          {isActive ? dict.active : dict.paused}
         </Badge>
       </div>
 
@@ -139,7 +142,7 @@ export function DmAutomationCard({
         <div className="space-y-3">
           {automation.match_mode !== "any" ? (
             <div className="space-y-1.5">
-              <Label htmlFor={`dm_keywords_${automation.id}`}>Keywords (comma separated)</Label>
+              <Label htmlFor={`dm_keywords_${automation.id}`}>{dict.keywordsLabel}</Label>
               <Input
                 id={`dm_keywords_${automation.id}`}
                 value={keywords}
@@ -149,7 +152,7 @@ export function DmAutomationCard({
             </div>
           ) : null}
           <div className="space-y-1.5">
-            <Label htmlFor={`dm_reply_${automation.id}`}>Reply message</Label>
+            <Label htmlFor={`dm_reply_${automation.id}`}>{dict.replyMessageLabel}</Label>
             <Textarea
               id={`dm_reply_${automation.id}`}
               rows={3}
@@ -159,7 +162,7 @@ export function DmAutomationCard({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`dm_link_${automation.id}`}>Link</Label>
+            <Label htmlFor={`dm_link_${automation.id}`}>{dict.linkLabel}</Label>
             <Input
               id={`dm_link_${automation.id}`}
               value={replyLink}
@@ -169,7 +172,7 @@ export function DmAutomationCard({
           </div>
           <div className="flex items-center gap-2">
             <Button type="button" size="sm" className="flex-1" onClick={handleSave} disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
+              {isPending ? common.saving : common.save}
             </Button>
             <Button
               type="button"
@@ -178,14 +181,14 @@ export function DmAutomationCard({
               onClick={() => setEditing(false)}
               disabled={isPending}
             >
-              Cancel
+              {common.cancel}
             </Button>
           </div>
         </div>
       ) : (
         <>
           <p className="line-clamp-2 break-words text-xs text-subtle">
-            Reply: {automation.reply_message}
+            {dict.replyPrefix} {automation.reply_message}
             {automation.reply_link ? ` · ${automation.reply_link}` : ""}
           </p>
 
@@ -199,7 +202,7 @@ export function DmAutomationCard({
               disabled={isPending}
             >
               <Pencil className="h-4 w-4" />
-              Edit
+              {common.edit}
             </Button>
             <Button
               type="button"
@@ -207,12 +210,12 @@ export function DmAutomationCard({
               variant="outline"
               onClick={handleToggleActive}
               disabled={isPending}
-              aria-label={isActive ? "Pause DM automation" : "Resume DM automation"}
-              title={isActive ? "Pause" : "Resume"}
+              aria-label={isActive ? dict.pauseAria : dict.resumeAria}
+              title={isActive ? dict.pauseTitle : dict.resume}
               className={isActive ? "" : "border-warning/50 text-warning hover:bg-warning/10"}
             >
               <Power className="h-4 w-4" />
-              {!isActive ? "Resume" : null}
+              {!isActive ? dict.resume : null}
             </Button>
             <Button
               type="button"
@@ -220,8 +223,8 @@ export function DmAutomationCard({
               variant="outline"
               onClick={handleDelete}
               disabled={isPending}
-              aria-label="Delete DM automation"
-              title="Delete DM automation"
+              aria-label={dict.deleteAria}
+              title={dict.deleteTitle}
             >
               <Trash2 className="h-4 w-4" />
             </Button>

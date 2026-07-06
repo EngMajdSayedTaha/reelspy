@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 type FeedPaginationProps = {
   page: number;
@@ -12,6 +13,7 @@ type FeedPaginationProps = {
 };
 
 export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginationProps) {
+  const dict = useDict().feed.pagination;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -47,7 +49,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
       <p className="text-xs text-subtle">
-        Showing {from}–{toShown} of {total}
+        {dict.showing(from, toShown, total)}
       </p>
 
       <div className="flex items-center gap-1">
@@ -56,9 +58,9 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           disabled={page <= 1 || isPending}
           onClick={() => goTo(page - 1)}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="Previous page"
+          aria-label={dict.previousAria}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
         </button>
 
         {start > 1 ? (
@@ -84,9 +86,9 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           disabled={page >= totalPages || isPending}
           onClick={() => goTo(page + 1)}
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
-          aria-label="Next page"
+          aria-label={dict.nextAria}
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" />
         </button>
       </div>
     </div>

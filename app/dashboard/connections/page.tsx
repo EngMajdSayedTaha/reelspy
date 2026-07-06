@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -7,6 +8,9 @@ import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
 import { listIgConnections } from "@/lib/instagram/connections";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor } from "@/lib/billing/entitlements";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
+import { intlLocale } from "@/lib/i18n/intl";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -17,32 +21,33 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 // Merged from the old per-platform pages so every OAuth round-trip lands here.
-const ERROR_MAP: Record<string, string> = {
-  invalid_state: "Sign-in could not be verified. Please try connecting again.",
-  missing_code: "The provider did not return an authorization code.",
-  oauth_failed: "Connection failed. Please try again.",
-  tiktok_env_missing: "TikTok isn't configured on the server yet.",
-  youtube_env_missing: "YouTube isn't configured on the server yet.",
-  unsupported_platform: "That platform can't be connected here.",
-  meta_env_missing: "Instagram connection isn't configured yet. Contact support.",
-  profile_update_failed: "Connected, but we couldn't save your connection. Please retry.",
-  account_link_failed: "Connected, but we couldn't link your account. Please retry.",
-  no_ig_business_account:
-    "No Instagram Business account was found. Make sure your Instagram is a Business or Creator account linked to a Facebook Page, then reconnect.",
-};
+function errorMap(dict: Dict["connections"]): Record<string, string> {
+  return {
+    invalid_state: dict.invalidState,
+    missing_code: dict.missingCode,
+    oauth_failed: dict.oauthFailed,
+    tiktok_env_missing: dict.tiktokEnvMissing,
+    youtube_env_missing: dict.youtubeEnvMissing,
+    unsupported_platform: dict.unsupportedPlatform,
+    meta_env_missing: dict.metaEnvMissing,
+    profile_update_failed: dict.profileUpdateFailed,
+    account_link_failed: dict.accountLinkFailed,
+    no_ig_business_account: dict.noIgBusinessAccount,
+  };
+}
 
 function isExpired(value: string | null | undefined): boolean {
   return value ? new Date(value).getTime() <= Date.now() : false;
 }
 
-function formatDate(value: string | null | undefined): string | null {
+function formatDate(value: string | null | undefined, locale: string): string | null {
   if (!value) return null;
-  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(value).toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatDateTime(value: string | null | undefined): string | null {
+function formatDateTime(value: string | null | undefined, locale: string): string | null {
   if (!value) return null;
-  return new Date(value).toLocaleString("en-US", {
+  return new Date(value).toLocaleString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -52,11 +57,15 @@ function formatDateTime(value: string | null | undefined): string | null {
 }
 
 export default async function ConnectionsPage({ searchParams }: PageProps) {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const fullDict = getDictionary(locale);
+  const dict = fullDict.connections;
+  const bcp47 = intlLocale(locale);
   const params = await searchParams;
   const error = firstParam(params.error);
   const success = firstParam(params.success);
   const detail = firstParam(params.detail);
-  const errorMessage = error ? ERROR_MAP[error] ?? "Something went wrong." : null;
+  const errorMessage = error ? errorMap(dict)[error] ?? dict.genericError : null;
 
   const supabase = await createClient();
   const {
@@ -89,10 +98,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
     igConnected && (profile?.ig_token_status === "invalid" || isExpired(igExpiresAt));
 
   const igDetail = igNeedsReconnect
-    ? "Your connection expired — reconnect to resume syncing."
+    ? dict.igExpired
     : igExpiresAt
-      ? `Renews automatically · valid through ${formatDate(igExpiresAt)}`
-      : "Connection active.";
+      ? dict.igRenewsThrough(formatDate(igExpiresAt, bcp47) ?? "")
+      : dict.connectionActive;
 
   // Troubleshooting setup details only surface when there's a reason to look.
   const showSetupDetails = metaReady && (!igConnected || Boolean(errorMessage));
@@ -120,21 +129,20 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Connections</h1>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{fullDict.titles.connections}</h1>
         <p className="text-sm text-muted-foreground">
-          One place to connect and manage every social account ReelSpy works with — syncing,
-          publishing and auto-reply all run off these connections.
+          {dict.subtitle}
         </p>
       </div>
 
       {success === "connected" ? (
         <div className="flex items-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-          <CheckCircle2 className="h-4 w-4" /> Account connected successfully.
+          <CheckCircle2 className="h-4 w-4" /> {dict.connectedSuccess}
         </div>
       ) : null}
       {success === "disconnected" ? (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
-          <AlertTriangle className="h-4 w-4" /> Account disconnected. You can reconnect below.
+          <AlertTriangle className="h-4 w-4" /> {dict.disconnectedSuccess}
         </div>
       ) : null}
       {errorMessage ? (
@@ -173,40 +181,39 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
               {igDetail}
               {igConnected && profile?.ig_token_refreshed_at ? (
                 <span className="mt-0.5 block text-subtle">
-                  Last renewal: {formatDateTime(profile.ig_token_refreshed_at)}
+                  {dict.lastRenewal(formatDateTime(profile.ig_token_refreshed_at, bcp47) ?? "")}
                 </span>
               ) : null}
             </>
           }
-          note="Powers reel syncing, insights, publishing & auto-reply. Requires an IG Business/Creator account linked to a Facebook Page."
+          note={dict.igNote}
           disconnectConfirm={{
-            title: "Disconnect Instagram?",
-            description:
-              "ReelSpy will remove your saved Instagram connection. Your tracked reels stay, but syncing, publishing and auto-reply pause until you reconnect.",
+            title: dict.disconnectInstagramTitle,
+            description: dict.disconnectInstagramDescription,
           }}
         >
           {!metaReady ? (
             <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
-              Instagram connection isn&apos;t configured on the server yet.
+              {dict.igNotConfigured}
             </p>
           ) : showSetupDetails ? (
             <details className="group rounded-xl border border-border bg-background p-4 text-sm">
               <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
-                Setup details
+                {dict.setupDetails}
               </summary>
               <div className="mt-3 space-y-1 text-muted-foreground">
                 <p>
-                  App ID: <span className="font-mono text-xs">{igAppId ?? "not set"}</span>
+                  {dict.appIdLabel} <span className="font-mono text-xs">{igAppId ?? dict.notSet}</span>
                 </p>
                 <p>
-                  Callback URL:{" "}
-                  <span className="font-mono text-xs">{process.env.META_REDIRECT_URI ?? "not set"}</span>
+                  {dict.callbackUrlLabel}{" "}
+                  <span className="font-mono text-xs">{process.env.META_REDIRECT_URI ?? dict.notSet}</span>
                 </p>
                 <p>
-                  Permissions: <span className="font-medium">{scopes}</span>
+                  {dict.permissionsLabel} <span className="font-medium">{scopes}</span>
                 </p>
                 <p className="pt-1 text-xs text-subtle">
-                  Your Instagram must be a Business or Creator account linked to a Facebook Page.
+                  {dict.igBusinessRequirement}
                 </p>
               </div>
             </details>
@@ -216,11 +223,11 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
         <ConnectionCard
           platform="facebook"
           connected={Boolean(profile?.fb_page_id)}
-          handle={profile?.fb_page_id ? "Page connected" : null}
+          handle={profile?.fb_page_id ? dict.pageConnected : null}
           needsReconnect={igNeedsReconnect}
           connectHref="/api/ig/connect"
           disabled={!metaReady}
-          note="Posts to your linked Facebook Page (connected together with Instagram)."
+          note={dict.fbNote}
         />
 
         <ConnectionCard
@@ -230,7 +237,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           needsReconnect={tiktok?.token_status === "invalid"}
           connectHref="/api/social/tiktok/connect"
           disconnectHref="/api/social/tiktok/disconnect"
-          note="Posts via the TikTok Content Posting API."
+          note={dict.tiktokNote}
         />
 
         <ConnectionCard
@@ -240,15 +247,13 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           needsReconnect={youtube?.token_status === "invalid"}
           connectHref="/api/social/youtube/connect"
           disconnectHref="/api/social/youtube/disconnect"
-          note="Uploads via the YouTube Data API and powers comment auto-reply."
+          note={dict.youtubeNote}
         />
       </div>
 
       <p className="rounded-lg border border-border bg-background px-4 py-3 text-xs text-subtle">
-        Note: Instagram &amp; Facebook posting works on your own account with no Meta App Review
-        (the app stays in development mode). TikTok and YouTube post to your own account right away
-        but stay private until their platform audits pass. See{" "}
-        <span className="font-mono">docs/publishing-setup.md</span> for the full step-by-step.
+        {dict.footerNoteBeforeDocs}{" "}
+        <span className="font-mono">docs/publishing-setup.md</span> {dict.footerNoteAfterDocs}
       </p>
     </div>
   );
