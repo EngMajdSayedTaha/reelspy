@@ -1,18 +1,21 @@
+"use client";
+
 import { ExternalLink, Eye, Heart, MessageCircle, TrendingUp } from "lucide-react";
 import { TrackAccountButton } from "@/components/trends/TrackAccountButton";
 import type { TrendReel } from "@/lib/trends/shared";
+import { useDict } from "@/lib/i18n/I18nProvider";
+import type { Dict } from "@/lib/i18n/dictionaries";
 
 // Compact count (1.2K / 3.4M) for the metric row.
 function compact(n: number): string {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
-function daysAgo(iso: string | null): string {
+function daysAgo(iso: string | null, dict: Dict["trends"]["card"]): string {
   if (!iso) return "";
   const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (d <= 0) return "today";
-  if (d === 1) return "1d ago";
-  return `${d}d ago`;
+  if (d <= 0) return dict.today;
+  return dict.daysAgo(d);
 }
 
 type Props = {
@@ -26,6 +29,8 @@ type Props = {
 // signal (beats the account's own median), so a small niche account can top a
 // big one.
 export function TrendReelCard({ reel, niche, alreadyTracked }: Props) {
+  const fullDict = useDict();
+  const dict = fullDict.trends.card;
   const outperform = reel.outperformRatio >= 1.5 ? `×${reel.outperformRatio.toFixed(1)}` : null;
 
   return (
@@ -41,13 +46,13 @@ export function TrendReelCard({ reel, niche, alreadyTracked }: Props) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-subtle">
-            No thumbnail
+            {dict.noThumbnail}
           </div>
         )}
         {outperform ? (
           <span
             className="absolute start-2 top-2 inline-flex items-center gap-1 rounded-full bg-success px-2 py-1 text-xs font-semibold text-primary-foreground shadow"
-            title={`Beats @${reel.igUsername}'s typical reel by ${outperform} vs the account's median`}
+            title={dict.outperformTitle(reel.igUsername, outperform)}
           >
             <TrendingUp className="h-3.5 w-3.5" /> {outperform}
           </span>
@@ -58,8 +63,8 @@ export function TrendReelCard({ reel, niche, alreadyTracked }: Props) {
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">@{reel.igUsername}</p>
           <p className="text-xs text-subtle">
-            {reel.followers != null ? `${compact(reel.followers)} followers` : "—"}
-            {reel.postedAt ? ` · ${daysAgo(reel.postedAt)}` : ""}
+            {reel.followers != null ? `${compact(reel.followers)} ${dict.followers}` : "—"}
+            {reel.postedAt ? ` · ${daysAgo(reel.postedAt, dict)}` : ""}
           </p>
         </div>
 
@@ -92,7 +97,7 @@ export function TrendReelCard({ reel, niche, alreadyTracked }: Props) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-brand"
             >
-              View <ExternalLink className="h-3.5 w-3.5" />
+              {fullDict.common.view} <ExternalLink className="h-3.5 w-3.5" />
             </a>
           ) : null}
         </div>
