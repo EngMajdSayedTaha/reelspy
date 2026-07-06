@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/reels/FavoriteButton";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 import { intlLocale } from "@/lib/i18n/intl";
+import { useRetryableImage } from "@/lib/hooks/useRetryableImage";
 
 type Reel = {
   id: string;
@@ -111,8 +112,8 @@ export function ReelCard({
   const locale = useLocale();
   const { username, avatar } = getSource(reel);
   const [playing, setPlaying] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
+  const thumb = useRetryableImage(reel.thumbnail_url);
+  const avatarImg = useRetryableImage(avatar);
 
   const postedLabel = reel.posted_at
     ? new Date(reel.posted_at).toLocaleDateString(intlLocale(locale), {
@@ -137,15 +138,16 @@ export function ReelCard({
           />
         ) : (
           <>
-            {reel.thumbnail_url && !imgError ? (
+            {reel.thumbnail_url && !thumb.failed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
+                key={thumb.retryKey}
                 src={reel.thumbnail_url}
                 alt={reel.caption ?? dict.reelByAlt(username)}
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
-                onError={() => setImgError(true)}
+                onError={thumb.onError}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               />
             ) : (
@@ -168,27 +170,25 @@ export function ReelCard({
               </span>
             </button>
 
-            {/* Favorite toggle */}
-            <div className="absolute start-2 top-2 z-10">
+            {/* Favorite toggle + outperforming badge (W3/V5) — stacked in one
+                column so the badge (only shown when the feed is sorted by the
+                relative "Outperforming" score) never overlaps the heart. */}
+            <div className="absolute start-2 top-2 z-10 flex flex-col items-start gap-1.5">
               <FavoriteButton
                 reelId={reel.id}
                 favorite={Boolean(reel.is_favorite)}
                 action={favoriteAction}
               />
+              {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
+                <div
+                  className="flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+                  title={dict.outperformTooltip(username, formatOutperform(reel.outperform_ratio))}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {formatOutperform(reel.outperform_ratio)}
+                </div>
+              ) : null}
             </div>
-
-            {/* Outperforming badge (W3/V5) — only when the feed is sorted by
-                the relative "Outperforming" score. Explains the ranking: how
-                far this reel beats its own account's typical reel. */}
-            {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
-              <div
-                className="absolute start-2 top-2 flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
-                title={dict.outperformTooltip(username, formatOutperform(reel.outperform_ratio))}
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                {formatOutperform(reel.outperform_ratio)}
-              </div>
-            ) : null}
 
             {/* Status badge */}
             <div className="absolute end-2 top-2">
@@ -234,13 +234,14 @@ export function ReelCard({
             rel="noreferrer"
             className="flex min-w-0 items-center gap-2"
           >
-            {avatar && !avatarError ? (
+            {avatar && !avatarImg.failed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
+                key={avatarImg.retryKey}
                 src={avatar}
                 alt={`@${username}`}
                 referrerPolicy="no-referrer"
-                onError={() => setAvatarError(true)}
+                onError={avatarImg.onError}
                 className="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
               />
             ) : (

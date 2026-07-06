@@ -10,6 +10,7 @@ import { getClientPrefs } from "@/lib/prefs";
 import { notifyError, requestJson } from "@/lib/utils/api";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 import { intlLocale } from "@/lib/i18n/intl";
+import { useRetryableImage } from "@/lib/hooks/useRetryableImage";
 
 type Account = {
   id: string;
@@ -69,7 +70,7 @@ export function AccountCard({
   const [isAssigning, startAssign] = useTransition();
   const [isPendingAction, startAction] = useTransition();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
+  const avatarImg = useRetryableImage(account.avatar_url);
   const [syncLimit, setSyncLimit] = useState(25);
 
   // Default sync depth comes from the user's saved preference (Settings).
@@ -172,13 +173,14 @@ export function AccountCard({
 
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          {account.avatar_url && !avatarError ? (
+          {account.avatar_url && !avatarImg.failed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              key={avatarImg.retryKey}
               src={account.avatar_url}
               alt={`@${account.ig_username}`}
               referrerPolicy="no-referrer"
-              onError={() => setAvatarError(true)}
+              onError={avatarImg.onError}
               className={`h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-border-strong ${
                 isActive ? "" : "grayscale"
               }`}

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/reels/FavoriteButton";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 import { intlLocale } from "@/lib/i18n/intl";
+import { useRetryableImage } from "@/lib/hooks/useRetryableImage";
 
 type Reel = {
   id: string;
@@ -77,7 +78,7 @@ export function ReelRow({
   const locale = useLocale();
   const { username } = getSource(reel);
   const [playing, setPlaying] = useState(false);
-  const [imgError, setImgError] = useState(false);
+  const thumb = useRetryableImage(reel.thumbnail_url);
 
   const postedLabel = reel.posted_at
     ? new Date(reel.posted_at).toLocaleDateString(intlLocale(locale), {
@@ -106,15 +107,16 @@ export function ReelRow({
             aria-label={dict.playAria}
             className="absolute inset-0"
           >
-            {reel.thumbnail_url && !imgError ? (
+            {reel.thumbnail_url && !thumb.failed ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
+                key={thumb.retryKey}
                 src={reel.thumbnail_url}
                 alt={reel.caption ?? dict.reelByAlt(username)}
                 loading="lazy"
                 decoding="async"
                 referrerPolicy="no-referrer"
-                onError={() => setImgError(true)}
+                onError={thumb.onError}
                 className="absolute inset-0 h-full w-full object-cover"
               />
             ) : (
