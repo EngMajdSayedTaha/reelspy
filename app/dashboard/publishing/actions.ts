@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -10,30 +11,42 @@ import { deleteR2Object } from "@/lib/storage/r2";
 import { getConnection } from "@/lib/publishing/token-store";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
 import { PLATFORMS, type Platform } from "@/lib/publishing/types";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
+import type { PublishingDict } from "@/lib/i18n/dictionaries/publishing";
 
-const createSchema = z.object({
-  videoPath: z.string().min(1),
-  title: z.string().max(200).optional().nullable(),
-  caption: z.string().max(5000).optional().nullable(),
-  hashtags: z.string().max(2000).optional().nullable(),
-  platforms: z.array(z.enum(PLATFORMS)).min(1, "Pick at least one platform."),
-  // Optional per-platform caption overrides, keyed by platform. A platform with
-  // a non-empty value here posts that caption instead of the shared one; anything
-  // absent or blank falls back to `caption` at dispatch time.
-  captions: z.record(z.string(), z.string().max(5000)).optional(),
-  privacy: z.enum(["public", "private"]).default("public"),
-  // ISO datetime; absent/empty = publish now.
-  scheduledAt: z.string().datetime().optional().nullable(),
-});
+async function getDict() {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale);
+}
 
-export type CreatePostInput = z.input<typeof createSchema>;
+// Built per-call (not module scope) so the "pick at least one platform" message
+// reflects the caller's locale cookie.
+function createSchema(t: PublishingDict["publishing"]) {
+  return z.object({
+    videoPath: z.string().min(1),
+    title: z.string().max(200).optional().nullable(),
+    caption: z.string().max(5000).optional().nullable(),
+    hashtags: z.string().max(2000).optional().nullable(),
+    platforms: z.array(z.enum(PLATFORMS)).min(1, t.pickAtLeastOnePlatform),
+    // Optional per-platform caption overrides, keyed by platform. A platform with
+    // a non-empty value here posts that caption instead of the shared one; anything
+    // absent or blank falls back to `caption` at dispatch time.
+    captions: z.record(z.string(), z.string().max(5000)).optional(),
+    privacy: z.enum(["public", "private"]).default("public"),
+    // ISO datetime; absent/empty = publish now.
+    scheduledAt: z.string().datetime().optional().nullable(),
+  });
+}
 
-async function requireUser() {
+export type CreatePostInput = z.input<ReturnType<typeof createSchema>>;
+
+async function requireUser(t: PublishingDict["publishing"]) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user) throw new Error(t.unauthorized);
   return user;
 }
 
@@ -54,8 +67,10 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
   postId: string;
   publishedNow: boolean;
 }> {
-  const parsed = createSchema.parse(input);
-  const user = await requireUser();
+  const dict = await getDict();
+  const t = dict.publishing;
+  const parsed = createSchema(t).parse(input);
+  const user = await requireUser(t);
   const admin = createAdminClient();
 
   // Drop any platform the user hasn't connected.
@@ -64,7 +79,7 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
     if (await isConnected(admin, user.id, platform)) targets.push(platform);
   }
   if (targets.length === 0) {
-    throw new Error("None of the selected platforms are connected.");
+    throw new Error(t.noPlatformsConnected);
   }
 
   const immediate = !parsed.scheduledAt;
@@ -83,7 +98,7 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
     .select("id")
     .single();
 
-  if (postErr || !post) throw new Error(postErr?.message ?? "Could not create the post.");
+  if (postErr || !post) throw new Error(postErr?.message ?? t.couldNotCreatePost);
 
   // One job per connected target. connection_id is the social_connections row
   // for TikTok/YouTube; IG/FB credentials live on the profile, so it stays null.
@@ -146,8 +161,10 @@ export type UpdatePostInput = z.input<typeof updateSchema>;
 // Only posts in the `scheduled` state are editable — once the cron worker has
 // flipped a post to publishing/done/failed, the content is already in flight.
 export async function updateScheduledPost(input: UpdatePostInput): Promise<void> {
+  const dict = await getDict();
+  const t = dict.publishing;
   const parsed = updateSchema.parse(input);
-  const user = await requireUser();
+  const user = await requireUser(t);
   const admin = createAdminClient();
 
   const { data: post } = await admin
@@ -155,9 +172,9 @@ export async function updateScheduledPost(input: UpdatePostInput): Promise<void>
     .select("id, user_id, status")
     .eq("id", parsed.postId)
     .maybeSingle();
-  if (!post || post.user_id !== user.id) throw new Error("Post not found.");
+  if (!post || post.user_id !== user.id) throw new Error(t.postNotFound);
   if (post.status !== "scheduled") {
-    throw new Error("Only scheduled posts can be edited.");
+    throw new Error(t.onlyScheduledEditable);
   }
 
   const { error } = await admin
@@ -209,8 +226,10 @@ export async function reschedulePost(input: {
   postId: string;
   scheduledAt: string;
 }): Promise<void> {
+  const dict = await getDict();
+  const t = dict.publishing;
   const parsed = rescheduleSchema.parse(input);
-  const user = await requireUser();
+  const user = await requireUser(t);
   const admin = createAdminClient();
 
   const { data: post } = await admin
@@ -218,9 +237,9 @@ export async function reschedulePost(input: {
     .select("id, user_id, status")
     .eq("id", parsed.postId)
     .maybeSingle();
-  if (!post || post.user_id !== user.id) throw new Error("Post not found.");
+  if (!post || post.user_id !== user.id) throw new Error(t.postNotFound);
   if (post.status !== "scheduled") {
-    throw new Error("Only scheduled posts can be rescheduled.");
+    throw new Error(t.onlyScheduledReschedulable);
   }
 
   const { error } = await admin
@@ -251,7 +270,9 @@ export async function reschedulePost(input: {
 }
 
 export async function retryJob(jobId: string): Promise<void> {
-  const user = await requireUser();
+  const dict = await getDict();
+  const t = dict.publishing;
+  const user = await requireUser(t);
   const admin = createAdminClient();
 
   // Reset to pending (idempotency lock lives on post_id+connection_id), then
@@ -261,7 +282,7 @@ export async function retryJob(jobId: string): Promise<void> {
     .select("id, post_id, user_id")
     .eq("id", jobId)
     .maybeSingle();
-  if (!job || job.user_id !== user.id) throw new Error("Job not found.");
+  if (!job || job.user_id !== user.id) throw new Error(t.jobNotFound);
 
   await admin
     .from("publish_jobs")
@@ -273,7 +294,9 @@ export async function retryJob(jobId: string): Promise<void> {
 }
 
 export async function deletePost(postId: string): Promise<void> {
-  const user = await requireUser();
+  const dict = await getDict();
+  const t = dict.publishing;
+  const user = await requireUser(t);
   const admin = createAdminClient();
 
   const { data: post } = await admin
@@ -281,7 +304,7 @@ export async function deletePost(postId: string): Promise<void> {
     .select("id, user_id, video_path")
     .eq("id", postId)
     .maybeSingle();
-  if (!post || post.user_id !== user.id) throw new Error("Post not found.");
+  if (!post || post.user_id !== user.id) throw new Error(t.postNotFound);
 
   // Remove the uploaded R2 object too (best-effort), then the row (jobs cascade).
   if (post.video_path) {

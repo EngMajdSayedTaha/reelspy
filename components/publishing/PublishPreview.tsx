@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Heart, MessageCircle, Send as SendIcon, Bookmark, Film, Globe, Lock, Clock } from "lucide-react";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
+import { intlLocale } from "@/lib/i18n/intl";
+import type { Locale } from "@/lib/i18n/config";
 
 type PublishPreviewProps = {
   file: File | null;
@@ -30,11 +33,11 @@ const PLATFORM_ACCENT: Record<Platform, string> = {
 
 const TITLE_PLATFORMS: Platform[] = ["youtube", "facebook"];
 
-function formatSchedule(value: string): string {
+function formatSchedule(value: string, locale: Locale): string {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-US", {
+  return d.toLocaleString(intlLocale(locale), {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -75,6 +78,8 @@ export function PublishPreview({
   scheduledAt,
   handle = "your_account",
 }: PublishPreviewProps) {
+  const dict = useDict().publishing;
+  const locale = useLocale();
   // Object URL for the chosen video, derived during render and revoked on
   // cleanup (avoids the setState-in-effect cascade).
   const videoUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -110,7 +115,7 @@ export function PublishPreview({
   return (
     <div className="sticky top-6 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-foreground">Live preview</p>
+        <p className="text-sm font-medium text-foreground">{dict.livePreview}</p>
         {platform ? (
           <span className={`text-xs font-medium ${PLATFORM_ACCENT[platform]}`}>
             {PLATFORM_LABELS[platform]}
@@ -153,7 +158,7 @@ export function PublishPreview({
               <div className="min-w-0 flex-1 leading-tight">
                 <p className="truncate text-xs font-semibold text-foreground">{handle}</p>
                 <p className="truncate text-[10px] text-muted-foreground">
-                  {platform ? PLATFORM_LABELS[platform] : "Select a platform"}
+                  {platform ? PLATFORM_LABELS[platform] : dict.selectPlatform}
                 </p>
               </div>
               <span className="text-lg leading-none text-muted-foreground">⋯</span>
@@ -174,7 +179,7 @@ export function PublishPreview({
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-neutral-500">
                   <Film className="h-8 w-8" />
-                  <span className="text-xs">Your video appears here</span>
+                  <span className="text-xs">{dict.videoPlaceholder}</span>
                 </div>
               )}
             </div>
@@ -184,7 +189,7 @@ export function PublishPreview({
               <Heart className="h-5 w-5" />
               <MessageCircle className="h-5 w-5" />
               <SendIcon className="h-5 w-5" />
-              <Bookmark className="ml-auto h-5 w-5" />
+              <Bookmark className="ms-auto h-5 w-5" />
             </div>
 
             {/* Caption */}
@@ -199,22 +204,22 @@ export function PublishPreview({
                 </p>
               ) : (
                 <p className="text-xs italic text-muted-foreground">
-                  Your caption will appear here…
+                  {dict.previewCaptionPlaceholder}
                 </p>
               )}
 
               {/* Meta: visibility + timing, reflecting the form below it. */}
               <div className="flex items-center gap-1.5 pt-1 text-[10px] text-muted-foreground">
                 {effectivePublic ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                <span className="capitalize">{effectivePublic ? "Public" : "Private"}</span>
-                {forcedPrivate ? <span className="text-warning">until audit</span> : null}
+                <span>{effectivePublic ? dict.visibilityPublic : dict.visibilityPrivate}</span>
+                {forcedPrivate ? <span className="text-warning">{dict.untilAudit}</span> : null}
                 <span>·</span>
                 {scheduled && scheduledAt ? (
                   <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {formatSchedule(scheduledAt)}
+                    <Clock className="h-3 w-3" /> {formatSchedule(scheduledAt, locale)}
                   </span>
                 ) : (
-                  <span>Posts immediately</span>
+                  <span>{dict.postsImmediately}</span>
                 )}
               </div>
             </div>

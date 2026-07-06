@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError } from "@/lib/utils/api";
 import { retryJob, deletePost, updateScheduledPost } from "@/app/dashboard/publishing/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 // Turn a stored UTC ISO timestamp into the `datetime-local` value (no zone) the
 // browser expects, expressed in the viewer's local time. Done on the client so
@@ -22,6 +23,8 @@ function toLocalInputValue(iso: string): string {
 }
 
 export function RetryButton({ jobId }: { jobId: string }) {
+  const dict = useDict();
+  const t = dict.publishing;
   const [pending, start] = useTransition();
   const [done, setDone] = useState(false);
 
@@ -36,14 +39,14 @@ export function RetryButton({ jobId }: { jobId: string }) {
           try {
             await retryJob(jobId);
             setDone(true);
-            toast.success("Retried — refreshing status.");
+            toast.success(t.retriedRefreshing);
           } catch (error) {
-            notifyError(error, "Retry failed.");
+            notifyError(error, t.retryFailedToast);
           }
         })
       }
     >
-      <RotateCw className="h-3 w-3" /> Retry
+      <RotateCw className="h-3 w-3" /> {dict.common.retry}
     </Button>
   );
 }
@@ -58,6 +61,8 @@ type EditPostButtonProps = {
 };
 
 export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }: EditPostButtonProps) {
+  const dict = useDict();
+  const t = dict.publishing;
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [titleV, setTitleV] = useState("");
@@ -80,7 +85,7 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
 
   const save = () => {
     if (!whenV) {
-      toast.error("Pick a date and time.");
+      toast.error(t.pickDateTime);
       return;
     }
     start(async () => {
@@ -94,10 +99,10 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
           // hands the server UTC — the same round-trip the composer uses.
           scheduledAt: new Date(whenV).toISOString(),
         });
-        toast.success("Schedule updated.");
+        toast.success(t.scheduleUpdated);
         setOpen(false);
       } catch (error) {
-        notifyError(error, "Could not update the post.");
+        notifyError(error, t.couldNotUpdatePost);
       }
     });
   };
@@ -105,20 +110,20 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>
-        <Button type="button" size="icon-sm" variant="ghost" title="Edit scheduled post">
+        <Button type="button" size="icon-sm" variant="ghost" title={t.editScheduledPost}>
           <Pencil className="h-4 w-4 text-muted-foreground" />
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-4 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
-          <Dialog.Title className="text-lg font-semibold text-foreground">Edit scheduled post</Dialog.Title>
+          <Dialog.Title className="text-lg font-semibold text-foreground">{t.editScheduledPost}</Dialog.Title>
           <Dialog.Description className="text-sm text-muted-foreground">
-            Change when it posts or tweak the copy. Times use your local timezone.
+            {t.editDialogDescription}
           </Dialog.Description>
 
           <div className="space-y-2">
-            <Label htmlFor={`edit-when-${postId}`}>Scheduled time</Label>
+            <Label htmlFor={`edit-when-${postId}`}>{t.scheduledTimeLabel}</Label>
             <Input
               id={`edit-when-${postId}`}
               type="datetime-local"
@@ -127,31 +132,31 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`edit-title-${postId}`}>Title (YouTube / FB)</Label>
+            <Label htmlFor={`edit-title-${postId}`}>{t.titleLabel}</Label>
             <Input
               id={`edit-title-${postId}`}
               value={titleV}
               onChange={(e) => setTitleV(e.target.value)}
-              placeholder="Optional title"
+              placeholder={t.optionalTitlePlaceholder}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`edit-caption-${postId}`}>Caption</Label>
+            <Label htmlFor={`edit-caption-${postId}`}>{t.captionLabel}</Label>
             <Textarea
               id={`edit-caption-${postId}`}
               value={captionV}
               onChange={(e) => setCaptionV(e.target.value)}
-              placeholder="Shared caption…"
+              placeholder={t.sharedCaptionPlaceholder}
               rows={3}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`edit-hashtags-${postId}`}>Hashtags</Label>
+            <Label htmlFor={`edit-hashtags-${postId}`}>{t.hashtagsLabel}</Label>
             <Input
               id={`edit-hashtags-${postId}`}
               value={hashtagsV}
               onChange={(e) => setHashtagsV(e.target.value)}
-              placeholder="#reels #viral"
+              placeholder={t.hashtagsPlaceholder}
             />
           </div>
 
@@ -161,11 +166,11 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
                 type="button"
                 className="h-9 rounded-lg border border-border-strong bg-surface-2 px-4 text-sm text-muted-foreground transition hover:border-border-strong"
               >
-                Cancel
+                {dict.common.cancel}
               </button>
             </Dialog.Close>
             <Button type="button" onClick={save} disabled={pending}>
-              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Save changes
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {t.saveChanges}
             </Button>
           </div>
         </Dialog.Content>
@@ -176,23 +181,25 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
 
 export function DeletePostButton({ postId }: { postId: string }) {
   const confirm = useConfirm();
+  const dict = useDict();
+  const t = dict.publishing;
   const [pending, start] = useTransition();
 
   const handleClick = async () => {
     const ok = await confirm({
-      title: "Delete this post?",
-      description: "The uploaded video and its publish history will be removed. Already-published posts on each platform are not affected.",
-      confirmText: "Delete",
-      cancelText: "Keep",
+      title: t.deletePostConfirmTitle,
+      description: t.deletePostConfirmDescription,
+      confirmText: dict.common.delete,
+      cancelText: t.keep,
       destructive: true,
     });
     if (!ok) return;
     start(async () => {
       try {
         await deletePost(postId);
-        toast.success("Deleted.");
+        toast.success(t.deletedToast);
       } catch (error) {
-        notifyError(error, "Could not delete.");
+        notifyError(error, t.couldNotDelete);
       }
     });
   };
