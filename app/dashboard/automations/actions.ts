@@ -5,8 +5,8 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserTier } from "@/lib/ai/tier";
+import type { AiTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit } from "@/lib/billing/entitlements";
-import { planFor } from "@/lib/billing/plans";
 import { getPageCredentials, markWebhookSubscribed } from "@/lib/instagram/token-store";
 import {
   getPageSubscribedFields,
@@ -19,6 +19,11 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 async function getAutomationsDict() {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   return getDictionary(locale).automations;
+}
+
+async function planName(tier: AiTier): Promise<string> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  return getDictionary(locale).billing.plans[tier].name;
 }
 
 type ActionState = { error?: string };
@@ -144,11 +149,9 @@ export async function createAutomation(
     .eq("user_id", user.id);
   if (!withinLimit(tier, "automations", count ?? 0)) {
     const cap = limitFor(tier, "automations");
+    const name = await planName(tier);
     return {
-      error:
-        cap === 0
-          ? dict.errors.planCapZero(planFor(tier).name)
-          : dict.errors.planCapReached(cap, planFor(tier).name),
+      error: cap === 0 ? dict.errors.planCapZero(name) : dict.errors.planCapReached(cap, name),
     };
   }
 

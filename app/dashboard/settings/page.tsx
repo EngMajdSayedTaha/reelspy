@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Plug } from "lucide-react";
+import { Plug, ArrowRight } from "lucide-react";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
 import { DigestToggle } from "@/components/settings/DigestToggle";
 import { DangerZone } from "@/components/settings/DangerZone";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 import { savePreferences } from "./actions";
 
 export default async function SettingsPage() {
@@ -17,6 +18,8 @@ export default async function SettingsPage() {
   if (!user) redirect("/login");
 
   const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(prefs.locale);
+  const t = dict.settings;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -27,8 +30,8 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground">Tune how the app behaves for you.</p>
+        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{t.heading}</h1>
+        <p className="text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
       <PreferencesForm initial={prefs} action={savePreferences} />
@@ -45,13 +48,14 @@ export default async function SettingsPage() {
             <Plug className="h-5 w-5 text-brand" />
           </span>
           <div>
-            <p className="font-semibold text-foreground">Social connections</p>
-            <p className="text-xs text-muted-foreground">
-              Connect & manage Instagram, Facebook, TikTok and YouTube.
-            </p>
+            <p className="font-semibold text-foreground">{t.socialConnections.title}</p>
+            <p className="text-xs text-muted-foreground">{t.socialConnections.description}</p>
           </div>
         </div>
-        <span className="text-sm font-medium text-brand">Manage →</span>
+        <span className="flex items-center gap-1 text-sm font-medium text-brand">
+          {t.socialConnections.manage}
+          <ArrowRight className="h-3.5 w-3.5 rtl:rotate-180" />
+        </span>
       </Link>
 
       <DangerZone />

@@ -4,9 +4,12 @@ import { useState, useTransition } from "react";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import { setDigestOptOut } from "@/app/dashboard/settings/actions";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 // Weekly digest opt-in toggle (V3/W6). `subscribed` = NOT opted out.
 export function DigestToggle({ initialOptOut }: { initialOptOut: boolean }) {
+  const dict = useDict();
+  const t = dict.settings.digest;
   const [subscribed, setSubscribed] = useState(!initialOptOut);
   const [pending, startTransition] = useTransition();
 
@@ -16,10 +19,10 @@ export function DigestToggle({ initialOptOut }: { initialOptOut: boolean }) {
     startTransition(async () => {
       try {
         await setDigestOptOut(!next); // optOut = !subscribed
-        toast.success(next ? "Weekly digest on" : "Weekly digest off");
+        toast.success(next ? t.onToast : t.offToast);
       } catch {
         setSubscribed(!next);
-        toast.error("Could not update your preference");
+        toast.error(t.updateError);
       }
     });
   };
@@ -31,10 +34,8 @@ export function DigestToggle({ initialOptOut }: { initialOptOut: boolean }) {
           <Mail className="h-5 w-5 text-brand" />
         </span>
         <div>
-          <p className="font-semibold text-foreground">Weekly digest</p>
-          <p className="text-xs text-muted-foreground">
-            A weekly email with what&apos;s rising in your niche, hooks to reuse, and your loop nudge.
-          </p>
+          <p className="font-semibold text-foreground">{t.title}</p>
+          <p className="text-xs text-muted-foreground">{t.description}</p>
         </div>
       </div>
 
@@ -42,7 +43,7 @@ export function DigestToggle({ initialOptOut }: { initialOptOut: boolean }) {
         type="button"
         role="switch"
         aria-checked={subscribed}
-        aria-label="Toggle weekly digest email"
+        aria-label={t.toggleAriaLabel}
         onClick={toggle}
         disabled={pending}
         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${
@@ -51,7 +52,7 @@ export function DigestToggle({ initialOptOut }: { initialOptOut: boolean }) {
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-            subscribed ? "translate-x-5" : "translate-x-0.5"
+            subscribed ? "translate-x-5 rtl:-translate-x-5" : "translate-x-0.5 rtl:-translate-x-0.5"
           }`}
         />
       </button>

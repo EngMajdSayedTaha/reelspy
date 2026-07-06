@@ -10,7 +10,6 @@ import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { track } from "@/lib/analytics/track";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
-import { planFor } from "@/lib/billing/plans";
 import type { AiTier } from "@/lib/ai/tier";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -26,7 +25,7 @@ async function dict() {
 // knows what upgrading buys them.
 async function accountLimitError(tier: AiTier): Promise<string> {
   const d = await dict();
-  return d.accounts.actions.accountLimit(planFor(tier).name, limitFor(tier, "accounts"));
+  return d.accounts.actions.accountLimit(d.billing.plans[tier].name, limitFor(tier, "accounts"));
 }
 
 // Count a user's tracked accounts (head-only, no rows pulled).

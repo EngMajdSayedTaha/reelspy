@@ -23,7 +23,6 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { planFor } from "@/lib/billing/plans";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
@@ -142,7 +141,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                   user.tier === "free" ? "text-foreground" : "text-brand"
                 }`}
               >
-                {planFor(user.tier).name}
+                {dict.billing.plans[user.tier].name}
               </span>
             </Link>
           ) : null}

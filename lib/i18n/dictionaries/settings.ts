@@ -12,6 +12,7 @@ const en = {
   settings: {
     heading: "Settings",
     subheading: "Tune how the app behaves for you.",
+    unauthorized: "Unauthorized",
     socialConnections: {
       title: "Social connections",
       description: "Connect & manage Instagram, Facebook, TikTok and YouTube.",
@@ -71,6 +72,7 @@ export const settingsAr: SettingsDict = {
   settings: {
     heading: "الإعدادات",
     subheading: "اضبط سلوك التطبيق بما يناسبك.",
+    unauthorized: "غير مصرَّح",
     socialConnections: {
       title: "حسابات التواصل الاجتماعي",
       description: "اربط وأدر حسابات إنستغرام وفيسبوك وتيك توك ويوتيوب.",

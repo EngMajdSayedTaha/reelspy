@@ -31,6 +31,45 @@ const en = {
     manageBilling: "Manage billing",
     couldNotStartCheckout: "Could not start checkout.",
     couldNotOpenPortal: "Could not open billing portal.",
+    plans: {
+      free: {
+        name: "Free",
+        tagline: "Try the workflow",
+        highlights: ["3 tracked accounts", "10 scripts / month", "Caption-only AI"],
+      },
+      creator: {
+        name: "Creator",
+        tagline: "Solo operators",
+        highlights: [
+          "10 tracked accounts",
+          "60 scripts / month",
+          "Claude Haiku scripts",
+          "3 auto-replies",
+        ],
+      },
+      pro: {
+        name: "Pro",
+        tagline: "Serious creators & SMMs",
+        highlights: [
+          "25 tracked accounts",
+          "200 scripts / month",
+          "Claude Sonnet scripts",
+          "10 auto-replies",
+          "4 publish targets",
+        ],
+      },
+      studio: {
+        name: "Studio",
+        tagline: "Agencies & teams",
+        highlights: [
+          "50 tracked accounts",
+          "Unlimited scripts",
+          "Claude Sonnet scripts",
+          "30 auto-replies",
+          "4 publish targets",
+        ],
+      },
+    } as Record<"free" | "creator" | "pro" | "studio", { name: string; tagline: string; highlights: string[] }>,
   },
 };
 
@@ -66,5 +105,44 @@ export const billingAr: BillingDict = {
     manageBilling: "إدارة الفوترة",
     couldNotStartCheckout: "تعذّر بدء عملية الدفع.",
     couldNotOpenPortal: "تعذّر فتح بوابة الفوترة.",
+    plans: {
+      free: {
+        name: "مجانية",
+        tagline: "جرّب سير العمل",
+        highlights: ["3 حسابات متابَعة", "10 نصوص شهريًا", "ذكاء اصطناعي بالتعليق فقط"],
+      },
+      creator: {
+        name: "كرييتور",
+        tagline: "للعاملين المستقلين",
+        highlights: [
+          "10 حسابات متابَعة",
+          "60 نصًا شهريًا",
+          "نصوص Claude Haiku",
+          "3 ردود آلية",
+        ],
+      },
+      pro: {
+        name: "برو",
+        tagline: "لصانعي المحتوى الجادين ومديري السوشيال ميديا",
+        highlights: [
+          "25 حسابًا متابَعًا",
+          "200 نص شهريًا",
+          "نصوص Claude Sonnet",
+          "10 ردود آلية",
+          "4 وجهات نشر",
+        ],
+      },
+      studio: {
+        name: "ستوديو",
+        tagline: "للوكالات والفرق",
+        highlights: [
+          "50 حسابًا متابَعًا",
+          "نصوص غير محدودة",
+          "نصوص Claude Sonnet",
+          "30 ردًا آليًا",
+          "4 وجهات نشر",
+        ],
+      },
+    },
   },
 };
