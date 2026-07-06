@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { useDict } from "@/lib/i18n/I18nProvider";
 
 export type SearchableOption = { value: string; label: string };
 
@@ -24,11 +25,13 @@ export function SearchableSelect({
   value,
   onChange,
   allOption,
-  placeholder = "Search…",
+  placeholder,
   ariaLabel,
   disabled,
   className,
 }: SearchableSelectProps) {
+  const dict = useDict().common;
+  const resolvedPlaceholder = placeholder ?? dict.searchPlaceholder;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
@@ -108,14 +111,14 @@ export function SearchableSelect({
         onClick={toggleOpen}
         className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
       >
-        <span className="truncate">{current?.label ?? placeholder}</span>
+        <span className="truncate">{current?.label ?? resolvedPlaceholder}</span>
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-full z-30 mt-1 w-full min-w-[220px] overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl shadow-black/50">
+        <div className="absolute start-0 top-full z-30 mt-1 w-full min-w-[220px] overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl shadow-black/50">
           <div className="relative border-b border-border-strong">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
             <input
               ref={inputRef}
               type="text"
@@ -125,14 +128,14 @@ export function SearchableSelect({
                 setHighlight(0);
               }}
               onKeyDown={onKeyDown}
-              placeholder={placeholder}
-              className="h-9 w-full bg-transparent pl-8 pr-3 text-sm text-foreground placeholder:text-subtle outline-none"
+              placeholder={resolvedPlaceholder}
+              className="h-9 w-full bg-transparent ps-8 pe-3 text-sm text-foreground placeholder:text-subtle outline-none"
             />
           </div>
 
           <div className="max-h-60 overflow-y-auto py-1">
             {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-subtle">No matches.</p>
+              <p className="px-3 py-2 text-sm text-subtle">{dict.noResults}</p>
             ) : (
               filtered.map((option, i) => {
                 const selected = option.value === value;
@@ -142,7 +145,7 @@ export function SearchableSelect({
                     type="button"
                     onClick={() => select(option)}
                     onMouseEnter={() => setHighlight(i)}
-                    className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm transition ${
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-start text-sm transition ${
                       i === highlight ? "bg-border text-foreground" : "text-muted-foreground"
                     }`}
                   >
