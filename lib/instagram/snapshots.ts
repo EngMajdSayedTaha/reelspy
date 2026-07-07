@@ -14,6 +14,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaRateLimiter } from "./rate-limit";
 import { createInstagramResearchSource } from "@/lib/research/instagram";
 import { numEnv } from "@/lib/utils/env";
+import { cacheImage, isSelfHosted } from "./media-cache";
 
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
 const DEFAULT_MAX_REELS = numEnv("SNAPSHOT_MAX_REELS", 25);
@@ -85,13 +86,20 @@ export async function refreshAccountSnapshot(
   const { reels, profile, error, rateLimited, retryAfterSeconds } =
     await source.getRecentReels(uname, maxReels);
 
-  // Normalize the profile for both the snapshot row and the caller. The IG
-  // avatar URL is signed + expiring, so we refresh it on every fetch.
+  // Download a permanent copy of the avatar instead of trusting Instagram's
+  // signed URL to stay alive (see media-cache.ts). Cheap — one image per
+  // account per fetch — so we just always re-cache to also pick up profile
+  // picture changes.
+  const cachedAvatarUrl = profile?.avatarUrl
+    ? (await cacheImage(admin, profile.avatarUrl, `avatars/${uname}.jpg`)) ?? profile.avatarUrl
+    : null;
+
+  // Normalize the profile for both the snapshot row and the caller.
   const snapshotProfile: SnapshotProfile | undefined = profile
     ? {
         display_name: profile.displayName || profile.username || uname,
         followers_count: profile.followersCount ?? null,
-        avatar_url: profile.avatarUrl ?? null,
+        avatar_url: cachedAvatarUrl,
       }
     : undefined;
 
@@ -114,6 +122,37 @@ export async function refreshAccountSnapshot(
   }
 
   if (reels.length > 0) {
+    // Download a permanent copy of each thumbnail (see media-cache.ts). A
+    // reel's thumbnail never changes once posted, so skip re-downloading any
+    // media_id whose stored URL is already self-hosted — saves bandwidth on
+    // every reel that was already cached by a previous fetch.
+    const externalIds = reels.map((r) => r.externalId).filter((id): id is string => Boolean(id));
+    const { data: existingSnaps } =
+      externalIds.length > 0
+        ? await admin
+            .from("ig_reel_snapshots")
+            .select("ig_media_id, thumbnail_url")
+            .eq("ig_username", uname)
+            .in("ig_media_id", externalIds)
+        : { data: [] as { ig_media_id: string; thumbnail_url: string | null }[] };
+    const existingThumbs = new Map(
+      (existingSnaps ?? []).map((s) => [s.ig_media_id, s.thumbnail_url])
+    );
+
+    const cachedThumbnails = new Map<string, string>();
+    await Promise.all(
+      reels.map(async (r) => {
+        if (!r.externalId || !r.thumbnailUrl) return;
+        const existing = existingThumbs.get(r.externalId);
+        if (isSelfHosted(existing)) {
+          cachedThumbnails.set(r.externalId, existing!);
+          return;
+        }
+        const cached = await cacheImage(admin, r.thumbnailUrl, `thumbnails/${r.externalId}.jpg`);
+        cachedThumbnails.set(r.externalId, cached ?? r.thumbnailUrl);
+      })
+    );
+
     const rows = reels
       .filter((r) => r.externalId && r.permalink)
       .map((r) => ({
@@ -121,7 +160,7 @@ export async function refreshAccountSnapshot(
         ig_media_id: r.externalId,
         permalink: r.permalink!,
         caption: r.caption ?? null,
-        thumbnail_url: r.thumbnailUrl ?? null,
+        thumbnail_url: (r.externalId && cachedThumbnails.get(r.externalId)) || r.thumbnailUrl || null,
         view_count: r.viewCount ?? 0,
         like_count: r.likeCount ?? 0,
         comment_count: r.commentCount ?? 0,
