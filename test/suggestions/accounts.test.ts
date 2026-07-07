@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveNicheSlug, suggestedAccounts } from "@/lib/suggestions/accounts";
+import { resolveNicheSlug, suggestedAccounts, discoverSeedAccounts } from "@/lib/suggestions/accounts";
+import { SEED_ACCOUNTS_BY_NICHE, SEED_ACCOUNTS_FALLBACK } from "@/lib/suggestions/seed-accounts";
 import type { NicheSummary } from "@/lib/trends/shared";
 
 // Mirrors test/trends/niche.test.ts's fakeAdmin: per-table canned responses,
@@ -184,7 +185,57 @@ describe("suggestedAccounts", () => {
 
   it("returns an empty, non-fallback result when there is no data anywhere", async () => {
     const admin = fakeAdmin({ account_groups: [], inspiration_accounts: [] });
-    const { accounts } = await suggestedAccounts(admin, { nicheSlug: null, excludeUsernames: [] });
+    const { accounts, emptyReason } = await suggestedAccounts(admin, { nicheSlug: null, excludeUsernames: [] });
+    expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("no-data");
+  });
+
+  it("flags emptyReason 'all-tracked' when the pool exists but the user already tracks all of it", async () => {
+    const { accounts, emptyReason } = await suggestedAccounts(realEstateAdmin(), {
+      nicheSlug: "real estate",
+      excludeUsernames: ["outlier", "baseline", "already-tracked"],
+    });
+    expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("all-tracked");
+  });
+});
+
+describe("discoverSeedAccounts", () => {
+  it("returns the curated list for an exact niche match, excluding already-tracked handles", async () => {
+    const niche = "software engineering";
+    const seedHandles = SEED_ACCOUNTS_BY_NICHE[niche];
+    const excluded = seedHandles[0];
+
+    const accounts = await discoverSeedAccounts(fakeAdmin({ ig_account_snapshots: [] }), {
+      nicheSlug: niche,
+      excludeUsernames: [excluded],
+    });
+
+    expect(accounts.some((a) => a.igUsername === excluded)).toBe(false);
+    expect(accounts.length).toBeGreaterThan(0);
+    expect(accounts.every((a) => seedHandles.includes(a.igUsername) || SEED_ACCOUNTS_FALLBACK.includes(a.igUsername))).toBe(
+      true
+    );
+  });
+
+  it("falls back to the generic list for an unrecognized niche", async () => {
+    const accounts = await discoverSeedAccounts(fakeAdmin({ ig_account_snapshots: [] }), {
+      nicheSlug: "underwater basket weaving",
+      excludeUsernames: [],
+    });
+
+    expect(accounts.map((a) => a.igUsername)).toEqual(SEED_ACCOUNTS_FALLBACK.slice(0, accounts.length));
+  });
+
+  it("returns an empty list once every candidate (niche + fallback) is excluded", async () => {
+    const niche = "memes";
+    const excludeUsernames = [...SEED_ACCOUNTS_BY_NICHE[niche], ...SEED_ACCOUNTS_FALLBACK];
+
+    const accounts = await discoverSeedAccounts(fakeAdmin({ ig_account_snapshots: [] }), {
+      nicheSlug: niche,
+      excludeUsernames,
+    });
+
     expect(accounts).toEqual([]);
   });
 });

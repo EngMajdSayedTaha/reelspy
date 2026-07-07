@@ -8,6 +8,7 @@ import { getIgCredentials } from "@/lib/instagram/token-store";
 import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { track } from "@/lib/analytics/track";
+import { getDiscoverSuggestionsForUser, type SuggestedAccount } from "@/lib/suggestions/accounts";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
@@ -506,4 +507,28 @@ export async function removeInspirationAccount(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/accounts");
+}
+
+export type SuggestNewAccountsState = { error?: string; accounts?: SuggestedAccount[]; niche?: string | null };
+
+// "Discover accounts" button (Accounts page): hand-curated cold-start
+// suggestions (lib/suggestions/seed-accounts.ts), independent of the
+// cross-user Niche Radar pool — works even when the user already tracks
+// every account anyone else on ReelSpy has ever added.
+export async function suggestNewAccounts(): Promise<SuggestNewAccountsState> {
+  const supabase = await createClient();
+  const d = await dict();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: d.accounts.actions.unauthorized };
+  }
+
+  const { accounts, niche } = await getDiscoverSuggestionsForUser(user.id);
+  if (accounts.length === 0) {
+    return { error: d.accounts.discover.empty };
+  }
+  return { accounts, niche };
 }
