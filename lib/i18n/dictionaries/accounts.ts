@@ -134,6 +134,13 @@ const en = {
       groupIdRequired: "Group id is required.",
       accountIdRequired: "Account id is required.",
     },
+    discover: {
+      button: "✨ Discover accounts",
+      loading: "Finding accounts…",
+      heading: "Accounts you might want to add",
+      empty: "No suggestions available right now — try again in a bit.",
+      tryAgain: "Try again",
+    },
   },
 };
 
@@ -262,6 +269,13 @@ export const accountsAr: AccountsDict = {
       groupNameExists: "توجد بالفعل مجموعة بهذا الاسم.",
       groupIdRequired: "معرّف المجموعة مطلوب.",
       accountIdRequired: "معرّف الحساب مطلوب.",
+    },
+    discover: {
+      button: "✨ اكتشف حسابات",
+      loading: "جارٍ البحث عن حسابات…",
+      heading: "حسابات قد ترغب في إضافتها",
+      empty: "لا توجد اقتراحات متاحة الآن — حاول مرة أخرى بعد قليل.",
+      tryAgain: "حاول مرة أخرى",
     },
   },
 };
