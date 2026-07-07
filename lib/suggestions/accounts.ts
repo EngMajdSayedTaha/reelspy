@@ -138,13 +138,19 @@ type SnapshotRow = {
   followers_count: number | null;
 };
 
+// Why a suggestion list came back empty — lets the UI explain itself instead
+// of just vanishing. "all-tracked" = the niche (or platform-wide) pool had
+// candidates, but the user already tracks every one of them. "no-data" = the
+// pool itself was empty (no reel snapshots yet for that niche/platform).
+export type EmptyReason = "all-tracked" | "no-data";
+
 // Rank real cross-user accounts for a niche (or global, as a fallback), one row
 // per account (its best-performing reel), excluding accounts the user already
 // tracks. Never touches an AI provider — pure aggregation over cached snapshots.
 export async function suggestedAccounts(
   admin: SupabaseClient,
   opts: { nicheSlug: string | null; excludeUsernames: string[]; limit?: number }
-): Promise<{ accounts: SuggestedAccount[]; fallback: boolean }> {
+): Promise<{ accounts: SuggestedAccount[]; fallback: boolean; emptyReason?: EmptyReason }> {
   const limit = opts.limit ?? 6;
   const exclude = new Set(opts.excludeUsernames.map((u) => u.toLowerCase()));
 
@@ -171,7 +177,9 @@ export async function suggestedAccounts(
     .sort((a, b) => b.outperformRatio - a.outperformRatio || b.relativeScore - a.relativeScore)
     .slice(0, limit);
 
-  if (top.length === 0) return { accounts: [], fallback };
+  if (top.length === 0) {
+    return { accounts: [], fallback, emptyReason: reels.length === 0 ? "no-data" : "all-tracked" };
+  }
 
   const { data: snaps } = await admin
     .from("ig_account_snapshots")
@@ -202,7 +210,12 @@ export async function suggestedAccounts(
   return { accounts, fallback };
 }
 
-export type UserSuggestions = { accounts: SuggestedAccount[]; niche: string | null; fallback: boolean };
+export type UserSuggestions = {
+  accounts: SuggestedAccount[];
+  niche: string | null;
+  fallback: boolean;
+  emptyReason?: EmptyReason;
+};
 
 const EMPTY_SUGGESTIONS: UserSuggestions = { accounts: [], niche: null, fallback: false };
 
@@ -222,13 +235,13 @@ export async function getSuggestionsForUser(userId: string): Promise<UserSuggest
     const excludeUsernames = (tracked ?? []).map((r) => r.ig_username as string);
 
     const admin = createAdminClient();
-    const { accounts, fallback } = await suggestedAccounts(admin, {
+    const { accounts, fallback, emptyReason } = await suggestedAccounts(admin, {
       nicheSlug,
       excludeUsernames,
       limit: 6,
     });
 
-    return { accounts, niche: nicheSlug, fallback };
+    return { accounts, niche: nicheSlug, fallback, emptyReason };
   } catch (err) {
     console.warn("[suggestions] getSuggestionsForUser failed:", err instanceof Error ? err.message : err);
     return EMPTY_SUGGESTIONS;

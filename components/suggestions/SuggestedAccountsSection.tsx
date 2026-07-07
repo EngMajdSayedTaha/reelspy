@@ -20,9 +20,21 @@ export async function SuggestedAccountsSection({ userId, variant = "strip", limi
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale).suggestions;
 
-  const { accounts, niche, fallback } = await getSuggestionsForUser(userId);
+  const { accounts, niche, fallback, emptyReason } = await getSuggestionsForUser(userId);
   const shown = typeof limit === "number" ? accounts.slice(0, limit) : accounts;
-  if (shown.length === 0) return null;
+
+  if (shown.length === 0) {
+    // "no-data" on the dashboard widget/strip (not the onboarding hero) is too
+    // common pre-launch (fresh niches with no snapshots yet) to be worth a
+    // permanent-looking message — only surface the reassuring "all-tracked"
+    // case and the hero variant's own empty state.
+    if (!emptyReason || (emptyReason === "no-data" && variant !== "hero")) return null;
+    return (
+      <div className="rounded-xl border border-dashed border-border-strong bg-background p-5 text-sm text-muted-foreground">
+        {emptyReason === "all-tracked" ? dict.emptyAllTracked : dict.emptyNoData}
+      </div>
+    );
+  }
 
   const heading = variant === "hero" ? dict.heroTitle : fallback ? dict.sectionTitleFallback : dict.sectionTitle;
   const activeNiche = fallback ? undefined : (niche ?? undefined);

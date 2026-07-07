@@ -184,7 +184,17 @@ describe("suggestedAccounts", () => {
 
   it("returns an empty, non-fallback result when there is no data anywhere", async () => {
     const admin = fakeAdmin({ account_groups: [], inspiration_accounts: [] });
-    const { accounts } = await suggestedAccounts(admin, { nicheSlug: null, excludeUsernames: [] });
+    const { accounts, emptyReason } = await suggestedAccounts(admin, { nicheSlug: null, excludeUsernames: [] });
     expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("no-data");
+  });
+
+  it("flags emptyReason 'all-tracked' when the pool exists but the user already tracks all of it", async () => {
+    const { accounts, emptyReason } = await suggestedAccounts(realEstateAdmin(), {
+      nicheSlug: "real estate",
+      excludeUsernames: ["outlier", "baseline", "already-tracked"],
+    });
+    expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("all-tracked");
   });
 });
