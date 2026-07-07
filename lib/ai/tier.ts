@@ -25,13 +25,17 @@ function envDefaultTier(): AiTier {
   return isAiTier(raw) ? (raw as AiTier) : "free";
 }
 
-// Resolve a user's AI tier: an ACTIVE Stripe subscription wins; otherwise the
-// env default (free in prod). Imported lazily to avoid a module cycle
-// (billing/subscription.ts → ai/tier.ts for the AiTier type).
+// Resolve a user's AI tier: an admin (profiles.is_admin) always resolves to the
+// top tier regardless of billing state; otherwise an ACTIVE Stripe subscription
+// wins; otherwise the env default (free in prod). Imports are lazy to avoid a
+// module cycle (billing/subscription.ts → ai/tier.ts for the AiTier type).
 export async function resolveUserTier(
   supabase: SupabaseClient,
   userId: string
 ): Promise<AiTier> {
+  const { isAdminUser } = await import("@/lib/billing/admin");
+  if (await isAdminUser(supabase, userId)) return "studio";
+
   const { activeTierFromSubscription } = await import("@/lib/billing/subscription");
   const subTier = await activeTierFromSubscription(supabase, userId);
   return subTier ?? envDefaultTier();
