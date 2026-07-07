@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { Check, Camera, ArrowRight, Sparkles, Users, Mic } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { getOnboardingState, SUGGESTED_ACCOUNTS } from "@/lib/onboarding/state";
+import { getOnboardingState, suggestedAccountsFor } from "@/lib/onboarding/state";
 import type { BrandVoice } from "@/lib/ai/claude";
 import { Button } from "@/components/ui/button";
 import { BrandVoiceForm } from "@/components/onboarding/BrandVoiceForm";
@@ -93,7 +93,8 @@ function StepShell({
 export default async function OnboardingPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
-  const dict = getDictionary(locale).onboarding;
+  const fullDict = getDictionary(locale);
+  const dict = fullDict.onboarding;
   const supabase = await createClient();
   const {
     data: { user },
@@ -169,11 +170,22 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
                     <Camera className="h-4 w-4" /> {dict.connectInstagram}
                   </a>
                 </Button>
-                <StarterPackButton />
+                {/* Hide once the plan's account cap is already used (e.g. via
+                    a prior starter-pack add) — clicking again can only fail. */}
+                {state.accountsAtCap ? null : <StarterPackButton />}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {dict.starterPackHint} {state.steps.source ? null : dict.pickEitherToContinue}
-              </p>
+              {state.accountsAtCap ? (
+                <p className="text-xs text-muted-foreground">
+                  {fullDict.accounts.actions.accountLimit(fullDict.billing.plans[state.tier].name, state.accountsCap)}{" "}
+                  <Link href="/dashboard/billing" className="underline underline-offset-4 hover:text-foreground">
+                    {fullDict.billing.upgrade}
+                  </Link>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {dict.starterPackHint} {state.steps.source ? null : dict.pickEitherToContinue}
+                </p>
+              )}
               {state.steps.source ? <ContinueLink to={2} dict={dict} /> : null}
             </div>
           )}
@@ -199,17 +211,31 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
 
       {active === 3 ? (
         <StepShell
-          title={dict.step3Title(SUGGESTED_ACCOUNTS)}
+          title={dict.step3Title(state.accountsCap)}
           desc={dict.step3Desc}
         >
           <div className="space-y-4">
-            <AddAccountsInline />
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">{dict.or}</span>
-              <StarterPackButton />
-            </div>
+            {state.accountsAtCap ? (
+              <p className="text-sm text-muted-foreground">
+                {fullDict.accounts.actions.accountLimit(fullDict.billing.plans[state.tier].name, state.accountsCap)}{" "}
+                <Link href="/dashboard/billing" className="underline underline-offset-4 hover:text-foreground">
+                  {fullDict.billing.upgrade}
+                </Link>
+              </p>
+            ) : (
+              <>
+                <AddAccountsInline />
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">{dict.or}</span>
+                  <StarterPackButton />
+                </div>
+              </>
+            )}
             <p className="text-sm text-muted-foreground">
-              {dict.trackingAccounts(state.accountsCount, state.accountsCount >= SUGGESTED_ACCOUNTS)}
+              {dict.trackingAccounts(
+                state.accountsCount,
+                state.accountsAtCap || state.accountsCount >= suggestedAccountsFor(state.accountsCap)
+              )}
             </p>
             <div className="flex items-center justify-between">
               <BackLink to={2} dict={dict} />

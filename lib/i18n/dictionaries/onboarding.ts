@@ -34,8 +34,10 @@ const en = {
       "This is what makes generated scripts sound like you and not a generic template. Two lines is enough to start — you can refine it later in Settings.",
     saveAndContinue: "Save & continue",
 
-    // Step 3 — add accounts
-    step3Title: (n: number) => `Add ${n}–5 accounts to track`,
+    // Step 3 — add accounts. Title is plan-aware (accountsCap, -1 = unlimited)
+    // so a Free user isn't told to "add 3-5" when 3 is their hard ceiling.
+    step3Title: (cap: number) =>
+      cap < 0 ? "Add accounts to track" : `Add up to ${cap} account${cap === 1 ? "" : "s"} to track`,
     step3Desc:
       "Pick creators in your niche whose reels you want to learn from. Add them by handle — they enrich automatically on the first sync.",
     or: "or",
@@ -102,7 +104,6 @@ const en = {
     // returned to the client via `{ error }`, shown through toast.error().
     unauthorized: "Unauthorized.",
     tellUsNicheAndAudience: "Tell us at least your niche and who you're talking to.",
-    accountLimitReached: "You've reached your plan's tracked-account limit.",
     noStarterAccountsAvailable: "No starter accounts are available yet — connect Instagram or add accounts manually.",
     alreadyTrackStarterAccounts: "You already track the starter accounts.",
   },
@@ -138,7 +139,8 @@ export const onboardingAr: OnboardingDict = {
       "هذا ما يجعل النصوص المُنشأة تبدو بأسلوبك لا كقالب عام. سطران كافيان للبدء — ويمكنك تحسينه لاحقًا من الإعدادات.",
     saveAndContinue: "حفظ ومتابعة",
 
-    step3Title: (n: number) => `أضف من ${n} إلى 5 حسابات لمتابعتها`,
+    step3Title: (cap: number) =>
+      cap < 0 ? "أضف حسابات لمتابعتها" : `أضف حتى ${cap} ${cap === 1 ? "حساب" : cap === 2 ? "حسابين" : "حسابات"} لمتابعتها`,
     step3Desc:
       "اختر صنّاع محتوى في مجالك تريد التعلّم من ريلاتهم. أضفهم بمعرّف الحساب — يُثرى الحساب تلقائيًا عند أول مزامنة.",
     or: "أو",
@@ -202,7 +204,6 @@ export const onboardingAr: OnboardingDict = {
 
     unauthorized: "غير مصرَّح.",
     tellUsNicheAndAudience: "أخبرنا على الأقل بمجالك ومن تخاطبه.",
-    accountLimitReached: "لقد بلغت الحد الأقصى للحسابات المتابَعة في باقتك.",
     noStarterAccountsAvailable: "لا تتوفر حسابات جاهزة حاليًا — اربط إنستغرام أو أضف حسابات يدويًا.",
     alreadyTrackStarterAccounts: "أنت تتابع الحسابات الجاهزة بالفعل.",
   },

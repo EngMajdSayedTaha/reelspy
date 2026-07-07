@@ -104,7 +104,11 @@ export async function seedStarterPack(): Promise<StarterPackState> {
   const used = usedCount ?? 0;
   const remaining = isUnlimited(cap) ? 12 : Math.max(0, cap - used);
   if (remaining === 0) {
-    return { error: dict.onboarding.accountLimitReached };
+    // Name the actual plan + limit (same copy as the manual add-account path)
+    // instead of a generic "limit reached" — the wizard UI should stop
+    // offering this button once atCap, but keep the message actionable as a
+    // fallback (e.g. a stale page from another tab).
+    return { error: dict.accounts.actions.accountLimit(dict.billing.plans[tier].name, cap) };
   }
 
   // ig_account_snapshots is RLS-locked with no policies (service-role only —
