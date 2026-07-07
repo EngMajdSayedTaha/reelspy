@@ -11,6 +11,7 @@ import { track } from "@/lib/analytics/track";
 import { getDiscoverSuggestionsForUser, type SuggestedAccount } from "@/lib/suggestions/accounts";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
+import { isAdminUser } from "@/lib/billing/admin";
 import type { AiTier } from "@/lib/ai/tier";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -80,7 +81,7 @@ export async function addInspirationAccount(
     .eq("user_id", user.id)
     .eq("ig_username", igUsername)
     .maybeSingle();
-  if (!alreadyTracked) {
+  if (!alreadyTracked && !(await isAdminUser(supabase, user.id))) {
     const tier = await resolveUserTier(supabase, user.id);
     const used = await countTrackedAccounts(supabase, user.id);
     if (!withinLimit(tier, "accounts", used)) {
@@ -236,7 +237,7 @@ export async function bulkAddInspirationAccounts(
   // Plan limit (L6): trim the import to whatever tracked-account slots remain on
   // the user's tier, importing as many as fit and reporting the rest as skipped.
   let limited = 0;
-  if (fresh.length > 0) {
+  if (fresh.length > 0 && !(await isAdminUser(supabase, user.id))) {
     const tier = await resolveUserTier(supabase, user.id);
     const cap = limitFor(tier, "accounts");
     if (!isUnlimited(cap)) {

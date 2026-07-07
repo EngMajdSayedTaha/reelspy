@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserTier } from "@/lib/ai/tier";
 import type { AiTier } from "@/lib/ai/tier";
 import { limitFor, withinLimit } from "@/lib/billing/entitlements";
+import { isAdminUser } from "@/lib/billing/admin";
 import { getPageCredentials, markWebhookSubscribed } from "@/lib/instagram/token-store";
 import {
   getPageSubscribedFields,
@@ -147,7 +148,7 @@ export async function createAutomation(
     .from("reel_automations")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
-  if (!withinLimit(tier, "automations", count ?? 0)) {
+  if (!(await isAdminUser(supabase, user.id)) && !withinLimit(tier, "automations", count ?? 0)) {
     const cap = limitFor(tier, "automations");
     const name = await planName(tier);
     return {
