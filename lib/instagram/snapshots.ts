@@ -133,6 +133,27 @@ export async function refreshAccountSnapshot(
       await admin
         .from("ig_reel_snapshots")
         .upsert(rows, { onConflict: "ig_username,ig_media_id" });
+
+      // Push the freshly-fetched (not-yet-expired) thumbnail URLs into every
+      // user's copy of these reels, not just whichever user's sync happened
+      // to trigger this fetch. Without this, tracked_reels.thumbnail_url only
+      // gets refreshed for the triggering user, and Instagram's signed CDN
+      // URL expires (~7 days) for everyone else — permanently, since a dead
+      // signed URL can't be retried back to life.
+      const thumbRows = rows
+        .filter((r) => r.thumbnail_url)
+        .map((r) => ({ ig_media_id: r.ig_media_id, thumbnail_url: r.thumbnail_url }));
+      if (thumbRows.length > 0) {
+        const { error: propagateError } = await admin.rpc("bulk_propagate_reel_thumbnails", {
+          p_rows: thumbRows,
+        });
+        if (propagateError) {
+          console.warn(
+            "[snapshots] bulk_propagate_reel_thumbnails failed:",
+            propagateError.message
+          );
+        }
+      }
     }
   }
 
@@ -153,6 +174,16 @@ export async function refreshAccountSnapshot(
         : {}),
     })
     .eq("ig_username", uname);
+
+  // Same problem as reel thumbnails, one level up: push the fresh avatar to
+  // EVERY user tracking this account, not just the one whose sync (or the
+  // daily cron) happened to fetch it.
+  if (snapshotProfile?.avatar_url) {
+    await admin
+      .from("inspiration_accounts")
+      .update({ avatar_url: snapshotProfile.avatar_url })
+      .eq("ig_username", uname);
+  }
 
   return {
     status: "ok",

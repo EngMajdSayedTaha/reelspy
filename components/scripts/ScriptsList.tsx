@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { ExternalLink, History, Search } from "lucide-react";
+import { ExternalLink, History, Search, Film } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
 import { intlLocale } from "@/lib/i18n/intl";
+import { useRetryableImage } from "@/lib/hooks/useRetryableImage";
 
 type SourceAccount = { ig_username: string; avatar_url: string | null };
 
@@ -101,6 +102,7 @@ function ScriptCard({
   const [scheduleDate, setScheduleDate] = useState(script.scheduled_date ?? "");
   const sourceReel = sourceReelOf(script);
   const sourceAccount = sourceReel ? sourceAccountOf(sourceReel) : null;
+  const thumb = useRetryableImage(sourceReel?.thumbnail_url);
 
   const status = (script.status ?? "draft") as "draft" | "ready" | "published";
   const fullScript = `[HOOK]\n${script.hook ?? ""}\n\n[BODY]\n${script.body ?? ""}\n\n[CTA]\n${script.cta ?? ""}`;
@@ -184,15 +186,21 @@ function ScriptCard({
       {/* Source reel this script was generated from */}
       {sourceReel ? (
         <div className="flex items-center gap-2.5 rounded-lg border border-border-strong bg-background p-2">
-          {sourceReel.thumbnail_url ? (
+          {sourceReel.thumbnail_url && !thumb.failed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
+              key={thumb.retryKey}
               src={sourceReel.thumbnail_url}
               alt={s.sourceReelLabel}
               referrerPolicy="no-referrer"
+              onError={thumb.onError}
               className="h-12 w-9 shrink-0 rounded-md object-cover"
             />
-          ) : null}
+          ) : (
+            <span className="flex h-12 w-9 shrink-0 items-center justify-center rounded-md bg-secondary">
+              <Film className="h-4 w-4 text-subtle" />
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-wide text-subtle">{s.sourceReelLabel}</p>
             <p className="truncate text-xs text-muted-foreground">
