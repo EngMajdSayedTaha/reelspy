@@ -7,7 +7,6 @@ import { SuggestionsSkeleton } from "@/components/suggestions/SuggestionsSkeleto
 import { AccountsFilter } from "@/components/accounts/AccountsFilter";
 import { AccountsSearch } from "@/components/accounts/AccountsSearch";
 import { AddAccountForm } from "@/components/accounts/AddAccountForm";
-import { DiscoverAccountsButton } from "@/components/accounts/DiscoverAccountsButton";
 import { GroupsManager } from "@/components/accounts/GroupsManager";
 import { ImportFollowing } from "@/components/accounts/ImportFollowing";
 import { FeedPagination } from "@/components/reels/FeedPagination";
@@ -156,8 +155,6 @@ export default async function AccountsPage({
       </div>
 
       <AddAccountForm action={addInspirationAccount} groups={groups} />
-
-      <DiscoverAccountsButton />
 
       <ImportFollowing groups={groups} bulkAddAction={bulkAddInspirationAccounts} />
 

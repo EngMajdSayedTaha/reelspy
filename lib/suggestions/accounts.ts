@@ -1,14 +1,8 @@
-// Niche-based viral account suggestions (onboarding quiz follow-up). Two
-// independent sources:
-//   - suggestedAccounts(): cross-user aggregation over the existing Niche
-//     Radar (lib/trends/niche.ts) — real accounts, real viral scores, never a
-//     hallucinated handle. Needs other ReelSpy users tracking the same niche,
-//     so it's necessarily empty on a young/single-user deployment.
-//   - discoverSeedAccounts(): a fixed, hand-curated cold-start list
-//     (seed-accounts.ts) for the explicit "Discover accounts" button — works
-//     regardless of platform size, at the cost of being a manually maintained
-//     list rather than a live search (Instagram has no public search-by-niche
-//     API for third-party apps).
+// Niche-based viral account suggestions (onboarding quiz follow-up).
+// suggestedAccounts() aggregates cross-user data over the existing Niche
+// Radar (lib/trends/niche.ts) — real accounts, real viral scores, never a
+// hallucinated handle. Needs other ReelSpy users tracking the same niche, so
+// it's necessarily empty on a young/single-user deployment.
 // The only AI involvement anywhere in this module is mapping the user's
 // free-text niche onto the Radar taxonomy (`resolveNicheSlug`); ranking
 // itself is plain math over cached snapshots.
@@ -25,7 +19,6 @@ import {
   type NicheSummary,
   type TrendReel,
 } from "@/lib/trends/niche";
-import { SEED_ACCOUNTS_BY_NICHE, SEED_ACCOUNTS_FALLBACK } from "./seed-accounts";
 
 const NICHE_TOOL: JsonTool = {
   name: "pick_niche",
@@ -258,93 +251,3 @@ export async function getSuggestionsForUser(userId: string): Promise<UserSuggest
   }
 }
 
-// Resolve a niche onto the curated seed taxonomy (lib/suggestions/seed-accounts.ts)
-// with the same exact -> substring -> word-overlap cascade resolveNicheSlug uses
-// for the Radar taxonomy, then falls back to the generic cross-category list.
-function seedHandlesForNiche(nicheSlug: string | null): string[] {
-  const keys = Object.keys(SEED_ACCOUNTS_BY_NICHE);
-  if (nicheSlug) {
-    if (SEED_ACCOUNTS_BY_NICHE[nicheSlug]) return SEED_ACCOUNTS_BY_NICHE[nicheSlug];
-
-    const substringKey = keys.find((k) => k.includes(nicheSlug) || nicheSlug.includes(k));
-    if (substringKey) return SEED_ACCOUNTS_BY_NICHE[substringKey];
-
-    const overlapKey = bestWordOverlapMatch(
-      nicheSlug,
-      keys.map((niche) => ({ niche, accountCount: 0, taggerCount: 0 }))
-    );
-    if (overlapKey) return SEED_ACCOUNTS_BY_NICHE[overlapKey];
-  }
-  return SEED_ACCOUNTS_FALLBACK;
-}
-
-// Hand-curated "discover new accounts" suggestions (lib/suggestions/seed-accounts.ts)
-// — a fixed cold-start list, unlike suggestedAccounts()'s cross-user aggregation.
-// Exists for the explicit "Discover accounts" button: it works day one, on a
-// single-user deployment, regardless of what anyone else on ReelSpy tracks.
-export async function discoverSeedAccounts(
-  admin: SupabaseClient,
-  opts: { nicheSlug: string | null; excludeUsernames: string[]; limit?: number }
-): Promise<SuggestedAccount[]> {
-  const limit = opts.limit ?? 6;
-  const exclude = new Set(opts.excludeUsernames.map((u) => u.toLowerCase()));
-
-  const candidates = [...seedHandlesForNiche(opts.nicheSlug), ...SEED_ACCOUNTS_FALLBACK];
-  const seen = new Set<string>();
-  const handles: string[] = [];
-  for (const h of candidates) {
-    const key = h.toLowerCase();
-    if (seen.has(key) || exclude.has(key)) continue;
-    seen.add(key);
-    handles.push(h);
-    if (handles.length >= limit) break;
-  }
-  if (handles.length === 0) return [];
-
-  const { data: snaps } = await admin
-    .from("ig_account_snapshots")
-    .select("ig_username, display_name, avatar_url, followers_count")
-    .in("ig_username", handles)
-    .returns<SnapshotRow[]>();
-  const snapByUsername = new Map((snaps ?? []).map((s) => [s.ig_username.toLowerCase(), s]));
-
-  // No topReel — these accounts haven't necessarily been synced by anyone yet,
-  // so there's no cached reel data to show. SuggestedAccountCard handles a
-  // null topReel and null avatar/followers fine.
-  return handles.map((igUsername) => {
-    const snap = snapByUsername.get(igUsername.toLowerCase());
-    return {
-      igUsername,
-      displayName: snap?.display_name ?? null,
-      avatarUrl: snap?.avatar_url ?? null,
-      followers: snap?.followers_count ?? null,
-      topReel: null,
-    };
-  });
-}
-
-// discoverSeedAccounts() for the signed-in user's own niche + already-tracked
-// exclusions. Never throws — same degrade-to-empty contract as
-// getSuggestionsForUser.
-export async function getDiscoverSuggestionsForUser(
-  userId: string
-): Promise<{ accounts: SuggestedAccount[]; niche: string | null }> {
-  try {
-    const supabase = await createClient();
-    const [{ data: profile }, { data: tracked }] = await Promise.all([
-      supabase.from("profiles").select("niche_slug").eq("id", userId).maybeSingle(),
-      supabase.from("inspiration_accounts").select("ig_username").eq("user_id", userId),
-    ]);
-
-    const nicheSlug = (profile?.niche_slug as string | null) ?? null;
-    const excludeUsernames = (tracked ?? []).map((r) => r.ig_username as string);
-
-    const admin = createAdminClient();
-    const accounts = await discoverSeedAccounts(admin, { nicheSlug, excludeUsernames, limit: 6 });
-
-    return { accounts, niche: nicheSlug };
-  } catch (err) {
-    console.warn("[suggestions] getDiscoverSuggestionsForUser failed:", err instanceof Error ? err.message : err);
-    return { accounts: [], niche: null };
-  }
-}
