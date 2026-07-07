@@ -107,10 +107,16 @@ export async function seedStarterPack(): Promise<StarterPackState> {
     return { error: dict.onboarding.accountLimitReached };
   }
 
+  // ig_account_snapshots is RLS-locked with no policies (service-role only —
+  // see migration 20260610000001), so it must be read through the admin
+  // client. The user-scoped client always sees zero rows here regardless of
+  // how much is actually cached.
+  const admin = createAdminClient();
+
   // Pick the most-followed successfully-cached accounts as a sensible default
   // pack. Cap at the smaller of the suggested pack size and remaining slots.
   const packSize = Math.min(remaining, 5);
-  const { data: snapshots } = await supabase
+  const { data: snapshots } = await admin
     .from("ig_account_snapshots")
     .select("ig_username, display_name, followers_count, avatar_url")
     .eq("last_status", "ok")
