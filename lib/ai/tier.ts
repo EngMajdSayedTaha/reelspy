@@ -11,9 +11,15 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type AiTier = "free" | "creator" | "pro" | "studio";
+// "custom" is a dynamically-configured plan (B4): a user picks their own
+// account/script/auto-reply/publish-target limits and AI model on the billing
+// page, Stripe charges an ad-hoc price for that config, and the actual limits
+// + model live on the subscription row (lib/billing/entitlements.ts
+// ENTITLEMENTS.custom is only the fail-open fallback used before that data is
+// available, e.g. the few seconds before the webhook lands).
+export type AiTier = "free" | "creator" | "pro" | "studio" | "custom";
 
-const VALID_TIERS: readonly AiTier[] = ["free", "creator", "pro", "studio"];
+const VALID_TIERS: readonly AiTier[] = ["free", "creator", "pro", "studio", "custom"];
 
 export function isAiTier(value: string | null | undefined): value is AiTier {
   return Boolean(value) && (VALID_TIERS as readonly string[]).includes(value as string);

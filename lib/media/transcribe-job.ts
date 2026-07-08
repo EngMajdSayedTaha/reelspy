@@ -7,7 +7,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { processReel } from "@/lib/media/pipeline";
-import { resolveUserTier } from "@/lib/ai/tier";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota } from "@/lib/billing/quota";
 import { consumeUserAction } from "@/lib/utils/user-rate-limit";
 import { track } from "@/lib/analytics/track";
@@ -59,13 +59,13 @@ export async function runTranscribeReel(
   }
   const permalink = (reel as { ig_permalink: string }).ig_permalink;
 
-  const tier = await resolveUserTier(admin, userId);
+  const { entitlements } = await resolveUserEntitlements(admin, userId);
 
   // Same guards as a manual transcribe: hourly throttle then monthly plan quota.
   const hourly = await consumeUserAction(admin, userId, "transcript");
   if (!hourly.allowed) return "throttled";
 
-  const quota = await consumeMonthlyQuota(admin, userId, tier, "transcripts_mo");
+  const quota = await consumeMonthlyQuota(admin, userId, entitlements, "transcripts_mo");
   if (!quota.allowed) {
     // Cap hit — release the claim so the reel can be picked up next cycle.
     await admin

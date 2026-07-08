@@ -1,8 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BrandVoice } from "@/lib/ai/claude";
-import { resolveUserTier, type AiTier } from "@/lib/ai/tier";
-import { limitFor, isUnlimited } from "@/lib/billing/entitlements";
+import type { AiTier } from "@/lib/ai/tier";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf, isUnlimited } from "@/lib/billing/entitlements";
 
 // Onboarding progress (B3 / L7). Step completion is INFERRED from real data —
 // IG connection, brand voice, tracked accounts, synced reels, first script —
@@ -69,12 +70,12 @@ export async function getOnboardingState(
   supabase: SupabaseClient,
   userId: string
 ): Promise<OnboardingState> {
-  const [{ data: profile }, accountsRes, reelsRes, scriptsRes, tier] = await Promise.all([
+  const [{ data: profile }, accountsRes, reelsRes, scriptsRes, { tier, entitlements }] = await Promise.all([
     supabase.from("profiles").select("ig_user_id, brand_voice, onboarded_at").eq("id", userId).maybeSingle(),
     supabase.from("inspiration_accounts").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("tracked_reels").select("id", { count: "exact", head: true }).eq("user_id", userId),
     supabase.from("generated_scripts").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    resolveUserTier(supabase, userId),
+    resolveUserEntitlements(supabase, userId),
   ]);
 
   const accountsCount = accountsRes.count ?? 0;
@@ -82,7 +83,7 @@ export async function getOnboardingState(
   const scriptsCount = scriptsRes.count ?? 0;
   const connected = Boolean(profile?.ig_user_id);
   const onboardedAt = (profile?.onboarded_at as string | null) ?? null;
-  const accountsCap = limitFor(tier, "accounts");
+  const accountsCap = limitOf(entitlements, "accounts");
   const accountsAtCap = !isUnlimited(accountsCap) && accountsCount >= accountsCap;
 
   const steps: OnboardingSteps = {

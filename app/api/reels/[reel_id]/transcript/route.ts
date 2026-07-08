@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { processReel } from "@/lib/media/pipeline";
-import { resolveUserTier } from "@/lib/ai/tier";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
 import { track } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
@@ -164,8 +164,8 @@ export async function POST(request: Request, { params }: RouteContext) {
   // Monthly plan quota (L6): the tier's transcripts/month cap (unlimited on
   // Studio). Only genuine pipeline runs reach here — cache hits / in-flight
   // reuses returned above — so a slot maps to real compute.
-  const tier = await resolveUserTier(supabase, user.id);
-  const quota = await consumeMonthlyQuota(supabase, user.id, tier, "transcripts_mo");
+  const { entitlements } = await resolveUserEntitlements(supabase, user.id);
+  const quota = await consumeMonthlyQuota(supabase, user.id, entitlements, "transcripts_mo");
   if (!quota.allowed) {
     return NextResponse.json(
       { error: monthlyLimitMessage("transcripts_mo", quota.limit, quota.resetAt), upgrade: true },

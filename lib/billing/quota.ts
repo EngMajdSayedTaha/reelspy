@@ -10,8 +10,7 @@
 // default tier (usually free) still bounds abuse via the hourly limiter.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AiTier } from "@/lib/ai/tier";
-import { isUnlimited, limitFor } from "@/lib/billing/entitlements";
+import { isUnlimited, limitOf, type Entitlements } from "@/lib/billing/entitlements";
 
 // Entitlement keys that map to a monthly, RPC-metered quota.
 export type MonthlyQuotaKey = "scripts_mo" | "transcripts_mo";
@@ -34,10 +33,10 @@ export type MonthlyQuotaResult = {
 export async function consumeMonthlyQuota(
   supabase: SupabaseClient,
   userId: string,
-  tier: AiTier,
+  entitlements: Entitlements,
   key: MonthlyQuotaKey
 ): Promise<MonthlyQuotaResult> {
-  const limit = limitFor(tier, key);
+  const limit = limitOf(entitlements, key);
 
   // Unlimited tiers skip the DB round-trip entirely (studio scripts/transcripts).
   if (isUnlimited(limit)) {

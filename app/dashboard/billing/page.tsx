@@ -2,14 +2,15 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { Check, CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { resolveUserTier } from "@/lib/ai/tier";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { getSubscription } from "@/lib/billing/subscription";
-import { entitlementsFor, formatLimit, isUnlimited } from "@/lib/billing/entitlements";
+import { formatLimit, isUnlimited } from "@/lib/billing/entitlements";
 import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SubscribeButton, ManageBillingButton } from "@/components/billing/BillingActions";
+import { DynamicPlanCard } from "@/components/billing/DynamicPlanCard";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
@@ -94,9 +95,8 @@ export default async function BillingPage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const tier = await resolveUserTier(supabase, user.id);
+  const { tier, entitlements: ent } = await resolveUserEntitlements(supabase, user.id);
   const sub = await getSubscription(supabase, user.id);
-  const ent = entitlementsFor(tier);
 
   const [accountsUsed, automationsUsed, scriptsUsed, transcriptsUsed] = await Promise.all([
     count(supabase, "inspiration_accounts", user.id),
@@ -141,7 +141,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <Card>
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
-            {t.planLabel(t.plans[tier as "free" | "creator" | "pro" | "studio"].name)}
+            {t.planLabel(t.plans[tier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
             <Badge variant={isPaidTier(tier) ? "default" : "secondary"}>
               {isPaidTier(tier) ? t.active : t.free}
             </Badge>
@@ -233,6 +233,9 @@ export default async function BillingPage({ searchParams }: PageProps) {
           );
         })}
       </div>
+
+      {/* Dynamic "build your own plan" card (B4) */}
+      <DynamicPlanCard disabled={!stripeConfigured()} />
     </div>
   );
 }

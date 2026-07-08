@@ -37,6 +37,10 @@ describe("isPaidTier", () => {
     expect(isPaidTier("creator")).toBe(true);
     expect(isPaidTier("studio")).toBe(true);
   });
+
+  it("treats a dynamic custom-plan subscriber as paid (B4)", () => {
+    expect(isPaidTier("custom")).toBe(true);
+  });
 });
 
 describe("stripePriceIdForTier", () => {

@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generateScript, type BrandVoice } from "@/lib/ai/claude";
-import { resolveUserTier } from "@/lib/ai/tier";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
 import { track, trackAiUsage } from "@/lib/analytics/track";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
@@ -98,8 +98,8 @@ export async function POST(request: Request) {
   // against loops; this enforces the tier's scripts/month cap (unlimited on
   // Studio). Consumed before the AI call — the rare degraded/failed path is
   // bounded by the same hourly limiter.
-  const tier = await resolveUserTier(supabase, user.id);
-  const quota = await consumeMonthlyQuota(supabase, user.id, tier, "scripts_mo");
+  const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
+  const quota = await consumeMonthlyQuota(supabase, user.id, entitlements, "scripts_mo");
   if (!quota.allowed) {
     return NextResponse.json(
       { error: monthlyLimitMessage("scripts_mo", quota.limit, quota.resetAt), upgrade: true },
@@ -128,6 +128,7 @@ export async function POST(request: Request) {
     viewCount,
     postedDaysAgo,
     tier,
+    aiModel: entitlements.model,
   });
 
   // Don't persist the placeholder when the AI failed — saving a fake script

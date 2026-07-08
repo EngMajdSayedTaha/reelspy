@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { numEnv } from "@/lib/utils/env";
 import type { AiTier } from "./tier";
+import { entitlementsFor, type AiModel } from "@/lib/billing/entitlements";
 
 // OpenAI-compatible chat helper with provider auto-detect.
 //
@@ -21,18 +22,26 @@ const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 // this fast model mid-request rather than dropping the user to a placeholder.
 const FAST_FALLBACK_NVIDIA_MODEL = "meta/llama-3.1-8b-instruct";
 
-// Paid-tier Claude models (founder decision / W2): Haiku 4.5 for Creator, Sonnet
-// 4.6 for Pro/Studio — the intelligence step-up justifies the higher tier price.
-// Pinned current IDs (aliases resolve to the latest snapshot). Overridable per
-// deploy without a code change.
+// Paid-tier Claude models (founder decision / W2/B3): Sonnet for Creator, Opus
+// for Pro/Studio — the intelligence step-up justifies the higher tier price and
+// keeps the Creator→Pro upsell tied to model quality, not just volume. Pinned
+// current IDs (aliases resolve to the latest snapshot). Overridable per deploy
+// without a code change. A "custom" subscriber's model (Sonnet or Opus, picked
+// on the dynamic plan card) overrides this via ChatOptions.aiModel since it
+// can't be derived from tier alone.
 const ANTHROPIC_MODEL_HAIKU = process.env.ANTHROPIC_MODEL_HAIKU || "claude-haiku-4-5";
 const ANTHROPIC_MODEL_SONNET = process.env.ANTHROPIC_MODEL_SONNET || "claude-sonnet-4-6";
+const ANTHROPIC_MODEL_OPUS = process.env.ANTHROPIC_MODEL_OPUS || "claude-opus-4-8";
 
-function anthropicModelForTier(tier: AiTier): string {
-  // Pro/Studio get the stronger Sonnet; everyone else on the Claude path
-  // (Creator, or a free/unknown tier that reached Claude because no NVIDIA key
-  // is configured) gets Haiku.
-  return tier === "pro" || tier === "studio" ? ANTHROPIC_MODEL_SONNET : ANTHROPIC_MODEL_HAIKU;
+const MODEL_ID: Record<AiModel, string> = {
+  haiku: ANTHROPIC_MODEL_HAIKU,
+  sonnet: ANTHROPIC_MODEL_SONNET,
+  opus: ANTHROPIC_MODEL_OPUS,
+};
+
+function anthropicModelForTier(tier: AiTier, override?: AiModel): string {
+  if (override) return MODEL_ID[override];
+  return MODEL_ID[entitlementsFor(tier).model];
 }
 
 // The free NVIDIA endpoint has no SLA: requests can stall (cold model load),
@@ -95,6 +104,10 @@ export type ChatOptions = {
   /** Subscription tier — routes paid users to Claude, free to NVIDIA. Defaults
    *  to "free". */
   tier?: AiTier;
+  /** Explicit model override for the Claude path — required for a "custom"
+   *  tier caller (their Sonnet/Opus choice can't be derived from tier alone);
+   *  ignored for the fixed tiers, which resolve their model from entitlements. */
+  aiModel?: AiModel;
   /** When set, the Claude path forces this tool and returns its input as JSON. */
   jsonTool?: JsonTool;
 };
@@ -272,7 +285,7 @@ async function callAnthropic(opts: ChatOptions): Promise<ChatResult> {
   // Mirror the NVIDIA path's timeout/retry budget. The SDK retries transient
   // errors (429/5xx/network) on its own with backoff.
   const anthropic = new Anthropic({ apiKey, timeout: AI_TIMEOUT_MS, maxRetries: AI_MAX_RETRIES });
-  const model = anthropicModelForTier(opts.tier ?? "free");
+  const model = anthropicModelForTier(opts.tier ?? "free", opts.aiModel);
 
   // Forced tool-use path (W2): the model must call `jsonTool`, and its input is
   // guaranteed to match the schema — so we hand back clean JSON with no repair.
@@ -334,7 +347,8 @@ function anthropicUsage(response: Anthropic.Message): ChatUsage {
 export async function chat(opts: ChatOptions): Promise<ChatResult | null> {
   const hasNvidia = Boolean(process.env.NVIDIA_API_KEY);
   const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
-  const paid = opts.tier === "creator" || opts.tier === "pro" || opts.tier === "studio";
+  const paid =
+    opts.tier === "creator" || opts.tier === "pro" || opts.tier === "studio" || opts.tier === "custom";
 
   // Paid users get Claude when it's configured; otherwise degrade to NVIDIA.
   if (paid && hasAnthropic) {

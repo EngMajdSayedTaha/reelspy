@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidIgUsername } from "@/lib/instagram/graph-api";
 import { track } from "@/lib/analytics/track";
-import { resolveUserTier } from "@/lib/ai/tier";
-import { limitFor, withinLimit } from "@/lib/billing/entitlements";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf, withinLimitOf } from "@/lib/billing/entitlements";
 import { ALL_NICHES, slugifyNiche } from "@/lib/trends/shared";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -45,14 +45,14 @@ export async function trackNicheAccount(
     .maybeSingle();
   if (existing) return { ok: true, tracked: true };
 
-  const tier = await resolveUserTier(supabase, user.id);
+  const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
   const { count } = await supabase
     .from("inspiration_accounts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
-  if (!withinLimit(tier, "accounts", count ?? 0)) {
+  if (!withinLimitOf(entitlements, "accounts", count ?? 0)) {
     return {
-      error: dict.planLimit(limitFor(tier, "accounts"), fullDict.billing.plans[tier].name),
+      error: dict.planLimit(limitOf(entitlements, "accounts"), fullDict.billing.plans[tier].name),
     };
   }
 

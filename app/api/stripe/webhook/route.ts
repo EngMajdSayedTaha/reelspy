@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/billing/stripe";
 import { tierForStripePrice } from "@/lib/billing/plans";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
+import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
 
 // Stripe webhook (L6 / B1) — the SOLE writer of the subscriptions table. Every
 // request is signature-verified against STRIPE_WEBHOOK_SECRET before we trust a
@@ -43,6 +44,8 @@ function customerIdOf(sub: Stripe.Subscription): string | null {
 
 // Derive the tier a subscription grants: the priced plan wins (so a mid-cycle
 // plan change is honoured), falling back to the tier we stamped in metadata.
+// A custom-plan subscription's ad-hoc price never matches a known Stripe Price
+// id, so this naturally falls through to the "custom" tier we stamped.
 function tierOfSubscription(sub: Stripe.Subscription): AiTier {
   const priceId = sub.items.data[0]?.price?.id;
   const fromPrice = priceId ? tierForStripePrice(priceId) : null;
@@ -50,6 +53,20 @@ function tierOfSubscription(sub: Stripe.Subscription): AiTier {
   const metaTier = sub.metadata?.tier;
   if (isAiTier(metaTier)) return metaTier;
   return "free";
+}
+
+// Parses the custom-plan config we stamped into metadata at checkout (B4) —
+// see lib/billing/custom-pricing.ts / app/api/billing/checkout/route.ts.
+// Returns null on any parse/shape failure so the caller falls back to
+// ENTITLEMENTS.custom rather than trust malformed metadata.
+function customEntitlementsOf(sub: Stripe.Subscription): Entitlements | null {
+  const raw = sub.metadata?.custom_entitlements;
+  if (!raw) return null;
+  try {
+    return coerceEntitlements(JSON.parse(raw));
+  } catch {
+    return null;
+  }
 }
 
 // Upsert the subscriptions row from a Stripe Subscription object.
@@ -66,6 +83,10 @@ async function syncSubscription(
 
   const inactive = INACTIVE_STATUSES.has(sub.status);
   const tier: AiTier = inactive ? "free" : tierOfSubscription(sub);
+  // Only a live custom subscription carries custom_entitlements; anything else
+  // (fixed tier, inactive) clears it so a later re-subscribe to a fixed plan
+  // doesn't leave stale custom limits lying around.
+  const customEntitlements = !inactive && tier === "custom" ? customEntitlementsOf(sub) : null;
   const periodEnd = sub.current_period_end
     ? new Date(sub.current_period_end * 1000).toISOString()
     : null;
@@ -79,6 +100,7 @@ async function syncSubscription(
       status: sub.status,
       current_period_end: periodEnd,
       cancel_at_period_end: sub.cancel_at_period_end ?? false,
+      custom_entitlements: customEntitlements,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" }
