@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
+import { ENTITLEMENTS } from "@/lib/billing/entitlements";
 import { fakeSupabase, throwingSupabase } from "../helpers/fake-supabase";
 
 const USER = "user-1";
@@ -7,7 +8,7 @@ const USER = "user-1";
 describe("consumeMonthlyQuota", () => {
   it("short-circuits unlimited tiers without touching the DB", async () => {
     // studio.scripts_mo is UNLIMITED; a throwing client proves no RPC is made.
-    const res = await consumeMonthlyQuota(throwingSupabase(), USER, "studio", "scripts_mo");
+    const res = await consumeMonthlyQuota(throwingSupabase(), USER, ENTITLEMENTS.studio, "scripts_mo");
     expect(res).toMatchObject({ allowed: true, remaining: -1, limit: -1 });
   });
 
@@ -15,7 +16,7 @@ describe("consumeMonthlyQuota", () => {
     const res = await consumeMonthlyQuota(
       fakeSupabase({ rpc: { data: [{ allowed: true, used: 5, remaining: 55, period_end: "2026-08-01" }], error: null } }),
       USER,
-      "creator",
+      ENTITLEMENTS.creator,
       "scripts_mo"
     );
     expect(res).toMatchObject({ allowed: true, used: 5, remaining: 55, limit: 60, resetAt: "2026-08-01" });
@@ -25,7 +26,7 @@ describe("consumeMonthlyQuota", () => {
     const res = await consumeMonthlyQuota(
       fakeSupabase({ rpc: { data: [{ allowed: false, used: 60, remaining: 0, period_end: "2026-08-01" }], error: null } }),
       USER,
-      "creator",
+      ENTITLEMENTS.creator,
       "scripts_mo"
     );
     expect(res.allowed).toBe(false);
@@ -36,16 +37,27 @@ describe("consumeMonthlyQuota", () => {
     const res = await consumeMonthlyQuota(
       fakeSupabase({ rpc: { data: null, error: { message: "rpc missing" } } }),
       USER,
-      "free",
+      ENTITLEMENTS.free,
       "scripts_mo"
     );
     expect(res).toMatchObject({ allowed: true, limit: 10 });
   });
 
   it("fails open when the client throws", async () => {
-    const res = await consumeMonthlyQuota(throwingSupabase(), USER, "creator", "transcripts_mo");
+    const res = await consumeMonthlyQuota(throwingSupabase(), USER, ENTITLEMENTS.creator, "transcripts_mo");
     expect(res.allowed).toBe(true);
     expect(res.limit).toBe(30);
+  });
+
+  it("uses a custom subscriber's own entitlements, not a fixed tier's", async () => {
+    const custom = { ...ENTITLEMENTS.free, accounts: 42, scripts_mo: 77, model: "opus" as const };
+    const res = await consumeMonthlyQuota(
+      fakeSupabase({ rpc: { data: [{ allowed: true, used: 1, remaining: 76, period_end: "2026-08-01" }], error: null } }),
+      USER,
+      custom,
+      "scripts_mo"
+    );
+    expect(res.limit).toBe(77);
   });
 });
 

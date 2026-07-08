@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
+import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
 
 // Stripe statuses that grant paid access. `past_due` still has access during the
 // dunning window; `canceled`/`unpaid`/`incomplete_expired` do not.
@@ -23,6 +24,10 @@ export type Subscription = {
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  // The per-user limits + model for a "custom" (dynamic plan card) subscriber
+  // (B4). null for every fixed tier, and for a custom subscriber whose webhook
+  // sync hasn't landed yet — callers fall back to ENTITLEMENTS.custom.
+  customEntitlements: Entitlements | null;
 };
 
 // Fetch the raw subscription row for a user, or null if none / not migrated.
@@ -34,7 +39,7 @@ export async function getSubscription(
     const { data, error } = await supabase
       .from("subscriptions")
       .select(
-        "tier, status, stripe_customer_id, stripe_subscription_id, current_period_end, cancel_at_period_end"
+        "tier, status, stripe_customer_id, stripe_subscription_id, current_period_end, cancel_at_period_end, custom_entitlements"
       )
       .eq("user_id", userId)
       .maybeSingle();
@@ -51,6 +56,7 @@ export async function getSubscription(
       stripeSubscriptionId: data.stripe_subscription_id ?? null,
       currentPeriodEnd: data.current_period_end ?? null,
       cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+      customEntitlements: coerceEntitlements(data.custom_entitlements),
     };
   } catch {
     return null;

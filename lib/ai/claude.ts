@@ -1,5 +1,6 @@
 import { aiConfigured, chat, type ChatUsage, type JsonTool } from "./provider";
 import type { AiTier } from "./tier";
+import type { AiModel } from "@/lib/billing/entitlements";
 import { ARABIC_DIALECTS, isArabicDialect, type ArabicDialect, type BrandVoice } from "./brand-voice";
 
 // Re-export the pure brand-voice API so existing server importers of `claude.ts`
@@ -153,6 +154,8 @@ type GenerateScriptInput = {
   postedDaysAgo?: number | null;
   // Subscription tier (W2): routes paid users to Claude, free to NVIDIA.
   tier?: AiTier;
+  // Explicit model override for a "custom" tier caller (B4) — see ChatOptions.
+  aiModel?: AiModel;
 };
 
 // Transcripts are our own output but still unbounded by request size, so cap
@@ -329,6 +332,7 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
       maxTokens: 1200,
       jsonObject: true,
       tier: input.tier,
+      aiModel: input.aiModel,
       // Claude path returns clean JSON via tool-use; NVIDIA ignores this and
       // uses jsonObject. Either way parseJsonFromText handles the result.
       jsonTool: SCRIPT_TOOL,

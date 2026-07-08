@@ -42,6 +42,32 @@ describe("getSubscription", () => {
     expect(sub?.tier).toBe("free");
   });
 
+  it("parses a valid custom_entitlements jsonb column for a custom subscriber (B4)", async () => {
+    const custom = {
+      accounts: 42,
+      scripts_mo: 77,
+      transcripts_mo: 38,
+      automations: 20,
+      publish_targets: 3,
+      ig_connections: 1,
+      model: "opus",
+    };
+    const sub = await getSubscription(
+      fakeSupabase({ maybeSingle: { data: row({ tier: "custom", custom_entitlements: custom }), error: null } }),
+      USER
+    );
+    expect(sub?.tier).toBe("custom");
+    expect(sub?.customEntitlements).toEqual(custom);
+  });
+
+  it("falls back to null customEntitlements when the column is missing/malformed", async () => {
+    const sub = await getSubscription(
+      fakeSupabase({ maybeSingle: { data: row({ tier: "custom", custom_entitlements: { accounts: "not a number" } }), error: null } }),
+      USER
+    );
+    expect(sub?.customEntitlements).toBeNull();
+  });
+
   it("returns null when there is no row", async () => {
     const sub = await getSubscription(fakeSupabase({ maybeSingle: { data: null, error: null } }), USER);
     expect(sub).toBeNull();

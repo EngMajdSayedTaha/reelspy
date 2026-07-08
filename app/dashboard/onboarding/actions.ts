@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
-import { resolveUserTier } from "@/lib/ai/tier";
-import { limitFor, isUnlimited } from "@/lib/billing/entitlements";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf, isUnlimited } from "@/lib/billing/entitlements";
 import { isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
 import { listNiches } from "@/lib/trends/niche";
 import { resolveNicheSlug } from "@/lib/suggestions/accounts";
@@ -94,8 +94,8 @@ export async function seedStarterPack(): Promise<StarterPackState> {
   } = await supabase.auth.getUser();
   if (!user) return { error: dict.onboarding.unauthorized };
 
-  const tier = await resolveUserTier(supabase, user.id);
-  const cap = limitFor(tier, "accounts");
+  const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
+  const cap = limitOf(entitlements, "accounts");
 
   const { count: usedCount } = await supabase
     .from("inspiration_accounts")

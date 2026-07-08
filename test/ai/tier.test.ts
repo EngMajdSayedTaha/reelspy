@@ -20,8 +20,8 @@ function subRow(tier: string, status = "active") {
 }
 
 describe("isAiTier", () => {
-  it("accepts the four valid tiers", () => {
-    for (const t of ["free", "creator", "pro", "studio"]) expect(isAiTier(t)).toBe(true);
+  it("accepts the five valid tiers", () => {
+    for (const t of ["free", "creator", "pro", "studio", "custom"]) expect(isAiTier(t)).toBe(true);
   });
 
   it("rejects unknown/empty values", () => {
@@ -49,6 +49,15 @@ describe("resolveUserTier", () => {
       USER
     );
     expect(tier).toBe("creator");
+  });
+
+  it("lets an active custom-plan subscription resolve to \"custom\" (B4)", async () => {
+    vi.stubEnv("AI_DEFAULT_TIER", "free");
+    const tier = await resolveUserTier(
+      fakeSupabase({ maybeSingle: { data: subRow("custom"), error: null } }),
+      USER
+    );
+    expect(tier).toBe("custom");
   });
 
   it("ignores a canceled subscription and uses the env default", async () => {

@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveUserTier } from "@/lib/ai/tier";
 import type { AiTier } from "@/lib/ai/tier";
-import { limitFor, withinLimit } from "@/lib/billing/entitlements";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf, withinLimitOf } from "@/lib/billing/entitlements";
 import { isAdminUser } from "@/lib/billing/admin";
 import { getPageCredentials, markWebhookSubscribed } from "@/lib/instagram/token-store";
 import {
@@ -143,13 +143,13 @@ export async function createAutomation(
 
   // Plan limit (L6): auto-reply automations are gated per tier (Free gets 0, so
   // this is also the free→paid gate for the whole module).
-  const tier = await resolveUserTier(supabase, user.id);
+  const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
   const { count } = await supabase
     .from("reel_automations")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
-  if (!(await isAdminUser(supabase, user.id)) && !withinLimit(tier, "automations", count ?? 0)) {
-    const cap = limitFor(tier, "automations");
+  if (!(await isAdminUser(supabase, user.id)) && !withinLimitOf(entitlements, "automations", count ?? 0)) {
+    const cap = limitOf(entitlements, "automations");
     const name = await planName(tier);
     return {
       error: cap === 0 ? dict.errors.planCapZero(name) : dict.errors.planCapReached(cap, name),

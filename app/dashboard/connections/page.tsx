@@ -6,8 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ConnectionCard } from "@/components/publishing/ConnectionCard";
 import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
 import { listIgConnections } from "@/lib/instagram/connections";
-import { resolveUserTier } from "@/lib/ai/tier";
-import { limitFor } from "@/lib/billing/entitlements";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf } from "@/lib/billing/entitlements";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
@@ -116,11 +116,11 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   // per-row flag (avoids selecting profiles.active_ig_connection_id, which
   // wouldn't exist before the migration and would error the page query).
   const admin = createAdminClient();
-  const [igConnections, tier] = await Promise.all([
+  const [igConnections, { entitlements }] = await Promise.all([
     listIgConnections(admin, user.id),
-    resolveUserTier(supabase, user.id),
+    resolveUserEntitlements(supabase, user.id),
   ]);
-  const connectionCap = limitFor(tier, "ig_connections");
+  const connectionCap = limitOf(entitlements, "ig_connections");
   const activeConnectionId = igConnections.find((c) => c.isActive)?.id ?? null;
   // Show once multi-account is relevant: the plan allows more than one, or the
   // user already has more than one connected.

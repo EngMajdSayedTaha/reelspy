@@ -38,7 +38,7 @@ export const PLANS: PlanMeta[] = [
     tagline: "Solo operators",
     priceAed: 49,
     priceEnv: "STRIPE_PRICE_CREATOR",
-    highlights: ["10 tracked accounts", "60 scripts / month", "Claude Haiku scripts", "3 auto-replies"],
+    highlights: ["30 tracked accounts", "60 scripts / month", "Claude Sonnet scripts", "15 auto-replies"],
   },
   {
     tier: "pro",
@@ -46,7 +46,7 @@ export const PLANS: PlanMeta[] = [
     tagline: "Serious creators & SMMs",
     priceAed: 149,
     priceEnv: "STRIPE_PRICE_PRO",
-    highlights: ["25 tracked accounts", "200 scripts / month", "Claude Sonnet scripts", "10 auto-replies", "4 publish targets"],
+    highlights: ["50 tracked accounts", "200 scripts / month", "Claude Opus scripts", "30 auto-replies", "4 publish targets"],
   },
   {
     tier: "studio",
@@ -54,7 +54,7 @@ export const PLANS: PlanMeta[] = [
     tagline: "Agencies & teams",
     priceAed: 349,
     priceEnv: "STRIPE_PRICE_STUDIO",
-    highlights: ["50 tracked accounts", "Unlimited scripts", "Claude Sonnet scripts", "30 auto-replies", "4 publish targets"],
+    highlights: ["100 tracked accounts", "Unlimited scripts", "Claude Opus scripts", "60 auto-replies", "4 publish targets"],
   },
 ];
 
@@ -65,7 +65,7 @@ export function planFor(tier: AiTier): PlanMeta {
 }
 
 export function isPaidTier(tier: AiTier): tier is PaidTier {
-  return tier === "creator" || tier === "pro" || tier === "studio";
+  return tier === "creator" || tier === "pro" || tier === "studio" || tier === "custom";
 }
 
 // The Stripe Price id configured for a paid tier, or null when the env var is

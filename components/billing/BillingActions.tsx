@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { PaidTier } from "@/lib/billing/plans";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
-async function postJson(
+export async function postJson(
   url: string,
   fallbackError: string,
   body?: unknown

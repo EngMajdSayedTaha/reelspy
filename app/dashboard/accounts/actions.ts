@@ -8,8 +8,8 @@ import { getIgCredentials } from "@/lib/instagram/token-store";
 import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { track } from "@/lib/analytics/track";
-import { resolveUserTier } from "@/lib/ai/tier";
-import { limitFor, withinLimit, isUnlimited } from "@/lib/billing/entitlements";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
+import { limitOf, withinLimitOf, isUnlimited } from "@/lib/billing/entitlements";
 import { isAdminUser } from "@/lib/billing/admin";
 import type { AiTier } from "@/lib/ai/tier";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
@@ -24,9 +24,9 @@ async function dict() {
 
 // Copy for a hit tracked-account cap (L6). Names the plan + limit so the user
 // knows what upgrading buys them.
-async function accountLimitError(tier: AiTier): Promise<string> {
+async function accountLimitError(tier: AiTier, cap: number): Promise<string> {
   const d = await dict();
-  return d.accounts.actions.accountLimit(d.billing.plans[tier].name, limitFor(tier, "accounts"));
+  return d.accounts.actions.accountLimit(d.billing.plans[tier].name, cap);
 }
 
 // Count a user's tracked accounts (head-only, no rows pulled).
@@ -81,10 +81,10 @@ export async function addInspirationAccount(
     .eq("ig_username", igUsername)
     .maybeSingle();
   if (!alreadyTracked && !(await isAdminUser(supabase, user.id))) {
-    const tier = await resolveUserTier(supabase, user.id);
+    const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
     const used = await countTrackedAccounts(supabase, user.id);
-    if (!withinLimit(tier, "accounts", used)) {
-      return { error: await accountLimitError(tier) };
+    if (!withinLimitOf(entitlements, "accounts", used)) {
+      return { error: await accountLimitError(tier, limitOf(entitlements, "accounts")) };
     }
   }
 
@@ -237,8 +237,8 @@ export async function bulkAddInspirationAccounts(
   // the user's tier, importing as many as fit and reporting the rest as skipped.
   let limited = 0;
   if (fresh.length > 0 && !(await isAdminUser(supabase, user.id))) {
-    const tier = await resolveUserTier(supabase, user.id);
-    const cap = limitFor(tier, "accounts");
+    const { tier, entitlements } = await resolveUserEntitlements(supabase, user.id);
+    const cap = limitOf(entitlements, "accounts");
     if (!isUnlimited(cap)) {
       const used = await countTrackedAccounts(supabase, user.id);
       const remaining = Math.max(0, cap - used);
@@ -247,7 +247,7 @@ export async function bulkAddInspirationAccounts(
         fresh = fresh.slice(0, remaining);
       }
       if (remaining === 0) {
-        return { error: await accountLimitError(tier), existing: existingSet.size, limited };
+        return { error: await accountLimitError(tier, cap), existing: existingSet.size, limited };
       }
     }
   }
