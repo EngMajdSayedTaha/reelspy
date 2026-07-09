@@ -135,24 +135,10 @@ export async function GET(request: NextRequest) {
       console.error("ig_connections mirror failed (non-fatal)", connError);
     }
 
-    const { error: accountError } = await supabase.from("inspiration_accounts").upsert(
-      {
-        user_id: user.id,
-        ig_username: igProfile.username,
-        display_name: igProfile.username,
-        is_active: true,
-      },
-      { onConflict: "user_id,ig_username" }
-    );
-
-    if (accountError) {
-      console.error("Failed to create connected IG account row", accountError);
-      const accountResponse = NextResponse.redirect(
-        new URL("/dashboard/connections?error=account_link_failed", request.url)
-      );
-      accountResponse.cookies.delete(OAUTH_STATE_COOKIE);
-      return accountResponse;
-    }
+    // Note: the connected account is NOT inserted into inspiration_accounts.
+    // That table is the user's tracked/competitor list (Accounts page, Feed,
+    // plan-limit counts) — the user's own account is a distinct concept,
+    // already fully represented by ig_connections/social_connections above.
 
     // Instrumentation (L5): funnel step after signup.
     await track(user.id, "ig_connected");

@@ -73,7 +73,7 @@ const en = {
     },
     groups: {
       heading: "Groups",
-      hint: "Organize accounts (e.g. Angular, Memes)",
+      hint: "Organize accounts (e.g. Competitors, Inspiration)",
       newGroupPlaceholder: "New group name…",
       addGroup: "Add Group",
       noGroupsYet: "No groups yet. Create one above, then assign accounts.",
@@ -228,7 +228,7 @@ export const accountsAr: AccountsDict = {
     },
     groups: {
       heading: "المجموعات",
-      hint: "نظّم الحسابات (مثال: Angular، ميمز)",
+      hint: "نظّم الحسابات (مثال: المنافسون، الإلهام)",
       newGroupPlaceholder: "اسم مجموعة جديدة…",
       addGroup: "إضافة مجموعة",
       noGroupsYet: "لا توجد مجموعات بعد. أنشئ واحدة أعلاه، ثم عيّن الحسابات إليها.",

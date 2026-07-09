@@ -40,7 +40,7 @@ const en = {
     } as Record<string, string>,
     customContextLabel: "Custom Context",
     customContextHint: "(optional — add your angle or topic)",
-    customContextPlaceholder: "e.g. I want this to be about Angular signals...",
+    customContextPlaceholder: "e.g. focus on the biggest mistake people make, not just the intro...",
 
     // ScriptGenerator — transcript status hints + generate action
     degradedHintFailed:
@@ -199,7 +199,7 @@ export const scriptsAr: ScriptsDict = {
     },
     customContextLabel: "سياق إضافي",
     customContextHint: "(اختياري — أضف زاويتك أو موضوعك)",
-    customContextPlaceholder: "مثال: أريد أن يتناول هذا موضوع Angular signals...",
+    customContextPlaceholder: "مثال: ركّز على أكبر خطأ يقع فيه الناس، وليس المقدمة فقط...",
 
     degradedHintFailed:
       "فشل تفريغ هذا الريل نصيًا — سيُبنى هذا النص على التعليق فقط. أعد المحاولة من لوحة النص المفرَّغ أعلاه للاعتماد على الصوت الفعلي.",
