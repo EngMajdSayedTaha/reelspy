@@ -31,6 +31,22 @@ const en = {
     manageBilling: "Manage billing",
     couldNotStartCheckout: "Could not start checkout.",
     couldNotOpenPortal: "Could not open billing portal.",
+    pageTour: {
+      steps: {
+        planUsage: {
+          title: "Your plan & usage",
+          desc: "See your current tier, renewal date, and how close you are to each monthly limit.",
+        },
+        manageBilling: {
+          title: "Manage subscription",
+          desc: "Open the Stripe billing portal to update payment method, invoices, or cancel.",
+        },
+        comparison: {
+          title: "Compare plans",
+          desc: "Compare features and upgrade or switch plans directly from here.",
+        },
+      },
+    },
     plans: {
       free: {
         name: "Free",
@@ -126,6 +142,22 @@ export const billingAr: BillingDict = {
     manageBilling: "إدارة الفوترة",
     couldNotStartCheckout: "تعذّر بدء عملية الدفع.",
     couldNotOpenPortal: "تعذّر فتح بوابة الفوترة.",
+    pageTour: {
+      steps: {
+        planUsage: {
+          title: "باقتك واستخدامك",
+          desc: "اطّلع على باقتك الحالية وتاريخ التجديد ومدى قربك من كل حد شهري.",
+        },
+        manageBilling: {
+          title: "إدارة الاشتراك",
+          desc: "افتح بوابة Stripe للفوترة لتحديث وسيلة الدفع أو الفواتير أو الإلغاء.",
+        },
+        comparison: {
+          title: "قارن الباقات",
+          desc: "قارن المزايا وارتقِ أو بدّل الباقة مباشرة من هنا.",
+        },
+      },
+    },
     plans: {
       free: {
         name: "مجانية",

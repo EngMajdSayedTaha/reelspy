@@ -282,6 +282,30 @@ const en = {
       planCapReached: (cap: number, planName: string) =>
         `Your ${planName} plan allows up to ${cap} auto-replies. Upgrade in Billing for more.`,
     },
+    pageTour: {
+      steps: {
+        platformTabs: {
+          title: "Instagram vs. YouTube",
+          desc: "Switch between Instagram and YouTube automations; the dot shows each platform's connection status.",
+        },
+        igSubtabs: {
+          title: "Comment vs. DM replies",
+          desc: "Instagram supports two automation types: public comment auto-replies and DM keyword auto-replies.",
+        },
+        form: {
+          title: "Create an automation",
+          desc: "Set a keyword trigger and reply message for a specific reel or all posts.",
+        },
+        cards: {
+          title: "Your automations",
+          desc: "Each card is one active automation; toggle it on/off, edit, or delete from here.",
+        },
+        activityLog: {
+          title: "Activity log",
+          desc: "See recent comments/DMs that matched your keywords and whether the reply succeeded.",
+        },
+      },
+    },
   },
 };
 
@@ -562,6 +586,30 @@ export const automationsAr: AutomationsDict = {
         `الرد الآلي غير متاح ضمن باقة ${planName}. رقّي باقتك من صفحة الاشتراك لتفعيله.`,
       planCapReached: (cap: number, planName: string) =>
         `تتيح باقة ${planName} حتى ${cap} من الردود الآلية. رقّي باقتك من صفحة الاشتراك للمزيد.`,
+    },
+    pageTour: {
+      steps: {
+        platformTabs: {
+          title: "إنستغرام مقابل يوتيوب",
+          desc: "بدّل بين أتمتة إنستغرام ويوتيوب؛ توضح النقطة حالة اتصال كل منصة.",
+        },
+        igSubtabs: {
+          title: "ردود التعليقات مقابل الرسائل المباشرة",
+          desc: "يدعم إنستغرام نوعين من الأتمتة: الرد الآلي العلني على التعليقات، والرد الآلي بالكلمات المفتاحية على الرسائل المباشرة.",
+        },
+        form: {
+          title: "أنشئ أتمتة",
+          desc: "حدّد كلمة مفتاحية محفِّزة ورسالة رد لريل معيّن أو لجميع المنشورات.",
+        },
+        cards: {
+          title: "أتمتاتك",
+          desc: "كل بطاقة تمثل أتمتة نشطة واحدة؛ فعّلها أو أوقفها أو عدّلها أو احذفها من هنا.",
+        },
+        activityLog: {
+          title: "سجل النشاط",
+          desc: "شاهد التعليقات/الرسائل الأخيرة التي طابقت كلماتك المفتاحية وما إذا نجح الرد.",
+        },
+      },
     },
   },
 };

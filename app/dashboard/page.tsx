@@ -22,6 +22,7 @@ import { SuggestedAccountsSection } from "@/components/suggestions/SuggestedAcco
 import { SuggestionsSkeleton } from "@/components/suggestions/SuggestionsSkeleton";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 type StatCardProps = {
   label: string;
@@ -129,15 +130,21 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          {t.welcomeBack(username)}
-        </h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {t.welcomeBack(username)}
+          </h1>
+          <PageTourButton page="dashboard" />
+        </div>
         <p className="mt-1 text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
       {showChecklist ? <SetupChecklist state={onboarding} /> : null}
 
-      <div className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+      <div
+        data-tour="dashboard-stats"
+        className="stagger grid grid-cols-1 gap-3 min-[440px]:grid-cols-2 sm:gap-4 xl:grid-cols-4"
+      >
         <StatCard
           label={t.stats.inspirationAccounts}
           value={String(accountsCount)}
@@ -208,9 +215,11 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <Suspense fallback={<SuggestionsSkeleton rows={3} />}>
-        <SuggestedAccountsSection userId={user.id} variant="widget" limit={3} />
-      </Suspense>
+      <div data-tour="suggested-accounts">
+        <Suspense fallback={<SuggestionsSkeleton rows={3} />}>
+          <SuggestedAccountsSection userId={user.id} variant="widget" limit={3} />
+        </Suspense>
+      </div>
     </div>
   );
 }

@@ -111,6 +111,55 @@ const en = {
       scriptIdRequired: "script_id required",
       invalidDate: "Invalid date.",
     },
+
+    pageTour: {
+      steps: {
+        generator: {
+          title: "Write a script",
+          desc: "Turn any idea, reel link, or caption into a script.",
+        },
+        transcribeLink: {
+          title: "Import from a reel link",
+          desc: "Paste any Instagram reel URL to pull its transcript as a starting point.",
+        },
+        platformTone: {
+          title: "Platform & tone",
+          desc: "Pick the platform and voice the AI should write in.",
+        },
+        history: {
+          title: "Your script history",
+          desc: "Filter by status or search everything you've generated.",
+        },
+        actions: {
+          title: "Manage a script",
+          desc: "Expand, copy, schedule, or move a script through draft → ready → published.",
+        },
+      },
+    },
+    generateTour: {
+      steps: {
+        sourceReel: {
+          title: "The source reel",
+          desc: "The reel this script is being generated from.",
+        },
+        transcriptPanel: {
+          title: "Transcript",
+          desc: "Generate, copy, or download an SRT transcript of the reel's audio.",
+        },
+        transcriptToolbar: {
+          title: "Save a hook or export",
+          desc: "Save the opening line as a hook, or export the transcript/SRT.",
+        },
+        generator: {
+          title: "Generate the script",
+          desc: "Caption + transcript grounding produce the script below.",
+        },
+        grounded: {
+          title: "Is it grounded on the transcript?",
+          desc: "Shows whether the AI used the real transcript or just the caption, with a one-click fix.",
+        },
+      },
+    },
   },
 };
 
@@ -217,6 +266,55 @@ export const scriptsAr: ScriptsDict = {
       unauthorized: "غير مصرَّح",
       scriptIdRequired: "معرّف النص مطلوب",
       invalidDate: "تاريخ غير صالح.",
+    },
+
+    pageTour: {
+      steps: {
+        generator: {
+          title: "اكتب نصًا",
+          desc: "حوّل أي فكرة أو رابط ريل أو تعليق إلى نص.",
+        },
+        transcribeLink: {
+          title: "استيراد من رابط ريل",
+          desc: "الصق رابط أي ريل من إنستغرام لسحب نصه المفرَّغ كنقطة انطلاق.",
+        },
+        platformTone: {
+          title: "المنصة والنبرة",
+          desc: "اختر المنصة والأسلوب الذي يجب أن يكتب به الذكاء الاصطناعي.",
+        },
+        history: {
+          title: "سجل نصوصك",
+          desc: "صفِّ حسب الحالة أو ابحث في كل ما أنشأته.",
+        },
+        actions: {
+          title: "إدارة نص",
+          desc: "وسّع، انسخ، جدول، أو انقل نصًا عبر مراحل مسودة ← جاهز ← منشور.",
+        },
+      },
+    },
+    generateTour: {
+      steps: {
+        sourceReel: {
+          title: "الريل المصدر",
+          desc: "الريل الذي يُنشأ هذا النص بناءً عليه.",
+        },
+        transcriptPanel: {
+          title: "النص المفرَّغ",
+          desc: "أنشئ أو انسخ أو نزّل نصًا مفرَّغًا (SRT) لصوت الريل.",
+        },
+        transcriptToolbar: {
+          title: "احفظ جملة افتتاحية أو صدّر",
+          desc: "احفظ الجملة الافتتاحية كجملة مميزة، أو صدّر النص المفرَّغ/SRT.",
+        },
+        generator: {
+          title: "أنشئ النص",
+          desc: "التعليق + الاعتماد على النص المفرَّغ ينتجان النص أدناه.",
+        },
+        grounded: {
+          title: "هل هو مبني على النص المفرَّغ؟",
+          desc: "يوضح ما إذا استخدم الذكاء الاصطناعي النص المفرَّغ الفعلي أو التعليق فقط، مع إصلاح بنقرة واحدة.",
+        },
+      },
     },
   },
 };

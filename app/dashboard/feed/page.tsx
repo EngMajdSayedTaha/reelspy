@@ -8,6 +8,7 @@ import { RisingNow } from "@/components/reels/RisingNow";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 import { rankRising, risingSinceIso } from "@/lib/reels/ranking";
 import { markReelAsWorkedOn, setReelDiscarded, setReelFavorited } from "./actions";
 
@@ -349,44 +350,53 @@ export default async function FeedPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">{dict.page.title}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">{dict.page.title}</h1>
+            <PageTourButton page="feed" />
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {dict.page.subtitle}
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
+        <div data-tour="sync-button" className="flex flex-col items-end gap-2">
           <SyncButton />
         </div>
       </div>
 
       {showRising && (risingReels.length > 0 || risingGroup !== "all") ? (
-        <RisingNow
-          reels={risingReels}
+        <div data-tour="rising-now">
+          <RisingNow
+            reels={risingReels}
+            groups={groups}
+            currentGroup={risingGroup}
+            markWorkedAction={markReelAsWorkedOn}
+            discardAction={setReelDiscarded}
+            favoriteAction={setReelFavorited}
+          />
+        </div>
+      ) : null}
+
+      <div data-tour="feed-controls">
+        <FeedControls
+          accounts={accounts}
           groups={groups}
-          currentGroup={risingGroup}
+          current={{ account, group, status, q, sort, order, perPage: String(perPage) }}
+          statusCounts={statusCounts}
+          total={total}
+        />
+      </div>
+
+      <div data-tour="reel-feed">
+        <ReelFeed
+          reels={reels}
           markWorkedAction={markReelAsWorkedOn}
           discardAction={setReelDiscarded}
           favoriteAction={setReelFavorited}
+          hasFilters={hasFilters}
+          hasAccounts={hasAccounts}
         />
-      ) : null}
-
-      <FeedControls
-        accounts={accounts}
-        groups={groups}
-        current={{ account, group, status, q, sort, order, perPage: String(perPage) }}
-        statusCounts={statusCounts}
-        total={total}
-      />
-
-      <ReelFeed
-        reels={reels}
-        markWorkedAction={markReelAsWorkedOn}
-        discardAction={setReelDiscarded}
-        favoriteAction={setReelFavorited}
-        hasFilters={hasFilters}
-        hasAccounts={hasAccounts}
-      />
+      </div>
 
       <FeedPagination page={page} totalPages={totalPages} total={total} perPage={perPage} />
     </div>

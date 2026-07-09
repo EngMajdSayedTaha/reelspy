@@ -264,7 +264,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
   const visible = showAll ? sorted : sorted.slice(0, INITIAL_REELS);
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-card p-5 text-foreground">
+    <section data-tour="reels-insights" className="space-y-4 rounded-xl border border-border bg-card p-5 text-foreground">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -275,7 +275,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
             {dict.myReelsSubtitle}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div data-tour="export-filter" className="flex flex-col items-end gap-1">
           <div className="flex items-center gap-2">
             {media.length > 0 ? <ExportMenu profile={profile} totals={totals} media={media} /> : null}
             <Button type="button" variant="outline" onClick={() => load(true)} disabled={isLoading}>

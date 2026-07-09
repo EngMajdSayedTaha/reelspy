@@ -127,7 +127,10 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
   };
 
   return (
-    <section className="relative space-y-4 overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 text-foreground">
+    <section
+      data-tour="growth-notes"
+      className="relative space-y-4 overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/[0.07] via-card to-card p-5 text-foreground"
+    >
       {/* Soft brand glow in the corner to make the AI card feel alive. */}
       <div className="pointer-events-none absolute -end-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-3xl" />
 

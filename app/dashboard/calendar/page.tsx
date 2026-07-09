@@ -11,6 +11,7 @@ import { scheduleScript, unscheduleScript } from "../scripts/actions";
 import { reschedulePost } from "../publishing/actions";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 type PublishPostRow = {
   id: string;
@@ -71,7 +72,10 @@ export default async function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
+          <PageTourButton page="calendar" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {dict.subtitle}
         </p>

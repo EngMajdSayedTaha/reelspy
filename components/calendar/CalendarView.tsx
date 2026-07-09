@@ -265,7 +265,7 @@ export function CalendarView({
     <div className="grid gap-6 lg:grid-cols-[1fr_280px] lg:items-start">
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div data-tour="month-nav" className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">
             {MONTH_NAMES[month]} {year}
           </h2>
@@ -281,7 +281,7 @@ export function CalendarView({
 
         {/* Legend — two layers share the grid: planning (scripts) and live
             publishing (posts). Consolidated onto one surface for publishing GA. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-subtle">
+        <div data-tour="status-legend" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-subtle">
           <span className="inline-flex items-center gap-1.5">
             <GripVertical className="h-3 w-3" /> {dict.legendScript}
           </span>
@@ -316,7 +316,7 @@ export function CalendarView({
         </div>
 
         {/* Calendar grid */}
-        <div className={`grid grid-cols-7 gap-1 ${isPending ? "opacity-70" : ""}`}>
+        <div data-tour="calendar-grid" className={`grid grid-cols-7 gap-1 ${isPending ? "opacity-70" : ""}`}>
           {cells.map((day, i) => {
             if (day === null) {
               return <div key={`blank-${i}`} className="min-h-[52px] rounded-md sm:min-h-[84px]" />;
@@ -438,7 +438,7 @@ export function CalendarView({
 
         {/* Selected day detail */}
         {selectedDate && (selectedScripts.length > 0 || selectedPosts.length > 0) ? (
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div data-tour="day-detail" className="rounded-xl border border-border bg-card p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-medium text-foreground">{selectedDate}</h3>
               <button
@@ -555,6 +555,7 @@ export function CalendarView({
           const script = scripts.find((s) => s.id === scriptId);
           if (script?.scheduled_date) unschedule(scriptId);
         }}
+        data-tour="unscheduled-tray"
         className="space-y-3 rounded-xl border border-border bg-card p-4"
       >
         <div className="flex items-center gap-2">

@@ -14,6 +14,7 @@ import { DynamicPlanCard } from "@/components/billing/DynamicPlanCard";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -117,7 +118,10 @@ export default async function BillingPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">{t.heading}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">{t.heading}</h1>
+          <PageTourButton page="billing" />
+        </div>
         <p className="text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
@@ -138,7 +142,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       ) : null}
 
       {/* Current plan + usage */}
-      <Card>
+      <Card data-tour="plan-usage">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
             {t.planLabel(t.plans[tier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
@@ -156,7 +160,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
               : t.onFreePlan}
           </CardDescription>
           {hasSubscription ? (
-            <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
+            <div data-tour="manage-billing" className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
               <ManageBillingButton />
             </div>
           ) : null}
@@ -174,7 +178,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       </Card>
 
       {/* Plan grid */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {PLANS.map((plan) => {
           const isCurrent = plan.tier === tier;
           const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);

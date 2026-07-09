@@ -156,10 +156,10 @@ export function ScriptGenerator({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-border bg-card p-4 text-foreground">
+      <div data-tour="script-generator" className="rounded-xl border border-border bg-card p-4 text-foreground">
         <div className="space-y-4">
           {/* External reel link → transcript */}
-          <div className="space-y-2">
+          <div data-tour="transcribe-link" className="space-y-2">
             <Label>{s.transcribeFromLink}</Label>
             <div className="flex gap-2">
               <Input
@@ -209,7 +209,7 @@ export function ScriptGenerator({
           </div>
 
           {/* Platform + Tone row */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div data-tour="platform-tone" className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>{s.platformLabel}</Label>
               <div className="flex flex-wrap gap-2">
@@ -301,26 +301,28 @@ export function ScriptGenerator({
               {s.placeholderNotice}
             </p>
           ) : reelId ? (
-            result.grounded ? (
-              <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2.5 py-1 text-xs font-medium text-success">
-                {s.groundedOnTranscript} ✓
-              </span>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-                  {s.captionOnly}
+            <div data-tour="grounded-badge">
+              {result.grounded ? (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2.5 py-1 text-xs font-medium text-success">
+                  {s.groundedOnTranscript} ✓
                 </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={onTranscribeAndGenerate}
-                  disabled={isTranscribing || isLoading}
-                >
-                  {isTranscribing ? s.transcribing : s.transcribeFirstThenRegenerate}
-                </Button>
-              </div>
-            )
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                    {s.captionOnly}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onTranscribeAndGenerate}
+                    disabled={isTranscribing || isLoading}
+                  >
+                    {isTranscribing ? s.transcribing : s.transcribeFirstThenRegenerate}
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : null}
           {isTranscribing ? <AiThinking messages={s.reelFetchMessages} /> : null}
           <ScriptOutput script={result.script} />

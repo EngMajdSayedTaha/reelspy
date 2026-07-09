@@ -175,6 +175,26 @@ const en = {
       unauthorized: "Unauthorized",
       reelIdRequired: "Reel id is required.",
     },
+    pageTour: {
+      steps: {
+        syncButton: {
+          title: "Sync your feed",
+          desc: "Pull the latest reels from all your tracked accounts on demand.",
+        },
+        risingNow: {
+          title: "Rising Now",
+          desc: "Reels from your tracked accounts gaining traction fast, right now.",
+        },
+        feedControls: {
+          title: "Filter & sort",
+          desc: "Filter by account, group or status, and sort by views, likes or viral score.",
+        },
+        reelFeed: {
+          title: "Your reels",
+          desc: "Mark reels as worked-on, favorite them, or discard ones you don't want to see again.",
+        },
+      },
+    },
   },
 };
 
@@ -341,6 +361,26 @@ export const feedAr: FeedDict = {
     actions: {
       unauthorized: "غير مصرَّح",
       reelIdRequired: "معرّف الريل مطلوب.",
+    },
+    pageTour: {
+      steps: {
+        syncButton: {
+          title: "زامن محتواك",
+          desc: "اسحب أحدث الريلز من جميع حساباتك المتابَعة عند الطلب.",
+        },
+        risingNow: {
+          title: "صاعد الآن",
+          desc: "ريلز من حساباتك المتابَعة تكتسب زخمًا سريعًا الآن.",
+        },
+        feedControls: {
+          title: "التصفية والترتيب",
+          desc: "صفِّ حسب الحساب أو المجموعة أو الحالة، ورتّب حسب المشاهدات أو الإعجابات أو درجة الانتشار.",
+        },
+        reelFeed: {
+          title: "ريلاتك",
+          desc: "علّم الريلز كمُنجزة، أضفها للمفضلة، أو تجاهل ما لا تريد رؤيته مجددًا.",
+        },
+      },
     },
   },
 };

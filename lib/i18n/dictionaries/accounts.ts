@@ -134,6 +134,30 @@ const en = {
       groupIdRequired: "Group id is required.",
       accountIdRequired: "Account id is required.",
     },
+    pageTour: {
+      steps: {
+        addAccount: {
+          title: "Track a new account",
+          desc: "Add any public Instagram account by username to start tracking its reels.",
+        },
+        importFollowing: {
+          title: "Bulk import",
+          desc: "Import everyone you already follow on Instagram in one click.",
+        },
+        groups: {
+          title: "Organize with groups",
+          desc: "Group accounts (e.g. by niche or client) to filter the feed later.",
+        },
+        filterBar: {
+          title: "Filter & search",
+          desc: "Switch between All / Active / Paused accounts or search by username.",
+        },
+        cards: {
+          title: "Account cards",
+          desc: "Each card shows sync status and follower count, and lets you pause, rename group, or remove.",
+        },
+      },
+    },
   },
 };
 
@@ -262,6 +286,30 @@ export const accountsAr: AccountsDict = {
       groupNameExists: "توجد بالفعل مجموعة بهذا الاسم.",
       groupIdRequired: "معرّف المجموعة مطلوب.",
       accountIdRequired: "معرّف الحساب مطلوب.",
+    },
+    pageTour: {
+      steps: {
+        addAccount: {
+          title: "تتبع حساب جديد",
+          desc: "أضف أي حساب إنستغرام عام باسم المستخدم لبدء تتبع ريلاته.",
+        },
+        importFollowing: {
+          title: "استيراد جماعي",
+          desc: "استورد كل من تتابعهم على إنستغرام بنقرة واحدة.",
+        },
+        groups: {
+          title: "نظّم باستخدام المجموعات",
+          desc: "جمّع الحسابات (حسب المجال أو العميل مثلًا) لتصفية المحتوى لاحقًا.",
+        },
+        filterBar: {
+          title: "التصفية والبحث",
+          desc: "بدّل بين الكل / نشطة / متوقفة أو ابحث باسم المستخدم.",
+        },
+        cards: {
+          title: "بطاقات الحسابات",
+          desc: "تعرض كل بطاقة حالة المزامنة وعدد المتابعين، وتتيح لك الإيقاف أو تغيير المجموعة أو الإزالة.",
+        },
+      },
     },
   },
 };

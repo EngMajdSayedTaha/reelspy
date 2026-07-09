@@ -21,6 +21,26 @@ const en = {
       syncFeed: { title: "Sync feed", desc: "Pull the latest reels" },
       writeScript: { title: "Write a script", desc: "Turn ideas into content" },
     },
+    pageTour: {
+      steps: {
+        checklist: {
+          title: "Finish setting up",
+          desc: "Pick up where you left off — this card tracks your setup progress.",
+        },
+        quickActions: {
+          title: "Quick actions",
+          desc: "The fastest way to add accounts, sync your feed, or write a script.",
+        },
+        stats: {
+          title: "Your stats",
+          desc: "Quick counts of accounts, reels, scripts and posts — click any card to jump to that section.",
+        },
+        suggested: {
+          title: "Suggested accounts",
+          desc: "Accounts ReelSpy thinks you should track, based on your niche.",
+        },
+      },
+    },
   },
 };
 
@@ -46,6 +66,26 @@ export const dashboardAr: DashboardDict = {
       addAccounts: { title: "إضافة حسابات", desc: "تابع صنّاع محتوى جددًا" },
       syncFeed: { title: "مزامنة المحتوى", desc: "اسحب أحدث الريلز" },
       writeScript: { title: "كتابة نص", desc: "حوّل أفكارك إلى محتوى" },
+    },
+    pageTour: {
+      steps: {
+        checklist: {
+          title: "أكمل الإعداد",
+          desc: "تابع من حيث توقفت — تعرض هذه البطاقة تقدّم إعدادك.",
+        },
+        quickActions: {
+          title: "إجراءات سريعة",
+          desc: "أسرع طريقة لإضافة حسابات، مزامنة محتواك، أو كتابة نص.",
+        },
+        stats: {
+          title: "إحصاءاتك",
+          desc: "عدد سريع للحسابات والريلز والنصوص والمنشورات — اضغط أي بطاقة للانتقال إلى ذلك القسم.",
+        },
+        suggested: {
+          title: "حسابات مقترحة",
+          desc: "حسابات يرى ReelSpy أنه يجدر بك تتبعها، بناءً على مجالك.",
+        },
+      },
     },
   },
 };

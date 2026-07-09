@@ -61,6 +61,27 @@ const en = {
     tapToActivate: "Tap to activate",
     switchingEllipsis: "Switching…",
     switchedAccount: "Switched active account",
+
+    pageTour: {
+      steps: {
+        workspaceSwitcher: {
+          title: "Multiple Instagram accounts",
+          desc: "Switch between connected Instagram workspaces or add another one, based on your plan's limit.",
+        },
+        igConnection: {
+          title: "Instagram / Facebook connection",
+          desc: "Connect via Meta OAuth; this single connection also links your Facebook Page.",
+        },
+        tiktokConnection: {
+          title: "TikTok connection",
+          desc: "Connect your TikTok account for cross-posting and automations.",
+        },
+        youtubeConnection: {
+          title: "YouTube connection",
+          desc: "Connect your YouTube channel to enable publishing and comment automations.",
+        },
+      },
+    },
   },
 };
 
@@ -124,5 +145,26 @@ export const connectionsAr: ConnectionsDict = {
     tapToActivate: "اضغط للتفعيل",
     switchingEllipsis: "جارٍ التبديل…",
     switchedAccount: "تم تبديل الحساب النشط",
+
+    pageTour: {
+      steps: {
+        workspaceSwitcher: {
+          title: "حسابات إنستغرام متعددة",
+          desc: "بدّل بين مساحات عمل إنستغرام المتصلة أو أضف واحدة أخرى، بحسب حد باقتك.",
+        },
+        igConnection: {
+          title: "ربط إنستغرام / فيسبوك",
+          desc: "اربط عبر Meta OAuth؛ هذا الربط الواحد يربط أيضًا صفحتك على فيسبوك.",
+        },
+        tiktokConnection: {
+          title: "ربط تيك توك",
+          desc: "اربط حساب تيك توك للنشر المتقاطع والأتمتة.",
+        },
+        youtubeConnection: {
+          title: "ربط يوتيوب",
+          desc: "اربط قناتك على يوتيوب لتفعيل النشر والرد الآلي على التعليقات.",
+        },
+      },
+    },
   },
 };

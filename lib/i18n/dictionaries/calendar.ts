@@ -50,6 +50,31 @@ const en = {
     postMovedTo: (date: string) => `Post moved to ${date}`,
     couldNotReschedulePost: "Could not reschedule the post.",
     moreCount: (n: number) => `+${n} more`,
+
+    pageTour: {
+      steps: {
+        monthNav: {
+          title: "Navigate months",
+          desc: "Move between months to see or schedule content further out.",
+        },
+        statusLegend: {
+          title: "Script vs. post markers",
+          desc: "The grip icon marks a draggable planning script; the paper-plane icon marks a real scheduled cross-post from Publishing.",
+        },
+        grid: {
+          title: "Drag & drop scheduling",
+          desc: "Drag a script (or scheduled post) onto any day to schedule or reschedule it.",
+        },
+        dayDetail: {
+          title: "Day detail",
+          desc: "Click a day to see everything scheduled or published for it.",
+        },
+        unscheduledTray: {
+          title: "Unscheduled scripts",
+          desc: "Scripts without a date live here — drag one onto the calendar to schedule it.",
+        },
+      },
+    },
   },
 };
 
@@ -103,5 +128,30 @@ export const calendarAr: CalendarDict = {
     postMovedTo: (date: string) => `انتقل المنشور إلى ${date}`,
     couldNotReschedulePost: "تعذّرت إعادة جدولة المنشور.",
     moreCount: (n: number) => `+${n} أخرى`,
+
+    pageTour: {
+      steps: {
+        monthNav: {
+          title: "تنقّل بين الأشهر",
+          desc: "انتقل بين الأشهر لعرض أو جدولة المحتوى في وقت أبعد.",
+        },
+        statusLegend: {
+          title: "رموز النصوص والمنشورات",
+          desc: "أيقونة المقبض تشير إلى نص مخطَّط قابل للسحب؛ وأيقونة الطائرة الورقية تشير إلى منشور متقاطع مجدول فعليًا من قسم النشر.",
+        },
+        grid: {
+          title: "الجدولة بالسحب والإفلات",
+          desc: "اسحب نصًا (أو منشورًا مجدولًا) إلى أي يوم لجدولته أو إعادة جدولته.",
+        },
+        dayDetail: {
+          title: "تفاصيل اليوم",
+          desc: "اضغط على يوم لعرض كل ما هو مجدول أو منشور فيه.",
+        },
+        unscheduledTray: {
+          title: "النصوص غير المجدولة",
+          desc: "النصوص بلا تاريخ تعيش هنا — اسحب واحدًا إلى التقويم لجدولته.",
+        },
+      },
+    },
   },
 };

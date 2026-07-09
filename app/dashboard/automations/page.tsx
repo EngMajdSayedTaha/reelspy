@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 import { AutomationCard } from "@/components/automations/AutomationCard";
 import { AutomationForm } from "@/components/automations/AutomationForm";
 import { AutomationsTabs } from "@/components/automations/AutomationsTabs";
@@ -212,15 +213,17 @@ export default async function AutomationsPage() {
     <div className="space-y-5">
       <SectionIntro title={dict.ig.commentsTitle}>{dict.ig.commentsDesc}</SectionIntro>
 
-      <AutomationForm
-        action={createAutomation}
-        automatedMediaIds={automations.map((a) => a.ig_media_id)}
-      />
+      <div data-tour="automation-form">
+        <AutomationForm
+          action={createAutomation}
+          automatedMediaIds={automations.map((a) => a.ig_media_id)}
+        />
+      </div>
 
       {automations.length === 0 ? (
         <EmptyState>{dict.ig.commentsEmpty}</EmptyState>
       ) : (
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div data-tour="automation-cards" className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {automations.map((automation) => (
             <AutomationCard
               key={automation.id}
@@ -233,7 +236,7 @@ export default async function AutomationsPage() {
         </div>
       )}
 
-      <div className="space-y-2">
+      <div data-tour="activity-log" className="space-y-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-subtle">
           {dict.ig.activity}
         </h3>
@@ -320,7 +323,10 @@ export default async function AutomationsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
+          <PageTourButton page="automations" />
+        </div>
         <p className="text-sm text-muted-foreground">{dict.page.subtitle}</p>
       </div>
 

@@ -10,6 +10,7 @@ import { LocalDateTime } from "@/components/publishing/LocalDateTime";
 import { RetryButton, DeletePostButton, EditPostButton } from "@/components/publishing/PostActions";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 type JobRow = {
   id: string;
@@ -120,10 +121,13 @@ export default async function PublishingPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.titles.publishing}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.titles.publishing}</h1>
+            <PageTourButton page="publishing" />
+          </div>
           <p className="text-sm text-muted-foreground">{t.subtitle}</p>
         </div>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" data-tour="connect-accounts">
           <Link href="/dashboard/connections">
             <Settings2 className="h-4 w-4" /> {dict.nav.connections}
           </Link>
@@ -133,7 +137,7 @@ export default async function PublishingPage() {
       <PublishComposer connected={connected} handle={previewHandle} publicAllowed={publicAllowed} />
 
       {needsAttention.length > 0 ? (
-        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+        <div data-tour="needs-attention" className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="min-w-0 text-sm">
             <p className="font-medium text-foreground">{t.postsDidntPublish(needsAttention.length)}</p>
@@ -146,7 +150,7 @@ export default async function PublishingPage() {
       ) : null}
 
       {/* History */}
-      <div className="space-y-3">
+      <div data-tour="publish-history" className="space-y-3">
         <h2 className="text-lg font-semibold text-foreground">{t.recentPosts}</h2>
         {!posts || posts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-muted-foreground">

@@ -68,6 +68,30 @@ const en = {
       deleteSuccess: "Your account has been deleted.",
       couldNotDelete: "Could not delete your account.",
     },
+    pageTour: {
+      steps: {
+        preferences: {
+          title: "General preferences",
+          desc: "Set locale, timezone, and other account-wide preferences.",
+        },
+        digest: {
+          title: "Email digest",
+          desc: "Turn the periodic email summary on or off.",
+        },
+        brandVoice: {
+          title: "Brand voice & niche",
+          desc: "Adjust the brand-voice profile and niche chips used to personalize AI-generated scripts.",
+        },
+        connectionsShortcut: {
+          title: "Manage connections",
+          desc: "Jump to the Connections page to link or manage your social accounts.",
+        },
+        dangerZone: {
+          title: "Danger zone",
+          desc: "Irreversible actions like deleting your account live here — proceed carefully.",
+        },
+      },
+    },
   },
 };
 
@@ -131,6 +155,30 @@ export const settingsAr: SettingsDict = {
       deletePermanently: "حذف نهائيًا",
       deleteSuccess: "تم حذف حسابك.",
       couldNotDelete: "تعذّر حذف حسابك.",
+    },
+    pageTour: {
+      steps: {
+        preferences: {
+          title: "التفضيلات العامة",
+          desc: "اضبط اللغة والمنطقة الزمنية وتفضيلات أخرى على مستوى الحساب.",
+        },
+        digest: {
+          title: "الملخص عبر البريد",
+          desc: "فعّل أو أوقف ملخص البريد الدوري.",
+        },
+        brandVoice: {
+          title: "أسلوب العلامة والمجال",
+          desc: "عدّل ملف أسلوب العلامة ورقائق المجال المستخدَمة لتخصيص النصوص المُنشأة بالذكاء الاصطناعي.",
+        },
+        connectionsShortcut: {
+          title: "إدارة الروابط",
+          desc: "انتقل إلى صفحة الروابط لربط أو إدارة حسابات التواصل الاجتماعي.",
+        },
+        dangerZone: {
+          title: "منطقة الخطر",
+          desc: "الإجراءات التي لا يمكن التراجع عنها، مثل حذف حسابك، موجودة هنا — تابع بحذر.",
+        },
+      },
     },
   },
 };

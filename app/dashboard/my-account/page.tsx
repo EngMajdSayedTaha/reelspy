@@ -12,6 +12,7 @@ import { getMyInsights } from "@/lib/instagram/graph-api";
 import { readMyInsightsCache, type MyInsightsProfile } from "@/lib/instagram/my-insights";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 function formatNumber(n: number | null | undefined) {
   if (!n) return "0";
@@ -67,7 +68,10 @@ export default async function MyAccountPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.pageTitle}</h1>
+          <PageTourButton page="myAccount" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {dict.pageSubtitle}
         </p>
@@ -80,7 +84,7 @@ export default async function MyAccountPage() {
       ) : null}
 
       {/* Account Overview */}
-      <section className="rounded-xl border border-border bg-card p-5 text-foreground">
+      <section data-tour="profile-snapshot" className="rounded-xl border border-border bg-card p-5 text-foreground">
         <div className="flex flex-wrap items-center gap-4">
           {insights?.profile_picture_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -126,7 +130,7 @@ export default async function MyAccountPage() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div data-tour="connection-actions" className="mt-4 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="sm">
             <Link href="/dashboard/connections">{dict.manageConnection}</Link>
           </Button>

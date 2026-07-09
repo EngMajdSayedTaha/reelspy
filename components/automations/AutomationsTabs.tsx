@@ -73,6 +73,7 @@ export function AutomationsTabs({
       {/* Platform switcher — a segmented control that keeps Instagram and
           YouTube automations on separate surfaces instead of one long page. */}
       <div
+        data-tour="platform-tabs"
         role="tablist"
         aria-label={dict.platformAriaLabel}
         className="flex w-full gap-1 rounded-xl border border-border bg-card p-1 sm:w-auto sm:inline-flex"
@@ -109,6 +110,7 @@ export function AutomationsTabs({
           {/* Sub-tabs: comment-triggered auto-reply vs. DM-keyword auto-reply.
               Scrolls horizontally on narrow phones instead of overflowing the page. */}
           <div
+            data-tour="ig-subtabs"
             role="tablist"
             aria-label={dict.typeAriaLabel}
             className="flex gap-4 overflow-x-auto border-b border-border sm:gap-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

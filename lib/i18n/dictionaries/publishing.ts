@@ -114,6 +114,31 @@ const en = {
     onlyScheduledEditable: "Only scheduled posts can be edited.",
     onlyScheduledReschedulable: "Only scheduled posts can be rescheduled.",
     jobNotFound: "Job not found.",
+
+    pageTour: {
+      steps: {
+        connectAccounts: {
+          title: "Connect your accounts",
+          desc: "Link Instagram, Facebook, TikTok, or YouTube before publishing.",
+        },
+        needsAttention: {
+          title: "Posts that need attention",
+          desc: "Flags any post where a platform failed, so you can retry it.",
+        },
+        composer: {
+          title: "Create a post",
+          desc: "Upload a video and pick which connected platforms to publish to.",
+        },
+        preview: {
+          title: "Live preview",
+          desc: "See how your caption, hashtags, and media will look on each selected platform.",
+        },
+        history: {
+          title: "Publish history",
+          desc: "Every post you've sent, with per-platform status, retry, and edit actions.",
+        },
+      },
+    },
   },
 };
 
@@ -227,5 +252,30 @@ export const publishingAr: PublishingDict = {
     onlyScheduledEditable: "يمكن تعديل المنشورات المجدولة فقط.",
     onlyScheduledReschedulable: "يمكن إعادة جدولة المنشورات المجدولة فقط.",
     jobNotFound: "المهمة غير موجودة.",
+
+    pageTour: {
+      steps: {
+        connectAccounts: {
+          title: "اربط حساباتك",
+          desc: "اربط إنستغرام أو فيسبوك أو تيك توك أو يوتيوب قبل النشر.",
+        },
+        needsAttention: {
+          title: "منشورات تحتاج انتباهك",
+          desc: "يُبرز أي منشور فشلت إحدى المنصات في نشره، لتتمكن من إعادة المحاولة.",
+        },
+        composer: {
+          title: "أنشئ منشورًا",
+          desc: "ارفع فيديو واختر المنصات المتصلة التي تريد النشر عليها.",
+        },
+        preview: {
+          title: "معاينة مباشرة",
+          desc: "شاهد كيف سيبدو تعليقك والوسوم والوسائط على كل منصة مختارة.",
+        },
+        history: {
+          title: "سجل النشر",
+          desc: "كل منشور أرسلته، مع حالة كل منصة، وإجراءات إعادة المحاولة والتعديل.",
+        },
+      },
+    },
   },
 };

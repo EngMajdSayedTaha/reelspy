@@ -127,6 +127,31 @@ const en = {
     reelBadge: "Reel",
     postBadge: "Post",
     instagramPostAlt: "Instagram post",
+
+    pageTour: {
+      steps: {
+        snapshot: {
+          title: "Your profile snapshot",
+          desc: "Your connected Instagram identity and follower/post counts at a glance.",
+        },
+        connectionActions: {
+          title: "Manage your connection",
+          desc: "Reconnect Instagram or jump to your feed.",
+        },
+        growthNotes: {
+          title: "AI growth notes",
+          desc: "Get AI-written suggestions based on your last 10/20/50 posts.",
+        },
+        insights: {
+          title: "Your reels insights",
+          desc: "Aggregate views, reach, likes, comments, saves and shares across your synced posts.",
+        },
+        exportFilter: {
+          title: "Export or filter your posts",
+          desc: "Download CSV/JSON/AI-summary, or filter Reels vs. Posts and change sort order.",
+        },
+      },
+    },
   },
 };
 
@@ -249,5 +274,30 @@ export const myAccountAr: MyAccountDict = {
     reelBadge: "ريل",
     postBadge: "منشور",
     instagramPostAlt: "منشور إنستغرام",
+
+    pageTour: {
+      steps: {
+        snapshot: {
+          title: "لمحة عن حسابك",
+          desc: "هوية حسابك المتصل على إنستغرام وعدد المتابعين والمنشورات بنظرة سريعة.",
+        },
+        connectionActions: {
+          title: "إدارة ربطك",
+          desc: "أعد ربط إنستغرام أو انتقل إلى محتواك.",
+        },
+        growthNotes: {
+          title: "ملاحظات النمو بالذكاء الاصطناعي",
+          desc: "احصل على اقتراحات مكتوبة بالذكاء الاصطناعي بناءً على آخر 10/20/50 منشورًا.",
+        },
+        insights: {
+          title: "إحصاءات ريلاتك",
+          desc: "إجمالي المشاهدات والوصول والإعجابات والتعليقات والحفظ والمشاركات عبر منشوراتك المُزامنة.",
+        },
+        exportFilter: {
+          title: "صدّر أو صفِّ منشوراتك",
+          desc: "نزّل CSV/JSON/ملخص ذكاء اصطناعي، أو صفِّ الريلز مقابل المنشورات وغيّر ترتيبها.",
+        },
+      },
+    },
   },
 };

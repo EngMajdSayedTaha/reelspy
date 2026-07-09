@@ -13,6 +13,7 @@ import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 import {
   addInspirationAccount,
   assignAccountGroup,
@@ -150,20 +151,29 @@ export default async function AccountsPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.accounts.page.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.accounts.page.title}</h1>
+          <PageTourButton page="accounts" />
+        </div>
         <p className="text-sm text-muted-foreground">{dict.accounts.page.subtitle}</p>
       </div>
 
-      <AddAccountForm action={addInspirationAccount} groups={groups} />
+      <div data-tour="add-account">
+        <AddAccountForm action={addInspirationAccount} groups={groups} />
+      </div>
 
-      <ImportFollowing groups={groups} bulkAddAction={bulkAddInspirationAccounts} />
+      <div data-tour="import-following">
+        <ImportFollowing groups={groups} bulkAddAction={bulkAddInspirationAccounts} />
+      </div>
 
-      <GroupsManager
-        groups={groups}
-        createAction={createAccountGroup}
-        deleteAction={deleteAccountGroup}
-        renameAction={renameAccountGroup}
-      />
+      <div data-tour="account-groups">
+        <GroupsManager
+          groups={groups}
+          createAction={createAccountGroup}
+          deleteAction={deleteAccountGroup}
+          renameAction={renameAccountGroup}
+        />
+      </div>
 
       {counts.all === 0 && !q ? (
         <>
@@ -176,7 +186,7 @@ export default async function AccountsPage({
         </>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div data-tour="accounts-filter-bar" className="flex flex-wrap items-center justify-between gap-3">
             <AccountsFilter current={status} counts={counts} />
             <AccountsSearch current={q} />
           </div>
@@ -188,7 +198,7 @@ export default async function AccountsPage({
                 : dict.accounts.page.noStatusAccounts(dict.accounts.filter[status])}
             </div>
           ) : (
-            <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div data-tour="account-cards" className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {accounts.map((account) => (
                 <AccountCard
                   key={account.id}

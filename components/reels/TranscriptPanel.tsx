@@ -133,7 +133,7 @@ export function TranscriptPanel({
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+    <div data-tour="transcript-panel" className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <FileText className="h-4 w-4 shrink-0 text-brand" />
@@ -145,7 +145,7 @@ export function TranscriptPanel({
           ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div data-tour="transcript-toolbar" className="flex shrink-0 items-center gap-2">
           {hasTranscript && (
             <Button
               type="button"

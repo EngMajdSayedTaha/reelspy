@@ -12,6 +12,7 @@ import { getQuizNicheChips } from "@/lib/onboarding/niche-chips";
 import type { BrandVoice } from "@/lib/ai/brand-voice";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 import { savePreferences } from "./actions";
 
 export default async function SettingsPage() {
@@ -34,19 +35,29 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{t.heading}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{t.heading}</h1>
+          <PageTourButton page="settings" />
+        </div>
         <p className="text-sm text-muted-foreground">{t.subheading}</p>
       </div>
 
-      <PreferencesForm initial={prefs} action={savePreferences} />
+      <div data-tour="preferences-form">
+        <PreferencesForm initial={prefs} action={savePreferences} />
+      </div>
 
-      <DigestToggle initialOptOut={Boolean(profile?.digest_opt_out)} />
+      <div data-tour="digest-toggle">
+        <DigestToggle initialOptOut={Boolean(profile?.digest_opt_out)} />
+      </div>
 
-      <QuizSettingsSection brandVoice={brandVoice} nicheChips={quizNicheChips} />
+      <div data-tour="brand-voice">
+        <QuizSettingsSection brandVoice={brandVoice} nicheChips={quizNicheChips} />
+      </div>
 
       {/* Connecting/managing social accounts now lives in one place. */}
       <Link
         href="/dashboard/connections"
+        data-tour="connections-shortcut"
         className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card p-5 transition hover:border-border-strong"
       >
         <div className="flex items-center gap-3">
@@ -64,7 +75,9 @@ export default async function SettingsPage() {
         </span>
       </Link>
 
-      <DangerZone />
+      <div data-tour="danger-zone">
+        <DangerZone />
+      </div>
     </div>
   );
 }

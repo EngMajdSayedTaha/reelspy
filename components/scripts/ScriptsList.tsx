@@ -266,7 +266,7 @@ function ScriptCard({
       ) : null}
 
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 border-t border-border-strong pt-3">
+      <div data-tour="script-actions" className="flex flex-wrap items-center gap-2 border-t border-border-strong pt-3">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -353,7 +353,10 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
   return (
     <div className="space-y-4">
       {/* History header: status tabs + search across everything generated */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-strong pb-2">
+      <div
+        data-tour="script-history"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border-strong pb-2"
+      >
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
             <History className="h-4 w-4 text-brand" />

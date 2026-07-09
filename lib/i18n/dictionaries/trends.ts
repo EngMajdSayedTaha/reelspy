@@ -34,6 +34,18 @@ const en = {
       planLimit: (cap: number, planName: string) =>
         `Your ${planName} plan tracks up to ${cap} accounts. Upgrade in Billing to add more.`,
     },
+    pageTour: {
+      steps: {
+        nichePicker: {
+          title: "Pick a niche",
+          desc: "See what's over-performing across every ReelSpy user's tracked accounts in a specific niche.",
+        },
+        trendReels: {
+          title: "Trending reels",
+          desc: "Cross-user, anonymized reels currently outperforming in this niche.",
+        },
+      },
+    },
   },
 };
 
@@ -75,6 +87,18 @@ export const trendsAr: TrendsDict = {
       unauthorized: "غير مصرّح.",
       planLimit: (cap: number, planName: string) =>
         `تتيح باقة ${planName} تتبع حتى ${cap} حساب. رقّي باقتك من صفحة الاشتراك لإضافة المزيد.`,
+    },
+    pageTour: {
+      steps: {
+        nichePicker: {
+          title: "اختر مجالًا",
+          desc: "شاهد ما يتفوق أداؤه عبر جميع الحسابات التي يتابعها مستخدمو ReelSpy في مجال معيّن.",
+        },
+        trendReels: {
+          title: "الريلز الرائجة",
+          desc: "ريلز مجهولة الهوية من مستخدمين آخرين، تتفوق حاليًا في هذا المجال.",
+        },
+      },
     },
   },
 };

@@ -8,6 +8,7 @@ import { NichePicker } from "@/components/trends/NichePicker";
 import { TrendReelCard } from "@/components/trends/TrendReelCard";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 // Niche Radar (roadmap X3 — the moat). Cross-user aggregate intelligence: what
 // over-performs across the WHOLE userbase's tracked accounts, per niche,
@@ -50,13 +51,16 @@ export default async function TrendsPage({
         <div className="flex items-center gap-2">
           <Radar className="h-5 w-5 text-brand" />
           <h1 className="text-xl font-semibold text-foreground">{dict.page.title}</h1>
+          <PageTourButton page="trends" />
         </div>
         <p className="max-w-2xl text-sm text-muted-foreground">
           {dict.page.subtitle}
         </p>
       </header>
 
-      <NichePicker niches={niches} selected={selected} />
+      <div data-tour="niche-picker">
+        <NichePicker niches={niches} selected={selected} />
+      </div>
 
       {reels.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
@@ -66,7 +70,7 @@ export default async function TrendsPage({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div data-tour="trend-reels" className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {reels.map((reel) => (
             <TrendReelCard
               key={`${reel.igUsername}:${reel.permalink ?? reel.postedAt}`}

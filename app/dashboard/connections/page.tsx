@@ -10,6 +10,7 @@ import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf } from "@/lib/billing/entitlements";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 import { intlLocale } from "@/lib/i18n/intl";
 
 type PageProps = {
@@ -129,7 +130,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{fullDict.titles.connections}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{fullDict.titles.connections}</h1>
+          <PageTourButton page="connections" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {dict.subtitle}
         </p>
@@ -159,15 +163,18 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
       ) : null}
 
       {showWorkspaces ? (
-        <WorkspaceSwitcher
-          connections={igConnections}
-          activeId={activeConnectionId}
-          connectionCap={connectionCap}
-        />
+        <div data-tour="workspace-switcher">
+          <WorkspaceSwitcher
+            connections={igConnections}
+            activeId={activeConnectionId}
+            connectionCap={connectionCap}
+          />
+        </div>
       ) : null}
 
       <div className="grid gap-4">
         {/* Instagram + Facebook share the Meta OAuth flow. */}
+        <div data-tour="ig-connection">
         <ConnectionCard
           platform="instagram"
           connected={igConnected}
@@ -219,6 +226,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
             </details>
           ) : null}
         </ConnectionCard>
+        </div>
 
         <ConnectionCard
           platform="facebook"
@@ -230,6 +238,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           note={dict.fbNote}
         />
 
+        <div data-tour="tiktok-connection">
         <ConnectionCard
           platform="tiktok"
           connected={Boolean(tiktok)}
@@ -239,7 +248,9 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           disconnectHref="/api/social/tiktok/disconnect"
           note={dict.tiktokNote}
         />
+        </div>
 
+        <div data-tour="youtube-connection">
         <ConnectionCard
           platform="youtube"
           connected={Boolean(youtube)}
@@ -249,6 +260,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           disconnectHref="/api/social/youtube/disconnect"
           note={dict.youtubeNote}
         />
+        </div>
       </div>
 
       <p className="rounded-lg border border-border bg-background px-4 py-3 text-xs text-subtle">

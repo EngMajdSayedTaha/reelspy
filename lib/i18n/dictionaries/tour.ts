@@ -10,6 +10,7 @@ const en = {
     done: "Done",
     progress: "{{current}} of {{total}}",
     takeTour: "Take a tour",
+    pageHelp: "Take a tour of this page",
     steps: {
       accounts: {
         title: "Track accounts",
@@ -57,6 +58,7 @@ export const tourAr: TourDict = {
     done: "تم",
     progress: "{{current}} من {{total}}",
     takeTour: "جولة تعريفية",
+    pageHelp: "جولة تعريفية بهذه الصفحة",
     steps: {
       accounts: {
         title: "تتبع الحسابات",

@@ -6,6 +6,7 @@ import { extractHook } from "@/lib/utils/hook";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { PageTourButton } from "@/components/tour/PageTourButton";
 
 type ReelRow = {
   id: string;
@@ -110,19 +111,22 @@ export default async function HooksPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-foreground">{dict.page.title}</h1>
+          <PageTourButton page="hooks" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {dict.page.subtitle}
         </p>
       </div>
 
-      <section className="space-y-3">
+      <section data-tour="saved-hooks" className="space-y-3">
         <h2 className="text-lg font-semibold text-foreground">{dict.page.savedHeading}</h2>
         <SavedHooksLibrary hooks={savedHooks} />
       </section>
 
       {suggestions.length > 0 ? (
-        <section className="space-y-3">
+        <section data-tour="hook-suggestions" className="space-y-3">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-foreground">{dict.page.fromTranscriptsHeading}</h2>
             <p className="text-sm text-muted-foreground">

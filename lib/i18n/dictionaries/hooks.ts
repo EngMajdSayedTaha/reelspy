@@ -58,6 +58,18 @@ const en = {
       removeError: "Could not remove hook",
       tagsUpdateError: "Could not update tags",
     },
+    pageTour: {
+      steps: {
+        savedHooks: {
+          title: "Your saved hooks",
+          desc: "Hooks you've bookmarked, taggable and searchable for reuse.",
+        },
+        suggestions: {
+          title: "Hook suggestions",
+          desc: "Opening lines auto-extracted from your tracked reels' transcripts — save the ones you like.",
+        },
+      },
+    },
   },
 };
 
@@ -113,6 +125,18 @@ export const hooksAr: HooksDict = {
       removedToast: "تمت إزالة الجملة",
       removeError: "تعذّرت إزالة الجملة",
       tagsUpdateError: "تعذّر تحديث الوسوم",
+    },
+    pageTour: {
+      steps: {
+        savedHooks: {
+          title: "جملك المحفوظة",
+          desc: "الجمل الافتتاحية التي حفظتها، قابلة للتصنيف والبحث لإعادة استخدامها.",
+        },
+        suggestions: {
+          title: "اقتراحات الجمل الافتتاحية",
+          desc: "جمل افتتاحية مستخرجة تلقائيًا من نصوص ريلاتك المفرَّغة — احفظ ما يعجبك منها.",
+        },
+      },
     },
   },
 };
