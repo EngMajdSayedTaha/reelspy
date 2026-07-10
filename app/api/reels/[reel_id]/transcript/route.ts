@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { processReel } from "@/lib/media/pipeline";
+import { classifyYtDlpError } from "@/lib/media/ytdlp-errors";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
 import { track } from "@/lib/analytics/track";
@@ -41,22 +42,27 @@ const bodySchema = z
 type RouteContext = { params: Promise<{ reel_id: string }> };
 
 // Map internal failure reasons to user-friendly copy without leaking which
-// tools/providers run under the hood.
+// tools/providers run under the hood. Transcription-specific strings first,
+// then the shared yt-dlp classifier for extraction failures.
 function friendlyTranscriptError(reason: string): string {
   const r = reason.toLowerCase();
   if (r.includes("too large") || r.includes("25 mb")) {
     return "This reel's audio is too long to transcribe. Shorter reels work best.";
   }
-  if (r.includes("private") || r.includes("login") || r.includes("cookies")) {
-    return "This reel couldn't be accessed — it may be private or restricted.";
-  }
-  if (r.includes("rate") && r.includes("limit")) {
-    return "Transcription is busy right now. Please try again in a few minutes.";
-  }
   if (r.includes("no transcription provider")) {
     return "Transcription isn't set up on the server yet.";
   }
-  return "We couldn't transcribe this reel right now. Please try again shortly.";
+  switch (classifyYtDlpError(reason)) {
+    case "authRequired":
+    case "botCheck":
+      return "This reel couldn't be accessed — it may be private or restricted.";
+    case "rateLimited":
+      return "Transcription is busy right now. Please try again in a few minutes.";
+    case "unavailable":
+      return "This reel appears to be unavailable or was removed.";
+    default:
+      return "We couldn't transcribe this reel right now. Please try again shortly.";
+  }
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getIgCookieStatus } from "@/lib/media/ig-cookies";
 import { processReel } from "@/lib/media/pipeline";
 import { getReelMetadata, probeYtDlp } from "@/lib/media/ytdlp";
 
@@ -70,7 +71,16 @@ export async function GET(request: Request) {
     huggingface: Boolean(process.env.HF_API_TOKEN),
   };
 
-  const response: Record<string, unknown> = { ytdlp, whisper };
+  // Cookie session health (status only — never the cookie material itself).
+  const cookieStatus = await getIgCookieStatus();
+  const cookies = {
+    ...cookieStatus,
+    ageDays: cookieStatus.updatedAt
+      ? Math.floor((Date.now() - Date.parse(cookieStatus.updatedAt)) / 86_400_000)
+      : null,
+  };
+
+  const response: Record<string, unknown> = { ytdlp, whisper, cookies };
 
   if (url) {
     if (transcribe) {

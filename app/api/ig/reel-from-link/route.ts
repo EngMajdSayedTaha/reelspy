@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getReelMetadata, YtDlpUnavailableError } from "@/lib/media/ytdlp";
+import { classifyYtDlpError, YtDlpExtractionError } from "@/lib/media/ytdlp-errors";
 import { transcribeReel } from "@/lib/transcription";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota, monthlyLimitMessage } from "@/lib/billing/quota";
@@ -101,15 +102,16 @@ export async function POST(request: Request) {
     }
     const message = err instanceof Error ? err.message : "Failed to read reel.";
     console.error("[reel-from-link] yt-dlp error:", message);
-    const isPrivate = /private|login required|not available|unavailable|rate.?limit/i.test(message);
-    return NextResponse.json(
-      {
-        error: isPrivate
-          ? "This reel is private or requires login to access."
-          : "Could not fetch reel data. Make sure the link is public and try again.",
-      },
-      { status: 422 }
-    );
+    const kind = err instanceof YtDlpExtractionError ? err.kind : classifyYtDlpError(message);
+    const friendly =
+      kind === "authRequired" || kind === "botCheck"
+        ? "This reel is private or requires login to access."
+        : kind === "rateLimited"
+          ? "Instagram is rate-limiting requests right now. Please try again in a few minutes."
+          : kind === "unavailable"
+            ? "This reel appears to be unavailable or was removed."
+            : "Could not fetch reel data. Make sure the link is public and try again.";
+    return NextResponse.json({ error: friendly }, { status: 422 });
   }
 
   if (!metadata.mediaUrl) {

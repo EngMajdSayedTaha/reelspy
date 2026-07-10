@@ -1,0 +1,43 @@
+name: IG cookie health
+
+# Daily watchdog for the Instagram cookie session behind the transcript
+# pipeline. Calls /api/cron/ig-cookie-health, which runs one cookie-
+# authenticated yt-dlp extraction against IG_HEALTHCHECK_REEL_URL (a stable
+# public reel, configured on Vercel). Success also persists the session
+# cookies Instagram rotated during the request — this daily touch keeps the
+# stored session alive. Failure returns 500, so this run goes red and GitHub
+# emails the repo owner even if Resend/ADMIN_ALERT_EMAIL aren't set up.
+#
+# Vercel Hobby's two cron slots are used by the snapshot/token refreshers,
+# so this runs from GitHub Actions like the weekly digest.
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#   Secret    CRON_SECRET   = the same value as the Vercel env var CRON_SECRET
+#   Variable  APP_BASE_URL  = https://<your-production-domain>   (no trailing slash)
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load.
+# Scheduled workflows run on the default branch only and auto-pause after 60 days
+# of repo inactivity.
+
+on:
+  schedule:
+    # Daily 07:15 UTC — early enough to fix cookies before the day's traffic.
+    - cron: "15 7 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  cookie-health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Instagram cookie health
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "Missing CRON_SECRET secret or APP_BASE_URL variable — see workflow header." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/ig-cookie-health"

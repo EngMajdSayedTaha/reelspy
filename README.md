@@ -32,12 +32,15 @@ and never errors):
 
 - `GROQ_API_KEY` — required for transcripts to actually work (free tier available).
 - `HF_API_TOKEN` — optional Whisper fallback.
-- `YTDLP_COOKIES_B64` — optional base64-encoded `cookies.txt`; many Instagram reels require
-  authenticated cookies for yt-dlp to resolve the media URL. Generate with `base64 -w0 cookies.txt`.
+- Instagram cookies — live in Supabase (`app_settings`) and are rotated at runtime with
+  `node scripts/update-ig-cookies.mjs <cookies.txt>` (no redeploy). The session self-refreshes
+  and a daily health check alerts on failure — see `docs/ig-cookies-runbook.md`.
+  `YTDLP_COOKIES_B64` remains only as a bootstrap fallback.
+- `IG_HEALTHCHECK_REEL_URL` / `ADMIN_ALERT_EMAIL` — cookie health check + alert recipient.
 - `YTDLP_BIN` — optional path override for the yt-dlp binary.
 
-Set `GROQ_API_KEY` (and usually `YTDLP_COOKIES_B64`) in `.env.local` locally and in the
-Vercel project's Production environment variables.
+Set `GROQ_API_KEY` in `.env.local` locally and in the Vercel project's Production
+environment variables.
 
 ## Development
 

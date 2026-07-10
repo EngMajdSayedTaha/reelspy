@@ -29,6 +29,11 @@ GitHub Actions (`.github/workflows/`), each `curl`s its endpoint with
   (`JOBS_RETENTION_DAYS`, default 30) for PDPL data minimization + queue-table
   hygiene. A no-op until data ages past the window.
 - **`poll-youtube-comments.yml`** — YouTube auto-reply poller.
+- **`ig-cookie-health.yml`** (daily 07:15) — Instagram cookie watchdog for the
+  transcript pipeline. Runs one cookie-authenticated extraction against
+  `IG_HEALTHCHECK_REEL_URL`; success doubles as the session keep-alive
+  (persists the cookies Instagram rotated), failure emails
+  `ADMIN_ALERT_EMAIL` and goes red. See `docs/ig-cookies-runbook.md`.
 
 5 minutes is the finest granularity GitHub Actions cron supports, and scheduled
 runs are best-effort (can be delayed under load).

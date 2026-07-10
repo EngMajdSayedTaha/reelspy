@@ -261,6 +261,18 @@ create table user_action_usage (
 );
 alter table user_action_usage enable row level security;
 
+-- ── app_settings — service-role-only key/value store for app infrastructure ──
+-- state. First use: runtime-rotatable Instagram cookies for the yt-dlp
+-- transcript pipeline (key 'ig_cookies', see lib/media/ig-cookies.ts).
+-- RLS on, no policies: reachable only through the service-role client.
+create table app_settings (
+  key text primary key,
+  value jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table app_settings enable row level security;
+revoke all on table app_settings from anon, authenticated;
+
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Auto-Reply (Instagram comments → public reply + DM)                        ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
