@@ -230,7 +230,7 @@ export function AccountCard({
           disabled={busy}
           aria-label={t.groupSelectAria}
           onChange={(e) => onGroupChange(e.target.value)}
-          className="h-9 flex-1 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          className="h-9 flex-1 rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
         >
           <option value="">{dict.accounts.noGroupOption}</option>
           {groups.map((group) => (
@@ -247,7 +247,7 @@ export function AccountCard({
           value={syncLimit}
           disabled={busy}
           onChange={(e) => setSyncLimit(Number(e.target.value))}
-          className="h-9 shrink-0 rounded-lg border border-border-strong bg-surface-2 px-1.5 text-sm text-foreground outline-none transition focus:border-primary/60 disabled:opacity-60"
+          className="h-9 shrink-0 rounded-lg border border-border-strong bg-surface-2 px-1.5 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 disabled:opacity-60"
         >
           {[25, 50, 100].map((n) => (
             <option key={n} value={n}>

@@ -72,6 +72,8 @@ const en = {
 
     // Live preview
     livePreview: "Live preview",
+    showPreview: "Show preview",
+    hidePreview: "Hide preview",
     videoPlaceholder: "Your video appears here",
     previewCaptionPlaceholder: "Your caption will appear here…",
     selectPlatform: "Select a platform",
@@ -214,6 +216,8 @@ export const publishingAr: PublishingDict = {
     publishFallbackError: "تعذّر النشر. يرجى المحاولة مرة أخرى.",
 
     livePreview: "معاينة مباشرة",
+    showPreview: "عرض المعاينة",
+    hidePreview: "إخفاء المعاينة",
     videoPlaceholder: "سيظهر فيديوك هنا",
     previewCaptionPlaceholder: "سيظهر وصفك هنا…",
     selectPlatform: "اختر منصة",

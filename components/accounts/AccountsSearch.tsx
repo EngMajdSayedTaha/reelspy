@@ -51,7 +51,7 @@ export function AccountsSearch({ current }: AccountsSearchProps) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={dict.accounts.page.title === dict.accounts.page.title ? undefined : undefined}
-          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-8 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-8 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
         {current ? (
           <button

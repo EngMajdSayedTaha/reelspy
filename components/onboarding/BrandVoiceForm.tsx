@@ -134,7 +134,7 @@ export function BrandVoiceForm({ action, initial, submitLabel, onSuccessHref }: 
           aria-label={o.arabicPresetLabel}
           defaultValue={initial?.arabicDialect ?? ""}
           disabled={isPending}
-          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
         >
           <option value="">{o.arabicPresetOff}</option>
           {/* Structured Arabic-dialect preset (X2) — labels intentionally show

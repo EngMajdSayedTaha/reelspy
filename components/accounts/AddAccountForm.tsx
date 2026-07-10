@@ -89,7 +89,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
               value={groupId}
               disabled={isPending}
               onChange={(e) => setGroupId(e.target.value)}
-              className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:w-44"
+              className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:w-44"
             >
               <option value="">{dict.noGroupOption}</option>
               {groups.map((group) => (

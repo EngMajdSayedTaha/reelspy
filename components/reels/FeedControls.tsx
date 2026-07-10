@@ -30,7 +30,7 @@ const STATUS_VALUES = ["new", "all", "worked", "favorites", "discarded"] as cons
 const PER_PAGE_OPTIONS = ["10", "25"];
 
 const selectClass =
-  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:w-auto";
+  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:w-auto md:text-sm";
 
 export function FeedControls({ accounts, groups, current, statusCounts, total }: FeedControlsProps) {
   const fullDict = useDict();
@@ -94,7 +94,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={dict.searchPlaceholder}
-              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <button

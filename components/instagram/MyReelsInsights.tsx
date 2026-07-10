@@ -376,7 +376,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortKey)}
                 aria-label={dict.sortPostsAria}
-                className="h-8 rounded-lg border border-border bg-surface-2 px-2 text-xs text-muted-foreground outline-none transition-colors hover:border-border-strong focus:border-primary/50"
+                className="h-8 rounded-lg border border-border bg-surface-2 px-2 text-base md:text-xs text-muted-foreground outline-none transition-colors hover:border-border-strong focus:border-primary/50"
               >
                 {SORT_KEYS.map((key) => (
                   <option key={key} value={key}>

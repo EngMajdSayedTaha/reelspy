@@ -158,7 +158,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
               }
             }}
             placeholder={dict.addTagPlaceholder}
-            className="h-6 w-24 rounded-full border border-border-strong bg-surface-2 px-2 text-xs text-foreground outline-none focus:border-primary/60"
+            className="h-6 w-24 rounded-full border border-border-strong bg-surface-2 px-2 text-base text-foreground outline-none focus:border-primary/60 md:text-xs"
           />
         ) : (
           <button
@@ -216,7 +216,7 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={dict.searchPlaceholder}
-          className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+          className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
       </div>
 

@@ -254,7 +254,7 @@ function ScriptCard({
             aria-label={s.publishDateLabel}
             value={scheduleDate}
             onChange={(e) => setScheduleDate(e.target.value)}
-            className="rounded-md border border-border-strong bg-background px-2 py-1 text-sm text-foreground"
+            className="rounded-md border border-border-strong bg-background px-2 py-1 text-base md:text-sm text-foreground"
           />
           <Button type="button" size="sm" onClick={handleSchedule} disabled={isPending || !scheduleDate}>
             {dict.common.save}
@@ -378,14 +378,14 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative max-sm:w-full">
           <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.searchPlaceholder}
-            className="h-8 w-48 rounded-lg border border-border-strong bg-surface-2 ps-8 pe-2 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60"
+            className="h-8 w-full rounded-lg border border-border-strong bg-surface-2 ps-8 pe-2 text-base text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 sm:w-48 md:text-sm"
           />
         </div>
       </div>

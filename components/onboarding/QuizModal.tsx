@@ -106,7 +106,7 @@ export function QuizModal({ nicheChips, initial, mode = "onboarding", onClose }:
         <Dialog.Content
           onEscapeKeyDown={(e) => !isEdit && e.preventDefault()}
           onPointerDownOutside={(e) => !isEdit && e.preventDefault()}
-          className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
+          className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[92vw] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
         >
           <div className="mb-5 flex items-center justify-center gap-1.5">
             {Array.from({ length: TOTAL_STEPS }, (_, i) => (
@@ -231,7 +231,7 @@ export function QuizModal({ nicheChips, initial, mode = "onboarding", onClose }:
                   aria-label={t.arabicPresetLabel}
                   value={arabicDialect}
                   onChange={(e) => setArabicDialect(e.target.value as ArabicDialect | "")}
-                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
                 >
                   <option value="">{t.arabicPresetOff}</option>
                   {ARABIC_DIALECTS.map((d) => (
