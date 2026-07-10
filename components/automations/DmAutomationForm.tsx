@@ -82,7 +82,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
                   e.target.value === "exact" ? "exact" : e.target.value === "any" ? "any" : "contains"
                 )
               }
-              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+              className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
               <option value="contains">{dict.dmForm.matchContains}</option>
               <option value="exact">{dict.dmForm.matchExact}</option>

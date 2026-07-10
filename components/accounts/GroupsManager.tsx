@@ -127,7 +127,7 @@ function GroupChip({
               cancel();
             }
           }}
-          className="w-28 bg-transparent text-sm text-foreground outline-none"
+          className="w-28 bg-transparent text-base md:text-sm text-foreground outline-none"
         />
       </span>
     );

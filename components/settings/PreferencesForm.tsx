@@ -19,7 +19,7 @@ type PreferencesFormProps = {
 };
 
 const selectClass =
-  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60";
+  "h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:text-sm";
 
 export function PreferencesForm({ initial, action }: PreferencesFormProps) {
   const dict = useDict();

@@ -30,7 +30,7 @@ export function NichePicker({ niches, selected }: Props) {
         aria-label={dict.ariaLabel}
         value={selected}
         onChange={(e) => go(e.target.value)}
-        className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:hidden"
+        className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 sm:hidden"
       >
         {options.map((o) => (
           <option key={o.niche} value={o.niche}>

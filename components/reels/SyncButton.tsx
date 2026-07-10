@@ -104,7 +104,7 @@ export function SyncButton() {
           onChange={(e) => setLimit(Number(e.target.value))}
           disabled={isSyncing}
           aria-label={dict.perAccountAria}
-          className="h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          className="h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
         >
           {LIMIT_OPTIONS.map((n) => (
             <option key={n} value={n}>

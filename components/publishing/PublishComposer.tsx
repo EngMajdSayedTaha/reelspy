@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Send, CalendarClock, Loader2, CheckCircle2 } from "lucide-react";
+import { Upload, Send, CalendarClock, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +57,8 @@ export function PublishComposer({
   // shared caption above. When on, each selected platform gets its own box and
   // anything left blank still falls back to the shared caption.
   const [perPlatform, setPerPlatform] = useState(false);
+  // Phones hide the side-by-side preview column; this toggles it inline instead.
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [platformCaptions, setPlatformCaptions] = useState<Record<Platform, string>>({
     instagram: "",
     facebook: "",
@@ -317,7 +319,7 @@ export function PublishComposer({
             id="pub-privacy"
             value={privacy}
             onChange={(e) => setPrivacy(e.target.value as "public" | "private")}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm"
+            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-base md:text-sm"
           >
             <option value="public">{t.visibilityPublic}</option>
             <option value="private">{t.visibilityPrivate}</option>
@@ -373,22 +375,34 @@ export function PublishComposer({
       </Button>
       </div>
 
-      {/* Live social-media preview — tablet & desktop only. */}
-      <div data-tour="publish-preview" className="hidden md:block">
-        <PublishPreview
-          file={file}
-          title={title}
-          caption={caption}
-          hashtags={hashtags}
-          selected={Array.from(selected)}
-          perPlatform={perPlatform}
-          platformCaptions={platformCaptions}
-          privacy={privacy}
-          publicAllowed={publicAllowed}
-          scheduled={scheduled}
-          scheduledAt={scheduledAt}
-          handle={handle}
-        />
+      {/* Live social-media preview — a side column on tablet & desktop, an
+          opt-in disclosure below the composer on phones. */}
+      <div data-tour="publish-preview">
+        <button
+          type="button"
+          onClick={() => setShowMobilePreview((v) => !v)}
+          aria-expanded={showMobilePreview}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary/60 hover:text-brand md:hidden"
+        >
+          {showMobilePreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showMobilePreview ? t.hidePreview : t.showPreview}
+        </button>
+        <div className={`mt-4 md:mt-0 ${showMobilePreview ? "block" : "hidden"} md:block`}>
+          <PublishPreview
+            file={file}
+            title={title}
+            caption={caption}
+            hashtags={hashtags}
+            selected={Array.from(selected)}
+            perPlatform={perPlatform}
+            platformCaptions={platformCaptions}
+            privacy={privacy}
+            publicAllowed={publicAllowed}
+            scheduled={scheduled}
+            scheduledAt={scheduledAt}
+            handle={handle}
+          />
+        </div>
       </div>
     </div>
   );

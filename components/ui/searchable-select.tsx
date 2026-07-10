@@ -129,7 +129,7 @@ export function SearchableSelect({
               }}
               onKeyDown={onKeyDown}
               placeholder={resolvedPlaceholder}
-              className="h-9 w-full bg-transparent ps-8 pe-3 text-sm text-foreground placeholder:text-subtle outline-none"
+              className="h-9 w-full bg-transparent ps-8 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none"
             />
           </div>
 

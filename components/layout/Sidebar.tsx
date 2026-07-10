@@ -91,7 +91,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
       ) : null}
 
       <aside
-        className={`fixed start-0 top-0 z-40 flex h-screen w-[240px] flex-col border-e border-border bg-background p-5 transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed start-0 top-0 z-40 flex h-dvh w-[240px] flex-col border-e border-border bg-background p-5 transition-transform duration-200 lg:translate-x-0 ${
           // Off-canvas slide is mobile-only (max-lg:) so it never competes with
           // the `lg:translate-x-0` desktop rule. Without max-lg, `rtl:` classes
           // carry a `[dir="rtl"]` attribute selector, which out-specifies plain

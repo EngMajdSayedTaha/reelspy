@@ -116,7 +116,7 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-4 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[90vw] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-4 overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95">
           <Dialog.Title className="text-lg font-semibold text-foreground">{t.editScheduledPost}</Dialog.Title>
           <Dialog.Description className="text-sm text-muted-foreground">
             {t.editDialogDescription}

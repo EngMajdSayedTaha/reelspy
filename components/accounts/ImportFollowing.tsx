@@ -187,7 +187,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                 onChange={(e) => setRawInput(e.target.value)}
                 rows={4}
                 placeholder={"@creator_one\n@creator_two creator_three, https://www.instagram.com/creator_four/"}
-                className="w-full rounded-lg border border-border-strong bg-surface-2 p-3 text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+                className="w-full rounded-lg border border-border-strong bg-surface-2 p-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
               />
 
               <div className="flex flex-wrap gap-2">
@@ -264,7 +264,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                     <select
                       value={groupId}
                       onChange={(e) => setGroupId(e.target.value)}
-                      className="block h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-foreground outline-none transition focus:border-primary/60"
+                      className="block h-9 rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60"
                     >
                       <option value="">{fullDict.accounts.noGroupOption}</option>
                       {groups.map((g) => (
