@@ -1,7 +1,10 @@
 // ReelSpy brand mark: a spy viewfinder locked onto a play button, with a
 // scanning beam sweeping through — "watching reels so you don't have to".
-// The same mark (static) is used as the favicon in app/icon.svg, so keep the
-// two files visually in sync if the design changes.
+// Colors follow the active preset (--primary/--primary-foreground) so the
+// mark re-colors along with buttons/links when the user picks a theme. The
+// favicon in app/icon.svg stays static brand yellow — it's a standalone file
+// the browser fetches outside the page's CSS/theme context, so it can't
+// follow the in-app preset; keep its silhouette in sync if the design changes.
 
 type LogoMarkProps = {
   size?: number;
@@ -21,11 +24,11 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       aria-label={ariaLabel}
       className={className}
     >
-      <rect width="64" height="64" rx="14" fill="#F9E400" />
+      <rect width="64" height="64" rx="14" fill="var(--primary)" />
 
       {/* Viewfinder corner brackets */}
       <g
-        stroke="#0d0d0d"
+        stroke="var(--primary-foreground)"
         strokeWidth="4.5"
         strokeLinecap="round"
         fill="none"
@@ -41,8 +44,8 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       {/* Play triangle */}
       <path
         d="M27 23.5 L43.5 32 L27 40.5 Z"
-        fill="#0d0d0d"
-        stroke="#0d0d0d"
+        fill="var(--primary-foreground)"
+        stroke="var(--primary-foreground)"
         strokeWidth="3"
         strokeLinejoin="round"
         className={animated ? "logo-play" : undefined}
@@ -51,7 +54,7 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
 
       {/* Scanning beam */}
       {animated ? (
-        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#0d0d0d" className="logo-scan" />
+        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="var(--primary-foreground)" className="logo-scan" />
       ) : null}
     </svg>
   );
