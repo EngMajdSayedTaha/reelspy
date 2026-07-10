@@ -315,7 +315,7 @@ export async function generateScript(input: GenerateScriptInput): Promise<Genera
     transcript
       ? `<reel_transcript>\n${transcript.slice(0, MAX_TRANSCRIPT_CHARS)}\n</reel_transcript>`
       : null,
-    `<reel_caption>\n${input.caption}\n</reel_caption>`,
+    input.caption ? `<reel_caption>\n${input.caption}\n</reel_caption>` : null,
     input.customContext
       ? `<extra_context>\n${input.customContext}\n</extra_context>`
       : null,

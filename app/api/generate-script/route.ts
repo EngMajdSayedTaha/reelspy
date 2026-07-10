@@ -17,6 +17,9 @@ export const maxDuration = 60;
 const bodySchema = z.object({
   reel_id: z.uuid().optional(),
   caption: z.string().max(5_000).optional(),
+  // A transcript fetched client-side via the "paste a reel link" shortcut,
+  // when there's no tracked reel_id to load one from the DB (W1).
+  transcript: z.string().max(20_000).optional(),
   platform: z.string().max(60).default("Instagram Reels"),
   tone: z.string().max(60).default("Direct"),
   custom_context: z.string().max(2_000).optional(),
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input" }, { status: 400 });
   }
 
-  const { reel_id, caption, platform, tone, custom_context } = parsed.data;
+  const { reel_id, caption, transcript: rawTranscript, platform, tone, custom_context } = parsed.data;
 
   let sourceCaption = caption?.trim() ?? "";
   let reelId: string | null = null;
@@ -89,8 +92,15 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!sourceCaption) {
-    return NextResponse.json({ error: "caption or reel_id is required." }, { status: 400 });
+  // Fall back to a client-fetched transcript (the "paste a reel link"
+  // shortcut) when no tracked reel already supplied one — this is what lets
+  // that flow ground the script on real reel audio instead of only a caption.
+  if (!transcript && rawTranscript?.trim()) {
+    transcript = rawTranscript.trim();
+  }
+
+  if (!sourceCaption && !transcript) {
+    return NextResponse.json({ error: "caption, transcript, or reel_id is required." }, { status: 400 });
   }
 
   // Monthly plan quota (L6): checked only once the request is valid, so a

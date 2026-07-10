@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { TypewriterText } from "@/components/ui/typewriter-text";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ScriptResult = {
@@ -13,6 +14,8 @@ type ScriptResult = {
 type ScriptOutputProps = {
   script: ScriptResult;
 };
+
+type ScriptsCopy = ReturnType<typeof useDict>["scripts"];
 
 function CopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false);
@@ -34,6 +37,58 @@ function CopyButton({ text, label, copiedLabel }: { text: string; label: string;
   );
 }
 
+// Reveals hook → body → cta in sequence, like the AI is typing it live.
+// Keyed by the script's content in the parent, so a fresh script remounts
+// this (and resets `stage` to 0) instead of needing an effect-based reset.
+function ScriptSections({ script, s }: { script: ScriptResult; s: ScriptsCopy }) {
+  const [stage, setStage] = useState<0 | 1 | 2 | 3>(0);
+
+  return (
+    <div className="space-y-3">
+      {/* Hook */}
+      <div className="rounded-md border-s-2 border-primary bg-background p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wide text-subtle">{s.hook}</p>
+          <CopyButton text={script.hook} label={s.copy} copiedLabel={s.copied} />
+        </div>
+        <p className="mt-1 text-sm text-foreground break-words">
+          {stage >= 1 ? script.hook : <TypewriterText text={script.hook} onDone={() => setStage(1)} />}
+        </p>
+      </div>
+
+      {/* Body */}
+      <div className="rounded-md border-s-2 border-info/50 bg-background p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wide text-subtle">{s.body}</p>
+          <CopyButton text={script.body} label={s.copy} copiedLabel={s.copied} />
+        </div>
+        <p className="mt-1 whitespace-pre-line break-words text-sm text-foreground">
+          {stage >= 2 ? (
+            script.body
+          ) : stage === 1 ? (
+            <TypewriterText text={script.body} onDone={() => setStage(2)} />
+          ) : null}
+        </p>
+      </div>
+
+      {/* CTA */}
+      <div className="rounded-md border-s-2 border-success/50 bg-background p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs uppercase tracking-wide text-subtle">{s.cta}</p>
+          <CopyButton text={script.cta} label={s.copy} copiedLabel={s.copied} />
+        </div>
+        <p className="mt-1 text-sm text-foreground break-words">
+          {stage >= 3 ? (
+            script.cta
+          ) : stage === 2 ? (
+            <TypewriterText text={script.cta} onDone={() => setStage(3)} />
+          ) : null}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ScriptOutput({ script }: ScriptOutputProps) {
   const dict = useDict();
   const s = dict.scripts;
@@ -45,34 +100,7 @@ export function ScriptOutput({ script }: ScriptOutputProps) {
         <CopyButton text={fullScript} label={s.copyAll} copiedLabel={s.copied} />
       </div>
 
-      <div className="space-y-3">
-        {/* Hook */}
-        <div className="rounded-md border-s-2 border-primary bg-background p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wide text-subtle">{s.hook}</p>
-            <CopyButton text={script.hook} label={s.copy} copiedLabel={s.copied} />
-          </div>
-          <p className="mt-1 text-sm text-foreground break-words">{script.hook}</p>
-        </div>
-
-        {/* Body */}
-        <div className="rounded-md border-s-2 border-info/50 bg-background p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wide text-subtle">{s.body}</p>
-            <CopyButton text={script.body} label={s.copy} copiedLabel={s.copied} />
-          </div>
-          <p className="mt-1 whitespace-pre-line break-words text-sm text-foreground">{script.body}</p>
-        </div>
-
-        {/* CTA */}
-        <div className="rounded-md border-s-2 border-success/50 bg-background p-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wide text-subtle">{s.cta}</p>
-            <CopyButton text={script.cta} label={s.copy} copiedLabel={s.copied} />
-          </div>
-          <p className="mt-1 text-sm text-foreground break-words">{script.cta}</p>
-        </div>
-      </div>
+      <ScriptSections key={fullScript} script={script} s={s} />
 
       <Button variant="outline" className="w-full" onClick={() => navigator.clipboard.writeText(fullScript)}>
         {s.copyFullScript}

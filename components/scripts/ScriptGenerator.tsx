@@ -71,6 +71,10 @@ export function ScriptGenerator({
   const [reelUrl, setReelUrl] = useState("");
   const [isFetchingReel, setIsFetchingReel] = useState(false);
   const [reelFetchError, setReelFetchError] = useState<string | null>(null);
+  // Kept separate from `caption` (rather than stuffed into it) so the server
+  // can send it to the AI as a trusted <reel_transcript> block instead of a
+  // plain caption — see /api/generate-script.
+  const [fetchedTranscript, setFetchedTranscript] = useState<string | null>(null);
 
   // W1: one-tap "transcribe this reel first, then regenerate" when the last
   // script came back caption-only. Only reachable for a tracked reel (reelId).
@@ -88,7 +92,7 @@ export function ScriptGenerator({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      setCaption(json.transcript);
+      setFetchedTranscript(json.transcript);
       toast.success(s.transcriptLoaded);
     } catch (err) {
       setReelFetchError(err instanceof Error ? err.message : s.couldNotFetchReel);
@@ -111,6 +115,7 @@ export function ScriptGenerator({
         body: JSON.stringify({
           reel_id: reelId,
           caption,
+          transcript: fetchedTranscript || undefined,
           platform,
           tone,
           custom_context: customContext || undefined,
@@ -191,6 +196,10 @@ export function ScriptGenerator({
             ) : null}
 
             {isFetchingReel ? <AiThinking messages={s.reelFetchMessages} /> : null}
+
+            {!isFetchingReel && fetchedTranscript ? (
+              <p className="text-xs text-success">{s.transcriptLoaded} ✓</p>
+            ) : null}
           </div>
 
           <div className="border-t border-border" />
@@ -282,7 +291,7 @@ export function ScriptGenerator({
           <Button
             type="button"
             onClick={onGenerate}
-            disabled={isLoading || (!caption && !reelId)}
+            disabled={isLoading || (!caption && !reelId && !fetchedTranscript)}
             className="w-full sm:w-auto"
           >
             {isLoading ? s.generating : s.generate}
@@ -300,7 +309,7 @@ export function ScriptGenerator({
             <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
               {s.placeholderNotice}
             </p>
-          ) : reelId ? (
+          ) : reelId || fetchedTranscript ? (
             <div data-tour="grounded-badge">
               {result.grounded ? (
                 <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-success/30 bg-success/5 px-2.5 py-1 text-xs font-medium text-success">
@@ -311,15 +320,17 @@ export function ScriptGenerator({
                   <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-muted-foreground">
                     {s.captionOnly}
                   </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={onTranscribeAndGenerate}
-                    disabled={isTranscribing || isLoading}
-                  >
-                    {isTranscribing ? s.transcribing : s.transcribeFirstThenRegenerate}
-                  </Button>
+                  {reelId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onTranscribeAndGenerate}
+                      disabled={isTranscribing || isLoading}
+                    >
+                      {isTranscribing ? s.transcribing : s.transcribeFirstThenRegenerate}
+                    </Button>
+                  ) : null}
                 </div>
               )}
             </div>
