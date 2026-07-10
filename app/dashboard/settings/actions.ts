@@ -15,6 +15,7 @@ import {
 } from "@/lib/prefs";
 import { normalizeLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
 
 function pick<T extends number>(value: FormDataEntryValue | null, allowed: readonly T[], fallback: T): T {
   const n = Number(value);
@@ -59,6 +60,37 @@ export async function setDigestOptOut(optOut: boolean): Promise<void> {
     .update({ digest_opt_out: optOut })
     .eq("id", user.id);
   if (error) throw new Error(error.message);
+
+  revalidatePath("/dashboard/settings");
+}
+
+// Preset color theme. DB is the cross-device source of truth; the cookie
+// mirror lets the root layout stamp <html data-theme> at SSR with no flash.
+export async function setColorTheme(theme: string): Promise<void> {
+  const cookieStore = await cookies();
+  const { locale } = parsePrefs(cookieStore.get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale).settings;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error(dict.unauthorized);
+
+  const colorTheme = normalizeColorTheme(theme);
+  const { error } = await supabase
+    .from("profiles")
+    .update({ color_theme: colorTheme })
+    .eq("id", user.id);
+  if (error) throw new Error(error.message);
+
+  cookieStore.set(THEME_COOKIE, colorTheme, {
+    // Client-readable on purpose: applyColorTheme keeps it in sync client-side.
+    httpOnly: false,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
 
   revalidatePath("/dashboard/settings");
 }

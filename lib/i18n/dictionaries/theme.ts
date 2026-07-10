@@ -1,5 +1,6 @@
 // Theme dictionary domain: the light/dark/system toggle (`components/theme/
-// ThemeToggle.tsx`) — small enough to not belong in any single feature area,
+// ThemeToggle.tsx`) and the preset color-theme picker (`components/settings/
+// ThemePicker.tsx`) — small enough to not belong in any single feature area,
 // but not part of the protected `shell.ts`/`common.ts` files either. Composed
 // into the root `Dict` by `lib/i18n/dictionaries/index.ts`.
 
@@ -9,6 +10,22 @@ const en = {
     light: "Light",
     dark: "Dark",
     system: "System",
+    picker: {
+      title: "Accent color",
+      description: "Pick the accent color used for buttons, links, and highlights.",
+      savedToast: "Theme saved",
+      saveError: "Couldn't save your theme. Please try again.",
+    },
+    presets: {
+      volt: "Volt",
+      rose: "Rosé",
+      ocean: "Ocean",
+      violet: "Violet",
+      emerald: "Emerald",
+      sunset: "Sunset",
+      mono: "Mono",
+      cyan: "Cyan",
+    },
   },
 };
 
@@ -21,5 +38,21 @@ export const themeAr: ThemeDict = {
     light: "فاتح",
     dark: "داكن",
     system: "النظام",
+    picker: {
+      title: "لون التمييز",
+      description: "اختر لون التمييز المستخدم للأزرار والروابط والعناصر البارزة.",
+      savedToast: "تم حفظ السمة",
+      saveError: "تعذّر حفظ السمة. حاول مرة أخرى.",
+    },
+    presets: {
+      volt: "فولت",
+      rose: "وردي",
+      ocean: "محيطي",
+      violet: "بنفسجي",
+      emerald: "زمردي",
+      sunset: "غروب",
+      mono: "أحادي",
+      cyan: "سماوي",
+    },
   },
 };

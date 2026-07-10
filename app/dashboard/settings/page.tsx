@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Plug, ArrowRight } from "lucide-react";
 import { PreferencesForm } from "@/components/settings/PreferencesForm";
+import { ThemePicker } from "@/components/settings/ThemePicker";
 import { DigestToggle } from "@/components/settings/DigestToggle";
 import { QuizSettingsSection } from "@/components/settings/QuizSettingsSection";
 import { DangerZone } from "@/components/settings/DangerZone";
@@ -27,7 +28,11 @@ export default async function SettingsPage() {
   const t = dict.settings;
 
   const [{ data: profile }, quizNicheChips] = await Promise.all([
-    supabase.from("profiles").select("digest_opt_out, brand_voice").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("digest_opt_out, brand_voice, color_theme")
+      .eq("id", user.id)
+      .maybeSingle(),
     getQuizNicheChips(createAdminClient()),
   ]);
   const brandVoice = (profile?.brand_voice as BrandVoice | null) ?? null;
@@ -44,6 +49,10 @@ export default async function SettingsPage() {
 
       <div data-tour="preferences-form">
         <PreferencesForm initial={prefs} action={savePreferences} />
+      </div>
+
+      <div data-tour="theme-picker">
+        <ThemePicker initialTheme={(profile?.color_theme as string | null) ?? null} />
       </div>
 
       <div data-tour="digest-toggle">

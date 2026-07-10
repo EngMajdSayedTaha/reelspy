@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { DEFAULT_COLOR_THEME, THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
 import { dirForLocale } from "@/lib/i18n/config";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import "./globals.css";
@@ -38,12 +39,17 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const cookieStore = await cookies();
+  const { locale } = parsePrefs(cookieStore.get(PREFS_COOKIE)?.value);
+  const colorTheme = normalizeColorTheme(cookieStore.get(THEME_COOKIE)?.value);
 
   return (
     <html
       lang={locale}
       dir={dirForLocale(locale)}
+      // The default (volt) gets no attribute — the base tokens ARE volt, so
+      // there's nothing to override and logged-out pages stay on-brand.
+      data-theme={colorTheme === DEFAULT_COLOR_THEME ? undefined : colorTheme}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} h-full antialiased`}
     >

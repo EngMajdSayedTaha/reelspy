@@ -173,6 +173,7 @@ function LoginForm() {
               onClick={() => void handleEmailAuth("signin")}
               disabled={isLoading || !isSupabaseConfigured || !email || !password}
               type="button"
+              variant="secondary"
             >
               {auth.signIn}
             </Button>

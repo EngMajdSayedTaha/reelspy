@@ -30,15 +30,17 @@ import { intlLocale } from "@/lib/i18n/intl";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import type { Locale } from "@/lib/i18n/config";
 
-// On-brand palette — yellow is the hero metric, the rest are calm accents.
+// On-brand palette — the hero metric (views) follows the active color theme,
+// the rest are calm accents. CSS variables are valid SVG fill/stroke values,
+// so the whole chart re-colors with the theme and per light/dark mode.
 const COLORS = {
-  views: "#F9E400",
-  reach: "#FBBF24",
-  likes: "#F472B6",
-  comments: "#60A5FA",
-  saved: "#34D399",
-  shares: "#A78BFA",
-  watch: "#22D3EE",
+  views: "var(--chart-1)",
+  reach: "var(--chart-2)",
+  likes: "var(--chart-3)",
+  comments: "var(--chart-4)",
+  saved: "var(--chart-5)",
+  shares: "var(--chart-6)",
+  watch: "var(--chart-7)",
 } as const;
 
 type MetricKey = keyof typeof COLORS;
@@ -302,7 +304,7 @@ function MetricBarChart({
       <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" preserveAspectRatio="none">
         {/* Subtle horizontal gridlines */}
         {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="#1f1f1f" strokeWidth="0.3" />
+          <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="var(--chart-grid)" strokeWidth="0.3" />
         ))}
         {/* Average reference line */}
         {mean > 0 ? (
@@ -311,7 +313,7 @@ function MetricBarChart({
             x2={W}
             y1={meanY}
             y2={meanY}
-            stroke="#71717a"
+            stroke="var(--chart-axis)"
             strokeWidth="0.4"
             strokeDasharray="1.5 1.5"
           />
@@ -329,7 +331,7 @@ function MetricBarChart({
                 width={barW}
                 height={Math.max(h, 0.4)}
                 rx={barW > 3 ? 0.8 : 0.3}
-                fill={isPeak ? COLORS[metricKey] : "#3f3f46"}
+                fill={isPeak ? COLORS[metricKey] : "var(--chart-dim)"}
                 opacity={dimmed ? 0.35 : 1}
                 className="transition-opacity"
               />
@@ -382,7 +384,7 @@ function EngagementDonut({ items, dict }: { items: MediaItem[]; dict: Dict["myAc
     <div className="flex flex-col items-center gap-4 sm:flex-row">
       <div className="relative h-32 w-32 shrink-0">
         <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
-          <circle cx="18" cy="18" r={radius} fill="none" stroke="#1f1f1f" strokeWidth="4" />
+          <circle cx="18" cy="18" r={radius} fill="none" stroke="var(--chart-grid)" strokeWidth="4" />
           {sum > 0 &&
             segments.map((s) => {
               const pct = (s.value / sum) * 100;
@@ -503,8 +505,10 @@ function EngagementRateLine({
         <svg viewBox={`0 0 ${W} ${H}`} className="h-32 w-full" preserveAspectRatio="none">
           <defs>
             <linearGradient id="rateFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={COLORS.views} stopOpacity="0.28" />
-              <stop offset="100%" stopColor={COLORS.views} stopOpacity="0" />
+              {/* stop-color via style: var() in the presentation attribute is
+                  flaky across browsers, but always resolves in CSS. */}
+              <stop offset="0%" style={{ stopColor: COLORS.views }} stopOpacity="0.28" />
+              <stop offset="100%" style={{ stopColor: COLORS.views }} stopOpacity="0" />
             </linearGradient>
           </defs>
           <path d={area} fill="url(#rateFill)" />
@@ -521,7 +525,7 @@ function EngagementRateLine({
             <g key={i}>
               {hover === i ? (
                 <>
-                  <line x1={p.x} x2={p.x} y1="0" y2={H} stroke="#3f3f46" strokeWidth="0.3" />
+                  <line x1={p.x} x2={p.x} y1="0" y2={H} stroke="var(--chart-grid)" strokeWidth="0.3" />
                   <circle cx={p.x} cy={p.y} r="1.4" fill={COLORS.views} />
                 </>
               ) : null}

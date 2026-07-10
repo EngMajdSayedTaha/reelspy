@@ -31,7 +31,8 @@ create table profiles (
   brand_voice jsonb,                    -- per-user AI persona (niche/audience/offer/tone/language)
   onboarded_at timestamptz,             -- first-run wizard completion marker (L7); null = not done
   digest_opt_out boolean not null default false, -- weekly digest unsubscribe (V3/W6)
-  is_admin boolean not null default false -- founder bypass of all plan caps; SQL/service-role only
+  is_admin boolean not null default false, -- founder bypass of all plan caps; SQL/service-role only
+  color_theme text not null default 'volt' -- preset color theme (lib/color-theme.ts)
 );
 
 alter table profiles enable row level security;
@@ -44,10 +45,10 @@ revoke all on table profiles from anon, authenticated;
 grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
               ig_token_refreshed_at, fb_page_id, fb_page_name,
               webhook_subscribed_at, created_at, brand_voice, onboarded_at,
-              digest_opt_out, is_admin)
+              digest_opt_out, is_admin, color_theme)
   on profiles to authenticated;
 grant insert (id, username) on profiles to authenticated;
-grant update (id, username, brand_voice, onboarded_at, digest_opt_out)
+grant update (id, username, brand_voice, onboarded_at, digest_opt_out, color_theme)
   on profiles to authenticated;
 
 -- Auto-create a profile row when a new auth user signs up.

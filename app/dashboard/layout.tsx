@@ -5,6 +5,7 @@ import { getQuizNicheChips } from "@/lib/onboarding/niche-chips";
 import { brandVoiceFilled } from "@/lib/onboarding/state";
 import type { BrandVoice } from "@/lib/ai/brand-voice";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ColorThemeSync } from "@/components/theme/ColorThemeSync";
 import { getSidebarUser } from "@/lib/user/sidebar-user";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -15,13 +16,16 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   let showQuiz = false;
   let quizNicheChips: string[] = [];
   let tourCompleted = true;
+  let colorTheme: string | null = null;
 
   if (authUser) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("quiz_completed_at, tour_completed_at, onboarded_at, brand_voice")
+      .select("quiz_completed_at, tour_completed_at, onboarded_at, brand_voice, color_theme")
       .eq("id", authUser.id)
       .maybeSingle();
+
+    colorTheme = (profile?.color_theme as string | null) ?? null;
 
     const brandVoice = (profile?.brand_voice as BrandVoice | null) ?? null;
     // Brand-new users only: anyone who's completed/skipped the quiz, has a
@@ -42,6 +46,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       quizNicheChips={quizNicheChips}
       tourCompleted={tourCompleted}
     >
+      <ColorThemeSync dbTheme={colorTheme} />
       {children}
     </DashboardShell>
   );

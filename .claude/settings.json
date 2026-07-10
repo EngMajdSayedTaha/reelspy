@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir /b \"c:\\\\Majdst_codes\\\\reelspy\")"
+      "Bash(dir /b \"c:\\\\Majdst_codes\\\\reelspy\")",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npm run build)",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "PowerShell(npm run dev)"
     ]
   }
 }
