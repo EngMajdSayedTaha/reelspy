@@ -42,6 +42,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const authError = searchParams.get("error");
@@ -63,6 +64,7 @@ function LoginForm() {
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -93,16 +95,31 @@ function LoginForm() {
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     const action =
       mode === "signin"
         ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password });
+        : supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              // Mirror the OAuth flow: without this, Supabase falls back to
+              // the project's default Site URL, which never resolves through
+              // /auth/callback, so the confirmation link's code is silently
+              // dropped and the user never ends up with a session.
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+            },
+          });
 
-    const { error: authError } = await action;
+    const { data, error: authError } = await action;
 
     if (authError) {
-      setError(authError.message);
+      setError(
+        mode === "signup" && authError.code === "over_email_send_rate_limit"
+          ? auth.errors.emailRateLimited
+          : authError.message
+      );
       setIsLoading(false);
       return;
     }
@@ -110,10 +127,27 @@ function LoginForm() {
     if (mode === "signin") {
       router.push("/dashboard");
       router.refresh();
-    } else {
-      setError(auth.signupSuccessMessage);
-      setIsLoading(false);
+      return;
     }
+
+    if (data.session) {
+      // Email confirmation is disabled on this project, so signUp already
+      // returned a live session.
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
+    if (data.user && data.user.identities && data.user.identities.length === 0) {
+      // Supabase's anti-enumeration behavior: a 200 with no new identity
+      // means this email is already registered and confirmed.
+      setError(auth.errors.accountExists);
+      setIsLoading(false);
+      return;
+    }
+
+    setNotice(auth.signupSuccessMessage);
+    setIsLoading(false);
   };
 
   return (
@@ -193,6 +227,8 @@ function LoginForm() {
               {auth.supabaseMissingWarning}
             </p>
           ) : null}
+
+          {notice ? <p className="text-sm text-success">{notice}</p> : null}
 
           {error || queryError ? (
             <p className="text-sm text-danger">{error ?? queryError}</p>

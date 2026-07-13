@@ -24,6 +24,8 @@ const en = {
       schemaMissing: "Supabase schema is missing. Run supabase/schema.sql in SQL Editor.",
       profileUpsertFailed: "Could not create your profile. Please retry.",
       supabaseEnvMissing: "Supabase environment variables are missing.",
+      accountExists: "An account with this email already exists. Try signing in instead.",
+      emailRateLimited: "Too many signup attempts right now. Please wait a few minutes and try again.",
     },
   },
 };
@@ -53,6 +55,8 @@ export const authAr: AuthDict = {
       schemaMissing: "مخطط Supabase غير موجود. نفّذ supabase/schema.sql في محرر SQL.",
       profileUpsertFailed: "تعذّر إنشاء ملفك الشخصي. يرجى إعادة المحاولة.",
       supabaseEnvMissing: "متغيرات بيئة Supabase مفقودة.",
+      accountExists: "يوجد حساب بهذا البريد الإلكتروني بالفعل. جرّب تسجيل الدخول بدلاً من ذلك.",
+      emailRateLimited: "محاولات كثيرة جدًا الآن. يرجى الانتظار بضع دقائق ثم إعادة المحاولة.",
     },
   },
 };
