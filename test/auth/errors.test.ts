@@ -47,4 +47,11 @@ describe("mapAuthError", () => {
     expect(mapAuthError({ code: "over_email_send_rate_limit", message: "" }, dict)).toBe(dict.overEmailSendRateLimit);
     expect(mapAuthError({ code: "something_new", message: "" }, dict)).toBe(dict.generic);
   });
+
+  it("names a taken email, but never reveals an unknown one", () => {
+    expect(mapAuthError({ code: "user_already_exists", message: "" }, dict)).toBe(dict.userAlreadyExists);
+    // Password reset is triggerable by anyone for any address, so this one must
+    // stay generic or it becomes an account-enumeration oracle.
+    expect(mapAuthError({ code: "user_not_found", message: "" }, dict)).toBe(dict.generic);
+  });
 });
