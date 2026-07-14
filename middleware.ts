@@ -61,7 +61,12 @@ export async function middleware(request: NextRequest) {
   // Google consent screen (app/login/page.tsx requests prompt=consent) even
   // though they were never actually logged out. Route an authenticated
   // visitor straight to the dashboard instead of back through login.
-  if (user && (request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login")) {
+  if (
+    user &&
+    (request.nextUrl.pathname === "/" ||
+      request.nextUrl.pathname === "/login" ||
+      request.nextUrl.pathname === "/signup")
+  ) {
     return redirect("/dashboard");
   }
 
@@ -71,6 +76,16 @@ export async function middleware(request: NextRequest) {
 
   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
     return redirect("/login");
+  }
+
+  // A password-recovery link signs the user in (verifyOtp sets a session) so
+  // they can set a new password — that IS a signed-in session, so /login and
+  // /signup redirecting signed-in users away must not also apply here.
+  // Visiting /reset-password signed-out (no recovery session, e.g. an expired
+  // or already-used link) has nothing to reset against — send them back to
+  // request a fresh one.
+  if (!user && request.nextUrl.pathname === "/reset-password") {
+    return redirect("/forgot-password?error=link_expired");
   }
 
   // Admin surface gate (belt; app/admin/layout.tsx is authoritative). A

@@ -158,8 +158,8 @@ export default async function PrivacyPage() {
       <LegalSection heading={t.sections.dpo.heading}>
         <p>
           {t.sections.dpo.before}
-          <a href="mailto:privacy@reelspy.app" className="text-brand hover:underline">
-            privacy@reelspy.app
+          <a href="mailto:privacy@reelspy.dev" className="text-brand hover:underline">
+            privacy@reelspy.dev
           </a>
           {t.sections.dpo.after}
         </p>

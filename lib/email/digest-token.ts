@@ -4,6 +4,7 @@
 
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getSiteUrl } from "@/lib/site";
 
 // Reuse CRON_SECRET as the signing key (server-only, already required for the
 // digest cron). The HMAC output is safe to expose; the key never leaves the server.
@@ -30,9 +31,5 @@ export function verifyDigestToken(userId: string, token: string): boolean {
 export function digestUnsubscribeUrl(userId: string): string | null {
   const token = digestUnsubscribeToken(userId);
   if (!token) return null;
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://reelspy-one.vercel.app").replace(
-    /\/+$/,
-    ""
-  );
-  return `${origin}/api/account/digest-unsubscribe?u=${encodeURIComponent(userId)}&t=${token}`;
+  return `${getSiteUrl()}/api/account/digest-unsubscribe?u=${encodeURIComponent(userId)}&t=${token}`;
 }

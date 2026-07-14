@@ -5,18 +5,12 @@
 import "server-only";
 import { sendEmail } from "./send";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { getSiteUrl } from "@/lib/site";
 
 export type FailedTarget = {
   platform: Platform;
   error: string;
 };
-
-function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://reelspy-one.vercel.app").replace(
-    /\/+$/,
-    ""
-  );
-}
 
 function escapeHtml(s: string): string {
   return s
@@ -38,7 +32,7 @@ export async function notifyPublishFailure(params: {
   const { to, postTitle, published, failed } = params;
   if (failed.length === 0) return false;
 
-  const deepLink = `${siteUrl()}/dashboard/publishing`;
+  const deepLink = `${getSiteUrl()}/dashboard/publishing`;
   const partial = published > 0;
   const heading = partial
     ? `Your post published to ${published} platform${published === 1 ? "" : "s"}, but ${failed.length} failed`

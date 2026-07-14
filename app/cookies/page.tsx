@@ -73,8 +73,8 @@ export default async function CookiesPage() {
             {common.privacyPolicy}
           </Link>
           {t.sections.moreInfo.middle}
-          <a href="mailto:privacy@reelspy.app" className="text-brand hover:underline">
-            privacy@reelspy.app
+          <a href="mailto:privacy@reelspy.dev" className="text-brand hover:underline">
+            privacy@reelspy.dev
           </a>
           {t.sections.moreInfo.after}
         </p>

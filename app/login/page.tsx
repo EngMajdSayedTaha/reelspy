@@ -2,13 +2,13 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogoMark } from "@/components/brand/Logo";
+import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import { mapAuthError } from "@/lib/auth/errors";
 import type { AuthDict } from "@/lib/i18n/dictionaries/auth";
 
 function getQueryErrorMap(auth: AuthDict["auth"]): Record<string, string> {
@@ -19,6 +19,7 @@ function getQueryErrorMap(auth: AuthDict["auth"]): Record<string, string> {
     schema_missing: auth.errors.schemaMissing,
     profile_upsert_failed: auth.errors.profileUpsertFailed,
     supabase_env_missing: auth.errors.supabaseEnvMissing,
+    confirm_failed: auth.errors.confirmFailed,
   };
 }
 
@@ -43,6 +44,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const authError = searchParams.get("error");
@@ -86,7 +88,7 @@ function LoginForm() {
     }
   };
 
-  const handleEmailAuth = async (mode: "signin" | "signup") => {
+  const handleSignIn = async () => {
     if (!isSupabaseConfigured) {
       setError(auth.errors.supabaseEnvMissing);
       return;
@@ -96,160 +98,119 @@ function LoginForm() {
     setIsLoading(true);
     setError(null);
     setNotice(null);
+    setNeedsConfirmation(false);
 
-    const action =
-      mode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              // Mirror the OAuth flow: without this, Supabase falls back to
-              // the project's default Site URL, which never resolves through
-              // /auth/callback, so the confirmation link's code is silently
-              // dropped and the user never ends up with a session.
-              emailRedirectTo: `${window.location.origin}/auth/callback`,
-            },
-          });
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    const { data, error: authError } = await action;
-
-    if (authError) {
-      setError(
-        mode === "signup" && authError.code === "over_email_send_rate_limit"
-          ? auth.errors.emailRateLimited
-          : authError.message
-      );
+    if (signInError) {
+      setError(mapAuthError(signInError, auth.authErrors));
+      setNeedsConfirmation(signInError.code === "email_not_confirmed");
       setIsLoading(false);
       return;
     }
 
-    if (mode === "signin") {
-      router.push("/dashboard");
-      router.refresh();
-      return;
-    }
+    router.push("/dashboard");
+    router.refresh();
+  };
 
-    if (data.session) {
-      // Email confirmation is disabled on this project, so signUp already
-      // returned a live session.
-      router.push("/dashboard");
-      router.refresh();
-      return;
-    }
+  const handleResendConfirmation = async () => {
+    if (!isSupabaseConfigured || !email) return;
+    const supabase = createClient();
+    setIsLoading(true);
+    setError(null);
 
-    if (data.user && data.user.identities && data.user.identities.length === 0) {
-      // Supabase's anti-enumeration behavior: a 200 with no new identity
-      // means this email is already registered and confirmed.
-      setError(auth.errors.accountExists);
-      setIsLoading(false);
-      return;
-    }
+    const { error: resendError } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
 
-    setNotice(auth.signupSuccessMessage);
     setIsLoading(false);
+    if (resendError) {
+      setError(mapAuthError(resendError, auth.authErrors));
+      return;
+    }
+    setNotice(auth.resendConfirmationSent);
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
-      {/* Ambient accent glow */}
-      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px]" />
+    <AuthShell>
+      <h2 className="text-lg font-semibold text-foreground">{auth.loginHeading}</h2>
 
-      <div className="animate-rise relative z-10 w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <LogoMark size={48} ariaLabel={dict.shell.logoAlt} />
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              Reel<span className="text-brand">Spy</span>
-            </h1>
-            <p className="mt-1 text-sm text-subtle">{auth.tagline}</p>
-          </div>
-        </div>
+      <Button
+        className="w-full"
+        onClick={() => void handleOAuth()}
+        disabled={isLoading || !isSupabaseConfigured}
+        type="button"
+      >
+        {auth.continueWithGoogle}
+      </Button>
 
-        <Card className="border-border bg-card text-foreground">
-          <CardContent className="space-y-4 pt-6">
-          <Button
-            className="w-full"
-            onClick={handleOAuth}
-            disabled={isLoading || !isSupabaseConfigured}
-            type="button"
-          >
-            {auth.continueWithGoogle}
-          </Button>
+      <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">{auth.or}</div>
 
-          <div className="text-center text-xs uppercase tracking-wide text-muted-foreground">{auth.or}</div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">{auth.emailLabel}</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder={auth.emailPlaceholder}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">{auth.passwordLabel}</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              className="flex-1"
-              onClick={() => void handleEmailAuth("signin")}
-              disabled={isLoading || !isSupabaseConfigured || !email || !password}
-              type="button"
-              variant="secondary"
-            >
-              {auth.signIn}
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => void handleEmailAuth("signup")}
-              disabled={isLoading || !isSupabaseConfigured || !email || !password}
-              type="button"
-              variant="outline"
-            >
-              {auth.signUp}
-            </Button>
-          </div>
-
-          {!isSupabaseConfigured ? (
-            <p className="text-sm text-warning">
-              {auth.supabaseMissingWarning}
-            </p>
-          ) : null}
-
-          {notice ? <p className="text-sm text-success">{notice}</p> : null}
-
-          {error || queryError ? (
-            <p className="text-sm text-danger">{error ?? queryError}</p>
-          ) : null}
-          </CardContent>
-        </Card>
-
-        <p className="mt-6 text-center text-xs text-subtle">
-          <a href="/terms" className="hover:text-foreground">
-            {auth.terms}
-          </a>
-          <span className="mx-2">·</span>
-          <a href="/privacy" className="hover:text-foreground">
-            {auth.privacyPolicy}
-          </a>
-          <span className="mx-2">·</span>
-          <a href="/cookies" className="hover:text-foreground">
-            {auth.cookiePolicy}
-          </a>
-        </p>
+      <div className="space-y-2">
+        <Label htmlFor="email">{auth.emailLabel}</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder={auth.emailPlaceholder}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
       </div>
-    </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">{auth.passwordLabel}</Label>
+          <a href="/forgot-password" className="text-xs text-brand hover:underline">
+            {auth.forgotPasswordLink}
+          </a>
+        </div>
+        <Input
+          id="password"
+          type="password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+      </div>
+
+      <Button
+        className="w-full"
+        onClick={() => void handleSignIn()}
+        disabled={isLoading || !isSupabaseConfigured || !email || !password}
+        type="button"
+        variant="secondary"
+      >
+        {auth.signIn}
+      </Button>
+
+      {!isSupabaseConfigured ? <p className="text-sm text-warning">{auth.supabaseMissingWarning}</p> : null}
+
+      {notice ? <p className="text-sm text-success">{notice}</p> : null}
+
+      {error || queryError ? <p className="text-sm text-danger">{error ?? queryError}</p> : null}
+
+      {needsConfirmation ? (
+        <div className="space-y-1 text-center">
+          <p className="text-xs text-subtle">{auth.resendConfirmationPrompt}</p>
+          <button
+            type="button"
+            onClick={() => void handleResendConfirmation()}
+            disabled={isLoading}
+            className="text-sm text-brand hover:underline disabled:opacity-50"
+          >
+            {auth.resendConfirmationButton}
+          </button>
+        </div>
+      ) : null}
+
+      <p className="text-center text-sm text-subtle">
+        {auth.noAccountPrompt}{" "}
+        <a href="/signup" className="text-brand hover:underline">
+          {auth.createAccountLink}
+        </a>
+      </p>
+    </AuthShell>
   );
 }

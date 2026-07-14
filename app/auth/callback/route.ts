@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { track } from "@/lib/analytics/track";
+import { completePostSignIn } from "@/lib/auth/post-signin";
+
+// Open-redirect guard: only allow same-origin relative paths.
+function sanitizeNext(next: string | null): string {
+  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
+  return "/dashboard";
+}
 
 function redirectToLogin(
   request: NextRequest,
@@ -35,6 +41,7 @@ function diagnostics(request: NextRequest): string {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const next = sanitizeNext(requestUrl.searchParams.get("next"));
 
   // Google / Supabase can bounce back with an explicit error instead of a code
   // (e.g. user denied consent, provider misconfiguration). Surface it instead
@@ -80,7 +87,7 @@ export async function GET(request: NextRequest) {
       data: { user: existingUser },
     } = await supabase.auth.getUser();
     if (existingUser) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return NextResponse.redirect(new URL(next, request.url));
     }
 
     const diag = diagnostics(request);
@@ -107,43 +114,10 @@ export async function GET(request: NextRequest) {
     return redirectToLogin(request, "user_not_found", userError?.message);
   }
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      username: user.email,
-    },
-    // Insert-or-ignore: we only need the row to EXIST so other tables can FK to
-    // it. Using ignoreDuplicates emits `ON CONFLICT DO NOTHING`, which requires
-    // only the INSERT(id, username) privilege granted to `authenticated`. A
-    // merge upsert would emit `DO UPDATE SET id=…`, and Postgres checks UPDATE
-    // privilege on every SET column at plan time — but `id` has no UPDATE grant
-    // (see 20260611_lock_down_ig_tokens.sql), so it fails with
-    // "permission denied for table profiles" for every user, new or returning.
-    { onConflict: "id", ignoreDuplicates: true }
-  );
-
-  if (profileError) {
-    console.error("Profile upsert failed", {
-      code: profileError.code,
-      message: profileError.message,
-      details: profileError.details,
-      hint: profileError.hint,
-    });
-
-    if (profileError.code === "PGRST205") {
-      return redirectToLogin(request, "schema_missing", profileError.message);
-    }
-
-    return redirectToLogin(request, "profile_upsert_failed", profileError.message);
+  const postSignInError = await completePostSignIn(supabase, user);
+  if (postSignInError) {
+    return redirectToLogin(request, postSignInError.code, postSignInError.message);
   }
 
-  // Instrumentation (L5): first session ≈ signup (funnel head). user.created_at
-  // is stamped at account creation, so a recent value marks the very first
-  // sign-in; the funnel views take min(created_at), so a rare duplicate is safe.
-  const createdAt = user.created_at ? Date.parse(user.created_at) : NaN;
-  if (Number.isFinite(createdAt) && Date.now() - createdAt < 2 * 60_000) {
-    await track(user.id, "signed_up");
-  }
-
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  return NextResponse.redirect(new URL(next, request.url));
 }
