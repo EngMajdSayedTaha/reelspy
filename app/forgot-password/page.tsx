@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useDict } from "@/lib/i18n/I18nProvider";
-import { mapAuthError } from "@/lib/auth/errors";
+import { isEmailSendFailure, mapAuthError } from "@/lib/auth/errors";
 
 export default function ForgotPasswordPage() {
   return (
@@ -49,10 +49,12 @@ function ForgotPasswordForm() {
 
     setIsLoading(false);
 
-    // Anti-enumeration: always show the same generic notice, whether or not the
-    // email is registered. Only a real send-side failure (e.g. rate limit)
-    // surfaces as an error.
-    if (resetError && resetError.code === "over_email_send_rate_limit") {
+    // Anti-enumeration: whether or not the email is registered, show the same
+    // generic notice. But a send-side failure is NOT an enumeration signal —
+    // it happens regardless of which address was typed — and showing "check
+    // your inbox" for a mail that never left the server strands the user and
+    // hides a total email outage from us. Surface those.
+    if (resetError && (isEmailSendFailure(resetError) || resetError.code === "over_email_send_rate_limit")) {
       setError(mapAuthError(resetError, auth.authErrors));
       return;
     }
