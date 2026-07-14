@@ -15,6 +15,8 @@ export type SidebarUser = {
   connected: boolean;
   /** Subscription tier — drives the sidebar plan badge (L6). */
   tier: AiTier;
+  /** Founder/admin — drives the conditional Admin link in the sidebar. */
+  isAdmin: boolean;
 };
 
 /**
@@ -32,7 +34,7 @@ export async function getSidebarUser(): Promise<SidebarUser | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username")
+    .select("username, is_admin")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -56,5 +58,12 @@ export async function getSidebarUser(): Promise<SidebarUser | null> {
 
   const tier = await resolveUserTier(supabase, user.id);
 
-  return { handle, avatarUrl, email: user.email ?? null, connected, tier };
+  return {
+    handle,
+    avatarUrl,
+    email: user.email ?? null,
+    connected,
+    tier,
+    isAdmin: profile?.is_admin === true,
+  };
 }

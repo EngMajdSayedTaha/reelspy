@@ -38,6 +38,15 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_ACCOUNT_EXPORT_PER_HOUR", 5),
     windowSeconds: 3600,
   },
+  // Admin control-panel mutations (tier overrides, bans, deletes, job retries,
+  // settings edits, …). Keyed by the acting admin's id. Generous — an admin
+  // working through a support queue makes many changes — but bounded so a
+  // compromised admin session or a runaway script can't fire unlimited
+  // destructive writes.
+  admin_mutation: {
+    limit: numEnv("RL_ADMIN_MUTATION_PER_HOUR", 240),
+    windowSeconds: 3600,
+  },
 };
 
 export type UserActionResult = { allowed: boolean; retryAfterSeconds: number };
