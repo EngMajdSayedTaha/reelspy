@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { UsersTable } from "@/components/admin/users/UsersTable";
 
 export const metadata = { title: "Users · Admin" };
@@ -11,7 +12,10 @@ export default function AdminUsersPage() {
           Search by username, exact email, or Stripe customer id (cus_…).
         </p>
       </div>
-      <UsersTable />
+      {/* DataTable reads list state from searchParams (useSearchParams). */}
+      <Suspense fallback={null}>
+        <UsersTable />
+      </Suspense>
     </div>
   );
 }

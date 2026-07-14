@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { Menu, ShieldAlert } from "lucide-react";
-import { Toaster } from "sonner";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
@@ -35,7 +34,6 @@ export function AdminShell({ email, children }: { email: string | null; children
           <section className="min-w-0 overflow-x-clip p-4 sm:p-6 lg:p-8">{children}</section>
         </main>
       </div>
-      <Toaster position="top-right" richColors />
     </ConfirmProvider>
   );
 }
