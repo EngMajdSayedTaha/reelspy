@@ -8,6 +8,7 @@ import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { DEFAULT_COLOR_THEME, THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
 import { dirForLocale } from "@/lib/i18n/config";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
+import { getSiteUrl } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,9 +30,35 @@ const plexArabic = IBM_Plex_Sans_Arabic({
   weight: ["400", "500", "600", "700"],
 });
 
+const description =
+  "Track inspiration reels, spot what's rising, and turn the best ideas into scripts.";
+
 export const metadata: Metadata = {
-  title: "ReelSpy — Content Intelligence",
-  description: "Track inspiration reels, spot what's rising, and turn the best ideas into scripts.",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: "ReelSpy — Content Intelligence",
+    template: "%s · ReelSpy",
+  },
+  description,
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    siteName: "ReelSpy",
+    title: "ReelSpy — Content Intelligence",
+    description,
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "ReelSpy — Content Intelligence",
+    description,
+  },
 };
 
 export default async function RootLayout({

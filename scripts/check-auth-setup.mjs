@@ -7,7 +7,7 @@ const requiredKeys = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
-  "NEXT_PUBLIC_APP_URL",
+  "NEXT_PUBLIC_SITE_URL",
 ];
 
 const requiredTables = [
@@ -82,7 +82,7 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const appUrl = envValues.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+const appUrl = envValues.NEXT_PUBLIC_SITE_URL.replace(/\/$/, "");
 
 console.log("[OK] Required local auth env values are present.");
 

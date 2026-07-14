@@ -8,9 +8,17 @@
 > **unlocks a dormant feature**. Do the 🔴 blockers before charging money; 🟡 items
 > light up features; 🟢 is verification.
 >
-> Last updated: 2026-07-04
+> Last updated: 2026-07-14
 
 ---
+
+## 🔴 0. Domain migration to reelspy.dev
+
+- [ ] Follow `docs/domain-migration.md` top to bottom (Vercel domain + redirect,
+      env vars, Resend, Supabase SMTP + branded email templates + URL config,
+      OAuth consoles, Stripe webhook, R2 CORS, inbound mail, smoke test). Do
+      this **before** or alongside section 1 below — several items overlap
+      (Resend, Stripe webhook).
 
 ## 🔴 1. Must-do before charging money
 
@@ -35,7 +43,7 @@
 - **Until applied:** multi-account is dormant; single-connection behaves exactly as today (safe).
 
 ### Legal mailboxes (referenced in your live Terms/Privacy copy)
-- [ ] Create **`support@reelspy.app`** and **`privacy@reelspy.app`** mailboxes.
+- [ ] Create **`support@reelspy.dev`** and **`privacy@reelspy.dev`** mailboxes.
 
 ---
 

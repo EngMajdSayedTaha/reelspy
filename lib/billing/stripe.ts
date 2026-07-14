@@ -8,6 +8,7 @@
 
 import "server-only";
 import Stripe from "stripe";
+import { getSiteUrl } from "@/lib/site";
 
 let cached: Stripe | null = null;
 
@@ -17,7 +18,7 @@ export function getStripe(): Stripe | null {
   if (!cached) {
     cached = new Stripe(key, {
       apiVersion: "2025-02-24.acacia",
-      appInfo: { name: "ReelSpy", url: "https://reelspy-one.vercel.app" },
+      appInfo: { name: "ReelSpy", url: getSiteUrl() },
     });
   }
   return cached;

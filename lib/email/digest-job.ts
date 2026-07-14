@@ -10,6 +10,7 @@ import { buildWeeklyDigest, type DigestReel, type DigestHook } from "@/lib/email
 import { digestUnsubscribeUrl } from "@/lib/email/digest-token";
 import { rankRising, risingSinceIso } from "@/lib/reels/ranking";
 import { track } from "@/lib/analytics/track";
+import { getSiteUrl } from "@/lib/site";
 
 const RISING_LIMIT = 5;
 const HOOKS_LIMIT = 3;
@@ -20,13 +21,6 @@ function firstUsername(v: unknown): string {
   if (!v) return "unknown";
   const row = Array.isArray(v) ? v[0] : v;
   return (row as { ig_username?: string })?.ig_username ?? "unknown";
-}
-
-function siteOrigin(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://reelspy-one.vercel.app").replace(
-    /\/+$/,
-    ""
-  );
 }
 
 // Build + send one user's weekly digest. Re-checks opt-out at send time (the job
@@ -110,7 +104,7 @@ export async function runSendDigest(
   if (risingReels.length === 0 && hooks.length === 0) return "skipped_empty";
 
   const { subject, html, text } = buildWeeklyDigest({
-    siteOrigin: siteOrigin(),
+    siteOrigin: getSiteUrl(),
     risingReels,
     hooks,
     researchedCount: researchedRes.count ?? 0,
