@@ -9,8 +9,28 @@ import type { AuthDict } from "@/lib/i18n/dictionaries/auth";
 
 type AuthErrorDict = AuthDict["auth"]["authErrors"];
 
-export function mapAuthError(error: Pick<AuthError, "code" | "message">, dict: AuthErrorDict): string {
+type RawAuthError = Pick<AuthError, "code" | "message"> & { status?: number };
+
+// True when Auth accepted the request but the mail provider refused it — bad
+// SMTP credentials, unverified sending domain, provider outage. GoTrue reports
+// these as a 500 with an `error_sending_*` code (older versions: a bare
+// `unexpected_failure` whose message is "Error sending recovery email").
+//
+// This is worth its own branch because it is the one auth failure the *user*
+// cannot fix by retrying, and the one an operator must hear about immediately:
+// a silent version of it means every signup and reset on the platform is dead.
+export function isEmailSendFailure(error: RawAuthError): boolean {
   const code = error.code ?? "";
+  if (code.startsWith("error_sending_")) return true;
+  if (code === "email_provider_disabled") return true;
+  return (error.status ?? 0) >= 500 && /error sending/i.test(error.message ?? "");
+}
+
+export function mapAuthError(error: RawAuthError, dict: AuthErrorDict): string {
+  const code = error.code ?? "";
+  if (isEmailSendFailure(error)) {
+    return dict.emailSendFailed;
+  }
   switch (code) {
     case "invalid_credentials":
       return dict.invalidCredentials;

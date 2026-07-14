@@ -80,6 +80,21 @@ and sent from a generic address) with Resend, sending from your own verified
 domain. While you're in there, raise the auth email rate limits — the shared
 SMTP default is far too low for real signup volume.
 
+Three things silently break this, all of them producing the same symptom (no
+email, no bounce, nothing in spam — see Troubleshooting below):
+
+- **Username must be the literal string `resend`**, not your Resend account
+  email and not the API key. Anything else → SMTP `535`.
+- **Password must be a live Resend API key.** Rotating or deleting the key in
+  Resend does not update Supabase — Supabase keeps presenting the dead key and
+  every send fails.
+- **The sender domain must be verified in Resend.** Resend refuses mail from
+  unverified domains, so setting the sender to `auth@reelspy.dev` before step 4
+  completes breaks every auth email.
+
+After changing anything here, run `npm run check:email you@example.com` (see
+Troubleshooting) rather than trusting the dashboard's "save" toast.
+
 ## 6. Supabase — branded email templates
 
 **Auth → Templates.** The architecture decision here matters: these links use
@@ -226,6 +241,46 @@ Resend is **send-only** — it doesn't receive mail. Pick one:
   `majd.sayed.taha@gmail.com`.
 - **ImprovMX** (free tier, works with any DNS provider) → same forwarding
   setup via an MX + TXT record.
+
+---
+
+## Troubleshooting: no auth emails arriving
+
+Symptom: signup and password-reset emails appear nowhere — not the inbox, not
+spam. **Do not start with DNS or spam filters.** Nothing arriving *anywhere* is
+the signature of mail that never left Supabase, and Supabase records exactly why.
+
+Run the diagnostic first — it reproduces a real send and reports the failure:
+
+```bash
+npm run check:email you@example.com   # must be a REAL registered account
+```
+
+Supabase short-circuits `/recover` for unknown addresses (anti-enumeration) and
+returns 200 without touching SMTP, so an unregistered address gives a false
+all-clear. When SMTP is healthy this really does send you a reset email — that
+email landing in your inbox *is* the passing test.
+
+To read the raw truth, Supabase Dashboard → **Logs → Auth**, filter on `/recover`
+or `/signup`. A healthy send is a `200`. A broken one looks like:
+
+```
+500: Error sending recovery email    535 "Authentication credentials invalid"
+```
+
+Decoder for what you'll see there:
+
+| What the log says | What it means |
+|---|---|
+| `535 Authentication credentials invalid` | Supabase's SMTP username/password are wrong. Username must be literally `resend`; password must be a **live** Resend API key. This is what a rotated/deleted key looks like. |
+| `450` / `550` naming the domain | Sender domain isn't verified in Resend (step 4), or the sender address is on a domain Resend doesn't own. |
+| `over_email_send_rate_limit` (429) | Auth rate limit, not a real outage. Raise it in Auth → Rate Limits. |
+| `200` but still no email | Now — and only now — it's a downstream delivery problem. Check Resend → **Emails** for the delivery/bounce event, then SPF/DKIM/DMARC. |
+
+Note the app no longer hides this: a send failure surfaces as "our mail provider
+rejected it" on `/forgot-password` and `/signup` instead of the old fake
+"check your inbox" (`isEmailSendFailure` in `lib/auth/errors.ts`). If a user
+reports that message, go straight to the Auth logs.
 
 ---
 

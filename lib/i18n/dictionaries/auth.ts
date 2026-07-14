@@ -80,6 +80,8 @@ const en = {
       samePassword: "New password must be different from your current password.",
       otpExpired: "This link has expired. Please request a new one.",
       overEmailSendRateLimit: "Too many requests right now. Please wait a few minutes and try again.",
+      emailSendFailed:
+        "We couldn't send that email — our mail provider rejected it. This is on our side, not yours. Please contact support@reelspy.dev.",
       generic: "Something went wrong. Please try again.",
     },
   },
@@ -157,6 +159,8 @@ export const authAr: AuthDict = {
       samePassword: "يجب أن تختلف كلمة المرور الجديدة عن كلمة المرور الحالية.",
       otpExpired: "انتهت صلاحية هذا الرابط. يرجى طلب رابط جديد.",
       overEmailSendRateLimit: "محاولات كثيرة جدًا الآن. يرجى الانتظار بضع دقائق ثم إعادة المحاولة.",
+      emailSendFailed:
+        "تعذّر إرسال البريد الإلكتروني — رفضه مزوّد البريد لدينا. المشكلة من جانبنا وليست منك. يرجى التواصل مع support@reelspy.dev.",
       generic: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
     },
   },
