@@ -1112,3 +1112,46 @@ create policy "Users manage own publish-media objects"
     bucket_id = 'publish-media'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Admin control dashboard — audit log, support notes, search indexes.        ║
+-- ║ All service-role only (RLS on, no policies, browser grants revoked) and    ║
+-- ║ reachable only behind the admin gate (lib/admin/auth.ts). See migrations   ║
+-- ║ 20260714100000_admin_audit_log / 20260714100001_admin_notes /              ║
+-- ║ 20260714100002_admin_search_indexes.                                       ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+-- Append-only audit trail: every mutating admin action writes one row.
+create table admin_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references profiles(id),
+  action text not null,
+  target_type text not null,
+  target_id text,
+  payload jsonb not null default '{}'::jsonb,
+  ip text,
+  user_agent text,
+  created_at timestamptz not null default now()
+);
+alter table admin_audit_log enable row level security;  -- no policies: service-role only
+revoke all on table admin_audit_log from anon, authenticated;
+create index admin_audit_log_created_idx on admin_audit_log (created_at desc);
+create index admin_audit_log_target_idx on admin_audit_log (target_type, target_id);
+create index admin_audit_log_admin_idx on admin_audit_log (admin_id, created_at desc);
+
+-- Free-text support notes an admin can attach to a user.
+create table admin_notes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  admin_id uuid not null references profiles(id),
+  note text not null check (char_length(note) <= 4000),
+  created_at timestamptz not null default now()
+);
+alter table admin_notes enable row level security;  -- no policies: service-role only
+revoke all on table admin_notes from anon, authenticated;
+create index admin_notes_user_idx on admin_notes (user_id, created_at desc);
+
+-- Search indexes for the admin user directory (trigram username search + sort).
+create extension if not exists pg_trgm;
+create index profiles_username_trgm_idx on profiles using gin (username gin_trgm_ops);
+create index profiles_created_at_idx on profiles (created_at desc);

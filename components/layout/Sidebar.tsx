@@ -17,6 +17,7 @@ import {
   CreditCard,
   Settings,
   AtSign,
+  ShieldAlert,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -137,6 +138,19 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
               </Link>
             );
           })}
+
+          {/* Founder-only entry into the admin control panel (own route segment
+              outside /dashboard). Rendered only when the profile is is_admin. */}
+          {user?.isAdmin ? (
+            <Link
+              href="/admin"
+              onClick={onClose}
+              className="group relative mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-600 transition hover:bg-amber-500/10 lg:py-2 dark:text-amber-400"
+            >
+              <ShieldAlert className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
+              {dict.nav.admin}
+            </Link>
+          ) : null}
         </nav>
 
         <div className="mt-auto space-y-3 border-t border-border pt-4">

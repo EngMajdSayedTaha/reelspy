@@ -17,6 +17,7 @@ const en = {
     connections: "Connections",
     billing: "Billing",
     settings: "Settings",
+    admin: "Admin",
   },
   titles: {
     dashboard: "Dashboard",
@@ -78,6 +79,7 @@ export const shellAr: ShellDict = {
     connections: "الربط",
     billing: "الاشتراك",
     settings: "الإعدادات",
+    admin: "الإدارة",
   },
   titles: {
     dashboard: "الرئيسية",

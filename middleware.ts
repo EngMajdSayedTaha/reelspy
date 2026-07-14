@@ -73,6 +73,30 @@ export async function middleware(request: NextRequest) {
     return redirect("/login");
   }
 
+  // Admin surface gate (belt; app/admin/layout.tsx is authoritative). A
+  // signed-out visitor goes to login; a signed-in non-admin gets a rewrite to
+  // 404 so the admin area is invisible (never a redirect that would hint the
+  // path exists). is_admin is readable by the authenticated role via the
+  // column grant (see migration profile_is_admin), so the anon-key middleware
+  // client can check it. Fails closed on any error.
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    if (!user) return redirect("/login");
+    let isAdmin = false;
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", user.id)
+        .maybeSingle();
+      isAdmin = data?.is_admin === true;
+    } catch {
+      isAdmin = false;
+    }
+    if (!isAdmin) {
+      return NextResponse.rewrite(new URL("/404", request.url));
+    }
+  }
+
   return supabaseResponse;
 }
 
