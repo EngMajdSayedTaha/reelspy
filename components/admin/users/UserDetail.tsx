@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ShieldAlert, Ban, Trash2, RotateCcw, ExternalLink } from "lucide-react";
+import { ShieldAlert, Ban, Trash2, RotateCcw, ExternalLink, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -141,25 +141,32 @@ export function UserDetail({ userId }: { userId: string }) {
       <Section
         title="Identity"
         action={
-          <Button
-            variant={data.profile.is_admin ? "secondary" : "outline"}
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              act(
-                () =>
-                  requestJson(`/api/admin/users/${userId}/admin-flag`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ is_admin: !data.profile.is_admin }),
-                  }),
-                data.profile.is_admin ? "Admin access revoked" : "Admin access granted"
-              )
-            }
-          >
-            <ShieldAlert className="h-3.5 w-3.5" />
-            {data.profile.is_admin ? "Revoke admin" : "Make admin"}
-          </Button>
+          <div className="flex gap-1">
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/admin/users/${userId}/view`}>
+                <Eye className="h-3.5 w-3.5" /> View as user
+              </Link>
+            </Button>
+            <Button
+              variant={data.profile.is_admin ? "secondary" : "outline"}
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                act(
+                  () =>
+                    requestJson(`/api/admin/users/${userId}/admin-flag`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ is_admin: !data.profile.is_admin }),
+                    }),
+                  data.profile.is_admin ? "Admin access revoked" : "Admin access granted"
+                )
+              }
+            >
+              <ShieldAlert className="h-3.5 w-3.5" />
+              {data.profile.is_admin ? "Revoke admin" : "Make admin"}
+            </Button>
+          </div>
         }
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
