@@ -1,0 +1,51 @@
+{
+  "_readme": "Cold-start seed pool for niche suggestions. Map of niche_slug -> array of IG handles (lowercase, no leading @). niche_slug MUST match slugifyNiche() form (lowercase, single-spaced) and should align with the quiz's CURATED_NICHES (lib/onboarding/niche-chips.ts). Handles are CANDIDATES: scripts/seed-accounts.mjs loads them, then /api/cron/enrich-seeds validates each via Meta Business Discovery — private / non-business / non-existent handles get last_status='not_found' and never surface. This is a curated starter set (target 100-500 per niche); expand it freely. Keys beginning with _ are ignored by the loader.",
+  "real estate": [
+    "ryanserhant", "grantcardone", "barbaracorcoran", "therealdeal", "fredrikeklundny",
+    "mldlosangeles", "the.agency.re", "realtordotcom", "zillow", "compass",
+    "kylerichards18", "dollyparton_realtor", "graham_stephan", "biggerpockets", "seanpankeyy",
+    "tomferryinternational", "kevin.ward.official", "brandonmulrenin", "ricky_carruth", "loidacasero"
+  ],
+  "fitness": [
+    "therock", "chris_heria", "jeffnippard", "kayla_itsines", "simeonpanda",
+    "ulissesworld", "michelle_lewin", "whitneyysimmons", "natacha.oceane", "thefitnessmarshall",
+    "massthetics", "mrandmrsmuscle", "stephanie_buttermore", "jenselter", "krissycela",
+    "brittany_dawn_fitness", "syattfitness", "bretcontreras1", "sohee.fit", "juicedupp"
+  ],
+  "beauty": [
+    "hudabeauty", "jamescharles", "nikkietutorials", "jackieaina", "patrickstarrr",
+    "mannymua733", "makeupbymario", "anastasiabeverlyhills", "fentybeauty", "desiperkins",
+    "chrisspy", "nabela", "mariale", "kandeejohnson", "nyxcosmetics",
+    "rarebeauty", "glossier", "morphebrushes", "colourpopcosmetics", "milkmakeup"
+  ],
+  "fashion": [
+    "chiaraferragni", "camila_coelho", "aimeesong", "negin_mirsalehi", "weworewhat",
+    "leoniehanne", "xeniaadonts", "songofstyle", "wendyslookbook", "juliahengel",
+    "brittanyxavier", "sincerelyjules", "oliviapalermo", "gabriellecaunesil", "manrepeller",
+    "revolve", "prettylittlething", "fashionnova", "zara", "hm"
+  ],
+  "food": [
+    "gordongram", "jamieoliver", "buzzfeedtasty", "halfbakedharvest", "food52",
+    "bonappetitmag", "thefeedfeed", "nytcooking", "joshuaweissman", "brianlagerstrom",
+    "maangchi", "giadadelaurentiis", "pinchofyum", "smittenkitchen", "minimalistbaker",
+    "seriouseats", "chrissyteigen", "thekitchn", "cookieandkate", "budgetbytes"
+  ],
+  "finance": [
+    "grahamstephan", "garyvee", "thebudgetnista", "humphreytalks", "herfirst100k",
+    "ramit", "daveramsey", "personalfinanceclub", "cnbc", "morningbrew",
+    "thefinancetwins", "erikafinance", "viviantu", "yourrichbff", "breakyourbudget",
+    "milansingh_", "financialdietstuff", "wallstreetbets", "investwithqueenie", "the_wealthymom"
+  ],
+  "travel": [
+    "beautifuldestinations", "chrisburkard", "thebucketlistfamily", "doyoutravel", "gypsea_lust",
+    "earthpix", "natgeotravel", "wonderful_places", "muradosmann", "expertvagabond",
+    "saltinourhair", "funforlouis", "hey_ciara", "world_travel_expert", "lostleblanc",
+    "kylefinndefreitas", "travelnoire", "passionpassport", "nomadicmatt", "theblondeabroad"
+  ],
+  "tech": [
+    "mkbhd", "unboxtherapy", "mrwhosetheboss", "ijustine", "theverge",
+    "wired", "techcrunch", "cnet", "engadget", "mrmobile",
+    "austinevans", "sara.dietschy", "arun.maini", "9to5mac", "theunlockr",
+    "gsmarena_official", "digitaltrends", "lewishilsenteger", "danielbuys", "techburner"
+  ]
+}

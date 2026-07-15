@@ -16,6 +16,7 @@ import {
   ALL_NICHES,
   slugifyNiche,
   nicheTrending,
+  seedTrending,
   type NicheSummary,
   type TrendReel,
 } from "@/lib/trends/niche";
@@ -161,6 +162,13 @@ export async function suggestedAccounts(
 
   let fallback = false;
   let reels = opts.nicheSlug ? await rank(opts.nicheSlug) : [];
+  // Cold-start seed pool: when no cross-user data exists for the niche yet, fall
+  // back to the curated seed_accounts pool for that SAME niche before dropping to
+  // the platform-wide pool. Still niche-relevant, so it is NOT counted as a
+  // fallback (that flag means "couldn't use your niche, showing everything").
+  if (reels.length === 0 && opts.nicheSlug) {
+    reels = await seedTrending(admin, { niche: opts.nicheSlug, limit: 60 });
+  }
   if (reels.length === 0) {
     fallback = true;
     reels = await rank(ALL_NICHES);

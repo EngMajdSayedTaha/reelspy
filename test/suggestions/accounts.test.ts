@@ -13,6 +13,8 @@ function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
       eq: () => builder,
       in: () => builder,
       gte: () => builder,
+      order: () => builder,
+      limit: () => builder,
       returns: () => builder,
       then: (resolve: (v: unknown) => unknown) => resolve(result),
     };
@@ -196,5 +198,78 @@ describe("suggestedAccounts", () => {
     });
     expect(accounts).toEqual([]);
     expect(emptyReason).toBe("all-tracked");
+  });
+
+  // Cold-start seed pool: no cross-user data for the niche, but seed_accounts has
+  // curated handles with cached reels. Fixture has NO account_groups /
+  // inspiration_accounts, so nicheTrending returns [] and the seed tier fires.
+  function seedOnlyAdmin() {
+    return fakeAdmin({
+      account_groups: [],
+      inspiration_accounts: [],
+      seed_accounts: [{ ig_username: "seeded", niche_slug: "fitness", priority: 1 }],
+      ig_account_snapshots: [
+        { ig_username: "seeded", followers_count: 20_000, display_name: "Seeded", avatar_url: null },
+      ],
+      ig_reel_snapshots: [
+        {
+          ig_username: "seeded",
+          ig_media_id: "sd1",
+          permalink: "p",
+          caption: "c",
+          thumbnail_url: "t",
+          view_count: 120_000,
+          like_count: 6_000,
+          comment_count: 300,
+          posted_at: iso(1),
+        },
+      ],
+    });
+  }
+
+  it("falls back to the seed pool (niche-relevant, NOT flagged as fallback) when the niche has no cross-user data", async () => {
+    const { accounts, fallback } = await suggestedAccounts(seedOnlyAdmin(), {
+      nicheSlug: "fitness",
+      excludeUsernames: [],
+    });
+    // Still the user's own niche, so fallback stays false (unlike ALL_NICHES).
+    expect(fallback).toBe(false);
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0].igUsername).toBe("seeded");
+  });
+
+  it("still excludes already-tracked handles from the seed pool", async () => {
+    const { accounts, emptyReason } = await suggestedAccounts(seedOnlyAdmin(), {
+      nicheSlug: "fitness",
+      excludeUsernames: ["seeded"],
+    });
+    expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("all-tracked");
+  });
+
+  it("prefers the cross-user pool over the seed pool when both exist", async () => {
+    // realEstateAdmin has cross-user data; seed_accounts is present but for a
+    // handle with no reels, so it can only surface if the seed tier is (wrongly)
+    // reached. The cross-user outlier must win and fallback stays false.
+    const admin = fakeAdmin({
+      account_groups: [{ id: "g1", name: "Real Estate" }],
+      inspiration_accounts: [
+        { user_id: "u1", ig_username: "outlier", group_id: "g1" },
+        { user_id: "u2", ig_username: "baseline", group_id: "g1" },
+      ],
+      seed_accounts: [{ ig_username: "seedonly", niche_slug: "real estate", priority: 1 }],
+      ig_account_snapshots: [
+        { ig_username: "outlier", followers_count: 5_000, display_name: "Outlier", avatar_url: null },
+        { ig_username: "baseline", followers_count: 1_000_000, display_name: "Baseline", avatar_url: null },
+      ],
+      ig_reel_snapshots: REEL_SNAPSHOTS.filter((r) => r.ig_username !== "already-tracked"),
+    });
+    const { accounts, fallback } = await suggestedAccounts(admin, {
+      nicheSlug: "real estate",
+      excludeUsernames: [],
+    });
+    expect(fallback).toBe(false);
+    expect(accounts[0].igUsername).toBe("outlier");
+    expect(accounts.some((a) => a.igUsername === "seedonly")).toBe(false);
   });
 });

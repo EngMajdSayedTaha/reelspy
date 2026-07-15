@@ -8,7 +8,7 @@ import { track } from "@/lib/analytics/track";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf, isUnlimited } from "@/lib/billing/entitlements";
 import { isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
-import { listNiches } from "@/lib/trends/niche";
+import { listNiches, listSeedNiches } from "@/lib/trends/niche";
 import { resolveNicheSlug } from "@/lib/suggestions/accounts";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -233,7 +233,16 @@ export async function completeQuiz(answers: QuizAnswers): Promise<OnboardingActi
   };
 
   const admin = createAdminClient();
-  const niches = await listNiches(admin).catch(() => []);
+  // Union cross-user niches with the curated seed niches so a fresh deploy (no
+  // cross-user data yet) can still resolve the creator's free-text niche onto a
+  // seeded niche — otherwise niche_slug stays null and the seed suggestions never
+  // fire. Cross-user entries win on overlap.
+  const [crossUserNiches, seedNiches] = await Promise.all([
+    listNiches(admin).catch(() => []),
+    listSeedNiches(admin).catch(() => []),
+  ]);
+  const seenNiches = new Set(crossUserNiches.map((n) => n.niche));
+  const niches = [...crossUserNiches, ...seedNiches.filter((n) => !seenNiches.has(n.niche))];
   const nicheSlug = await resolveNicheSlug(niche, niches);
 
   const { error } = await supabase
