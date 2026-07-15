@@ -61,7 +61,7 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
         <div className="mb-8 flex items-center justify-between px-2">
           <div className="flex items-center gap-2">
             <span className="text-lg font-semibold tracking-tight text-foreground">ReelSpy</span>
-            <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+            <span className="rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning">
               Admin
             </span>
           </div>

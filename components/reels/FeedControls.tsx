@@ -100,7 +100,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
           <button
             type="submit"
             disabled={isPending}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover disabled:opacity-60"
           >
             {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />

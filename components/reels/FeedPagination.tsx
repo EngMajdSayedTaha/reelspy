@@ -114,7 +114,7 @@ function PageButton({
       onClick={() => onClick(n)}
       className={
         active
-          ? "h-8 min-w-8 rounded-lg bg-primary px-2 text-sm font-semibold text-primary-foreground"
+          ? "h-8 min-w-8 rounded-lg bg-primary-tint px-2 text-sm font-semibold text-brand"
           : "h-8 min-w-8 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-40"
       }
     >

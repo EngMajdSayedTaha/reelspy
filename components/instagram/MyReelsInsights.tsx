@@ -360,7 +360,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                   onClick={() => setTypeFilter(key)}
                   className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     typeFilter === key
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary-tint text-brand"
                       : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
                   }`}
                 >
@@ -436,7 +436,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                         {isReelItem(item) ? dict.reelBadge : dict.postBadge}
                       </span>
                       {isTop ? (
-                        <span className="absolute end-2 top-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                        <span className="absolute end-2 top-2 flex items-center gap-1 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-semibold text-brand backdrop-blur-sm">
                           <TrendingUp className="h-3 w-3" />
                           {dict.topPerformerBadge}
                         </span>

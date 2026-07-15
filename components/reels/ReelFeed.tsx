@@ -85,7 +85,7 @@ export function ReelFeed({
           <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
             <Link
               href="/dashboard/onboarding"
-              className="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+              className="flex h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
             >
               {dict.setupCta}
             </Link>

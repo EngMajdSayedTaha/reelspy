@@ -12,7 +12,8 @@ const en = {
     system: "System",
     picker: {
       title: "Accent color",
-      description: "Pick the accent color used for buttons, links, and highlights.",
+      description:
+        "Pick a color pair: the main color drives buttons and links, its paired accent drives charts and highlights.",
       savedToast: "Theme saved",
       saveError: "Couldn't save your theme. Please try again.",
     },
@@ -40,7 +41,8 @@ export const themeAr: ThemeDict = {
     system: "النظام",
     picker: {
       title: "لون التمييز",
-      description: "اختر لون التمييز المستخدم للأزرار والروابط والعناصر البارزة.",
+      description:
+        "اختر زوجًا من الألوان: اللون الرئيسي للأزرار والروابط، واللون المرافق للرسوم البيانية والعناصر البارزة.",
       savedToast: "تم حفظ السمة",
       saveError: "تعذّر حفظ السمة. حاول مرة أخرى.",
     },

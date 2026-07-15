@@ -23,9 +23,9 @@ export function StatCard({
     tone === "danger"
       ? "ring-destructive/30"
       : tone === "warning"
-        ? "ring-amber-500/30"
+        ? "ring-warning/30"
         : tone === "success"
-          ? "ring-emerald-500/30"
+          ? "ring-success/30"
           : "ring-foreground/10";
 
   const body = (

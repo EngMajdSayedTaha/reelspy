@@ -62,7 +62,7 @@ export default async function ViewAsUserPage({ params }: { params: Promise<{ id:
         <ArrowLeft className="h-4 w-4" /> Back to user
       </Link>
 
-      <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-700 dark:text-amber-300">
+      <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-warning">
         <Eye className="h-4 w-4" />
         <span className="text-sm font-medium">Viewing as @{username} (read-only)</span>
       </div>
