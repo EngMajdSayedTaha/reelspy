@@ -7,24 +7,24 @@
 // cross-device source of truth.
 
 export const COLOR_THEMES = [
+  "mono",
   "volt",
   "rose",
   "ocean",
   "violet",
   "emerald",
   "sunset",
-  "mono",
   "cyan",
 ] as const;
 
 export type ColorTheme = (typeof COLOR_THEMES)[number];
 
-export const DEFAULT_COLOR_THEME: ColorTheme = "volt";
+export const DEFAULT_COLOR_THEME: ColorTheme = "mono";
 
 export const THEME_COOKIE = "reelspy_theme";
 
-// Tolerant parse: anything unknown falls back to the default (volt), which has
-// no CSS override block — the base :root/.dark palette IS volt.
+// Tolerant parse: anything unknown falls back to the default (mono), which has
+// no CSS override block — the base :root/.dark palette IS mono.
 export function normalizeColorTheme(value: unknown): ColorTheme {
   return (COLOR_THEMES as readonly unknown[]).includes(value)
     ? (value as ColorTheme)
