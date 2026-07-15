@@ -11,6 +11,7 @@ export const maxDuration = 300; // some cron jobs (run-jobs) are long-running
 // these exact names are reachable — a name off this list is rejected, so this
 // endpoint can never be used to fetch an arbitrary URL.
 const CRON_ROUTES = [
+  "enrich-seeds",
   "ig-cookie-health",
   "poll-comments",
   "poll-youtube-comments",

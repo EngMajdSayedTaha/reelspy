@@ -9,6 +9,7 @@ import { requestJson, notifyError } from "@/lib/utils/api";
 
 const CRON_ROUTES: { name: string; desc: string }[] = [
   { name: "run-jobs", desc: "Work the durable job queue" },
+  { name: "enrich-seeds", desc: "Validate + enrich seed accounts via Meta" },
   { name: "refresh-snapshots", desc: "Refresh IG account/reel snapshots" },
   { name: "refresh-tokens", desc: "Refresh expiring IG/FB tokens" },
   { name: "poll-comments", desc: "Poll IG comments for auto-reply" },
