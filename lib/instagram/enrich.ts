@@ -32,13 +32,28 @@ export async function enrichSeedAccounts(
 ): Promise<SeedEnrichStats> {
   const ttlSeconds = opts.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
-  const { data: rows } = await admin.from("seed_accounts").select("ig_username");
-  const allUsernames = Array.from(
-    new Set((rows ?? []).map((r) => String(r.ig_username).toLowerCase()))
-  );
+  const { data: rows } = await admin.from("seed_accounts").select("ig_username, niche_slug");
+  const nicheByUsername = new Map<string, string>();
+  for (const r of rows ?? []) {
+    nicheByUsername.set(String(r.ig_username).toLowerCase(), String(r.niche_slug));
+  }
+  const allUsernames = Array.from(nicheByUsername.keys());
   if (allUsernames.length === 0) {
     return { seedTotal: 0, candidates: 0, processed: 0, refreshed: 0, remaining: 0 };
   }
+
+  // Spend the limited Meta budget where it matters: seed accounts whose niche a
+  // real user has actually set get enriched first, so a fresh user's own niche
+  // populates on the first run instead of after draining all 2k+ seeds.
+  const { data: profileRows } = await admin
+    .from("profiles")
+    .select("niche_slug")
+    .not("niche_slug", "is", null);
+  const activeNiches = new Set(
+    (profileRows ?? []).map((p) => String(p.niche_slug).toLowerCase())
+  );
+  const isActive = (u: string): boolean =>
+    activeNiches.has((nicheByUsername.get(u) ?? "").toLowerCase());
 
   const { data: snaps } = await admin
     .from("ig_account_snapshots")
@@ -62,9 +77,13 @@ export async function enrichSeedAccounts(
   const staleAll = allUsernames.filter(isStale);
   const stale = [...staleAll]
     .sort((a, b) => {
+      // Active-niche accounts (a real user set that niche) come first.
+      const aActive = isActive(a) ? 0 : 1;
+      const bActive = isActive(b) ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
       const ta = freshness.get(a)?.at ? new Date(freshness.get(a)!.at as string).getTime() : 0;
       const tb = freshness.get(b)?.at ? new Date(freshness.get(b)!.at as string).getTime() : 0;
-      return ta - tb; // oldest / never-fetched first
+      return ta - tb; // then oldest / never-fetched first
     })
     .slice(0, opts.batch);
 
