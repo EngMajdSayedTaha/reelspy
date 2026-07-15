@@ -45,9 +45,14 @@ export function mapAuthError(error: RawAuthError, dict: AuthErrorDict): string {
     case "over_email_send_rate_limit":
       return dict.overEmailSendRateLimit;
     case "user_already_exists":
+      // Deliberate product decision: we tell people their email is taken rather
+      // than leave them staring at a "check your inbox" screen for a mail that
+      // will never come. It does confirm account existence, but /login already
+      // does that via "Incorrect email or password".
+      return dict.userAlreadyExists;
     case "user_not_found":
-      // Anti-enumeration: callers should generally avoid surfacing these
-      // distinctly, but keep a safe generic fallback in case one leaks through.
+      // Still anti-enumeration: password reset must not reveal who has an
+      // account, since anyone can trigger it for any address.
       return dict.generic;
     default:
       return dict.generic;

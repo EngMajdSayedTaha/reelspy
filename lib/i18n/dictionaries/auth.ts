@@ -36,9 +36,12 @@ const en = {
     haveAccountPrompt: "Already have an account?",
     signInLink: "Sign in",
     checkEmailHeading: "Check your email",
-    checkEmailBody: "If that email isn't already registered, we've sent a confirmation link to activate your account.",
+    checkEmailBody: "We've sent a confirmation link to activate your account.",
     resendEmailButton: "Resend email",
     resendEmailCooldown: "Resend in {seconds}s",
+    existingAccountHeading: "You already have an account",
+    existingAccountBody:
+      "An account with this email already exists, so we didn't send a confirmation link. Sign in instead — or reset your password if you've forgotten it.",
 
     // /forgot-password
     forgotPasswordHeading: "Forgot your password?",
@@ -82,6 +85,7 @@ const en = {
       overEmailSendRateLimit: "Too many requests right now. Please wait a few minutes and try again.",
       emailSendFailed:
         "We couldn't send that email — our mail provider rejected it. This is on our side, not yours. Please contact support@reelspy.dev.",
+      userAlreadyExists: "This email is already registered. Sign in instead.",
       generic: "Something went wrong. Please try again.",
     },
   },
@@ -119,9 +123,12 @@ export const authAr: AuthDict = {
     haveAccountPrompt: "لديك حساب بالفعل؟",
     signInLink: "تسجيل الدخول",
     checkEmailHeading: "تحقق من بريدك الإلكتروني",
-    checkEmailBody: "إذا لم يكن هذا البريد مسجّلاً بالفعل، فقد أرسلنا رابط تفعيل لحسابك.",
+    checkEmailBody: "أرسلنا رابط تفعيل لحسابك.",
     resendEmailButton: "إعادة إرسال البريد",
     resendEmailCooldown: "إعادة الإرسال خلال {seconds} ثانية",
+    existingAccountHeading: "لديك حساب بالفعل",
+    existingAccountBody:
+      "يوجد حساب مسجّل بهذا البريد الإلكتروني، لذلك لم نرسل رابط تفعيل. سجّل الدخول بدلاً من ذلك — أو أعد تعيين كلمة المرور إذا نسيتها.",
 
     forgotPasswordHeading: "نسيت كلمة المرور؟",
     forgotPasswordDescription: "أدخل بريدك الإلكتروني وسنرسل لك رابطًا لإعادة تعيين كلمة المرور.",
@@ -161,6 +168,7 @@ export const authAr: AuthDict = {
       overEmailSendRateLimit: "محاولات كثيرة جدًا الآن. يرجى الانتظار بضع دقائق ثم إعادة المحاولة.",
       emailSendFailed:
         "تعذّر إرسال البريد الإلكتروني — رفضه مزوّد البريد لدينا. المشكلة من جانبنا وليست منك. يرجى التواصل مع support@reelspy.dev.",
+      userAlreadyExists: "هذا البريد الإلكتروني مسجّل بالفعل. سجّل الدخول بدلاً من ذلك.",
       generic: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
     },
   },

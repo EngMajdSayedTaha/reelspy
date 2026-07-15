@@ -34,6 +34,7 @@ function SignupForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
+  const [existingAccount, setExistingAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
 
@@ -114,12 +115,16 @@ function SignupForm() {
       return;
     }
 
-    // Whether this is a brand-new signup or a re-attempt on an already-
-    // registered (and already-confirmed) email, Supabase returns a 200 with
-    // no session either way — identities.length === 0 marks the latter. Show
-    // the same "check your email" state for both (anti-enumeration): a real
-    // new signup gets a confirmation email; a duplicate gets nothing but
-    // can't tell the difference from the response.
+    // Supabase answers a duplicate signup with a 200 that mimics a fresh one —
+    // no session, and even a fabricated `confirmation_sent_at` — but sends no
+    // email to an already-confirmed address. An empty `identities` array is the
+    // only tell. Without this branch the person sits on "check your email"
+    // waiting for a mail that was never sent.
+    if ((data.user?.identities?.length ?? 0) === 0) {
+      setExistingAccount(true);
+      return;
+    }
+
     setCheckEmail(true);
     setCooldown(RESEND_COOLDOWN_SECONDS);
   };
@@ -143,6 +148,25 @@ function SignupForm() {
     }
     setCooldown(RESEND_COOLDOWN_SECONDS);
   };
+
+  if (existingAccount) {
+    return (
+      <AuthShell>
+        <h2 className="text-lg font-semibold text-foreground">{auth.existingAccountHeading}</h2>
+        <p className="text-sm text-subtle">{auth.existingAccountBody}</p>
+
+        <Button className="w-full" onClick={() => router.push("/login")} type="button">
+          {auth.signInLink}
+        </Button>
+
+        <p className="text-center text-sm text-subtle">
+          <a href="/forgot-password" className="text-brand hover:underline">
+            {auth.forgotPasswordLink}
+          </a>
+        </p>
+      </AuthShell>
+    );
+  }
 
   if (checkEmail) {
     return (
