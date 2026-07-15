@@ -169,7 +169,13 @@ export async function suggestedAccounts(
   if (reels.length === 0 && opts.nicheSlug) {
     reels = await seedTrending(admin, { niche: opts.nicheSlug, limit: 60 });
   }
-  if (reels.length === 0) {
+  // Only drop to the platform-wide pool for users who have NOT set a niche yet.
+  // A user with a resolved niche must never be shown off-niche accounts: an
+  // empty "we're gathering accounts for your niche" state is better than a
+  // misleading cross-niche list (e.g. a fitness creator seeing AI/dev accounts
+  // just because those happen to be the only enriched pool right now). Their
+  // niche fills in as cross-user data grows and seed enrichment runs.
+  if (reels.length === 0 && !opts.nicheSlug) {
     fallback = true;
     reels = await rank(ALL_NICHES);
   }

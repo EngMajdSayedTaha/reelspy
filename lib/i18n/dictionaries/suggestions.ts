@@ -17,7 +17,7 @@ const en = {
     emptyAllTracked:
       "You're already tracking every top account ReelSpy has spotted in your niche — nice work. New suggestions will show up as more creators join the Niche Radar.",
     emptyNoData:
-      "No suggestions yet — ReelSpy needs more tracked accounts and recent reel activity in this niche before it can suggest cross-user accounts.",
+      "We're gathering top accounts for your niche — suggestions will appear here shortly as ReelSpy pulls in their latest reels. Check back soon.",
     noNicheHint: "Tell us your niche to get tailored account suggestions.",
     noNicheCta: "Set your niche",
   },
@@ -38,7 +38,7 @@ export const suggestionsAr: SuggestionsDict = {
     emptyAllTracked:
       "أنت بالفعل تتابع كل حساب رائج رصده ReelSpy في مجالك — عمل رائع. ستظهر اقتراحات جديدة كلما انضم مبدعون آخرون إلى رادار المجال.",
     emptyNoData:
-      "لا توجد اقتراحات بعد — يحتاج ReelSpy إلى مزيد من الحسابات المتابَعة ونشاط الريلز الحديث في هذا المجال قبل أن يتمكن من اقتراح حسابات من مستخدمين آخرين.",
+      "نجمع الآن أبرز الحسابات في مجالك — ستظهر الاقتراحات هنا قريبًا بمجرد أن يجلب ReelSpy أحدث ريلزها. عاود التحقق قريبًا.",
     noNicheHint: "أخبرنا بمجالك لنقترح لك حسابات مناسبة.",
     noNicheCta: "حدد مجالك",
   },

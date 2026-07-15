@@ -155,7 +155,7 @@ describe("suggestedAccounts", () => {
     expect(accounts[0].followers).toBe(1_000_000);
   });
 
-  it("falls back to ALL_NICHES and flags it when the niche has no data", async () => {
+  it("falls back to ALL_NICHES ONLY for a user with no niche set", async () => {
     const admin = fakeAdmin({
       account_groups: [],
       inspiration_accounts: [{ user_id: "u1", ig_username: "solo", group_id: null }],
@@ -178,12 +178,46 @@ describe("suggestedAccounts", () => {
     });
 
     const { accounts, fallback } = await suggestedAccounts(admin, {
-      nicheSlug: "ghost-niche",
+      nicheSlug: null,
       excludeUsernames: [],
     });
     expect(fallback).toBe(true);
     expect(accounts).toHaveLength(1);
     expect(accounts[0].igUsername).toBe("solo");
+  });
+
+  it("never shows off-niche accounts to a user WITH a niche — empty 'no-data', not ALL_NICHES", async () => {
+    // A fitness creator must not be shown the platform-wide pool (e.g. AI/dev
+    // accounts) just because their own niche has no data yet. Better an honest
+    // "gathering accounts" empty state than a misleading cross-niche list.
+    const admin = fakeAdmin({
+      account_groups: [],
+      inspiration_accounts: [{ user_id: "u1", ig_username: "solo", group_id: null }],
+      ig_account_snapshots: [
+        { ig_username: "solo", followers_count: 10_000, display_name: "Solo", avatar_url: null },
+      ],
+      ig_reel_snapshots: [
+        {
+          ig_username: "solo",
+          ig_media_id: "s1",
+          permalink: "p",
+          caption: "c",
+          thumbnail_url: "t",
+          view_count: 50_000,
+          like_count: 2_000,
+          comment_count: 100,
+          posted_at: iso(1),
+        },
+      ],
+    });
+
+    const { accounts, fallback, emptyReason } = await suggestedAccounts(admin, {
+      nicheSlug: "ghost-niche",
+      excludeUsernames: [],
+    });
+    expect(fallback).toBe(false);
+    expect(accounts).toEqual([]);
+    expect(emptyReason).toBe("no-data");
   });
 
   it("returns an empty, non-fallback result when there is no data anywhere", async () => {
