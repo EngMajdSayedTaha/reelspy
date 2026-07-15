@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMetaRateLimiter, SYSTEM_USER_ID } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapshots";
+import { enrichSeedAccounts } from "@/lib/instagram/enrich";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { numEnv } from "@/lib/utils/env";
 
@@ -13,6 +14,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const BATCH = numEnv("SNAPSHOT_REFRESH_BATCH", 50);
+const SEED_BATCH = numEnv("SEED_ENRICH_BATCH", 50);
 const TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600);
 const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
 
@@ -91,11 +93,24 @@ export async function GET(request: Request) {
     }
   }
 
+  // Also drain a batch of the cold-start seed pool (seed_accounts) with whatever
+  // Meta budget remains this run. Live tracked accounts above are processed first
+  // so seeds never starve them; skipped entirely if the token died or we're being
+  // throttled. This is what keeps the seed suggestions warm daily without a
+  // dedicated cron (the Hobby plan caps a project at 2 cron jobs).
+  let seed = null;
+  if (!rateLimited && !invalidToken) {
+    seed = await enrichSeedAccounts(admin, limiter, caller, { batch: SEED_BATCH });
+    rateLimited = rateLimited || !!seed.rateLimited;
+    invalidToken = invalidToken || !!seed.invalidToken;
+  }
+
   return NextResponse.json({
     ok: true,
     candidates: stale.length,
     processed,
     refreshed,
+    seed: seed ?? undefined,
     rateLimited: rateLimited || undefined,
     invalidToken: invalidToken || undefined,
   });

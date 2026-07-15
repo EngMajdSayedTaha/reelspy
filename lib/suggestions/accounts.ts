@@ -184,8 +184,11 @@ export async function suggestedAccounts(
     }
   }
 
+  // Order by audience size (followers desc) so the biggest, most-recognizable
+  // creators in the niche lead — the "who to follow in your niche" ask. Ties
+  // (or missing follower counts) fall back to viral outperformance.
   const top = [...byAccount.values()]
-    .sort((a, b) => b.outperformRatio - a.outperformRatio || b.relativeScore - a.relativeScore)
+    .sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0) || b.outperformRatio - a.outperformRatio)
     .slice(0, limit);
 
   if (top.length === 0) {

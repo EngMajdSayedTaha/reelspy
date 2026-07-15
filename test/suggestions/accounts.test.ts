@@ -143,14 +143,16 @@ describe("suggestedAccounts", () => {
     expect(accounts.some((a) => a.igUsername === "already-tracked")).toBe(false);
   });
 
-  it("ranks the size-controlled outlier above the big baseline account", async () => {
+  it("orders suggestions by follower count, biggest accounts first", async () => {
     const { accounts, fallback } = await suggestedAccounts(realEstateAdmin(), {
       nicheSlug: "real estate",
       excludeUsernames: ["already-tracked"],
     });
     expect(fallback).toBe(false);
-    expect(accounts[0].igUsername).toBe("outlier");
-    expect(accounts[0].topReel?.outperformRatio).toBeGreaterThan(1.5);
+    // Followers desc: baseline (1M) leads outlier (5k), regardless of viral
+    // outperformance — the "who to follow in your niche" ordering.
+    expect(accounts.map((a) => a.igUsername)).toEqual(["baseline", "outlier"]);
+    expect(accounts[0].followers).toBe(1_000_000);
   });
 
   it("falls back to ALL_NICHES and flags it when the niche has no data", async () => {
@@ -269,7 +271,9 @@ describe("suggestedAccounts", () => {
       excludeUsernames: [],
     });
     expect(fallback).toBe(false);
-    expect(accounts[0].igUsername).toBe("outlier");
+    // Cross-user accounts (ordered followers desc: baseline then outlier); the
+    // seed-only handle never surfaces because the cross-user pool wasn't empty.
+    expect(accounts.map((a) => a.igUsername)).toEqual(["baseline", "outlier"]);
     expect(accounts.some((a) => a.igUsername === "seedonly")).toBe(false);
   });
 });
