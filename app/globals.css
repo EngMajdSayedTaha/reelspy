@@ -8,14 +8,15 @@
 
 /* Light theme (default). `.dark` below overrides for dark mode. Every preset
    is a DUOTONE: `--primary` (solid fill, main CTA only) paired with
-   `--accent-brand` (secondary highlight + chart-2). `--brand` is the *readable*
-   variant of primary for text/icons (dark gold on light, yellow on dark) since
-   pure yellow text is invisible on white. `--primary-hover`/`--primary-tint`
-   are derived with color-mix() and declared ONLY here and in `.dark` — :root,
-   .dark and html[data-theme=X] all target <html>, so the mix re-resolves per
-   preset automatically; never redeclare them on a descendant. Status colors are
-   semantic tokens (`--success`/`--warning`/`--danger`/`--info`) so components
-   never hardcode Tailwind palette shades. */
+   `--accent-brand` (secondary highlight + chart-2). The base palette is "mono":
+   a near-black primary on light / near-white on dark, paired with a blue accent
+   — the app default. `--brand` is the *readable* text/icon variant of the
+   primary hue. `--primary-hover`/`--primary-tint` are derived with color-mix()
+   and declared ONLY here and in `.dark` — :root, .dark and html[data-theme=X]
+   all target <html>, so the mix re-resolves per preset automatically; never
+   redeclare them on a descendant. Status colors are semantic tokens
+   (`--success`/`--warning`/`--danger`/`--info`) so components never hardcode
+   Tailwind palette shades. */
 :root {
   --background: #f7f7f8;
   --foreground: #18181b;
@@ -23,8 +24,8 @@
   --card-foreground: #18181b;
   --popover: #ffffff;
   --popover-foreground: #18181b;
-  --primary: #f9e400;
-  --primary-foreground: #121212;
+  --primary: #18181b;
+  --primary-foreground: #ffffff;
   --secondary: #f1f1f3;
   --secondary-foreground: #18181b;
   --muted: #f1f1f3;
@@ -39,29 +40,27 @@
   --info: #0284c7;
   --border: #e4e4e7;
   --input: #e4e4e7;
-  /* Ring must clear 3:1 against white surfaces — pure yellow is 1.3:1, so the
-     light ring uses the readable brand gold. */
-  --ring: #a16207;
+  --ring: #18181b;
   --surface-2: #f1f1f3;
   --border-strong: #d4d4d8;
   --subtle: #71717a;
-  --brand: #a16207;
+  --brand: #3f3f46;
   /* Derived accent states — light hover darkens the fill (a solid mix, unlike
      /80 alpha which lets the page bleed through); tint is the subtle surface
      for selected/active states. Defined once, re-resolve per preset. */
   --primary-hover: color-mix(in oklab, var(--primary) 88%, black);
   --primary-tint: color-mix(in srgb, var(--primary) 14%, transparent);
-  /* Paired accent of the duotone (volt = violet). */
-  --accent-brand: #6d28d9;
+  /* Paired accent of the duotone (mono = blue). */
+  --accent-brand: #1d4ed8;
   --accent-brand-foreground: #ffffff;
   --radius: 0.75rem;
   /* Chart series palette (SVG fills/strokes in InsightsCharts). --chart-1 is
      the hero series (preset primary hue) and --chart-2 follows the preset's
      paired accent; the rest are fixed distinguishable hues per mode. */
-  --chart-1: #a16207;
-  --chart-2: #6d28d9;
+  --chart-1: #3f3f46;
+  --chart-2: #1d4ed8;
   --chart-3: #db2777;
-  --chart-4: #2563eb;
+  --chart-4: #6d28d9; /* blue is now chart-2; slot 4 takes violet */
   --chart-5: #059669;
   --chart-6: #d97706;
   --chart-7: #0891b2;
@@ -81,7 +80,7 @@
   --card-foreground: #e7e7ea;
   --popover: #26262f;
   --popover-foreground: #e7e7ea;
-  --primary: #f9e400;
+  --primary: #f4f4f5;
   --primary-foreground: #121212;
   --secondary: #26262e;
   --secondary-foreground: #e7e7ea;
@@ -97,20 +96,20 @@
   --info: #38bdf8;
   --border: #2d2d37;
   --input: #2d2d37;
-  --ring: #f9e400;
+  --ring: #f4f4f5;
   --surface-2: #212129;
   --border-strong: #3d3d49;
   --subtle: #8a8a95;
-  --brand: #f9e400;
+  --brand: #d4d4d8;
   /* Dark hover brightens (dark-mode primaries are light pastels). */
   --primary-hover: color-mix(in oklab, var(--primary) 88%, white);
   --primary-tint: color-mix(in srgb, var(--primary) 12%, transparent);
-  --accent-brand: #a78bfa;
-  --accent-brand-foreground: #121212;
-  --chart-1: #f9e400;
-  --chart-2: #a78bfa;
+  --accent-brand: #60a5fa;
+  --accent-brand-foreground: #101014;
+  --chart-1: #f4f4f5;
+  --chart-2: #60a5fa;
   --chart-3: #f472b6;
-  --chart-4: #60a5fa;
+  --chart-4: #a78bfa; /* blue is now chart-2; slot 4 takes violet */
   --chart-5: #34d399;
   --chart-6: #fbbf24;
   --chart-7: #22d3ee;
@@ -122,9 +121,9 @@
 /* Preset color themes — a second axis orthogonal to light/dark, driven by
    `data-theme` on <html> (see lib/color-theme.ts). Each preset is a DUOTONE:
    it overrides the primary tokens plus its paired `--accent-brand`; neutrals
-   and the derived --primary-hover/--primary-tint stay shared. "volt" (yellow +
-   violet, the default) has no block: the base :root/.dark values above ARE
-   volt, so an unknown or missing preset degrades to it. All pairings are WCAG
+   and the derived --primary-hover/--primary-tint stay shared. "mono" (near-
+   black/white + blue, the default) has no block: the base :root/.dark values
+   above ARE mono, so an unknown or missing preset degrades to it. All pairings are WCAG
    AA: primary-foreground ≥4.5:1 on primary, brand ≥4.5:1 on the page
    background, accent-brand-foreground ≥4.5:1 on accent-brand, ring ≥3:1 on
    surfaces. `--chart-2` follows the accent; when the accent reuses a hue from
@@ -245,27 +244,30 @@ html.dark[data-theme="sunset"] {
   --chart-3: #a78bfa;
 }
 
-html[data-theme="mono"] {
-  --primary: #18181b;
-  --primary-foreground: #ffffff;
-  --ring: #18181b;
-  --brand: #3f3f46;
-  --accent-brand: #1d4ed8;
-  --accent-brand-foreground: #ffffff;
-  --chart-1: #3f3f46;
-  --chart-2: #1d4ed8;
-  --chart-4: #6d28d9; /* blue moved to chart-2; slot 4 takes violet */
-}
-html.dark[data-theme="mono"] {
-  --primary: #f4f4f5;
+/* volt — yellow + violet. The old default; now an explicit preset since the
+   base palette is mono. chart-4 is restored to blue because the mono base moved
+   slot 4 to violet, which would collide with volt's violet chart-2. */
+html[data-theme="volt"] {
+  --primary: #f9e400;
   --primary-foreground: #121212;
-  --ring: #f4f4f5;
-  --brand: #d4d4d8;
-  --accent-brand: #60a5fa;
-  --accent-brand-foreground: #101014;
-  --chart-1: #f4f4f5;
-  --chart-2: #60a5fa;
-  --chart-4: #a78bfa;
+  --ring: #a16207;
+  --brand: #a16207;
+  --accent-brand: #6d28d9;
+  --accent-brand-foreground: #ffffff;
+  --chart-1: #a16207;
+  --chart-2: #6d28d9;
+  --chart-4: #2563eb;
+}
+html.dark[data-theme="volt"] {
+  --primary: #f9e400;
+  --primary-foreground: #121212;
+  --ring: #f9e400;
+  --brand: #f9e400;
+  --accent-brand: #a78bfa;
+  --accent-brand-foreground: #121212;
+  --chart-1: #f9e400;
+  --chart-2: #a78bfa;
+  --chart-4: #60a5fa;
 }
 
 html[data-theme="cyan"] {

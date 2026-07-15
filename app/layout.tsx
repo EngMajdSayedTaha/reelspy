@@ -74,7 +74,7 @@ export default async function RootLayout({
     <html
       lang={locale}
       dir={dirForLocale(locale)}
-      // The default (volt) gets no attribute — the base tokens ARE volt, so
+      // The default (mono) gets no attribute — the base tokens ARE mono, so
       // there's nothing to override and logged-out pages stay on-brand.
       data-theme={colorTheme === DEFAULT_COLOR_THEME ? undefined : colorTheme}
       suppressHydrationWarning
