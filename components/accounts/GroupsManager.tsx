@@ -140,7 +140,7 @@ function GroupChip({
         onClick={startEdit}
         disabled={isPending}
         title={dict.renameHint}
-        className="transition hover:text-brand disabled:opacity-60"
+        className="transition hover:text-accent-brand disabled:opacity-60"
       >
         {group.name}
       </button>

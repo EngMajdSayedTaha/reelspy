@@ -38,7 +38,7 @@ export default async function ResetPasswordPage() {
         <h2 className="text-lg font-semibold text-foreground">{auth.linkExpiredHeading}</h2>
         <div className="space-y-4 text-center">
           <p className="text-sm text-foreground">{auth.linkExpiredBody}</p>
-          <a href="/forgot-password" className="text-sm text-brand hover:underline">
+          <a href="/forgot-password" className="text-sm text-accent-brand hover:underline">
             {auth.requestNewLinkButton}
           </a>
         </div>

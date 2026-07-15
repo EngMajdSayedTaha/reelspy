@@ -95,7 +95,7 @@ export function TrendReelCard({ reel, niche, alreadyTracked }: Props) {
               href={reel.permalink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-brand"
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-accent-brand"
             >
               {fullDict.common.view} <ExternalLink className="h-3.5 w-3.5" />
             </a>

@@ -49,7 +49,7 @@ export function TrackAccountButton({ username, niche, initialTracked, source }: 
       type="button"
       onClick={track}
       disabled={isPending}
-      className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-60"
+      className="inline-flex items-center gap-1 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-foreground transition hover:border-accent-brand/60 hover:text-accent-brand disabled:opacity-60"
     >
       <Plus className="h-3.5 w-3.5" /> {isPending ? dict.adding : fullDict.common.track}
     </button>

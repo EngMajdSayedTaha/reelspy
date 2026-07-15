@@ -124,7 +124,7 @@ export default async function PrivacyPage() {
       <LegalSection heading={t.sections.cookiesSection.heading}>
         <p>
           {t.sections.cookiesSection.before}
-          <Link href="/cookies" className="text-brand hover:underline">
+          <Link href="/cookies" className="text-accent-brand hover:underline">
             {common.cookiePolicy}
           </Link>
           {t.sections.cookiesSection.after}
@@ -134,7 +134,7 @@ export default async function PrivacyPage() {
       <LegalSection heading={t.sections.retention.heading}>
         <p>
           {t.sections.retention.before}
-          <Link href="/dashboard/settings" className="text-brand hover:underline">
+          <Link href="/dashboard/settings" className="text-accent-brand hover:underline">
             {t.sections.retention.settingsLinkText}
           </Link>
           {t.sections.retention.after}
@@ -158,7 +158,7 @@ export default async function PrivacyPage() {
       <LegalSection heading={t.sections.dpo.heading}>
         <p>
           {t.sections.dpo.before}
-          <a href="mailto:privacy@reelspy.dev" className="text-brand hover:underline">
+          <a href="mailto:privacy@reelspy.dev" className="text-accent-brand hover:underline">
             privacy@reelspy.dev
           </a>
           {t.sections.dpo.after}

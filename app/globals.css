@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* color system: duotone presets + two-color role system (v2) */
 
 /* Drive Tailwind's `dark:` variant off the `.dark` class (set by next-themes)
    instead of the OS `prefers-color-scheme`, so the in-app toggle wins. */
@@ -69,36 +70,37 @@
   --chart-dim: #d4d4d8;
 }
 
-/* Dark surfaces are a layered graphite scale (slight cool zinc tint) with a
-   clear elevation step page → card → popover so panels read as levels instead
-   of one black slab, and borders stay visible on cards. */
+/* Dark surfaces are a lifted graphite scale (slight cool zinc tint), NOT near
+   black — a clear elevation step page → card → popover so panels read as
+   levels, with visible borders. Foreground is a soft off-white (not pure
+   white) so the page reads calm instead of harsh high-contrast. */
 .dark {
-  --background: #101014;
-  --foreground: #f4f4f5;
-  --card: #17171c;
-  --card-foreground: #f4f4f5;
-  --popover: #1c1c22;
-  --popover-foreground: #f4f4f5;
+  --background: #18181f;
+  --foreground: #e7e7ea;
+  --card: #1f1f27;
+  --card-foreground: #e7e7ea;
+  --popover: #26262f;
+  --popover-foreground: #e7e7ea;
   --primary: #f9e400;
   --primary-foreground: #121212;
-  --secondary: #1e1e24;
-  --secondary-foreground: #f4f4f5;
-  --muted: #222228;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272e;
-  --accent-foreground: #f4f4f5;
+  --secondary: #26262e;
+  --secondary-foreground: #e7e7ea;
+  --muted: #2a2a33;
+  --muted-foreground: #a2a2ad;
+  --accent: #30303a;
+  --accent-foreground: #e7e7ea;
   --destructive: #ef4444;
   --destructive-foreground: #f4f4f5;
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #fb7185;
   --info: #38bdf8;
-  --border: #262630;
-  --input: #262630;
+  --border: #2d2d37;
+  --input: #2d2d37;
   --ring: #f9e400;
-  --surface-2: #1c1c22;
-  --border-strong: #34343e;
-  --subtle: #84848d;
+  --surface-2: #212129;
+  --border-strong: #3d3d49;
+  --subtle: #8a8a95;
   --brand: #f9e400;
   /* Dark hover brightens (dark-mode primaries are light pastels). */
   --primary-hover: color-mix(in oklab, var(--primary) 88%, white);
@@ -112,7 +114,7 @@
   --chart-5: #34d399;
   --chart-6: #fbbf24;
   --chart-7: #22d3ee;
-  --chart-grid: #262630;
+  --chart-grid: #2d2d37;
   --chart-axis: #71717a;
   --chart-dim: #3f3f46;
 }

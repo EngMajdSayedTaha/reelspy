@@ -158,7 +158,7 @@ export function GrowthNotes({ connected = false }: GrowthNotesProps) {
                   disabled={isLoading}
                   className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                     postCount === count
-                      ? "bg-primary-tint text-brand"
+                      ? "bg-accent-brand text-accent-brand-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >

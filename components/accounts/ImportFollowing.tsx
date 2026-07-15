@@ -175,7 +175,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                   href="https://www.instagram.com/download/request/"
                   target="_blank"
                   rel="noreferrer"
-                  className="text-brand underline-offset-4 hover:underline"
+                  className="text-accent-brand underline-offset-4 hover:underline"
                 >
                   {dict.downloadLinkText}
                 </a>{" "}
@@ -219,7 +219,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                   <button
                     type="button"
                     onClick={() => setExcluded(new Set())}
-                    className="text-muted-foreground transition hover:text-brand"
+                    className="text-muted-foreground transition hover:text-accent-brand"
                   >
                     {common.selectAll}
                   </button>
@@ -227,7 +227,7 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
                   <button
                     type="button"
                     onClick={() => setExcluded(new Set(candidates))}
-                    className="text-muted-foreground transition hover:text-brand"
+                    className="text-muted-foreground transition hover:text-accent-brand"
                   >
                     {common.clearAll}
                   </button>

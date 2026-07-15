@@ -229,7 +229,7 @@ export function ScriptGenerator({
                     onClick={() => setPlatform(p)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition ${
                       platform === p
-                        ? "border-primary bg-primary/10 text-brand"
+                        ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                         : "border-border-strong text-muted-foreground hover:border-border-strong"
                     }`}
                   >
@@ -249,7 +249,7 @@ export function ScriptGenerator({
                     onClick={() => setTone(opt)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition ${
                       tone === opt
-                        ? "border-primary bg-primary/10 text-brand"
+                        ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                         : "border-border-strong text-muted-foreground hover:border-border-strong"
                     }`}
                   >

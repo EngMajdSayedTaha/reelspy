@@ -58,11 +58,11 @@ export function CookieConsent() {
         </span>
         <p className="flex-1 text-sm text-muted-foreground">
           {dict.message}{" "}
-          <Link href="/cookies" className="font-medium text-brand hover:underline">
+          <Link href="/cookies" className="font-medium text-accent-brand hover:underline">
             {dict.cookiePolicy}
           </Link>{" "}
           {dict.and}{" "}
-          <Link href="/privacy" className="font-medium text-brand hover:underline">
+          <Link href="/privacy" className="font-medium text-accent-brand hover:underline">
             {dict.privacyPolicy}
           </Link>
           .

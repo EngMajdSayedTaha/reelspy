@@ -38,7 +38,7 @@ export function FeedViewToggle({
             onClick={() => onChange(v)}
             className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition ${
               selected
-                ? "bg-primary-tint text-brand"
+                ? "bg-accent-brand text-accent-brand-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >

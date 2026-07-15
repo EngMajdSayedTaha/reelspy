@@ -150,7 +150,7 @@ export function SearchableSelect({
                     }`}
                   >
                     <span className="truncate">{option.label}</span>
-                    {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-brand" /> : null}
+                    {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-accent-brand" /> : null}
                   </button>
                 );
               })

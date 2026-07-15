@@ -33,7 +33,7 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#101014",
+          background: "#18181f",
           color: "#e4e4e7",
           fontFamily: "system-ui, sans-serif",
         }}

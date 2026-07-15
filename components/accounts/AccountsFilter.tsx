@@ -46,14 +46,14 @@ export function AccountsFilter({ current, counts }: AccountsFilterProps) {
             onClick={() => select(o.value)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition disabled:opacity-60 ${
               active
-                ? "border-primary bg-primary/10 text-brand"
+                ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                 : "border-border-strong bg-surface-2 text-muted-foreground hover:border-border-strong"
             }`}
           >
             {o.label}
             <span
               className={`rounded-full px-1.5 text-xs ${
-                active ? "bg-primary/20 text-brand" : "bg-border text-muted-foreground"
+                active ? "bg-accent-brand/20 text-accent-brand" : "bg-border text-muted-foreground"
               }`}
             >
               {counts[o.value]}

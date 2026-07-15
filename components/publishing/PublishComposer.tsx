@@ -255,7 +255,7 @@ export function PublishComposer({
                 onClick={() => toggle(platform)}
                 className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
                   isOn
-                    ? "border-primary bg-primary/10 text-brand"
+                    ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                     : "border-border bg-background text-muted-foreground hover:text-foreground"
                 } disabled:cursor-not-allowed disabled:opacity-40`}
                 title={isConn ? "" : t.connectFirstHint}
@@ -382,7 +382,7 @@ export function PublishComposer({
           type="button"
           onClick={() => setShowMobilePreview((v) => !v)}
           aria-expanded={showMobilePreview}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary/60 hover:text-brand md:hidden"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand md:hidden"
         >
           {showMobilePreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           {showMobilePreview ? t.hidePreview : t.showPreview}

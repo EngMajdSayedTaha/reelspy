@@ -173,7 +173,7 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
             aria-label={dict.toggleSortDirectionAria}
             title={current.order === "asc" ? dict.ascendingTitle : dict.descendingTitle}
             onClick={() => apply({ order: current.order === "asc" ? "desc" : "asc" })}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
           >
             {current.order === "asc" ? (
               <ArrowUpWideNarrow className="h-4 w-4" />

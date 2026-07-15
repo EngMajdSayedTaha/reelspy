@@ -71,7 +71,7 @@ export function AccountsSearch({ current }: AccountsSearchProps) {
       <button
         type="submit"
         disabled={isPending}
-        className="flex h-9 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-60"
+        className="flex h-9 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand disabled:opacity-60"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
         {dict.common.search}

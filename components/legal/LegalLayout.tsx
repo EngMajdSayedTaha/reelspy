@@ -47,13 +47,13 @@ export async function LegalLayout({
         </div>
 
         <footer className="mt-12 flex gap-4 border-t border-border pt-6 text-sm text-muted-foreground">
-          <Link href="/terms" className="hover:text-brand">
+          <Link href="/terms" className="hover:text-accent-brand">
             {t.termsOfService}
           </Link>
-          <Link href="/privacy" className="hover:text-brand">
+          <Link href="/privacy" className="hover:text-accent-brand">
             {t.privacyPolicy}
           </Link>
-          <Link href="/cookies" className="hover:text-brand">
+          <Link href="/cookies" className="hover:text-accent-brand">
             {t.cookiePolicy}
           </Link>
         </footer>

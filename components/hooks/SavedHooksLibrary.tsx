@@ -82,7 +82,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
             onClick={copy}
             title={dict.copyTitle}
             aria-label={dict.copyAria}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
           >
             {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
           </button>
@@ -90,7 +90,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
             href={useInScriptHref(hook.text)}
             title={dict.useInScriptTitle}
             aria-label={dict.useInScriptAria}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
           >
             <Sparkles className="h-4 w-4" />
           </Link>
@@ -101,7 +101,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
               rel="noreferrer"
               title={dict.openReelTitle}
               aria-label={dict.openReelAria}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
             >
               <ExternalLink className="h-4 w-4" />
             </a>
@@ -164,7 +164,7 @@ function HookCard({ hook }: { hook: SavedHook }) {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1 rounded-full border border-dashed border-border-strong px-2 py-0.5 text-xs text-subtle transition hover:border-primary/60 hover:text-brand"
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-border-strong px-2 py-0.5 text-xs text-subtle transition hover:border-accent-brand/60 hover:text-accent-brand"
           >
             <Tag className="h-3 w-3" /> {dict.addTagButton}
           </button>
@@ -231,7 +231,7 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
                 onClick={() => toggleTag(t)}
                 className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
                   active
-                    ? "border-primary bg-primary/10 text-brand"
+                    ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                     : "border-border-strong text-muted-foreground hover:border-primary/50"
                 }`}
               >

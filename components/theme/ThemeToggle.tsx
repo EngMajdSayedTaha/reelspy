@@ -44,7 +44,7 @@ export function ThemeToggle() {
             onClick={() => setTheme(value)}
             className={`flex h-7 flex-1 items-center justify-center rounded-md transition ${
               selected
-                ? "bg-primary-tint text-brand"
+                ? "bg-accent-brand text-accent-brand-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >

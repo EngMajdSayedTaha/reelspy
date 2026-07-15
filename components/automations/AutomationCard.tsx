@@ -138,7 +138,7 @@ export function AutomationCard({
               href={automation.media_permalink}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-flex items-center gap-1 text-xs text-subtle transition hover:text-brand"
+              className="mt-1 inline-flex items-center gap-1 text-xs text-subtle transition hover:text-accent-brand"
             >
               {dict.viewOnInstagram} <ExternalLink className="h-3 w-3" />
             </a>
@@ -213,7 +213,7 @@ export function AutomationCard({
         <>
           <div className="flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
-              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
+              <Badge variant="outline" className="border-accent-brand/40 bg-accent-brand/10 text-accent-brand">
                 {dict.anyComment}
               </Badge>
             ) : (

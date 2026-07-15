@@ -49,7 +49,7 @@ function Stepper({
             <div
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium ring-1 ${
                 done
-                  ? "bg-primary/15 text-brand ring-primary/40"
+                  ? "bg-accent-brand/15 text-accent-brand ring-accent-brand/40"
                   : isActive
                     ? "bg-primary text-primary-foreground ring-primary"
                     : "bg-secondary text-muted-foreground ring-border"

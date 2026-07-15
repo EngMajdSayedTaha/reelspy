@@ -118,7 +118,7 @@ export function DmAutomationCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
             {automation.match_mode === "any" ? (
-              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-brand">
+              <Badge variant="outline" className="border-accent-brand/40 bg-accent-brand/10 text-accent-brand">
                 {dict.anyMessage}
               </Badge>
             ) : (

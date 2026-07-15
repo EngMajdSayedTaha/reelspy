@@ -196,7 +196,7 @@ export function ReelCard({
                 variant={reel.is_worked_on ? "default" : "outline"}
                 className={
                   reel.is_worked_on
-                    ? "bg-background/85 text-brand backdrop-blur-sm"
+                    ? "bg-background/85 text-accent-brand backdrop-blur-sm"
                     : "border-white/20 bg-black/50 text-white backdrop-blur-sm"
                 }
               >
