@@ -21,7 +21,7 @@ const columns: Column<AdminUserRow>[] = [
     key: "email",
     header: "Email",
     render: (r) => (
-      <Link href={`/admin/users/${r.id}`} className="font-medium text-foreground hover:text-brand hover:underline">
+      <Link href={`/admin/users/${r.id}`} className="font-medium text-foreground hover:text-accent-brand hover:underline">
         {r.email ?? <span className="text-muted-foreground">no email</span>}
       </Link>
     ),

@@ -149,7 +149,7 @@ export default async function MyAccountPage() {
       {!connected ? (
         <div className="rounded-xl border border-dashed border-border-strong p-5 text-sm text-muted-foreground">
           {dict.connectPromptPrefix}{" "}
-          <Link href="/dashboard/connections" className="text-brand hover:underline">
+          <Link href="/dashboard/connections" className="text-accent-brand hover:underline">
             {fullDict.nav.connections}
           </Link>{" "}
           {dict.connectPromptSuffix}

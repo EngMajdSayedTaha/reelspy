@@ -57,7 +57,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           type="button"
           disabled={page <= 1 || isPending}
           onClick={() => goTo(page - 1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={dict.previousAria}
         >
           <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
@@ -85,7 +85,7 @@ export function FeedPagination({ page, totalPages, total, perPage }: FeedPaginat
           type="button"
           disabled={page >= totalPages || isPending}
           onClick={() => goTo(page + 1)}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand disabled:cursor-not-allowed disabled:opacity-40"
           aria-label={dict.nextAria}
         >
           <ChevronRight className="h-4 w-4 rtl:rotate-180" />
@@ -114,8 +114,8 @@ function PageButton({
       onClick={() => onClick(n)}
       className={
         active
-          ? "h-8 min-w-8 rounded-lg bg-primary-tint px-2 text-sm font-semibold text-brand"
-          : "h-8 min-w-8 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-muted-foreground transition hover:border-primary/60 hover:text-brand disabled:opacity-40"
+          ? "h-8 min-w-8 rounded-lg bg-accent-brand px-2 text-sm font-semibold text-accent-brand-foreground"
+          : "h-8 min-w-8 rounded-lg border border-border-strong bg-surface-2 px-2 text-sm text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand disabled:opacity-40"
       }
     >
       {n}

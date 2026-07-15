@@ -360,7 +360,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
                   onClick={() => setTypeFilter(key)}
                   className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                     typeFilter === key
-                      ? "bg-primary-tint text-brand"
+                      ? "bg-accent-brand text-accent-brand-foreground"
                       : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
                   }`}
                 >

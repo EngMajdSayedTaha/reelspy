@@ -152,7 +152,7 @@ export function BillingSubscriptions() {
               data.rows.map((r) => (
                 <tr key={r.userId} className="border-b border-border/60 hover:bg-surface-2/60">
                   <td className="px-3 py-2.5">
-                    <Link href={`/admin/users/${r.userId}`} className="text-foreground hover:text-brand hover:underline">
+                    <Link href={`/admin/users/${r.userId}`} className="text-foreground hover:text-accent-brand hover:underline">
                       {r.email ?? r.username ?? r.userId}
                     </Link>
                   </td>
@@ -173,7 +173,7 @@ export function BillingSubscriptions() {
                           href={`${base}/customers/${r.stripeCustomerId}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-0.5 text-xs text-brand hover:underline"
+                          className="inline-flex items-center gap-0.5 text-xs text-accent-brand hover:underline"
                         >
                           customer <ExternalLink className="h-3 w-3" />
                         </a>
@@ -183,7 +183,7 @@ export function BillingSubscriptions() {
                           href={`${base}/subscriptions/${r.stripeSubscriptionId}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-0.5 text-xs text-brand hover:underline"
+                          className="inline-flex items-center gap-0.5 text-xs text-accent-brand hover:underline"
                         >
                           sub <ExternalLink className="h-3 w-3" />
                         </a>

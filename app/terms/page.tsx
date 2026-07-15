@@ -49,7 +49,7 @@ export default async function TermsPage() {
       <LegalSection heading={t.sections.refunds.heading}>
         <p>
           {t.sections.refunds.before}
-          <a href="mailto:support@reelspy.dev" className="text-brand hover:underline">
+          <a href="mailto:support@reelspy.dev" className="text-accent-brand hover:underline">
             support@reelspy.dev
           </a>
           {t.sections.refunds.afterEmail}
@@ -82,7 +82,7 @@ export default async function TermsPage() {
       <LegalSection heading={t.sections.cancellation.heading}>
         <p>
           {t.sections.cancellation.before}
-          <Link href="/privacy" className="text-brand hover:underline">
+          <Link href="/privacy" className="text-accent-brand hover:underline">
             {common.privacyPolicy}
           </Link>
           {t.sections.cancellation.after}
@@ -100,7 +100,7 @@ export default async function TermsPage() {
       <LegalSection heading={t.sections.changes.heading}>
         <p>
           {t.sections.changes.before}
-          <a href="mailto:support@reelspy.dev" className="text-brand hover:underline">
+          <a href="mailto:support@reelspy.dev" className="text-accent-brand hover:underline">
             support@reelspy.dev
           </a>
           {t.sections.changes.after}

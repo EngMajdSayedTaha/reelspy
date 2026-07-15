@@ -53,7 +53,7 @@ export async function SuggestedAccountsSection({ userId, variant = "strip", limi
         {variant === "widget" ? (
           <a
             href="/dashboard/trends"
-            className="shrink-0 text-xs font-medium text-brand hover:underline"
+            className="shrink-0 text-xs font-medium text-accent-brand hover:underline"
           >
             {dict.seeMore}
           </a>

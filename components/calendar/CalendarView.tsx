@@ -76,7 +76,7 @@ function postDot(status: string) {
 }
 
 function postChip(status: string) {
-  return POST_STATUS_CHIP[status] ?? "bg-primary/15 text-brand";
+  return POST_STATUS_CHIP[status] ?? "bg-accent-brand/15 text-accent-brand";
 }
 
 // Only a still-`scheduled` post can be moved; once it's publishing/done/failed
@@ -527,7 +527,7 @@ export function CalendarView({
                       script (hook + body + CTA), not just the calendar preview. */}
                   <Link
                     href={`/dashboard/scripts?script=${s.id}`}
-                    className="mt-2 inline-flex items-center gap-1 text-xs text-brand underline-offset-4 hover:underline"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-accent-brand underline-offset-4 hover:underline"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     {dict.openInScripts}
@@ -590,7 +590,7 @@ export function CalendarView({
                 title={dict.dragOrTapHint}
                 className={`flex cursor-grab items-start gap-1.5 rounded-lg border p-2 text-xs transition active:cursor-grabbing ${
                   placingId === s.id
-                    ? "border-primary bg-primary/10 text-brand"
+                    ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                     : "border-border-strong bg-surface-2 text-muted-foreground hover:border-border-strong"
                 }`}
               >

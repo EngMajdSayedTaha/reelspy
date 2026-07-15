@@ -68,7 +68,7 @@ function ForgotPasswordForm() {
       {sent ? (
         <div className="space-y-4 text-center">
           <p className="text-sm text-foreground">{auth.resetLinkGenericNotice}</p>
-          <a href="/login" className="text-sm text-brand hover:underline">
+          <a href="/login" className="text-sm text-accent-brand hover:underline">
             {auth.backToLogin}
           </a>
         </div>
@@ -105,7 +105,7 @@ function ForgotPasswordForm() {
           {error ? <p className="text-sm text-danger">{error}</p> : null}
 
           <p className="text-center text-sm text-subtle">
-            <a href="/login" className="text-brand hover:underline">
+            <a href="/login" className="text-accent-brand hover:underline">
               {auth.backToLogin}
             </a>
           </p>

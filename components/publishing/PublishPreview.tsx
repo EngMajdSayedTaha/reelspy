@@ -133,7 +133,7 @@ export function PublishPreview({
               onClick={() => setPinnedPlatform(p)}
               className={`rounded-full border px-2.5 py-1 text-xs font-medium transition ${
                 p === platform
-                  ? "border-primary bg-primary/10 text-brand"
+                  ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
                   : "border-border bg-background text-muted-foreground hover:text-foreground"
               }`}
             >

@@ -162,7 +162,7 @@ function LoginForm() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">{auth.passwordLabel}</Label>
-          <a href="/forgot-password" className="text-xs text-brand hover:underline">
+          <a href="/forgot-password" className="text-xs text-accent-brand hover:underline">
             {auth.forgotPasswordLink}
           </a>
         </div>
@@ -198,7 +198,7 @@ function LoginForm() {
             type="button"
             onClick={() => void handleResendConfirmation()}
             disabled={isLoading}
-            className="text-sm text-brand hover:underline disabled:opacity-50"
+            className="text-sm text-accent-brand hover:underline disabled:opacity-50"
           >
             {auth.resendConfirmationButton}
           </button>
@@ -207,7 +207,7 @@ function LoginForm() {
 
       <p className="text-center text-sm text-subtle">
         {auth.noAccountPrompt}{" "}
-        <a href="/signup" className="text-brand hover:underline">
+        <a href="/signup" className="text-accent-brand hover:underline">
           {auth.createAccountLink}
         </a>
       </p>

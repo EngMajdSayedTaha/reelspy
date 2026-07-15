@@ -148,7 +148,7 @@ export function ReelRow({
               href={`https://www.instagram.com/${username}/`}
               target="_blank"
               rel="noreferrer"
-              className="truncate text-sm font-medium text-foreground hover:text-brand"
+              className="truncate text-sm font-medium text-foreground hover:text-accent-brand"
             >
               @{username}
             </a>

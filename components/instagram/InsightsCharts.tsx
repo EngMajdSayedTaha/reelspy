@@ -149,7 +149,7 @@ function Pill({
       onClick={onClick}
       className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
         active
-          ? "bg-primary-tint text-brand"
+          ? "bg-accent-brand text-accent-brand-foreground"
           : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
       }`}
     >

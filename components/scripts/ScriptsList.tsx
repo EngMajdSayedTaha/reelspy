@@ -72,7 +72,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="text-xs text-subtle transition hover:text-brand"
+      className="text-xs text-subtle transition hover:text-accent-brand"
     >
       {copied ? dict.scripts.copied : dict.scripts.copy}
     </button>
@@ -209,7 +209,7 @@ function ScriptCard({
           </div>
           <Link
             href={`/dashboard/generate/${sourceReel.id}`}
-            className="shrink-0 text-xs text-brand underline-offset-4 hover:underline"
+            className="shrink-0 text-xs text-accent-brand underline-offset-4 hover:underline"
           >
             {s.open}
           </Link>
@@ -219,7 +219,7 @@ function ScriptCard({
             rel="noreferrer"
             title={s.openOnInstagram}
             aria-label={s.openOnInstagram}
-            className="shrink-0 text-subtle transition hover:text-brand"
+            className="shrink-0 text-subtle transition hover:text-accent-brand"
           >
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
@@ -369,7 +369,7 @@ export function ScriptsList({ scripts, deleteAction, updateStatusAction, schedul
                 type="button"
                 onClick={() => setFilter(f)}
                 className={`text-sm transition ${
-                  filter === f ? "text-brand" : "text-subtle hover:text-foreground"
+                  filter === f ? "text-accent-brand" : "text-subtle hover:text-foreground"
                 }`}
               >
                 {t.statuses[f]} ({f === "all" ? scripts.length : scripts.filter((s) => s.status === f).length})

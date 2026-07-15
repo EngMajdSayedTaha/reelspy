@@ -160,7 +160,7 @@ function SignupForm() {
         </Button>
 
         <p className="text-center text-sm text-subtle">
-          <a href="/forgot-password" className="text-brand hover:underline">
+          <a href="/forgot-password" className="text-accent-brand hover:underline">
             {auth.forgotPasswordLink}
           </a>
         </p>
@@ -188,7 +188,7 @@ function SignupForm() {
 
         <p className="text-center text-sm text-subtle">
           {auth.haveAccountPrompt}{" "}
-          <a href="/login" className="text-brand hover:underline">
+          <a href="/login" className="text-accent-brand hover:underline">
             {auth.signInLink}
           </a>
         </p>
@@ -260,7 +260,7 @@ function SignupForm() {
 
       <p className="text-center text-sm text-subtle">
         {auth.haveAccountPrompt}{" "}
-        <a href="/login" className="text-brand hover:underline">
+        <a href="/login" className="text-accent-brand hover:underline">
           {auth.signInLink}
         </a>
       </p>

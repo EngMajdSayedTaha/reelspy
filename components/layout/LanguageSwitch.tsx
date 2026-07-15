@@ -33,7 +33,7 @@ export function LanguageSwitch({ locale, label }: LanguageSwitchProps) {
       disabled={isPending}
       aria-label={label}
       title={`${label}: ${LOCALE_LABELS[next]}`}
-      className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-secondary/60 text-muted-foreground transition hover:border-primary/60 hover:text-brand hover:shadow-[0_0_0_4px_rgba(249,228,0,0.15)] disabled:opacity-60"
+      className="group relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-strong bg-secondary/60 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand hover:shadow-[0_0_0_4px_rgba(249,228,0,0.15)] disabled:opacity-60"
     >
       <Languages
         className={`h-[18px] w-[18px] transition-transform duration-300 ${

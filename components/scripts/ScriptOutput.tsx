@@ -30,7 +30,7 @@ function CopyButton({ text, label, copiedLabel }: { text: string; label: string;
     <button
       type="button"
       onClick={handleCopy}
-      className="text-xs text-subtle transition hover:text-brand"
+      className="text-xs text-subtle transition hover:text-accent-brand"
     >
       {copied ? copiedLabel : label}
     </button>

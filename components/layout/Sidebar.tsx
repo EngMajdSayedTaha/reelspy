@@ -126,12 +126,12 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
                 data-tour={link.tourKey}
                 className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition lg:py-2 ${
                   active
-                    ? "bg-primary/10 text-brand"
+                    ? "bg-accent-brand/12 text-accent-brand"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 }`}
               >
                 {active ? (
-                  <span className="absolute start-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-primary" />
+                  <span className="absolute start-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent-brand" />
                 ) : null}
                 <Icon className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
                 {dict.nav[link.labelKey]}

@@ -89,7 +89,7 @@ export default async function ViewAsUserPage({ params }: { params: Promise<{ id:
             <ul className="space-y-2">
               {reels.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                  <a href={r.ig_permalink} target="_blank" rel="noreferrer" className="truncate text-brand hover:underline">
+                  <a href={r.ig_permalink} target="_blank" rel="noreferrer" className="truncate text-accent-brand hover:underline">
                     {r.caption?.slice(0, 48) || r.ig_permalink}
                   </a>
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums">

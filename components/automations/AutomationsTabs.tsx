@@ -91,7 +91,7 @@ export function AutomationsTabs({
               className={cn(
                 "flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition sm:flex-none",
                 active
-                  ? "bg-primary/15 text-brand shadow-sm"
+                  ? "bg-accent-brand/15 text-accent-brand shadow-sm"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >

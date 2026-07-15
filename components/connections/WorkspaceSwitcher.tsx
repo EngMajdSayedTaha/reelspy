@@ -53,7 +53,7 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
         {canConnectMore ? (
           <a
             href="/api/ig/connect"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-brand"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-strong bg-surface-2 px-3 py-2 text-sm font-medium text-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
           >
             <Plus className="h-4 w-4" /> {dict.connectAnother}
           </a>
@@ -103,7 +103,7 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
                   </span>
                 </span>
                 {isActive ? (
-                  <Check className="h-4 w-4 shrink-0 text-brand" />
+                  <Check className="h-4 w-4 shrink-0 text-accent-brand" />
                 ) : loading ? (
                   <span className="text-xs text-muted-foreground">{dict.switchingEllipsis}</span>
                 ) : null}

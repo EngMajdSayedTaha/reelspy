@@ -62,7 +62,7 @@ function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boo
           className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
             saved
               ? "border-success/40 bg-success/10 text-success"
-              : "border-border-strong bg-surface-2 text-muted-foreground hover:border-primary/60 hover:text-brand"
+              : "border-border-strong bg-surface-2 text-muted-foreground hover:border-accent-brand/60 hover:text-accent-brand"
           } disabled:opacity-100`}
         >
           {saved ? <Check className="h-4 w-4" /> : <BookmarkPlus className="h-4 w-4" />}
@@ -72,7 +72,7 @@ function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boo
           onClick={copy}
           title={dict.copyTitle}
           aria-label={dict.copyAria}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
         >
           {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
         </button>
@@ -80,7 +80,7 @@ function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boo
           href={`/dashboard/generate/${item.reelId}`}
           title={dict.writeScriptTitle}
           aria-label={dict.writeScriptAria}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
         >
           <Sparkles className="h-4 w-4" />
         </Link>
@@ -90,7 +90,7 @@ function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boo
           rel="noreferrer"
           title={dict.openReelTitle}
           aria-label={dict.openReelAria}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-primary/60 hover:text-brand"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-strong bg-surface-2 text-muted-foreground transition hover:border-accent-brand/60 hover:text-accent-brand"
         >
           <ExternalLink className="h-4 w-4" />
         </a>

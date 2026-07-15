@@ -51,7 +51,7 @@ export function NichePicker({ niches, selected }: Props) {
               onClick={() => go(o.niche)}
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium capitalize transition ${
                 active
-                  ? "bg-primary/15 text-brand ring-1 ring-primary/40"
+                  ? "bg-accent-brand/15 text-accent-brand ring-1 ring-accent-brand/40"
                   : "bg-secondary/60 text-muted-foreground hover:bg-secondary hover:text-foreground"
               }`}
             >

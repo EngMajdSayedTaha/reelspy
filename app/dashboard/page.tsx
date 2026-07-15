@@ -39,7 +39,7 @@ function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
     >
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-primary/10 group-hover:text-brand">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-accent-brand/10 group-hover:text-accent-brand">
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -240,14 +240,14 @@ function QuickAction({
       href={href}
       className="group flex items-center gap-3 rounded-xl border border-border bg-surface-2 p-4 transition duration-200 hover:-translate-y-0.5 hover:border-primary/40"
     >
-      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-primary/10 group-hover:text-brand">
+      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition group-hover:bg-accent-brand/10 group-hover:text-accent-brand">
         <Icon className="h-5 w-5" />
       </span>
       <div className="flex-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-xs text-subtle">{desc}</p>
       </div>
-      <ArrowRight className="h-4 w-4 text-subtle transition rtl:rotate-180 group-hover:translate-x-0.5 group-hover:text-brand rtl:group-hover:-translate-x-0.5" />
+      <ArrowRight className="h-4 w-4 text-subtle transition rtl:rotate-180 group-hover:translate-x-0.5 group-hover:text-accent-brand rtl:group-hover:-translate-x-0.5" />
     </Link>
   );
 }
