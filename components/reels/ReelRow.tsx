@@ -156,10 +156,7 @@ export function ReelRow({
               <span className="ms-2 text-xs text-subtle">{postedLabel}</span>
             ) : null}
           </div>
-          <Badge
-            variant={reel.is_worked_on ? "default" : "outline"}
-            className={reel.is_worked_on ? "bg-primary text-primary-foreground" : ""}
-          >
+          <Badge variant={reel.is_worked_on ? "default" : "outline"}>
             {reel.is_worked_on ? dict.worked : dict.new}
           </Badge>
         </div>

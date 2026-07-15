@@ -145,7 +145,7 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
             <Link
               href="/admin"
               onClick={onClose}
-              className="group relative mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-600 transition hover:bg-amber-500/10 lg:py-2 dark:text-amber-400"
+              className="group relative mt-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-warning transition hover:bg-warning/10 lg:py-2"
             >
               <ShieldAlert className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
               {dict.nav.admin}

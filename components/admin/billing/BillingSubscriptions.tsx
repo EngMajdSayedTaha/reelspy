@@ -163,7 +163,7 @@ export function BillingSubscriptions() {
                     <span className={r.status === "active" ? "text-success" : "text-muted-foreground"}>
                       {r.status}
                     </span>
-                    {r.cancelAtPeriodEnd ? <span className="ms-1 text-xs text-amber-500">(cancels)</span> : null}
+                    {r.cancelAtPeriodEnd ? <span className="ms-1 text-xs text-warning">(cancels)</span> : null}
                   </td>
                   <td className="px-3 py-2.5 text-muted-foreground">{fmtDate(r.currentPeriodEnd)}</td>
                   <td className="px-3 py-2.5">

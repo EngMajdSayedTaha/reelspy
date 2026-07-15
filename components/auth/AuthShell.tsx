@@ -19,8 +19,9 @@ export function AuthShell({ children }: AuthShellProps) {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
-      {/* Ambient accent glow */}
+      {/* Ambient duotone glow — primary blob + offset paired-accent blob */}
       <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px]" />
+      <div className="glow-drift pointer-events-none absolute left-1/4 bottom-0 h-[320px] w-[480px] -translate-x-1/2 rounded-full bg-accent-brand/5 blur-[120px]" />
 
       <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">

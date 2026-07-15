@@ -82,7 +82,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 className={`h-9 rounded-lg px-4 text-sm font-semibold transition ${
                   options.destructive
                     ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    : "bg-primary text-primary-foreground hover:bg-primary-hover"
                 }`}
               >
                 {options.confirmText ?? common.confirm}

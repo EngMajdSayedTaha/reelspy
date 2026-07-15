@@ -25,7 +25,7 @@ export function AdminShell({ email, children }: { email: string | null; children
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="flex items-center gap-2 rounded-md bg-amber-500/15 px-2 py-1 text-amber-600 dark:text-amber-400">
+            <div className="flex items-center gap-2 rounded-md bg-warning/15 px-2 py-1 text-warning">
               <ShieldAlert className="h-4 w-4" />
               <span className="text-xs font-bold uppercase tracking-wider">Admin Control</span>
             </div>

@@ -78,7 +78,7 @@ export function CookieConsent() {
           <button
             type="button"
             onClick={() => choose("accepted")}
-            className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+            className="h-9 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
           >
             {dict.accept}
           </button>

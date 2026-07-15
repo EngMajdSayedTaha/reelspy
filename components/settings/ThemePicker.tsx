@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useTheme } from "next-themes";
 import { Palette, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -25,9 +25,14 @@ export function ThemePicker({ initialTheme }: { initialTheme: string | null | un
   const [pending, startTransition] = useTransition();
 
   // next-themes resolves only after mount; render dark swatches (the app
-  // default) until then so SSR and first client render agree.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // default) until then so SSR and first client render agree. The
+  // useSyncExternalStore snapshot pair is the hydration detector: server
+  // snapshot false, client snapshot true, no re-subscription ever fires.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const mode = mounted && resolvedTheme === "light" ? "light" : "dark";
 
   const choose = (next: ColorTheme) => {
@@ -83,7 +88,9 @@ export function ThemePicker({ initialTheme }: { initialTheme: string | null | un
             >
               <span
                 className="relative flex h-7 w-7 items-center justify-center rounded-full ring-1 ring-border-strong"
-                style={{ background: swatch.bg }}
+                style={{
+                  background: `linear-gradient(135deg, ${swatch.bg} 0 55%, ${swatch.accent} 55% 100%)`,
+                }}
               >
                 {active && <Check className="h-4 w-4" style={{ color: swatch.fg }} />}
               </span>
