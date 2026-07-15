@@ -116,27 +116,24 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-// The moat query: top over-performing reels for a niche (or ALL_NICHES = the
-// whole userbase's tracked set), ranked by audience-normalized score.
-export async function nicheTrending(
+// Rank a fixed set of accounts' reels by audience-normalized score. Shared by
+// nicheTrending (cross-user niche pool) and seedTrending (cold-start seed pool)
+// so both use identical ranking math — per-account median baseline, then
+// outperform/relative score. Pure aggregation over the global snapshot cache; no
+// Graph calls.
+export async function rankUsernameReels(
   admin: SupabaseClient,
-  opts: { niche?: string; days?: number; limit?: number; maxAccounts?: number } = {}
+  usernames: string[],
+  opts: { days?: number; limit?: number } = {}
 ): Promise<TrendReel[]> {
-  const niche = opts.niche && opts.niche !== ALL_NICHES ? slugifyNiche(opts.niche) : ALL_NICHES;
   const days = opts.days ?? 14;
   const limit = opts.limit ?? 24;
-  const maxAccounts = opts.maxAccounts ?? 500;
-
-  const { accountsByNiche, allAccounts } = await loadNicheIndex(admin);
-  const usernames = [
-    ...(niche === ALL_NICHES ? allAccounts : accountsByNiche.get(niche) ?? new Set<string>()),
-  ].slice(0, maxAccounts);
   if (usernames.length === 0) return [];
 
   const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
 
-  // Reel snapshots for the niche's accounts within the window, plus follower
-  // counts. `.in()` is chunked to stay under URL/row limits.
+  // Reel snapshots for the accounts within the window, plus follower counts.
+  // `.in()` is chunked to stay under URL/row limits.
   const reels: ReelSnapRow[] = [];
   const followers = new Map<string, number | null>();
   const CHUNK = 100;
@@ -196,4 +193,70 @@ export async function nicheTrending(
     })
     .sort((a, b) => b.relativeScore - a.relativeScore)
     .slice(0, limit);
+}
+
+// The moat query: top over-performing reels for a niche (or ALL_NICHES = the
+// whole userbase's tracked set), ranked by audience-normalized score.
+export async function nicheTrending(
+  admin: SupabaseClient,
+  opts: { niche?: string; days?: number; limit?: number; maxAccounts?: number } = {}
+): Promise<TrendReel[]> {
+  const niche = opts.niche && opts.niche !== ALL_NICHES ? slugifyNiche(opts.niche) : ALL_NICHES;
+  const maxAccounts = opts.maxAccounts ?? 500;
+
+  const { accountsByNiche, allAccounts } = await loadNicheIndex(admin);
+  const usernames = [
+    ...(niche === ALL_NICHES ? allAccounts : accountsByNiche.get(niche) ?? new Set<string>()),
+  ].slice(0, maxAccounts);
+
+  return rankUsernameReels(admin, usernames, { days: opts.days, limit: opts.limit });
+}
+
+type SeedAccountRow = { ig_username: string };
+
+// Cold-start seed pool for a niche (seed_accounts table). Same ranking math as
+// nicheTrending but over a CURATED per-niche handle list instead of cross-user
+// tracked accounts — used only as a suggestion fallback when the real niche pool
+// is empty (lib/suggestions/accounts.ts). Deliberately NOT merged into
+// nicheTrending / listNiches, so it never contaminates the cross-user aggregate.
+export async function seedTrending(
+  admin: SupabaseClient,
+  opts: { niche: string; days?: number; limit?: number; maxAccounts?: number }
+): Promise<TrendReel[]> {
+  const niche = slugifyNiche(opts.niche);
+  if (!niche || niche === ALL_NICHES) return [];
+  const maxAccounts = opts.maxAccounts ?? 500;
+
+  const { data } = await admin
+    .from("seed_accounts")
+    .select("ig_username")
+    .eq("niche_slug", niche)
+    .order("priority", { ascending: false })
+    .limit(maxAccounts)
+    .returns<SeedAccountRow[]>();
+
+  const usernames = (data ?? []).map((r) => r.ig_username.toLowerCase());
+  return rankUsernameReels(admin, usernames, { days: opts.days, limit: opts.limit });
+}
+
+// Distinct niche slugs that have seed data, shaped as NicheSummary so it unions
+// cleanly with listNiches() output. Used to make seeded niches resolvable in the
+// quiz on a fresh deploy (app/dashboard/onboarding/actions.ts). Kept a SEPARATE
+// call from listNiches so seed niches never leak into the cross-user Niche Radar.
+export async function listSeedNiches(admin: SupabaseClient): Promise<NicheSummary[]> {
+  const { data } = await admin
+    .from("seed_accounts")
+    .select("niche_slug")
+    .returns<{ niche_slug: string }[]>();
+
+  const counts = new Map<string, number>();
+  for (const r of data ?? []) {
+    const niche = slugifyNiche(r.niche_slug);
+    if (!niche) continue;
+    counts.set(niche, (counts.get(niche) ?? 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .map(([niche, accountCount]) => ({ niche, accountCount, taggerCount: 0 }))
+    .sort((a, b) => b.accountCount - a.accountCount);
 }

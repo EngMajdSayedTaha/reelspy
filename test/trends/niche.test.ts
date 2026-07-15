@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   listNiches,
+  listSeedNiches,
   nicheTrending,
+  seedTrending,
   slugifyNiche,
   viralScore,
   ALL_NICHES,
@@ -19,6 +21,8 @@ function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
       eq: () => builder,
       in: () => builder,
       gte: () => builder,
+      order: () => builder,
+      limit: () => builder,
       returns: () => builder,
       then: (resolve: (v: unknown) => unknown) => resolve(result),
     };
@@ -107,5 +111,73 @@ describe("nicheTrending (size control)", () => {
     const reels = await nicheTrending(admin, { niche: ALL_NICHES, days: 30 });
     expect(reels).toHaveLength(1);
     expect(reels[0].igUsername).toBe("solo");
+  });
+
+  // Moat isolation: seed_accounts must NEVER feed the cross-user Niche Radar.
+  // With ONLY seed data and no user-tracked accounts, both the niche index (built
+  // from inspiration_accounts / account_groups) and the trend query stay empty.
+  it("ignores seed_accounts entirely (cross-user aggregate stays clean)", async () => {
+    const admin = fakeAdmin({
+      account_groups: [],
+      inspiration_accounts: [],
+      seed_accounts: [{ ig_username: "seedonly", niche_slug: "real estate", priority: 1 }],
+      ig_account_snapshots: [{ ig_username: "seedonly", followers_count: 5_000 }],
+      ig_reel_snapshots: [
+        { ig_username: "seedonly", ig_media_id: "x1", permalink: "p", caption: "c", thumbnail_url: "t", view_count: 90_000, like_count: 4_000, comment_count: 200, posted_at: iso(1) },
+      ],
+    });
+    expect(await nicheTrending(admin, { niche: "real estate", days: 30 })).toEqual([]);
+    expect(await listNiches(admin)).toEqual([]);
+  });
+});
+
+describe("seedTrending (cold-start seed pool)", () => {
+  const now = Date.now();
+  const iso = (d: number) => new Date(now - d * 86_400_000).toISOString();
+
+  it("ranks the seeded handles' reels for a niche", async () => {
+    const admin = fakeAdmin({
+      seed_accounts: [
+        { ig_username: "seedbig", niche_slug: "fitness", priority: 2 },
+        { ig_username: "seedtiny", niche_slug: "fitness", priority: 1 },
+      ],
+      ig_account_snapshots: [
+        { ig_username: "seedbig", followers_count: 1_000_000 },
+        { ig_username: "seedtiny", followers_count: 5_000 },
+      ],
+      ig_reel_snapshots: [
+        { ig_username: "seedbig", ig_media_id: "b1", permalink: "p", caption: "c", thumbnail_url: "t", view_count: 500_000, like_count: 10_000, comment_count: 500, posted_at: iso(2) },
+        { ig_username: "seedbig", ig_media_id: "b2", permalink: "p", caption: "c", thumbnail_url: "t", view_count: 480_000, like_count: 9_500, comment_count: 480, posted_at: iso(3) },
+        { ig_username: "seedtiny", ig_media_id: "t1", permalink: "p", caption: "c", thumbnail_url: "t", view_count: 200_000, like_count: 8_000, comment_count: 400, posted_at: iso(1) },
+        { ig_username: "seedtiny", ig_media_id: "t2", permalink: "p", caption: "c", thumbnail_url: "t", view_count: 2_000, like_count: 80, comment_count: 4, posted_at: iso(4) },
+      ],
+    });
+    const reels = await seedTrending(admin, { niche: "fitness", days: 30, limit: 10 });
+    expect(reels.length).toBeGreaterThan(0);
+    // Same size-control math as nicheTrending — the small-account outlier wins.
+    expect(reels[0].igUsername).toBe("seedtiny");
+  });
+
+  it("returns empty for a blank niche or ALL_NICHES (guard)", async () => {
+    const admin = fakeAdmin({ seed_accounts: [{ ig_username: "x", niche_slug: "fitness", priority: 1 }] });
+    expect(await seedTrending(admin, { niche: "   " })).toEqual([]);
+    expect(await seedTrending(admin, { niche: ALL_NICHES })).toEqual([]);
+  });
+});
+
+describe("listSeedNiches", () => {
+  it("aggregates seed_accounts by niche_slug, most-populated first", async () => {
+    const admin = fakeAdmin({
+      seed_accounts: [
+        { niche_slug: "fitness" },
+        { niche_slug: "Fitness" }, // slugifies to the same key
+        { niche_slug: "real estate" },
+      ],
+    });
+    const niches = await listSeedNiches(admin);
+    expect(niches).toEqual([
+      { niche: "fitness", accountCount: 2, taggerCount: 0 },
+      { niche: "real estate", accountCount: 1, taggerCount: 0 },
+    ]);
   });
 });
