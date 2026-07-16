@@ -68,9 +68,13 @@ const en = {
       throttledLong: "Instagram hourly limit reached — retry in ",
       throttledShort: "Rate limited",
       resetsIn: (time: string) => `Resets in ${time}`,
-      budgetTooltip: "Hourly Instagram sync budget",
       budgetLabel: "Sync budget",
       perHourSuffix: "this hour",
+      appPool: (pct: number) => `Shared app pool: ${pct}%`,
+      hourlyBudgetHeading: "Your hourly budget",
+      explainer:
+        "Instagram limits how often we can fetch data. Your budget refills every hour — syncs pause automatically instead of failing.",
+      autoResumeToggle: "Resume automatically when it resets",
     },
     reelCard: {
       playAria: "Play reel inline",
@@ -124,6 +128,7 @@ const en = {
       reelsOption: (n: number) => `${n} reels`,
       syncAllButton: "Sync All",
       syncing: "Syncing…",
+      retryIn: (time: string) => `Try again in ${time}`,
       syncedToast: (inserted: number, updated: number) => `Synced: +${inserted} new · ${updated} refreshed`,
       alreadyUpToDateSuffix: (count: number) => ` · ${count} already up to date`,
       rateLimitedToast: (window: string) =>
@@ -134,6 +139,10 @@ const en = {
       aboutAnHour: "about an hour",
       aboutMinutes: (mins: number) => `about ${mins} min`,
       aboutHours: (hrs: number) => `about ${hrs} hr${hrs > 1 ? "s" : ""}`,
+      everythingUpToDate: "Everything is already up to date.",
+      resumeAction: "Resume when it resets",
+      stoppedToast: "Sync stopped.",
+      stopButton: "Stop",
     },
     transcript: {
       heading: "Reel Transcript",
@@ -258,9 +267,13 @@ export const feedAr: FeedDict = {
       throttledLong: "تم بلوغ الحد الساعي لإنستغرام — أعد المحاولة خلال ",
       throttledShort: "تم تقييد المعدل",
       resetsIn: (time: string) => `يُعاد الضبط خلال ${time}`,
-      budgetTooltip: "ميزانية المزامنة الساعية مع إنستغرام",
       budgetLabel: "ميزانية المزامنة",
       perHourSuffix: "هذه الساعة",
+      appPool: (pct: number) => `مجمع التطبيق المشترك: ${pct}٪`,
+      hourlyBudgetHeading: "ميزانيتك الساعية",
+      explainer:
+        "يحدّ إنستغرام عدد مرات جلب البيانات. تتجدد ميزانيتك كل ساعة — تتوقف المزامنة تلقائيًا بدلًا من أن تفشل.",
+      autoResumeToggle: "استئناف تلقائي عند إعادة الضبط",
     },
     reelCard: {
       playAria: "تشغيل الريل مباشرة",
@@ -313,6 +326,7 @@ export const feedAr: FeedDict = {
       reelsOption: (n: number) => `${n} ريلز`,
       syncAllButton: "مزامنة الكل",
       syncing: "جارٍ المزامنة…",
+      retryIn: (time: string) => `أعد المحاولة خلال ${time}`,
       syncedToast: (inserted: number, updated: number) => `تمت المزامنة: +${inserted} جديد · ${updated} محدَّث`,
       alreadyUpToDateSuffix: (count: number) => ` · ${count} محدَّث بالفعل`,
       rateLimitedToast: (window: string) =>
@@ -322,6 +336,10 @@ export const feedAr: FeedDict = {
       aboutAnHour: "حوالي ساعة",
       aboutMinutes: (mins: number) => `حوالي ${mins} دقيقة`,
       aboutHours: (hrs: number) => `حوالي ${hrs} ساعة`,
+      everythingUpToDate: "كل شيء محدَّث بالفعل.",
+      resumeAction: "استئناف عند إعادة الضبط",
+      stoppedToast: "تم إيقاف المزامنة.",
+      stopButton: "إيقاف",
     },
     transcript: {
       heading: "نص الريل المفرَّغ",

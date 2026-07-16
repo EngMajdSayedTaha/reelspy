@@ -7,6 +7,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { QuizModal } from "@/components/onboarding/QuizModal";
 import { TourProvider } from "@/components/tour/AppTour";
+import { TourInviteToast } from "@/components/tour/TourInviteToast";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 
 export function DashboardShell({
@@ -27,9 +28,7 @@ export function DashboardShell({
 
   return (
     <ConfirmProvider>
-      {/* Tour auto-starts on mount unless the quiz is showing first (the quiz
-          hands off to it on finish/skip instead) — see TourProvider. */}
-      <TourProvider autoStart={!showQuiz && !tourCompleted} tourCompleted={tourCompleted}>
+      <TourProvider>
         <div className="min-h-screen bg-background text-foreground">
           <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
           {/* logical margin so the RTL sidebar sits on the correct side */}
@@ -50,6 +49,7 @@ export function DashboardShell({
         </div>
 
         {showQuiz ? <QuizModal nicheChips={quizNicheChips} /> : null}
+        {!showQuiz && !tourCompleted ? <TourInviteToast /> : null}
       </TourProvider>
     </ConfirmProvider>
   );

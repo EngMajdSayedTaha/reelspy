@@ -78,7 +78,15 @@ const en = {
     // SetupChecklist (dashboard home)
     finishSettingUp: "Finish setting up ReelSpy",
     progressLine: (done: number, pct: number) => `${done} of 4 done — you're ${pct}% of the way to your first script.`,
-    continueSetup: "Continue setup",
+    checklistTimeLeft: (mins: number) => `about ${mins} min left`,
+    nextStepCta: (step: number): string =>
+      step === 1
+        ? "Connect Instagram"
+        : step === 2
+          ? "Set your brand voice"
+          : step === 3
+            ? "Track accounts"
+            : "Write your first script",
     checklistConnectOrStarter: "Connect Instagram or add a starter pack",
     checklistSetBrandVoice: "Set your brand voice",
     checklistTrackAccounts: "Track a few accounts",
@@ -181,7 +189,15 @@ export const onboardingAr: OnboardingDict = {
 
     finishSettingUp: "أكمل إعداد ReelSpy",
     progressLine: (done: number, pct: number) => `${done} من 4 خطوات مكتملة — أنت على بعد ${pct}٪ من أول نص لك.`,
-    continueSetup: "متابعة الإعداد",
+    checklistTimeLeft: (mins: number) => `يتبقى نحو ${mins} دقيقة`,
+    nextStepCta: (step: number) =>
+      step === 1
+        ? "ربط إنستغرام"
+        : step === 2
+          ? "حدّد أسلوب علامتك"
+          : step === 3
+            ? "تابع حسابات"
+            : "اكتب أول نص لك",
     checklistConnectOrStarter: "اربط إنستغرام أو أضف حزمة جاهزة",
     checklistSetBrandVoice: "حدّد أسلوب علامتك",
     checklistTrackAccounts: "تابع بضعة حسابات",

@@ -11,6 +11,9 @@ const en = {
     progress: "{{current}} of {{total}}",
     takeTour: "Take a tour",
     pageHelp: "Take a tour of this page",
+    inviteTitle: "New here? Take a 60-second tour",
+    inviteAction: "Take the tour",
+    inviteDismiss: "No thanks",
     steps: {
       accounts: {
         title: "Track accounts",
@@ -59,6 +62,9 @@ export const tourAr: TourDict = {
     progress: "{{current}} من {{total}}",
     takeTour: "جولة تعريفية",
     pageHelp: "جولة تعريفية بهذه الصفحة",
+    inviteTitle: "جديد هنا؟ خذ جولة سريعة من 60 ثانية",
+    inviteAction: "ابدأ الجولة",
+    inviteDismiss: "لا شكرًا",
     steps: {
       accounts: {
         title: "تتبع الحسابات",

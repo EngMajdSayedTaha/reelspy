@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ARABIC_DIALECTS, type BrandVoice } from "@/lib/ai/brand-voice";
 import type { OnboardingActionState } from "@/app/dashboard/onboarding/actions";
@@ -128,13 +129,13 @@ export function BrandVoiceForm({ action, initial, submitLabel, onSuccessHref }: 
         <Label htmlFor="arabicDialect">
           {o.arabicPresetLabel} <span className="text-muted-foreground">({dict.common.optional})</span>
         </Label>
-        <select
+        <Select
           id="arabicDialect"
           name="arabicDialect"
           aria-label={o.arabicPresetLabel}
           defaultValue={initial?.arabicDialect ?? ""}
           disabled={isPending}
-          className="h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-3 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          className="w-full px-3 disabled:opacity-60"
         >
           <option value="">{o.arabicPresetOff}</option>
           {/* Structured Arabic-dialect preset (X2) — labels intentionally show
@@ -145,7 +146,7 @@ export function BrandVoiceForm({ action, initial, submitLabel, onSuccessHref }: 
               {d.labelEn} ({d.labelAr})
             </option>
           ))}
-        </select>
+        </Select>
         <p className="text-xs text-subtle">{o.arabicPresetHint}</p>
       </div>
 

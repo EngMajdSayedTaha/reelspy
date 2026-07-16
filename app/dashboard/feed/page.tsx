@@ -7,6 +7,7 @@ import { SyncButton } from "@/components/reels/SyncButton";
 import { RisingNow } from "@/components/reels/RisingNow";
 import { createClient } from "@/lib/supabase/server";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { numEnv } from "@/lib/utils/env";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { PageTourButton } from "@/components/tour/PageTourButton";
 import { rankRising, risingSinceIso } from "@/lib/reels/ranking";
@@ -146,15 +147,20 @@ export default async function FeedPage({
   const sortColumn = SORT_COLUMNS[sort] ?? "posted_at";
   const ascending = order === "asc";
 
-  // Accounts for the filter dropdown (active only).
+  // Accounts for the filter dropdown (active only) — also fed to SyncButton,
+  // which needs last_synced_at to filter out already-fresh accounts client-side
+  // before orchestrating its per-account sync.
   const { data: accountRows } = await supabase
     .from("inspiration_accounts")
-    .select("id, ig_username")
+    .select("id, ig_username, last_synced_at")
     .eq("user_id", user.id)
     .eq("is_active", true)
     .order("ig_username", { ascending: true });
 
-  const accounts = (accountRows ?? []) as { id: string; ig_username: string }[];
+  const accounts = (accountRows ?? []) as { id: string; ig_username: string; last_synced_at: string | null }[];
+  // Mirrors the server's own freshness window (app/api/ig/sync/route.ts) so
+  // the client-side stale filter agrees with what a bulk sync would skip.
+  const skipFreshSeconds = numEnv("SYNC_SKIP_FRESH_SECONDS", 1800);
 
   // Does the user track any accounts at all (active or paused)? Drives the
   // first-run empty state, which routes to onboarding rather than telling a
@@ -360,7 +366,7 @@ export default async function FeedPage({
         </div>
 
         <div data-tour="sync-button" className="flex flex-col items-end gap-2">
-          <SyncButton />
+          <SyncButton accounts={accounts} skipFreshSeconds={skipFreshSeconds} />
         </div>
       </div>
 

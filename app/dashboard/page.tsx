@@ -29,9 +29,13 @@ type StatCardProps = {
   value: string;
   icon: LucideIcon;
   href: string;
+  /** Shown instead of a bare "0" once the setup checklist is no longer
+   *  around to nudge the user — a muted dash + a one-line next step. */
+  emptyHint?: string;
 };
 
-function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
+function StatCard({ label, value, icon: Icon, href, emptyHint }: StatCardProps) {
+  const isEmpty = emptyHint && value === "0";
   return (
     <Link
       href={href}
@@ -43,7 +47,14 @@ function StatCard({ label, value, icon: Icon, href }: StatCardProps) {
           <Icon className="h-4 w-4" />
         </span>
       </div>
-      <p className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">{value}</p>
+      {isEmpty ? (
+        <>
+          <p className="mt-3 text-2xl font-semibold text-muted-foreground sm:text-3xl">—</p>
+          <p className="mt-1 text-xs text-subtle">{emptyHint}</p>
+        </>
+      ) : (
+        <p className="mt-3 text-2xl font-semibold text-foreground sm:text-3xl">{value}</p>
+      )}
     </Link>
   );
 }
@@ -150,24 +161,28 @@ export default async function DashboardPage() {
           value={String(accountsCount)}
           icon={UserSearch}
           href="/dashboard/accounts"
+          emptyHint={showChecklist ? undefined : t.emptyHints.accounts}
         />
         <StatCard
           label={t.stats.trackedReels}
           value={String(reelsCount)}
           icon={Clapperboard}
           href="/dashboard/feed"
+          emptyHint={showChecklist ? undefined : t.emptyHints.reels}
         />
         <StatCard
           label={t.stats.scriptsGenerated}
           value={String(scriptsCount)}
           icon={ScrollText}
           href="/dashboard/scripts"
+          emptyHint={showChecklist ? undefined : t.emptyHints.scripts}
         />
         <StatCard
           label={t.stats.postsPublished}
           value={String(publishedCount)}
           icon={Send}
           href="/dashboard/publishing"
+          emptyHint={showChecklist ? undefined : t.emptyHints.published}
         />
         <StatCard
           label={t.stats.reelsWorkedOn}

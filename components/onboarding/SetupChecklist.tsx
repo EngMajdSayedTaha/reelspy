@@ -9,13 +9,17 @@ import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
 
 // Persistent "finish setup" card for the dashboard home, shown until the user
 // activates (writes a first script) or dismisses. Mirrors the wizard's four
-// steps so progress is visible at a glance. Server component — display only.
-function items(dict: Dict["onboarding"]): { key: keyof OnboardingState["steps"]; label: string }[] {
+// steps so progress is visible at a glance. Server component — display only,
+// but each unfinished row is itself a deep link into its wizard step so the
+// card doubles as a launcher, not just a status readout.
+function items(
+  dict: Dict["onboarding"]
+): { key: keyof OnboardingState["steps"]; label: string; step: 1 | 2 | 3 | 4 }[] {
   return [
-    { key: "source", label: dict.checklistConnectOrStarter },
-    { key: "brandVoice", label: dict.checklistSetBrandVoice },
-    { key: "accounts", label: dict.checklistTrackAccounts },
-    { key: "firstScript", label: dict.step4Title },
+    { key: "source", label: dict.checklistConnectOrStarter, step: 1 },
+    { key: "brandVoice", label: dict.checklistSetBrandVoice, step: 2 },
+    { key: "accounts", label: dict.checklistTrackAccounts, step: 3 },
+    { key: "firstScript", label: dict.step4Title, step: 4 },
   ];
 }
 
@@ -23,6 +27,7 @@ export async function SetupChecklist({ state }: { state: OnboardingState }) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale).onboarding;
   const pct = Math.round((state.completedCount / 4) * 100);
+  const remainingSteps = 4 - state.completedCount;
 
   return (
     <div data-tour="setup-checklist" className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5">
@@ -31,6 +36,7 @@ export async function SetupChecklist({ state }: { state: OnboardingState }) {
           <h2 className="text-base font-semibold text-foreground">{dict.finishSettingUp}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {dict.progressLine(state.completedCount, pct)}
+            {remainingSteps > 0 ? ` ${dict.checklistTimeLeft(remainingSteps * 3)}` : ""}
           </p>
         </div>
         <FinishButton href="/dashboard" label={dict.dismiss} variant="ghost" />
@@ -50,9 +56,17 @@ export async function SetupChecklist({ state }: { state: OnboardingState }) {
               ) : (
                 <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" />
               )}
-              <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>
-                {item.label}
-              </span>
+              {done ? (
+                <span className="text-muted-foreground line-through">{item.label}</span>
+              ) : (
+                <Link
+                  href={`/dashboard/onboarding?step=${item.step}`}
+                  className="group/step flex items-center gap-1 text-foreground hover:text-accent-brand"
+                >
+                  {item.label}
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle opacity-0 transition group-hover/step:translate-x-0.5 group-hover/step:opacity-100 rtl:rotate-180 rtl:group-hover/step:-translate-x-0.5" />
+                </Link>
+              )}
             </li>
           );
         })}
@@ -61,7 +75,7 @@ export async function SetupChecklist({ state }: { state: OnboardingState }) {
       <div className="mt-5">
         <Button asChild>
           <Link href={`/dashboard/onboarding?step=${state.currentStep}`}>
-            {dict.continueSetup} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+            {dict.nextStepCta(state.currentStep)} <ArrowRight className="h-4 w-4 rtl:rotate-180" />
           </Link>
         </Button>
       </div>

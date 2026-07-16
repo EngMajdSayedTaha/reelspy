@@ -9,7 +9,7 @@ import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf, isUnlimited } from "@/lib/billing/entitlements";
 import { isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
 import { listNiches, listSeedNiches } from "@/lib/trends/niche";
-import { resolveNicheSlug } from "@/lib/suggestions/accounts";
+import { resolveNicheSlug, getSuggestionsForUser } from "@/lib/suggestions/accounts";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -259,6 +259,65 @@ export async function completeQuiz(answers: QuizAnswers): Promise<OnboardingActi
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/accounts");
   return { ok: true };
+}
+
+export type QuizSuggestion = {
+  igUsername: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  followers: number | null;
+};
+
+export type QuizSuggestionsState = {
+  accounts: QuizSuggestion[];
+  remainingSlots: number;
+  /** Set only when remainingSlots is 0 — ready-to-render upgrade copy. */
+  capMessage?: string;
+};
+
+// Quiz step 4 follow-up: called right after completeQuiz (so niche_slug is
+// already resolved and the never-off-niche guarantee in
+// lib/suggestions/accounts.ts applies), surfacing real niche-matched accounts
+// to track immediately. Trimmed to whatever tracked-account slots the user's
+// plan actually has left — never offers more than they can add.
+export async function getQuizSuggestions(): Promise<QuizSuggestionsState> {
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const dict = getDictionary(locale);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { accounts: [], remainingSlots: 0 };
+
+  const [{ accounts }, { tier, entitlements }, { count: usedCount }] = await Promise.all([
+    getSuggestionsForUser(user.id),
+    resolveUserEntitlements(supabase, user.id),
+    supabase.from("inspiration_accounts").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+  ]);
+
+  const cap = limitOf(entitlements, "accounts");
+  const used = usedCount ?? 0;
+  const remainingSlots = isUnlimited(cap) ? 12 : Math.max(0, cap - used);
+
+  if (remainingSlots === 0) {
+    return {
+      accounts: [],
+      remainingSlots: 0,
+      capMessage: dict.accounts.actions.accountLimit(dict.billing.plans[tier].name, cap),
+    };
+  }
+
+  const trimmed = accounts.slice(0, Math.min(remainingSlots, 5));
+  return {
+    remainingSlots,
+    accounts: trimmed.map((a) => ({
+      igUsername: a.igUsername,
+      displayName: a.displayName,
+      avatarUrl: a.avatarUrl,
+      followers: a.followers,
+    })),
+  };
 }
 
 // Skip the quiz. Idempotent — the popup must never reappear once dismissed.

@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Popover } from "radix-ui";
 import { AlertTriangle, Gauge } from "lucide-react";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import { formatCountdown } from "@/lib/utils/time";
 
 type Status = {
   throttled: boolean;
@@ -14,25 +16,25 @@ type Status = {
 };
 
 const POLL_MS = 60_000;
-
-function formatCountdown(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
-  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-}
+const SEGMENTS = 8;
 
 // Shows how much of the Instagram request budget is left and, when Meta's hourly
 // limit is hit, a clear cooldown countdown ("retry in mm:ss"). Polls the status
-// endpoint and reacts instantly to a 429 dispatched by the Sync button.
+// endpoint and reacts instantly to a 429 dispatched by the Sync button. Clicking
+// the pill opens a popover with the full numbers, the shared app-level pool, a
+// plain-language explainer, and (while throttled) an opt-in auto-resume toggle
+// that SyncButton listens for via the `reelspy:autoresume` event.
 export function RateLimitStatus() {
   const dict = useDict().feed.rateLimit;
   const [status, setStatus] = useState<Status | null>(null);
   // Local ticking clock so the countdown updates every second without polling.
   const [retrySeconds, setRetrySeconds] = useState(0);
   const retryRef = useRef(0);
+  // Purely cosmetic reactions to Sync button activity — never drive a refetch
+  // on their own (the existing onSynced/onRateLimit listeners already do).
+  const [syncPulse, setSyncPulse] = useState(false);
+  const [successFlash, setSuccessFlash] = useState(false);
+  const [autoResume, setAutoResume] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -72,17 +74,27 @@ export function RateLimitStatus() {
           userCap: s?.userCap ?? 0,
           userResetSeconds: s?.userResetSeconds ?? 0,
         }));
+      } else {
+        setAutoResume(false);
       }
       refresh();
     };
-    const onSynced = () => refresh();
+    const onSynced = () => {
+      setSyncPulse(false);
+      setSuccessFlash(true);
+      setTimeout(() => setSuccessFlash(false), 1500);
+      refresh();
+    };
+    const onSyncing = () => setSyncPulse(true);
 
     window.addEventListener("reelspy:ratelimit", onRateLimit);
     window.addEventListener("reelspy:synced", onSynced);
+    window.addEventListener("reelspy:syncing", onSyncing);
     return () => {
       clearInterval(poll);
       window.removeEventListener("reelspy:ratelimit", onRateLimit);
       window.removeEventListener("reelspy:synced", onSynced);
+      window.removeEventListener("reelspy:syncing", onSyncing);
     };
   }, [refresh]);
 
@@ -103,49 +115,111 @@ export function RateLimitStatus() {
     return () => clearInterval(id);
   }, [retrySeconds, refresh]);
 
+  const toggleAutoResume = (enabled: boolean) => {
+    setAutoResume(enabled);
+    window.dispatchEvent(new CustomEvent("reelspy:autoresume", { detail: { enabled } }));
+  };
+
   // Nothing to show until the limiter is provisioned (userCap > 0) or throttled.
   if (!status || (status.userCap === 0 && !status.throttled)) return null;
 
   const throttled = status.throttled && retrySeconds > 0;
-
-  if (throttled) {
-    return (
-      <div className="flex min-w-0 items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-2 text-sm text-danger sm:px-3">
-        <AlertTriangle className="h-4 w-4 shrink-0" />
-        {/* The prose shrinks/clips first; the countdown stays visible. */}
-        <span className="hidden truncate sm:inline">{dict.throttledLong}&nbsp;</span>
-        <span className="truncate sm:hidden">{dict.throttledShort}&nbsp;·&nbsp;</span>
-        <span className="shrink-0 font-semibold tabular-nums">{formatCountdown(retrySeconds)}</span>
-      </div>
-    );
-  }
-
   const used = status.userUsed;
   const cap = status.userCap;
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
   const near = pct >= 80;
+  const filledSegments = cap > 0 ? Math.round((pct / 100) * SEGMENTS) : 0;
 
   return (
-    <div
-      className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs sm:px-3 ${
-        near
-          ? "border-warning/40 bg-warning/10 text-warning"
-          : "border-border-strong bg-surface-2 text-muted-foreground"
-      }`}
-      title={
-        status.userResetSeconds > 0
-          ? dict.resetsIn(formatCountdown(status.userResetSeconds))
-          : dict.budgetTooltip
-      }
-    >
-      <Gauge className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">
-        {dict.budgetLabel}{" "}
-        <span className="font-semibold tabular-nums">
-          {used}/{cap}
-        </span>{" "}
-        {dict.perHourSuffix}
-      </span>
-    </div>
+    <Popover.Root>
+      <Popover.Trigger asChild>
+        {throttled ? (
+          <button
+            type="button"
+            className="flex min-w-0 items-center gap-2 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-2 text-sm text-danger transition hover:bg-danger/15 sm:px-3"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {/* The prose shrinks/clips first; the countdown stays visible. */}
+            <span className="hidden truncate sm:inline">{dict.throttledLong}&nbsp;</span>
+            <span className="truncate sm:hidden">{dict.throttledShort}&nbsp;·&nbsp;</span>
+            <span className="shrink-0 font-semibold tabular-nums">{formatCountdown(retrySeconds)}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`flex min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition sm:px-3 ${
+              near
+                ? "border-warning/40 bg-warning/10 hover:bg-warning/15"
+                : "border-border-strong bg-surface-2 hover:bg-secondary"
+            }`}
+          >
+            <Gauge
+              className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                successFlash ? "text-success" : near ? "text-warning" : "text-muted-foreground"
+              } ${syncPulse ? "animate-pulse" : ""}`}
+            />
+            <div className="flex items-center gap-0.5">
+              {Array.from({ length: SEGMENTS }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-1 rounded-full transition-colors ${
+                    i < filledSegments ? (near ? "bg-warning" : "bg-foreground/70") : "bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+          </button>
+        )}
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          align="end"
+          sideOffset={8}
+          className="z-50 w-[280px] space-y-3 rounded-xl border border-border bg-card p-4 text-sm shadow-2xl data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
+        >
+          <div>
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>{dict.hourlyBudgetHeading}</span>
+              {status.userResetSeconds > 0 ? (
+                <span className="tabular-nums">{dict.resetsIn(formatCountdown(status.userResetSeconds))}</span>
+              ) : null}
+            </div>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={`h-full rounded-full transition-all ${near ? "bg-warning" : "bg-primary"}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+              {used}/{cap} {dict.perHourSuffix}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-xs text-muted-foreground">{dict.appPool(status.appUsagePct)}</p>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-foreground/50 transition-all"
+                style={{ width: `${status.appUsagePct}%` }}
+              />
+            </div>
+          </div>
+
+          <p className="text-xs text-subtle">{dict.explainer}</p>
+
+          {throttled ? (
+            <label className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={autoResume}
+                onChange={(e) => toggleAutoResume(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-2 focus:ring-primary/40"
+              />
+              {dict.autoResumeToggle}
+            </label>
+          ) : null}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

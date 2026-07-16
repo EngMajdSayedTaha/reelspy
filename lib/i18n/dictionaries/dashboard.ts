@@ -15,6 +15,12 @@ const en = {
       favorites: "Favorites",
       scheduledScripts: "Scheduled Scripts",
     },
+    emptyHints: {
+      accounts: "Track accounts to get started",
+      reels: "Sync to start tracking",
+      scripts: "Generate your first script",
+      published: "Publish your first post",
+    },
     quickActions: {
       heading: "Quick actions",
       addAccounts: { title: "Add accounts", desc: "Track new creators" },
@@ -60,6 +66,12 @@ export const dashboardAr: DashboardDict = {
       reelsWorkedOn: "الريلز المُنجزة",
       favorites: "المفضّلة",
       scheduledScripts: "النصوص المجدولة",
+    },
+    emptyHints: {
+      accounts: "تابع حسابات للبدء",
+      reels: "زامن لتبدأ المتابعة",
+      scripts: "أنشئ أول نص لك",
+      published: "انشر أول منشور لك",
     },
     quickActions: {
       heading: "إجراءات سريعة",

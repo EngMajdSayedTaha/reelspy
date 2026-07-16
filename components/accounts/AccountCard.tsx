@@ -5,11 +5,12 @@ import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power } fr
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { getClientPrefs } from "@/lib/prefs";
-import { notifyError, requestJson } from "@/lib/utils/api";
+import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
-import { intlLocale } from "@/lib/i18n/intl";
+import { relativeTime } from "@/lib/i18n/intl";
 import { useRetryableImage } from "@/lib/hooks/useRetryableImage";
 
 type Account = {
@@ -103,6 +104,7 @@ export function AccountCard({
 
   const handleSync = async () => {
     setIsSyncing(true);
+    window.dispatchEvent(new CustomEvent("reelspy:syncing"));
     try {
       const json = await requestJson<SyncResult>("/api/ig/sync", {
         method: "POST",
@@ -113,7 +115,13 @@ export function AccountCard({
       if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
       }
+      window.dispatchEvent(new CustomEvent("reelspy:synced"));
     } catch (error) {
+      if (error instanceof ApiError && error.status === 429) {
+        window.dispatchEvent(
+          new CustomEvent("reelspy:ratelimit", { detail: { retryAfterSeconds: error.retryAfterSeconds } })
+        );
+      }
       notifyError(error, t.syncFailedToast);
     } finally {
       setIsSyncing(false);
@@ -214,9 +222,7 @@ export function AccountCard({
         </p>
         <p className="text-xs text-subtle">
           {t.lastSyncLabel}{" "}
-          {account.last_synced_at
-            ? new Date(account.last_synced_at).toLocaleDateString(intlLocale(locale))
-            : t.never}
+          {account.last_synced_at ? relativeTime(account.last_synced_at, locale) : t.never}
         </p>
       </div>
 
@@ -225,12 +231,12 @@ export function AccountCard({
           <FolderClosed className="h-4 w-4 text-subtle" />
           {t.groupLabel}
         </label>
-        <select
+        <Select
           value={groupId}
           disabled={busy}
           aria-label={t.groupSelectAria}
           onChange={(e) => onGroupChange(e.target.value)}
-          className="h-9 flex-1 rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+          className="flex-1 disabled:opacity-60"
         >
           <option value="">{dict.accounts.noGroupOption}</option>
           {groups.map((group) => (
@@ -238,23 +244,23 @@ export function AccountCard({
               {group.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="flex items-center gap-2">
-        <select
+        <Select
           aria-label={t.syncSelectAria}
           value={syncLimit}
           disabled={busy}
           onChange={(e) => setSyncLimit(Number(e.target.value))}
-          className="h-9 shrink-0 rounded-lg border border-border-strong bg-surface-2 px-1.5 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 disabled:opacity-60"
+          className="shrink-0 px-1.5 disabled:opacity-60"
         >
           {[25, 50, 100].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
           ))}
-        </select>
+        </Select>
 
         <Button
           type="button"
