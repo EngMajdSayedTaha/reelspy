@@ -18,9 +18,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numEnv } from "@/lib/utils/env";
 
-// Effective app-wide hourly budget. Kept under Meta's 200/hour floor so a burst
-// never reaches the real ceiling. Override per-deploy via env.
+// Floor / default app-wide hourly budget, used until the dynamic budget is
+// computed and when the userbase is tiny. Override per-deploy via env.
 const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
+// Meta's Business Discovery ceiling is ~200 calls/hour PER connected user, app
+// wide — so our real allowance scales with the userbase. We size the budget as a
+// safe fraction of that live ceiling, floored so a tiny userbase still works and
+// hard-capped so a bad count can never blast Meta.
+const META_CALLS_PER_USER = numEnv("META_CALLS_PER_USER", 200);
+const BUDGET_SAFETY_FACTOR = numEnv("META_BUDGET_SAFETY_FACTOR", 0.7);
+const MAX_HOURLY_BUDGET = numEnv("META_MAX_HOURLY_BUDGET", 5000);
 // Max Business Discovery calls a single user may spend per rolling hour.
 const USER_HOURLY_BUDGET = numEnv("META_USER_HOURLY_BUDGET", 80);
 // Cooldown when Meta gives no explicit regain time (its app throttle clears on
@@ -265,4 +272,32 @@ export function createMetaRateLimiter(
   userCap?: number
 ): MetaRateLimiter {
   return new MetaRateLimiter(supabase, userId, userCap);
+}
+
+// Recompute the app-wide hourly budget from the live connected-user count and
+// persist it for the shared limiter (consume_meta_quota reads it in-row, so this
+// only needs to run on a cadence — the refresh cron does it). Returns the budget
+// so the caller can also use it as its own spend cap. Requires an admin client;
+// falls back to the static floor on any error so syncing is never blocked on it.
+export async function refreshHourlyBudget(admin: SupabaseClient): Promise<number> {
+  let budget = HOURLY_BUDGET;
+  try {
+    const { count } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("ig_token_status", "active");
+
+    const users = count ?? 0;
+    const scaled = Math.floor(META_CALLS_PER_USER * users * BUDGET_SAFETY_FACTOR);
+    budget = Math.min(MAX_HOURLY_BUDGET, Math.max(HOURLY_BUDGET, scaled));
+
+    const { error } = await admin.rpc("set_meta_hourly_budget", { p_budget: budget });
+    if (error) console.warn("[meta-rate-limit] set_meta_hourly_budget failed:", error.message);
+  } catch (err) {
+    console.warn(
+      "[meta-rate-limit] refreshHourlyBudget failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  return budget;
 }

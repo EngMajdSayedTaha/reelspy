@@ -26,6 +26,13 @@ const MAX_SYNC_LIMIT = 200;
 // just synced individually has nothing new, so re-syncing it is double work.
 const SKIP_FRESH_SECONDS = numEnv("SYNC_SKIP_FRESH_SECONDS", 1800);
 
+// Bulk "Sync All" serves any account whose SHARED snapshot is newer than this
+// straight from the cache — no Meta call — so N users syncing overlapping
+// accounts collapse to a single fetch instead of one fetch each. This is the
+// key scaling lever: Meta cost tracks the number of DISTINCT accounts, not
+// users × accounts. Explicit single-account syncs and `force` always fetch.
+const BULK_SYNC_TTL_SECONDS = numEnv("SYNC_BULK_TTL_SECONDS", 1800);
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -136,27 +143,34 @@ export async function POST(request: Request) {
 
   let rateLimitHit = false;
   let retryAfterSeconds: number | undefined;
+  // Only pace between calls that actually hit Meta — cache hits need no throttle,
+  // so a bulk sync that's mostly cache hits stays fast.
+  let lastCalledMeta = false;
 
   for (let i = 0; i < accounts.length; i++) {
     const account = accounts[i];
 
-    // Throttle between accounts to stay under Instagram's app-level rate limit.
-    // (Only matters when the snapshot is stale and we actually call Meta.)
-    if (i > 0) {
+    // Throttle between real Meta calls to stay under Instagram's app-level limit.
+    if (i > 0 && lastCalledMeta) {
       await sleep(300);
     }
 
-    // 1) Refresh the SHARED snapshot. Manual syncs always force a fresh Meta
-    //    call so the user gets up-to-date reels regardless of cache age; the
-    //    MetaRateLimiter still guards against API overuse.
+    // 1) Refresh the SHARED snapshot. A bulk "Sync All" respects the snapshot
+    //    TTL so accounts another user (or the cron) refreshed moments ago are
+    //    served from cache — the dedup that lets this scale. An explicit
+    //    single-account sync (or `force`) always fetches for on-demand freshness.
+    //    Either way the MetaRateLimiter guards against API overuse.
     const snap = await refreshAccountSnapshot(
       admin,
       limiter,
       credentials.igUserId,
       credentials.token,
       account.ig_username,
-      { maxReels: syncLimit, force: true }
+      isBulk
+        ? { maxReels: syncLimit, ttlSeconds: BULK_SYNC_TTL_SECONDS }
+        : { maxReels: syncLimit, force: true }
     );
+    lastCalledMeta = snap.fetched;
 
     if (snap.rateLimited) {
       retryAfterSeconds = snap.retryAfterSeconds ?? retryAfterSeconds;

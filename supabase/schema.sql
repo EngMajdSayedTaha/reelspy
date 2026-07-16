@@ -265,6 +265,7 @@ create table meta_api_limiter (
   throttled_until timestamptz,
   app_usage_pct integer not null default 0,
   app_usage_at timestamptz not null default now(),  -- when app_usage_pct was observed (for decay)
+  hourly_budget numeric,                            -- dynamic app-wide budget; null = caller default
   updated_at timestamptz not null default now()
 );
 alter table meta_api_limiter enable row level security;
@@ -696,14 +697,17 @@ declare
   v_tokens numeric;
   v_bucket_at timestamptz;
   v_throttled timestamptz;
+  v_hourly_budget numeric;
+  v_capacity numeric;
+  v_refill numeric;
   v_elapsed numeric;
   v_user_count int;
   v_user_window timestamptz;
   v_window_age numeric;
 begin
   -- Lock the singleton limiter row (create it on first use).
-  select tokens, bucket_updated_at, throttled_until
-    into v_tokens, v_bucket_at, v_throttled
+  select tokens, bucket_updated_at, throttled_until, hourly_budget
+    into v_tokens, v_bucket_at, v_throttled, v_hourly_budget
   from meta_api_limiter where id = 1 for update;
 
   if not found then
@@ -711,7 +715,13 @@ begin
       values (1, p_capacity, v_now)
       on conflict (id) do nothing;
     v_tokens := p_capacity; v_bucket_at := v_now; v_throttled := null;
+    v_hourly_budget := null;
   end if;
+
+  -- Effective capacity: stored dynamic budget when set, else the caller default.
+  -- Refill tracks capacity so a full bucket always refills in one hour.
+  v_capacity := coalesce(nullif(v_hourly_budget, 0), p_capacity);
+  v_refill := v_capacity / 3600.0;
 
   -- 1) Circuit breaker — short-circuit while Meta is (or may be) blocking us.
   if v_throttled is not null and v_throttled > v_now then
@@ -723,7 +733,7 @@ begin
 
   -- 2) Refill the app-wide token bucket from elapsed time.
   v_elapsed := greatest(0, extract(epoch from (v_now - v_bucket_at)));
-  v_tokens := least(p_capacity, v_tokens + v_elapsed * p_refill_per_sec);
+  v_tokens := least(v_capacity, v_tokens + v_elapsed * v_refill);
 
   -- 3) Per-user fixed hourly window.
   select call_count, window_start into v_user_count, v_user_window
@@ -756,7 +766,7 @@ begin
       set tokens = v_tokens, bucket_updated_at = v_now, updated_at = v_now
       where id = 1;
     return query select false,
-      greatest(1, ceil((p_cost - v_tokens) / nullif(p_refill_per_sec, 0))::int),
+      greatest(1, ceil((p_cost - v_tokens) / nullif(v_refill, 0))::int),
       'app_budget'::text;
     return;
   end if;
@@ -776,6 +786,22 @@ $$;
 grant execute on function
   public.consume_meta_quota(uuid, integer, numeric, numeric, integer)
   to service_role;
+
+-- Set the dynamic app-wide budget (called by the refresh cron with a value
+-- scaled to the live connected-user count).
+create or replace function public.set_meta_hourly_budget(p_budget numeric)
+  returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  update meta_api_limiter
+    set hourly_budget = greatest(1, p_budget), updated_at = now()
+  where id = 1;
+end;
+$$;
+grant execute on function public.set_meta_hourly_budget(numeric) to service_role;
 
 -- Record Meta's reported app-usage % (from response headers).
 create or replace function public.record_meta_usage(p_usage integer)
