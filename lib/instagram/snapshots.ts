@@ -40,6 +40,13 @@ function normalize(username: string): string {
   return username.trim().replace(/^@+/, "").toLowerCase();
 }
 
+// Public alias so callers outside this module (e.g. the sync route enqueuing
+// background refresh jobs) key on the exact same normalized username the cache
+// and snapshot rows use.
+export function normalizeUsername(username: string): string {
+  return normalize(username);
+}
+
 // Refresh one public account's snapshot if it's stale. Deduped across all users.
 export async function refreshAccountSnapshot(
   admin: SupabaseClient,

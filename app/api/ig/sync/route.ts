@@ -3,9 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
-import { refreshAccountSnapshot, materializeForUser } from "@/lib/instagram/snapshots";
+import {
+  refreshAccountSnapshot,
+  materializeForUser,
+  normalizeUsername,
+} from "@/lib/instagram/snapshots";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { enqueueTopReelTranscriptions } from "@/lib/media/auto-transcribe";
+import { enqueueJob } from "@/lib/jobs/queue";
 import { numEnv } from "@/lib/utils/env";
 
 // Paced requests + multi-account loops need a generous budget.
@@ -16,6 +21,9 @@ type SyncBody = {
   account_id?: string;
   limit?: number;
   force?: boolean;
+  // "Sync All" sets this: serve the shared cache instantly and refresh stale
+  // accounts in the background instead of blocking on Meta. See the async path.
+  deferred?: boolean;
 };
 
 // How many reels to pull per account. Clamped to a sane range.
@@ -132,97 +140,157 @@ export async function POST(request: Request) {
     });
   }
 
-  // Shared, app-wide guard. Business Discovery is rate-limited per Meta APP
-  // (not per user), so this protects every connected account at once. Runs on
-  // the admin client — the limiter RPCs are revoked for browser-facing roles.
-  const limiter = createMetaRateLimiter(admin, user.id);
+  // "Sync All" — the whole-batch bulk request AND the dashboard's per-account
+  // orchestration (deferred: true) — takes the ASYNC path: serve the shared
+  // cache instantly, then refresh any stale account in the BACKGROUND via the
+  // durable job queue (deduped by username). It never calls Meta inline, so
+  // users never block on the shared pool or wait on each other's syncs. An
+  // explicit single-account sync (or `force`) still fetches inline for on-demand
+  // freshness.
+  const asyncMode = !body.force && (body.deferred === true || !body.account_id);
 
   let totalInserted = 0;
   let totalUpdated = 0;
+  let queued = 0;
   const errors: string[] = [];
 
   let rateLimitHit = false;
   let retryAfterSeconds: number | undefined;
-  // Only pace between calls that actually hit Meta — cache hits need no throttle,
-  // so a bulk sync that's mostly cache hits stays fast.
-  let lastCalledMeta = false;
 
-  for (let i = 0; i < accounts.length; i++) {
-    const account = accounts[i];
-
-    // Throttle between real Meta calls to stay under Instagram's app-level limit.
-    if (i > 0 && lastCalledMeta) {
-      await sleep(300);
-    }
-
-    // 1) Refresh the SHARED snapshot. A bulk "Sync All" respects the snapshot
-    //    TTL so accounts another user (or the cron) refreshed moments ago are
-    //    served from cache — the dedup that lets this scale. An explicit
-    //    single-account sync (or `force`) always fetches for on-demand freshness.
-    //    Either way the MetaRateLimiter guards against API overuse.
-    const snap = await refreshAccountSnapshot(
-      admin,
-      limiter,
-      credentials.igUserId,
-      credentials.token,
-      account.ig_username,
-      isBulk
-        ? { maxReels: syncLimit, ttlSeconds: BULK_SYNC_TTL_SECONDS }
-        : { maxReels: syncLimit, force: true }
+  if (asyncMode) {
+    // Pull shared-snapshot freshness for the whole batch up front so we only
+    // enqueue a refresh for accounts whose cache is actually stale or missing.
+    const unames = accounts.map((a) => normalizeUsername(a.ig_username));
+    const { data: snaps } = await admin
+      .from("ig_account_snapshots")
+      .select("ig_username, last_fetched_at, last_status")
+      .in("ig_username", unames);
+    const freshAt = new Map(
+      (snaps ?? [])
+        .filter((s) => s.last_status === "ok" && s.last_fetched_at)
+        .map((s) => [s.ig_username, new Date(s.last_fetched_at as string).getTime()])
     );
-    lastCalledMeta = snap.fetched;
+    const staleBefore = Date.now() - BULK_SYNC_TTL_SECONDS * 1000;
 
-    if (snap.rateLimited) {
-      retryAfterSeconds = snap.retryAfterSeconds ?? retryAfterSeconds;
-      rateLimitHit = true;
-    }
+    for (const account of accounts) {
+      const uname = normalizeUsername(account.ig_username);
 
-    if (snap.status === "error" || snap.status === "not_found") {
-      if (snap.error) errors.push(`@${account.ig_username}: ${snap.error}`);
-    }
+      // Serve whatever the shared cache holds right now — pure DB, no quota, no
+      // wait. New reels a background refresh fetches land on the next load.
+      const { inserted, updated } = await materializeForUser(
+        admin,
+        supabase,
+        user.id,
+        account.id,
+        uname,
+        syncLimit
+      );
+      totalInserted += inserted;
+      totalUpdated += updated;
 
-    // 1b) Refresh this user's account row from the freshly-fetched profile
-    //     (avatar/followers/handle). The profile rides along with the reels in
-    //     the same Business Discovery call — no extra quota — and the snapshot
-    //     layer already cached it for every other user. Crucially this runs on
-    //     EVERY sync, not just when the avatar is missing: IG's profile_picture
-    //     URLs are signed and expire, so a once-only backfill leaves avatars
-    //     broken forever once that URL lapses.
-    if (snap.profile) {
-      await supabase
-        .from("inspiration_accounts")
-        .update({
-          display_name: snap.profile.display_name,
-          followers_count: snap.profile.followers_count,
-          avatar_url: snap.profile.avatar_url,
-        })
-        .eq("id", account.id);
-    }
+      // Refresh in the background when the shared snapshot is stale/missing.
+      // Deduped by username: N users syncing @nike enqueue ONE fetch.
+      const fetchedAt = freshAt.get(uname);
+      if (fetchedAt == null || fetchedAt <= staleBefore) {
+        const { skipped } = await enqueueJob(admin, {
+          kind: "refresh_snapshot",
+          payload: { ig_username: uname, max_reels: syncLimit },
+          dedupKey: `refresh:${uname}`,
+        });
+        if (!skipped) queued += 1;
+      }
 
-    // 2) Materialize from the cache into this user's feed — pure DB, no quota.
-    //    Runs even when the refresh was throttled, so users still get cached reels.
-    const { inserted, updated } = await materializeForUser(
-      admin,
-      supabase,
-      user.id,
-      account.id,
-      account.ig_username,
-      syncLimit
-    );
-    totalInserted += inserted;
-    totalUpdated += updated;
-
-    // Don't stamp a throttled refresh as "synced" — the bulk-sync freshness
-    // skip would then wrongly pass over this account on the next attempt.
-    if (!snap.rateLimited) {
       await supabase
         .from("inspiration_accounts")
         .update({ last_synced_at: new Date().toISOString() })
         .eq("id", account.id);
     }
 
-    // Stop early on throttling so we don't worsen the app-level limit.
-    if (rateLimitHit) break;
+    // Nudge the queue worker so background refreshes start within seconds instead
+    // of waiting for the next cron tick. Best-effort; the cron is the safety net.
+    if (queued > 0 && process.env.CRON_SECRET) {
+      after(async () => {
+        try {
+          await fetch(new URL("/api/cron/run-jobs", request.url), {
+            headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+          });
+        } catch {
+          // Best-effort; the scheduled run-jobs cron will drain the queue.
+        }
+      });
+    }
+  } else {
+    // Inline path: explicit single-account sync or `force` — fetch fresh now.
+    // Shared, app-wide guard on the admin client (limiter RPCs are revoked for
+    // browser-facing roles); Business Discovery is rate-limited per Meta APP.
+    const limiter = createMetaRateLimiter(admin, user.id);
+    // Only pace between calls that actually hit Meta — cache hits need no throttle.
+    let lastCalledMeta = false;
+
+    for (let i = 0; i < accounts.length; i++) {
+      const account = accounts[i];
+
+      // Throttle between real Meta calls to stay under Instagram's app-level limit.
+      if (i > 0 && lastCalledMeta) {
+        await sleep(300);
+      }
+
+      const snap = await refreshAccountSnapshot(
+        admin,
+        limiter,
+        credentials.igUserId,
+        credentials.token,
+        account.ig_username,
+        { maxReels: syncLimit, force: true }
+      );
+      lastCalledMeta = snap.fetched;
+
+      if (snap.rateLimited) {
+        retryAfterSeconds = snap.retryAfterSeconds ?? retryAfterSeconds;
+        rateLimitHit = true;
+      }
+
+      if (snap.status === "error" || snap.status === "not_found") {
+        if (snap.error) errors.push(`@${account.ig_username}: ${snap.error}`);
+      }
+
+      // Refresh this user's account row from the freshly-fetched profile
+      // (avatar/followers/handle). Rides along in the same call — no extra quota
+      // — and runs on EVERY sync because IG's signed profile_picture URLs expire.
+      if (snap.profile) {
+        await supabase
+          .from("inspiration_accounts")
+          .update({
+            display_name: snap.profile.display_name,
+            followers_count: snap.profile.followers_count,
+            avatar_url: snap.profile.avatar_url,
+          })
+          .eq("id", account.id);
+      }
+
+      // Materialize from the cache into this user's feed — pure DB, no quota.
+      const { inserted, updated } = await materializeForUser(
+        admin,
+        supabase,
+        user.id,
+        account.id,
+        account.ig_username,
+        syncLimit
+      );
+      totalInserted += inserted;
+      totalUpdated += updated;
+
+      // Don't stamp a throttled refresh as "synced".
+      if (!snap.rateLimited) {
+        await supabase
+          .from("inspiration_accounts")
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq("id", account.id);
+      }
+
+      // Stop early on throttling so we don't worsen the app-level limit.
+      if (rateLimitHit) break;
+    }
   }
 
   // Human-readable retry window for the rate-limit message.
@@ -246,6 +314,8 @@ export async function POST(request: Request) {
     inserted: totalInserted,
     updated: totalUpdated,
     skippedFresh: skippedFresh || undefined,
+    // Number of accounts queued for a background refresh (async "Sync All").
+    queued: queued || undefined,
     rateLimited: rateLimitHit || undefined,
     retryAfterSeconds: rateLimitHit ? retryAfterSeconds : undefined,
     // `error` is what the client surfaces as the primary message.

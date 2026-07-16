@@ -16,6 +16,7 @@ type SyncResult = {
   inserted?: number;
   updated?: number;
   skippedFresh?: number;
+  queued?: number;
   rateLimited?: boolean;
   retryAfterSeconds?: number;
   errors?: string[];
@@ -118,6 +119,7 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
 
     let totalInserted = 0;
     let totalUpdated = 0;
+    let totalQueued = 0;
     let rateLimited = false;
     let retryAfterSeconds: number | undefined;
     let stoppedByUser = false;
@@ -140,11 +142,14 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
         const json = await requestJson<SyncResult>("/api/ig/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ account_id: account.id, limit: limitRef.current }),
+          // deferred: serve cache instantly + refresh in the background, so a
+          // "Sync All" never blocks on Meta or on other users' syncs.
+          body: JSON.stringify({ account_id: account.id, limit: limitRef.current, deferred: true }),
           signal: controller.signal,
         });
         totalInserted += json.inserted ?? 0;
         totalUpdated += json.updated ?? 0;
+        totalQueued += json.queued ?? 0;
         setStatuses((prev) => {
           const next = [...prev];
           next[i] = "done";
@@ -194,6 +199,9 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
       });
     } else if (!stoppedByUser) {
       toast.success(dict.syncedToast(totalInserted, totalUpdated));
+      if (totalQueued > 0) {
+        toast(dict.backgroundRefreshToast(totalQueued), { icon: "🔄", duration: 6000 });
+      }
     } else {
       toast(dict.stoppedToast);
     }
@@ -231,6 +239,8 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
         startCooldown(json.retryAfterSeconds);
       } else if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
+      } else if ((json.queued ?? 0) > 0) {
+        toast(dict.backgroundRefreshToast(json.queued as number), { icon: "🔄", duration: 6000 });
       }
 
       window.dispatchEvent(new CustomEvent("reelspy:synced"));

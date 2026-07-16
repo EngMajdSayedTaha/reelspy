@@ -130,6 +130,8 @@ const en = {
       syncing: "Syncing…",
       retryIn: (time: string) => `Try again in ${time}`,
       syncedToast: (inserted: number, updated: number) => `Synced: +${inserted} new · ${updated} refreshed`,
+      backgroundRefreshToast: (count: number) =>
+        `Refreshing ${count} account${count > 1 ? "s" : ""} in the background — new reels appear in a moment.`,
       alreadyUpToDateSuffix: (count: number) => ` · ${count} already up to date`,
       rateLimitedToast: (window: string) =>
         `Instagram's hourly limit was reached — paused early. Try again in ${window}.`,
@@ -328,6 +330,8 @@ export const feedAr: FeedDict = {
       syncing: "جارٍ المزامنة…",
       retryIn: (time: string) => `أعد المحاولة خلال ${time}`,
       syncedToast: (inserted: number, updated: number) => `تمت المزامنة: +${inserted} جديد · ${updated} محدَّث`,
+      backgroundRefreshToast: (count: number) =>
+        `يتم تحديث ${count} حساب في الخلفية — ستظهر الريلز الجديدة بعد لحظات.`,
       alreadyUpToDateSuffix: (count: number) => ` · ${count} محدَّث بالفعل`,
       rateLimitedToast: (window: string) =>
         `تم بلوغ الحد الساعي لإنستغرام — تم الإيقاف مبكرًا. أعد المحاولة خلال ${window}.`,
