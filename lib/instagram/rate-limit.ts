@@ -31,6 +31,24 @@ const SOFT_COOLDOWN = numEnv("META_SOFT_COOLDOWN_SECONDS", 300);
 // App-usage % at/above which we proactively back off (Meta hard-throttles at 100).
 const SAFE_USAGE_PCT = numEnv("META_SAFE_USAGE_PCT", 90);
 const REFILL_PER_SEC = HOURLY_BUDGET / 3600;
+// Meta's app-usage % is measured over a rolling hour, but we only refresh our
+// stored reading on an actual Business Discovery call. Between calls the real
+// usage drains as old calls age out, so the displayed "shared app pool" figure
+// decays linearly to 0 over this window from when it was last observed — without
+// this it stays frozen at a stale peak until the next fetch happens to update it.
+const USAGE_DECAY_SECONDS = numEnv("META_USAGE_DECAY_SECONDS", 3600);
+
+// Age a stored app-usage reading toward 0. `observedAtMs` is 0 when we have no
+// timestamp (pre-migration column absent) — in that case we can't decay, so we
+// return the raw value rather than guess.
+function decayAppUsage(rawPct: number, observedAtMs: number, nowMs: number): number {
+  if (rawPct <= 0) return 0;
+  if (!observedAtMs) return rawPct;
+  const ageSeconds = (nowMs - observedAtMs) / 1000;
+  if (ageSeconds <= 0) return rawPct;
+  const factor = Math.max(0, 1 - ageSeconds / USAGE_DECAY_SECONDS);
+  return Math.round(rawPct * factor);
+}
 
 export type RateLimitReason = "circuit_open" | "user_quota" | "app_budget" | "rate_limited";
 
@@ -201,7 +219,7 @@ export async function readRateLimitStatus(
 
   const { data: limiter } = await admin
     .from("meta_api_limiter")
-    .select("throttled_until, app_usage_pct")
+    .select("throttled_until, app_usage_pct, app_usage_at")
     .eq("id", 1)
     .maybeSingle();
 
@@ -209,6 +227,11 @@ export async function readRateLimitStatus(
     ? new Date(limiter.throttled_until).getTime()
     : 0;
   const throttled = throttledUntil > now;
+
+  const appUsageObservedAt = limiter?.app_usage_at
+    ? new Date(limiter.app_usage_at).getTime()
+    : 0;
+  const appUsagePct = decayAppUsage(limiter?.app_usage_pct ?? 0, appUsageObservedAt, now);
 
   const { data: usage } = await admin
     .from("meta_api_user_usage")
@@ -229,7 +252,7 @@ export async function readRateLimitStatus(
   return {
     throttled,
     retryAfterSeconds: throttled ? Math.ceil((throttledUntil - now) / 1000) : 0,
-    appUsagePct: limiter?.app_usage_pct ?? 0,
+    appUsagePct,
     userUsed,
     userCap: USER_HOURLY_BUDGET,
     userResetSeconds,
