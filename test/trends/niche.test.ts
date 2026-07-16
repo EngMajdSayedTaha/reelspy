@@ -15,7 +15,8 @@ import {
 // admin-client chains niche.ts uses (select/eq/in/gte/returns then await).
 function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
   const make = (table: string) => {
-    const result = { data: tables[table] ?? [], error: null };
+    const rows = tables[table] ?? [];
+    let range: [number, number] | null = null;
     const builder: Record<string, unknown> = {
       select: () => builder,
       eq: () => builder,
@@ -23,8 +24,13 @@ function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
       gte: () => builder,
       order: () => builder,
       limit: () => builder,
+      range: (from: number, to: number) => {
+        range = [from, to];
+        return builder;
+      },
       returns: () => builder,
-      then: (resolve: (v: unknown) => unknown) => resolve(result),
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: range ? rows.slice(range[0], range[1] + 1) : rows, error: null }),
     };
     return builder;
   };
@@ -179,5 +185,19 @@ describe("listSeedNiches", () => {
       { niche: "fitness", accountCount: 2, taggerCount: 0 },
       { niche: "real estate", accountCount: 1, taggerCount: 0 },
     ]);
+  });
+
+  // Regression: the table exceeds PostgREST's 1000-row cap, so an unpaged read
+  // dropped every niche whose handles sat past the first page (that's what left
+  // "real estate" unresolvable and un-enriched). listSeedNiches must page.
+  it("pages past the 1000-row response cap so late niches aren't dropped", async () => {
+    const seed = [
+      ...Array.from({ length: 1000 }, (_, i) => ({ ig_username: `fit${i}`, niche_slug: "fitness" })),
+      { ig_username: "re1", niche_slug: "real estate" },
+      { ig_username: "re2", niche_slug: "real estate" },
+    ];
+    const niches = await listSeedNiches(fakeAdmin({ seed_accounts: seed }));
+    expect(niches.map((n) => n.niche)).toContain("real estate");
+    expect(niches.find((n) => n.niche === "real estate")?.accountCount).toBe(2);
   });
 });
