@@ -1,14 +1,16 @@
 # ReelSpy
 
-ReelSpy is a Next.js App Router application for tracking inspiration reels, scoring virality, and generating original scripts.
+ReelSpy is a Next.js App Router application for tracking inspiration reels, scoring virality, and generating original scripts. Production: **https://reelspy.dev**.
+
+📚 **Documentation lives in [`docs/`](docs/README.md)** — start there for the business-logic rulebook ([`docs/BUSINESS-LOGIC.md`](docs/BUSINESS-LOGIC.md)), the full technical reference, and all setup runbooks.
 
 ## Setup (Supabase + Google + Instagram)
 
 1. Copy `.env.example` to `.env.local` and fill all values.
 2. Run SQL from `supabase/schema.sql` in Supabase SQL Editor.
-	- For an existing database, apply the additive migrations in `supabase/migrations/` instead (e.g. `20260605_reel_transcripts.sql`).
-	- **Security:** apply `20260611_lock_down_ig_tokens.sql` — it makes the stored Instagram token unreadable from browser clients (column-level grants) and restricts the rate-limiter RPCs to the server. The app already routes all token access through the service-role client, so applying it changes no behavior.
-3. Configure Google provider in Supabase Auth.
+	- For an existing database, apply the additive migrations in `supabase/migrations/` instead (timestamped `YYYYMMDDHHMMSS_name.sql` — see `supabase/migrations/README.md` for the convention and the GitHub↔Supabase auto-deploy).
+	- **Security:** apply the `lock_down_ig_tokens` migration — it makes the stored Instagram token unreadable from browser clients (column-level grants) and restricts the rate-limiter RPCs to the server. The app already routes all token access through the service-role client, so applying it changes no behavior.
+3. Configure Google provider in Supabase Auth (email/password sign-up with email confirmation is also supported out of the box).
 4. Configure Instagram app credentials (`META_APP_ID` or `META_IG_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`).
 	- If Meta Business Login provides a distinct Instagram App ID, use `META_IG_APP_ID`.
 5. Follow detailed steps in `docs/google-supabase-setup.md`.
@@ -67,8 +69,8 @@ This verifies local env keys required for Supabase + Google auth flow and confir
 
 ## Dashboard Workflow
 
-1. Connect Instagram in `/dashboard/settings/instagram`.
+1. Sign up and follow the onboarding wizard (`/dashboard/onboarding`): connect Instagram, set your brand voice + niche, add inspiration accounts.
 2. Run sync to import recent reels.
-3. Open `/dashboard/feed` and select a reel to generate script.
+3. Open `/dashboard/feed` (default sort: out-performance vs each account's own baseline) and select a reel to generate a script.
 4. On the generate page, optionally generate the reel transcript to study its hook and pacing.
-5. Review saved drafts in `/dashboard/scripts`.
+5. Review saved drafts in `/dashboard/scripts`; explore niche-wide winners in `/dashboard/trends`.
