@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
-import { DEFAULT_COLOR_THEME, THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
+import { THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
 import { dirForLocale } from "@/lib/i18n/config";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { getSiteUrl } from "@/lib/site";
@@ -74,9 +74,9 @@ export default async function RootLayout({
     <html
       lang={locale}
       dir={dirForLocale(locale)}
-      // The default (mono) gets no attribute — the base tokens ARE mono, so
-      // there's nothing to override and logged-out pages stay on-brand.
-      data-theme={colorTheme === DEFAULT_COLOR_THEME ? undefined : colorTheme}
+      // Always stamped: the default (volt) has its own CSS block, and "mono"
+      // has none, so an unknown value degrades gracefully to base tokens.
+      data-theme={colorTheme}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} h-full antialiased`}
     >

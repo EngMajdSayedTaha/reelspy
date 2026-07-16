@@ -7,8 +7,8 @@
 // cross-device source of truth.
 
 export const COLOR_THEMES = [
-  "mono",
   "volt",
+  "mono",
   "rose",
   "ocean",
   "violet",
@@ -19,12 +19,15 @@ export const COLOR_THEMES = [
 
 export type ColorTheme = (typeof COLOR_THEMES)[number];
 
-export const DEFAULT_COLOR_THEME: ColorTheme = "mono";
+// Brand default: volt (electric yellow + blue). Unlike mono, volt has its own
+// CSS override block, so the attribute is ALWAYS stamped (applyColorTheme and
+// the root layout never omit it) — "mono" simply has no block and falls
+// through to the base :root/.dark tokens.
+export const DEFAULT_COLOR_THEME: ColorTheme = "volt";
 
 export const THEME_COOKIE = "reelspy_theme";
 
-// Tolerant parse: anything unknown falls back to the default (mono), which has
-// no CSS override block — the base :root/.dark palette IS mono.
+// Tolerant parse: anything unknown falls back to the default (volt).
 export function normalizeColorTheme(value: unknown): ColorTheme {
   return (COLOR_THEMES as readonly unknown[]).includes(value)
     ? (value as ColorTheme)
@@ -39,8 +42,8 @@ type Swatch = { bg: string; fg: string; accent: string };
 
 export const THEME_SWATCHES: Record<ColorTheme, { light: Swatch; dark: Swatch }> = {
   volt: {
-    light: { bg: "#f9e400", fg: "#121212", accent: "#6d28d9" },
-    dark: { bg: "#f9e400", fg: "#121212", accent: "#a78bfa" },
+    light: { bg: "#f9e400", fg: "#121212", accent: "#1d4ed8" },
+    dark: { bg: "#f9e400", fg: "#121212", accent: "#60a5fa" },
   },
   rose: {
     light: { bg: "#e11d48", fg: "#ffffff", accent: "#b45309" },
@@ -76,11 +79,8 @@ export const THEME_SWATCHES: Record<ColorTheme, { light: Swatch; dark: Swatch }>
 // the choice into the cookie so the next SSR render stamps it (no flash).
 export function applyColorTheme(theme: ColorTheme) {
   if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  if (theme === DEFAULT_COLOR_THEME) {
-    delete root.dataset.theme;
-  } else {
-    root.dataset.theme = theme;
-  }
+  // Always stamp the attribute (the default volt needs its CSS block to
+  // match; "mono" has no block and resolves to the base tokens).
+  document.documentElement.dataset.theme = theme;
   document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=31536000; samesite=lax`;
 }
