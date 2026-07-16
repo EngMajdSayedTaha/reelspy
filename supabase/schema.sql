@@ -32,7 +32,10 @@ create table profiles (
   onboarded_at timestamptz,             -- first-run wizard completion marker (L7); null = not done
   digest_opt_out boolean not null default false, -- weekly digest unsubscribe (V3/W6)
   is_admin boolean not null default false, -- founder bypass of all plan caps; SQL/service-role only
-  color_theme text not null default 'volt' -- preset color theme (lib/color-theme.ts)
+  color_theme text not null default 'volt', -- preset color theme (lib/color-theme.ts)
+  quiz_completed_at timestamptz,        -- onboarding quiz done/dismissed marker (one-shot, like onboarded_at)
+  tour_completed_at timestamptz,        -- product tour done/dismissed marker
+  niche_slug text                       -- resolved Niche Radar taxonomy key (lib/trends/niche.ts)
 );
 
 alter table profiles enable row level security;
@@ -45,10 +48,12 @@ revoke all on table profiles from anon, authenticated;
 grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
               ig_token_refreshed_at, fb_page_id, fb_page_name,
               webhook_subscribed_at, created_at, brand_voice, onboarded_at,
-              digest_opt_out, is_admin, color_theme)
+              digest_opt_out, is_admin, color_theme,
+              quiz_completed_at, tour_completed_at, niche_slug)
   on profiles to authenticated;
 grant insert (id, username) on profiles to authenticated;
-grant update (id, username, brand_voice, onboarded_at, digest_opt_out, color_theme)
+grant update (id, username, brand_voice, onboarded_at, digest_opt_out, color_theme,
+              quiz_completed_at, tour_completed_at, niche_slug)
   on profiles to authenticated;
 
 -- Auto-create a profile row when a new auth user signs up.
@@ -146,6 +151,9 @@ create policy "Users can manage own reels"
 
 create index tracked_reels_user_viral_idx on tracked_reels (user_id, viral_score desc);
 create index tracked_reels_user_posted_idx on tracked_reels (user_id, posted_at desc);
+-- Backs the ig_media_id lookups used by per-user sync and the cross-user
+-- thumbnail propagation (bulk_propagate_reel_thumbnails below).
+create index tracked_reels_ig_media_id_idx on tracked_reels (ig_media_id);
 
 -- ── generated_scripts — AI-generated scripts, optionally tied to a reel ──────
 create table generated_scripts (
@@ -218,6 +226,23 @@ create table ig_reel_snapshots (
 );
 alter table ig_reel_snapshots enable row level security;
 create index ig_reel_snapshots_username_idx on ig_reel_snapshots (ig_username);
+
+-- ── seed_accounts — curated cold-start pool for niche suggestions ─────────────
+-- Per-niche pool of real IG handles used ONLY as a fallback while the cross-user
+-- account_groups pool is still empty (lib/suggestions/accounts.ts). Kept OUT of
+-- the cross-user aggregate (nicheTrending/listNiches) so it never pollutes the
+-- real trend intelligence. Records only intent (handle → niche); enrichment
+-- status and metrics live in ig_account_snapshots / ig_reel_snapshots above.
+create table seed_accounts (
+  ig_username text primary key,        -- normalized: lowercased, no leading @
+  niche_slug  text not null,           -- slugifyNiche() form, e.g. "real estate"
+  priority    int  not null default 0, -- optional manual ranking within a niche
+  added_at    timestamptz default now()
+);
+create index seed_accounts_niche_idx on seed_accounts (niche_slug);
+-- RLS on with NO policies = service-role only (seed script + enrich cron +
+-- server-side suggestion engine), matching the snapshot cache above.
+alter table seed_accounts enable row level security;
 
 -- ── ig_my_insights_cache — per-user cache of the owner's own IG insights ─────
 create table ig_my_insights_cache (
@@ -623,6 +648,35 @@ $$;
 grant execute on function public.bulk_update_tracked_reel_metrics(uuid, jsonb)
   to authenticated;
 
+-- Cross-user thumbnail propagation: pushes a freshly-fetched thumbnail_url to
+-- EVERY user's copy of a reel (matched by ig_media_id, no ownership check), so
+-- expired signed CDN URLs get healed for all trackers of an account, not just
+-- whoever triggered the fetch. Service-role only for that reason.
+create or replace function bulk_propagate_reel_thumbnails(p_rows jsonb)
+returns integer
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  with updated as (
+    update tracked_reels t
+    set thumbnail_url = r->>'thumbnail_url'
+    from jsonb_array_elements(p_rows) as r
+    where t.ig_media_id = (r->>'ig_media_id')
+      and r->>'thumbnail_url' is not null
+      and t.thumbnail_url is distinct from (r->>'thumbnail_url')
+    returning 1
+  )
+  select count(*) into v_count from updated;
+  return v_count;
+end;
+$$;
+revoke all on function bulk_propagate_reel_thumbnails(jsonb) from public, authenticated, anon;
+grant execute on function bulk_propagate_reel_thumbnails(jsonb) to service_role;
+
 -- Meta API token-bucket limiter: circuit breaker + app-wide budget + per-user
 -- hourly window, enforced atomically. Server-only (service_role).
 create or replace function public.consume_meta_quota(
@@ -953,7 +1007,9 @@ create table subscriptions (
   status text not null default 'inactive',
   current_period_end timestamptz,
   cancel_at_period_end boolean not null default false,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  custom_entitlements jsonb            -- tier='custom' limits, set by the Stripe webhook
+                                       -- (lib/billing/custom-pricing.ts); overrides ENTITLEMENTS
 );
 create index subscriptions_stripe_customer_idx on subscriptions (stripe_customer_id);
 
@@ -1094,8 +1150,9 @@ revoke execute on function outperforming_feed(uuid, uuid, uuid[], text, text, in
 grant execute on function outperforming_feed(uuid, uuid, uuid[], text, text, int, int) to authenticated;
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
--- ║ Storage — private bucket for uploaded publish videos.                      ║
--- ║ Objects live under {user_id}/...; RLS keys off the first path segment.     ║
+-- ║ Storage — private bucket for uploaded publish videos, public bucket for    ║
+-- ║ cached IG media. publish-media objects live under {user_id}/...; RLS keys  ║
+-- ║ off the first path segment.                                                ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 insert into storage.buckets (id, name, public)
   values ('publish-media', 'publish-media', false)
@@ -1112,6 +1169,15 @@ create policy "Users manage own publish-media objects"
     bucket_id = 'publish-media'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- Public bucket holding OUR copy of every fetched IG avatar/thumbnail.
+-- Instagram's signed CDN URLs expire (~7 days) and can't always be re-fetched
+-- (Business Discovery only returns each account's most-recent media), so we
+-- persist the bytes and serve never-expiring URLs from our own domain.
+-- Written only by the service-role client; no storage.objects policies needed.
+insert into storage.buckets (id, name, public)
+  values ('ig-media', 'ig-media', true)
+  on conflict (id) do nothing;
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Admin control dashboard — audit log, support notes, search indexes.        ║
