@@ -17,9 +17,12 @@ import {
   slugifyNiche,
   nicheTrending,
   seedTrending,
+  listNiches,
+  listSeedNiches,
   type NicheSummary,
   type TrendReel,
 } from "@/lib/trends/niche";
+import type { BrandVoice } from "@/lib/ai/brand-voice";
 
 const NICHE_TOOL: JsonTool = {
   name: "pick_niche",
@@ -120,6 +123,25 @@ export async function resolveNicheSlug(
     console.warn("[suggestions] resolveNicheSlug AI fallback failed:", err instanceof Error ? err.message : err);
     return null;
   }
+}
+
+// Build the resolution taxonomy — cross-user niches (the Radar aggregate) unioned
+// with the curated seed niches — and map a creator's free-text niche onto it.
+// Centralized so the onboarding quiz and the self-heal path in
+// getSuggestionsForUser resolve niches identically. Seed niches fill the gap on a
+// young deployment where a niche (e.g. "real estate") has no cross-user data yet.
+export async function resolveUserNicheSlug(
+  admin: SupabaseClient,
+  nicheText: string
+): Promise<string | null> {
+  if (!nicheText.trim()) return null;
+  const [crossUserNiches, seedNiches] = await Promise.all([
+    listNiches(admin).catch(() => []),
+    listSeedNiches(admin).catch(() => []),
+  ]);
+  const seen = new Set(crossUserNiches.map((n) => n.niche));
+  const niches = [...crossUserNiches, ...seedNiches.filter((n) => !seen.has(n.niche))];
+  return resolveNicheSlug(nicheText, niches);
 }
 
 export type SuggestedAccount = {
@@ -247,14 +269,34 @@ export async function getSuggestionsForUser(userId: string): Promise<UserSuggest
   try {
     const supabase = await createClient();
     const [{ data: profile }, { data: tracked }] = await Promise.all([
-      supabase.from("profiles").select("niche_slug").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("niche_slug, brand_voice").eq("id", userId).maybeSingle(),
       supabase.from("inspiration_accounts").select("ig_username").eq("user_id", userId),
     ]);
 
-    const nicheSlug = (profile?.niche_slug as string | null) ?? null;
+    let nicheSlug = (profile?.niche_slug as string | null) ?? null;
     const excludeUsernames = (tracked ?? []).map((r) => r.ig_username as string);
 
     const admin = createAdminClient();
+
+    // Self-heal: the user told us their niche (brand_voice.niche is set) but it
+    // never resolved onto the taxonomy — niche_slug is null. This happens when
+    // resolution ran against an incomplete taxonomy at quiz time (e.g. before a
+    // fix, or during a transient DB error). Without this, the user is stuck
+    // forever ("Set your niche" + off-niche fallback) because the quiz never
+    // re-prompts. Resolve now and persist so it's a one-time recovery.
+    const nicheText = (profile?.brand_voice as BrandVoice | null)?.niche?.trim() || null;
+    if (!nicheSlug && nicheText) {
+      const healed = await resolveUserNicheSlug(admin, nicheText);
+      if (healed) {
+        nicheSlug = healed;
+        await supabase
+          .from("profiles")
+          .update({ niche_slug: healed })
+          .eq("id", userId)
+          .is("niche_slug", null);
+      }
+    }
+
     const { accounts, fallback, emptyReason } = await suggestedAccounts(admin, {
       nicheSlug,
       excludeUsernames,

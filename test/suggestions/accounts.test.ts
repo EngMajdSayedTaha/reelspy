@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveNicheSlug, suggestedAccounts } from "@/lib/suggestions/accounts";
+import { resolveNicheSlug, resolveUserNicheSlug, suggestedAccounts } from "@/lib/suggestions/accounts";
 import type { NicheSummary } from "@/lib/trends/shared";
 
 // Mirrors test/trends/niche.test.ts's fakeAdmin: per-table canned responses,
 // thenable builder chain matching what nicheTrending/ig_account_snapshots use.
 function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
   const make = (table: string) => {
-    const result = { data: tables[table] ?? [], error: null };
+    const rows = tables[table] ?? [];
+    let range: [number, number] | null = null;
     const builder: Record<string, unknown> = {
       select: () => builder,
       eq: () => builder,
@@ -15,8 +16,13 @@ function fakeAdmin(tables: Record<string, unknown[]>): SupabaseClient {
       gte: () => builder,
       order: () => builder,
       limit: () => builder,
+      range: (from: number, to: number) => {
+        range = [from, to];
+        return builder;
+      },
       returns: () => builder,
-      then: (resolve: (v: unknown) => unknown) => resolve(result),
+      then: (resolve: (v: unknown) => unknown) =>
+        resolve({ data: range ? rows.slice(range[0], range[1] + 1) : rows, error: null }),
     };
     return builder;
   };
@@ -48,6 +54,28 @@ describe("resolveNicheSlug (pure string matching — no AI configured in tests)"
   it("returns null for an empty niche or empty taxonomy", async () => {
     expect(await resolveNicheSlug("   ", NICHES)).toBeNull();
     expect(await resolveNicheSlug("fitness", [])).toBeNull();
+  });
+});
+
+describe("resolveUserNicheSlug (quiz + self-heal shared resolver)", () => {
+  it("resolves onto the seed taxonomy when a niche has no cross-user data yet", async () => {
+    // No account_groups / inspiration_accounts (fresh deploy), so the niche is
+    // resolvable ONLY through the seed pool — the exact case that regressed and
+    // left real-estate users with a null niche_slug.
+    const admin = fakeAdmin({
+      account_groups: [],
+      inspiration_accounts: [],
+      seed_accounts: [
+        { ig_username: "ryanserhant", niche_slug: "real estate" },
+        { ig_username: "grantcardone", niche_slug: "real estate" },
+      ],
+    });
+    expect(await resolveUserNicheSlug(admin, "Real Estate")).toBe("real estate");
+  });
+
+  it("returns null for a blank niche without touching the DB", async () => {
+    const admin = fakeAdmin({});
+    expect(await resolveUserNicheSlug(admin, "   ")).toBeNull();
   });
 });
 

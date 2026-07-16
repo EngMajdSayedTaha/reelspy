@@ -214,6 +214,33 @@ export async function nicheTrending(
 
 type SeedAccountRow = { ig_username: string };
 
+export type SeedAccountEntry = { ig_username: string; niche_slug: string };
+
+// Page through EVERY seed_accounts row. seed_accounts is a large curated table
+// (2k+ handles across 100+ niches) that exceeds PostgREST's default 1000-row
+// response cap, so an unpaged `.select()` silently returns only the first ~1000
+// physical rows — dropping whole niches (e.g. "real estate") from both niche
+// resolution (listSeedNiches) and enrichment (enrichSeedAccounts). Both bugs
+// left a real-estate creator with a null niche_slug ("Set your niche" forever)
+// and off-niche fallback suggestions. Ordering by the primary key keeps paging
+// stable (no skipped/duplicated rows across pages).
+export async function loadAllSeedAccounts(admin: SupabaseClient): Promise<SeedAccountEntry[]> {
+  const PAGE = 1000; // mirrors Supabase's default db-max-rows cap
+  const out: SeedAccountEntry[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data } = await admin
+      .from("seed_accounts")
+      .select("ig_username, niche_slug")
+      .order("ig_username", { ascending: true })
+      .range(from, from + PAGE - 1)
+      .returns<SeedAccountEntry[]>();
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
 // Cold-start seed pool for a niche (seed_accounts table). Same ranking math as
 // nicheTrending but over a CURATED per-niche handle list instead of cross-user
 // tracked accounts — used only as a suggestion fallback when the real niche pool
@@ -244,13 +271,12 @@ export async function seedTrending(
 // quiz on a fresh deploy (app/dashboard/onboarding/actions.ts). Kept a SEPARATE
 // call from listNiches so seed niches never leak into the cross-user Niche Radar.
 export async function listSeedNiches(admin: SupabaseClient): Promise<NicheSummary[]> {
-  const { data } = await admin
-    .from("seed_accounts")
-    .select("niche_slug")
-    .returns<{ niche_slug: string }[]>();
+  // Paged read — an unpaged select hits the 1000-row cap and drops niches whose
+  // handles sit past the first page (that's what left "real estate" unresolvable).
+  const rows = await loadAllSeedAccounts(admin);
 
   const counts = new Map<string, number>();
-  for (const r of data ?? []) {
+  for (const r of rows) {
     const niche = slugifyNiche(r.niche_slug);
     if (!niche) continue;
     counts.set(niche, (counts.get(niche) ?? 0) + 1);

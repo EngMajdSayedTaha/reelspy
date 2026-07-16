@@ -10,6 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaRateLimiter } from "./rate-limit";
 import { refreshAccountSnapshot, type HealthyToken } from "./snapshots";
+import { loadAllSeedAccounts } from "@/lib/trends/niche";
 import { numEnv } from "@/lib/utils/env";
 
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
@@ -32,9 +33,12 @@ export async function enrichSeedAccounts(
 ): Promise<SeedEnrichStats> {
   const ttlSeconds = opts.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
-  const { data: rows } = await admin.from("seed_accounts").select("ig_username, niche_slug");
+  // Paged read — an unpaged select caps at 1000 rows, which would exclude whole
+  // niches (e.g. "real estate") from enrichment so their snapshots stay 'pending'
+  // forever and never surface as suggestions.
+  const rows = await loadAllSeedAccounts(admin);
   const nicheByUsername = new Map<string, string>();
-  for (const r of rows ?? []) {
+  for (const r of rows) {
     nicheByUsername.set(String(r.ig_username).toLowerCase(), String(r.niche_slug));
   }
   const allUsernames = Array.from(nicheByUsername.keys());
