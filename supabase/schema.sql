@@ -264,6 +264,7 @@ create table meta_api_limiter (
   bucket_updated_at timestamptz not null default now(),
   throttled_until timestamptz,
   app_usage_pct integer not null default 0,
+  app_usage_at timestamptz not null default now(),  -- when app_usage_pct was observed (for decay)
   updated_at timestamptz not null default now()
 );
 alter table meta_api_limiter enable row level security;
@@ -785,7 +786,7 @@ create or replace function public.record_meta_usage(p_usage integer)
 as $$
 begin
   update meta_api_limiter
-    set app_usage_pct = p_usage, updated_at = now()
+    set app_usage_pct = p_usage, app_usage_at = now(), updated_at = now()
   where id = 1;
 end;
 $$;
@@ -807,6 +808,7 @@ begin
         tokens = 0,
         bucket_updated_at = now(),
         app_usage_pct = coalesce(p_usage, app_usage_pct),
+        app_usage_at = case when p_usage is not null then now() else app_usage_at end,
         updated_at = now()
   where id = 1;
 end;
