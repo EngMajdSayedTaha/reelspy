@@ -1,10 +1,12 @@
-// ReelSpy brand mark: a spy viewfinder locked onto a play button, with a
-// scanning beam sweeping through — "watching reels so you don't have to".
-// Colors follow the active preset (--primary/--primary-foreground) so the
-// mark re-colors along with buttons/links when the user picks a theme. The
-// favicon in app/icon.svg stays static brand yellow — it's a standalone file
-// the browser fetches outside the page's CSS/theme context, so it can't
-// follow the in-app preset; keep its silhouette in sync if the design changes.
+// ReelSpy unified brand mark: a spy viewfinder locked onto a play button, with
+// a scanning beam sweeping through — "watching reels so you don't have to".
+// The mark uses FIXED brand colors (volt-yellow gradient tile + ink glyphs) so
+// the logo is identical everywhere — in-app, favicon (app/icon.svg), and the
+// PNG exports in public/brand — regardless of the user's color-theme preset.
+// If the geometry or colors change, update app/icon.svg and regenerate the
+// PNGs (scripts/generate-brand-assets.mjs) to keep them in sync.
+
+const INK = "#121212";
 
 type LogoMarkProps = {
   size?: number;
@@ -24,11 +26,26 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       aria-label={ariaLabel}
       className={className}
     >
-      <rect width="64" height="64" rx="14" fill="var(--primary)" />
+      <defs>
+        {/* Shared ids across instances resolve to the first identical def — safe. */}
+        <linearGradient id="rsBg" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#FFEE55" />
+          <stop offset="0.55" stopColor="#F9E400" />
+          <stop offset="1" stopColor="#EBCB00" />
+        </linearGradient>
+        <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.5" />
+          <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      <rect width="64" height="64" rx="14" fill="url(#rsBg)" />
+      <rect x="1" y="1" width="62" height="62" rx="13" fill="url(#rsSheen)" opacity="0.55" />
+      <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke={INK} strokeOpacity="0.12" />
 
       {/* Viewfinder corner brackets */}
       <g
-        stroke="var(--primary-foreground)"
+        stroke={INK}
         strokeWidth="4.5"
         strokeLinecap="round"
         fill="none"
@@ -44,8 +61,8 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       {/* Play triangle */}
       <path
         d="M27 23.5 L43.5 32 L27 40.5 Z"
-        fill="var(--primary-foreground)"
-        stroke="var(--primary-foreground)"
+        fill={INK}
+        stroke={INK}
         strokeWidth="3"
         strokeLinejoin="round"
         className={animated ? "logo-play" : undefined}
@@ -54,7 +71,7 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
 
       {/* Scanning beam */}
       {animated ? (
-        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="var(--primary-foreground)" className="logo-scan" />
+        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill={INK} opacity="0.8" className="logo-scan" />
       ) : null}
     </svg>
   );
