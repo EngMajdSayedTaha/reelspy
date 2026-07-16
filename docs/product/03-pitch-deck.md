@@ -57,11 +57,14 @@ ReelSpy imports their reels automatically and keeps them fresh.
 
 ## 2 · Spot what's hot 🔥
 
-**Virality score** on every reel
-→ comments count most, likes next, views least.
+**Out-performance ranking** on every reel
+→ how far it beats *that account's own average* — true outliers, not just big accounts.
 
 **"Rising Now"** ranks by *growth-per-hour*
 → catch the rocket while it's still climbing.
+
+**Niche Radar** 📡
+→ what's over-performing across your *whole niche*, powered by anonymized cross-user intel.
 
 ---
 
