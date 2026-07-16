@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createMetaRateLimiter, SYSTEM_USER_ID } from "@/lib/instagram/rate-limit";
+import { createMetaRateLimiter, refreshHourlyBudget, SYSTEM_USER_ID } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapshots";
 import { enrichSeedAccounts } from "@/lib/instagram/enrich";
 import { cronAuthorized } from "@/lib/utils/cron";
@@ -16,7 +16,6 @@ export const maxDuration = 300;
 const BATCH = numEnv("SNAPSHOT_REFRESH_BATCH", 50);
 const SEED_BATCH = numEnv("SEED_ENRICH_BATCH", 50);
 const TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600);
-const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
 
 export async function GET(request: Request) {
   if (!cronAuthorized(request)) {
@@ -24,6 +23,10 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Resize the shared app-wide budget to the current connected-user count before
+  // spending (Meta's ceiling scales ~200/hr per user). Also the worker's own cap.
+  const budget = await refreshHourlyBudget(admin);
 
   // A single healthy token is enough — Business Discovery reads any public
   // account, and the rate limit is app-level.
@@ -67,7 +70,7 @@ export async function GET(request: Request) {
 
   // System limiter: full app budget as the per-user cap (the worker isn't a real
   // user), but still bounded by the shared token bucket + circuit breaker.
-  const limiter = createMetaRateLimiter(admin, SYSTEM_USER_ID, HOURLY_BUDGET);
+  const limiter = createMetaRateLimiter(admin, SYSTEM_USER_ID, budget);
 
   let processed = 0;
   let refreshed = 0;
