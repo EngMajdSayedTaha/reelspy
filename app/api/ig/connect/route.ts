@@ -1,18 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createRouteClient } from "@/lib/supabase/route";
 import { buildInstagramConnectUrl } from "@/lib/instagram/graph-api";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
+  // Route-handler client: getUser() may refresh + rotate the session, and we
+  // must carry the refreshed cookies onto the redirect below (applyCookies) or
+  // mobile users on an expired token get bounced to /login instead of Facebook.
+  const { supabase, applyCookies } = await createRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
   }
 
   // Facebook Login flow: client_id must be the Facebook App ID.
@@ -34,20 +37,24 @@ export async function GET(request: Request) {
   const configId = process.env.META_FB_CONFIG_ID?.trim() || undefined;
 
   if (!appId || !appSecret || !redirectUri) {
-    return NextResponse.redirect(
-      new URL("/dashboard/connections?error=meta_env_missing", request.url)
+    return applyCookies(
+      NextResponse.redirect(
+        new URL("/dashboard/connections?error=meta_env_missing", request.url)
+      )
     );
   }
 
   const state = randomUUID();
-  const redirectResponse = NextResponse.redirect(
-    buildInstagramConnectUrl({
-      appId,
-      redirectUri,
-      state,
-      scopes,
-      configId,
-    })
+  const redirectResponse = applyCookies(
+    NextResponse.redirect(
+      buildInstagramConnectUrl({
+        appId,
+        redirectUri,
+        state,
+        scopes,
+        configId,
+      })
+    )
   );
 
   redirectResponse.cookies.set(OAUTH_STATE_COOKIE, state, {

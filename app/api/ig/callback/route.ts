@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createRouteClient } from "@/lib/supabase/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
 import {
@@ -43,13 +43,17 @@ export async function GET(request: NextRequest) {
     return invalidStateResponse;
   }
 
-  const supabase = await createClient();
+  // Route-handler client: getUser() may refresh + rotate the session on the way
+  // back from Facebook. applyCookies carries the refreshed cookies onto every
+  // redirect below so mobile users aren't silently bounced to /login (which
+  // leaves Instagram unconnected even though OAuth succeeded).
+  const { supabase, applyCookies } = await createRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
   }
 
   try {
@@ -59,8 +63,10 @@ export async function GET(request: NextRequest) {
     const igAccount = await getInstagramBusinessAccount(longLivedToken);
 
     if (!igAccount) {
-      const noAccountResponse = NextResponse.redirect(
-        new URL("/dashboard/connections?error=no_ig_business_account", request.url)
+      const noAccountResponse = applyCookies(
+        NextResponse.redirect(
+          new URL("/dashboard/connections?error=no_ig_business_account", request.url)
+        )
       );
       noAccountResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return noAccountResponse;
@@ -84,8 +90,10 @@ export async function GET(request: NextRequest) {
       });
     } catch (updateError) {
       console.error("Failed to update profile with IG token", updateError);
-      const profileUpdateResponse = NextResponse.redirect(
-        new URL("/dashboard/connections?error=profile_update_failed", request.url)
+      const profileUpdateResponse = applyCookies(
+        NextResponse.redirect(
+          new URL("/dashboard/connections?error=profile_update_failed", request.url)
+        )
       );
       profileUpdateResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return profileUpdateResponse;
@@ -147,7 +155,7 @@ export async function GET(request: NextRequest) {
     if (webhookWarning) {
       successUrl.searchParams.set("warning", webhookWarning);
     }
-    const successResponse = NextResponse.redirect(successUrl);
+    const successResponse = applyCookies(NextResponse.redirect(successUrl));
     successResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return successResponse;
   } catch (callbackError) {
@@ -162,7 +170,7 @@ export async function GET(request: NextRequest) {
     if (friendly) {
       target.searchParams.set("detail", friendly.slice(0, 200));
     }
-    const failureResponse = NextResponse.redirect(target);
+    const failureResponse = applyCookies(NextResponse.redirect(target));
     failureResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return failureResponse;
   }
