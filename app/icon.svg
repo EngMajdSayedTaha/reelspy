@@ -1,27 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
   <!-- ReelSpy unified brand mark (premium): spy viewfinder locked on a play
-       button over a volt-yellow gradient tile. Keep in sync with
-       components/brand/Logo.tsx and public/brand/*.png — same geometry and
-       fixed brand colors everywhere. -->
+       button — glyphs in a violet→cyan "signal" gradient over a deep-indigo
+       intelligence tile. Keep in sync with components/brand/Logo.tsx and
+       public/brand/*.png — same geometry and fixed brand colors everywhere. -->
   <defs>
-    <linearGradient id="rsBg" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFEE55"/>
-      <stop offset="0.55" stop-color="#F9E400"/>
-      <stop offset="1" stop-color="#EBCB00"/>
+    <linearGradient id="rsTile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#222850"/>
+      <stop offset="0.5" stop-color="#131631"/>
+      <stop offset="1" stop-color="#090A18"/>
     </linearGradient>
-    <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.5"/>
+    <radialGradient id="rsHalo" cx="32" cy="30" r="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6D5CFF" stop-opacity="0.5"/>
+      <stop offset="0.55" stop-color="#4E7DFF" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#4E7DFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rsGlyph" x1="14" y1="14" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A78BFF"/>
+      <stop offset="0.5" stop-color="#5D8DFF"/>
+      <stop offset="1" stop-color="#2FE0FF"/>
+    </linearGradient>
+    <linearGradient id="rsPlay" x1="27" y1="23" x2="44" y2="41" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C7B7FF"/>
+      <stop offset="0.45" stop-color="#7FA5FF"/>
+      <stop offset="1" stop-color="#49E4FF"/>
+    </linearGradient>
+    <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
+    <filter id="rsBlur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.4"/>
+    </filter>
   </defs>
-  <rect width="64" height="64" rx="14" fill="url(#rsBg)"/>
-  <rect x="1" y="1" width="62" height="62" rx="13" fill="url(#rsSheen)" opacity="0.55"/>
-  <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke="#121212" stroke-opacity="0.12"/>
-  <g stroke="#121212" stroke-width="5" stroke-linecap="round" fill="none">
+  <rect width="64" height="64" rx="14" fill="url(#rsTile)"/>
+  <rect width="64" height="64" rx="14" fill="url(#rsHalo)"/>
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="url(#rsSheen)"/>
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="1.5"/>
+  <g filter="url(#rsBlur)" opacity="0.75">
+    <path d="M27 23.5 L43.5 32 L27 40.5 Z" fill="url(#rsPlay)" stroke="url(#rsPlay)" stroke-width="3.5" stroke-linejoin="round"/>
+  </g>
+  <g stroke="url(#rsGlyph)" stroke-width="4.5" stroke-linecap="round" fill="none">
     <path d="M13 23v-4a6 6 0 0 1 6-6h4"/>
     <path d="M41 13h4a6 6 0 0 1 6 6v4"/>
     <path d="M51 41v4a6 6 0 0 1-6 6h-4"/>
     <path d="M23 51h-4a6 6 0 0 1-6-6v-4"/>
   </g>
-  <path d="M27 23.5 L43.5 32 L27 40.5 Z" fill="#121212" stroke="#121212" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M27 23.5 L43.5 32 L27 40.5 Z" fill="url(#rsPlay)" stroke="url(#rsPlay)" stroke-width="3.5" stroke-linejoin="round"/>
 </svg>
