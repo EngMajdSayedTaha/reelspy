@@ -274,6 +274,23 @@ export function createMetaRateLimiter(
   return new MetaRateLimiter(supabase, userId, userCap);
 }
 
+// Read the current stored app-wide budget (falls back to the static floor).
+// Cheap single-row read for callers that need the budget without recomputing it
+// — e.g. the background refresh worker sizing its own spend cap.
+export async function readHourlyBudget(admin: SupabaseClient): Promise<number> {
+  try {
+    const { data } = await admin
+      .from("meta_api_limiter")
+      .select("hourly_budget")
+      .eq("id", 1)
+      .maybeSingle();
+    const stored = data?.hourly_budget;
+    return typeof stored === "number" && stored > 0 ? stored : HOURLY_BUDGET;
+  } catch {
+    return HOURLY_BUDGET;
+  }
+}
+
 // Recompute the app-wide hourly budget from the live connected-user count and
 // persist it for the shared limiter (consume_meta_quota reads it in-row, so this
 // only needs to run on a cadence — the refresh cron does it). Returns the budget

@@ -14,6 +14,7 @@ import {
 import { dispatchPost } from "@/lib/publishing/dispatcher";
 import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-job";
 import { runSendDigest } from "@/lib/email/digest-job";
+import { runRefreshSnapshot, RETRYABLE_REFRESH_OUTCOMES } from "@/lib/jobs/refresh-snapshot-job";
 
 // Durable job-queue worker (H1 / roadmap V4). Claims due `jobs` rows and runs
 // them by kind: scheduled publishing, post-sync auto-transcribe, and weekly
@@ -24,7 +25,7 @@ import { runSendDigest } from "@/lib/email/digest-job";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const KINDS: JobKind[] = ["publish_post", "transcribe_reel", "send_digest"];
+const KINDS: JobKind[] = ["publish_post", "transcribe_reel", "send_digest", "refresh_snapshot"];
 
 // Enqueue publish jobs for any scheduled post that's past due but has no active
 // job — covers posts scheduled before the queue existed and any missed enqueue.
@@ -79,6 +80,19 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
       if (!userId) throw new Error("send_digest job missing user_id");
       await runSendDigest(admin, userId); // throws on send failure → reschedules
       await completeJob(admin, job.id);
+      return;
+    }
+    case "refresh_snapshot": {
+      const username = String(job.payload.ig_username ?? "");
+      if (!username) throw new Error("refresh_snapshot job missing ig_username");
+      const maxReels = Number(job.payload.max_reels) || undefined;
+      const outcome = await runRefreshSnapshot(admin, username, maxReels);
+      if (RETRYABLE_REFRESH_OUTCOMES.has(outcome)) {
+        // Shared limiter closed / no healthy token — reschedule with backoff.
+        await failJob(admin, job, new Error(`refresh outcome: ${outcome}`));
+      } else {
+        await completeJob(admin, job.id);
+      }
       return;
     }
   }
