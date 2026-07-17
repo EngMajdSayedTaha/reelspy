@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createRouteClient } from "@/lib/supabase/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { upsertConnection } from "@/lib/publishing/token-store";
 import { isPlatform, type Platform } from "@/lib/publishing/types";
@@ -162,11 +162,14 @@ export async function GET(
     return fail(request, "invalid_state");
   }
 
-  const supabase = await createClient();
+  // Route-handler client: carry refreshed/rotated session cookies onto the
+  // redirects below so a mobile user coming back from the provider isn't bounced
+  // to /login with the connection unsaved (see lib/supabase/route).
+  const { supabase, applyCookies } = await createRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL("/login", request.url));
+  if (!user) return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
 
   try {
     const admin = createAdminClient();
@@ -195,11 +198,13 @@ export async function GET(
       });
     }
 
-    const res = NextResponse.redirect(new URL(`${SETTINGS}?success=connected`, request.url));
+    const res = applyCookies(
+      NextResponse.redirect(new URL(`${SETTINGS}?success=connected`, request.url))
+    );
     res.cookies.delete(STATE_COOKIE);
     return res;
   } catch (err) {
     console.error(`${platform} OAuth callback failed`, err);
-    return fail(request, "oauth_failed");
+    return applyCookies(fail(request, "oauth_failed"));
   }
 }
