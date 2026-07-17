@@ -39,11 +39,11 @@ type NavLink = {
 };
 
 const links: NavLink[] = [
-  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard, tourKey: "nav-dashboard" },
   { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch, tourKey: "nav-accounts" },
   { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard, tourKey: "nav-feed" },
   { href: "/dashboard/trends", labelKey: "trends", icon: Radar, tourKey: "nav-trends" },
-  { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark },
+  { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark, tourKey: "nav-hooks" },
   {
     href: "/dashboard/scripts",
     labelKey: "scripts",
@@ -54,12 +54,12 @@ const links: NavLink[] = [
     tourKey: "nav-scripts",
   },
   { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera, tourKey: "nav-my-account" },
-  { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply },
-  { href: "/dashboard/publishing", labelKey: "publishing", icon: Send },
-  { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar },
-  { href: "/dashboard/connections", labelKey: "connections", icon: Plug },
-  { href: "/dashboard/billing", labelKey: "billing", icon: CreditCard },
-  { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
+  { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply, tourKey: "nav-automations" },
+  { href: "/dashboard/publishing", labelKey: "publishing", icon: Send, tourKey: "nav-publishing" },
+  { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar, tourKey: "nav-calendar" },
+  { href: "/dashboard/connections", labelKey: "connections", icon: Plug, tourKey: "nav-connections" },
+  { href: "/dashboard/billing", labelKey: "billing", icon: CreditCard, tourKey: "nav-billing" },
+  { href: "/dashboard/settings", labelKey: "settings", icon: Settings, tourKey: "nav-settings" },
 ];
 
 function isActive(pathname: string, link: NavLink): boolean {

@@ -15,17 +15,25 @@ const en = {
     inviteAction: "Take the tour",
     inviteDismiss: "No thanks",
     steps: {
+      dashboard: {
+        title: "Your home base",
+        desc: "A quick pulse on your setup, one-tap actions, and creators worth tracking. This is where you land every time.",
+      },
       accounts: {
         title: "Track accounts",
-        desc: "Add creators in your niche whose reels you want to learn from.",
+        desc: "Add creators in your niche whose reels you want to learn from — the engine behind everything else.",
+      },
+      feed: {
+        title: "Your feed",
+        desc: "Every synced reel from the accounts you track, ranked by performance so the winners rise to the top.",
       },
       trends: {
         title: "Niche Radar",
         desc: "See what's over-performing right now across every ReelSpy user's tracked accounts.",
       },
-      feed: {
-        title: "Your feed",
-        desc: "Every synced reel from your tracked accounts, ranked by performance.",
+      hooks: {
+        title: "Hook library",
+        desc: "Save the opening lines that stop the scroll, then reuse them in your own reels.",
       },
       scripts: {
         title: "Scripts",
@@ -33,19 +41,31 @@ const en = {
       },
       myIg: {
         title: "My Instagram",
-        desc: "Your own account's insights, once connected.",
+        desc: "Connect your own account to see its insights and personalised growth notes.",
       },
-      menu: {
-        title: "Menu",
-        desc: "Everything ReelSpy does lives behind this button — accounts, feed, scripts, and more.",
+      automations: {
+        title: "Auto-Reply",
+        desc: "Automatically respond to comments and DMs so no lead goes cold while you sleep.",
       },
-      quickActions: {
-        title: "Quick actions",
-        desc: "The fastest way to add accounts, sync your feed, or write a script.",
+      publishing: {
+        title: "Publishing",
+        desc: "Publish or schedule reels to Instagram, TikTok, and YouTube from one place.",
       },
-      checklist: {
-        title: "Finish setting up",
-        desc: "Pick up where you left off — this card tracks your setup progress.",
+      calendar: {
+        title: "Content calendar",
+        desc: "Plan ahead and see everything you've scheduled at a glance.",
+      },
+      connections: {
+        title: "Connections",
+        desc: "Connect and manage your Instagram, TikTok, and YouTube accounts.",
+      },
+      billing: {
+        title: "Billing",
+        desc: "Your plan, usage, and upgrades all live here.",
+      },
+      settings: {
+        title: "Settings",
+        desc: "Fine-tune your language, brand voice, email digest, and account preferences.",
       },
     },
   },
@@ -66,17 +86,25 @@ export const tourAr: TourDict = {
     inviteAction: "ابدأ الجولة",
     inviteDismiss: "لا شكرًا",
     steps: {
+      dashboard: {
+        title: "نقطة انطلاقك",
+        desc: "نظرة سريعة على إعدادك، إجراءات بلمسة واحدة، وحسابات تستحق المتابعة. هنا تبدأ في كل مرة.",
+      },
       accounts: {
         title: "تتبع الحسابات",
-        desc: "أضف صنّاع محتوى في مجالك تريد التعلّم من ريلاتهم.",
+        desc: "أضف صنّاع محتوى في مجالك تريد التعلّم من ريلاتهم — المحرّك وراء كل شيء آخر.",
+      },
+      feed: {
+        title: "محتواك",
+        desc: "كل ريل مُزامن من الحسابات التي تتابعها، مرتّبًا حسب الأداء لتظهر الأفضل في الأعلى.",
       },
       trends: {
         title: "رادار المجال",
         desc: "شاهد ما يتفوق أداؤه الآن عبر جميع الحسابات التي يتابعها مستخدمو ReelSpy.",
       },
-      feed: {
-        title: "محتواك",
-        desc: "كل ريل مُزامن من الحسابات التي تتابعها، مرتّبًا حسب الأداء.",
+      hooks: {
+        title: "مكتبة الجمل الافتتاحية",
+        desc: "احفظ الجمل الافتتاحية التي توقف التمرير، ثم أعد استخدامها في ريلاتك.",
       },
       scripts: {
         title: "النصوص",
@@ -84,19 +112,31 @@ export const tourAr: TourDict = {
       },
       myIg: {
         title: "حسابي على إنستغرام",
-        desc: "إحصاءات حسابك الخاص، بعد ربطه.",
+        desc: "اربط حسابك الخاص لرؤية إحصاءاته وملاحظات نمو مخصّصة لك.",
       },
-      menu: {
-        title: "القائمة",
-        desc: "كل ما يقدّمه ReelSpy موجود خلف هذا الزر — الحسابات، المحتوى، النصوص، والمزيد.",
+      automations: {
+        title: "الرد الآلي",
+        desc: "ردّ تلقائيًا على التعليقات والرسائل حتى لا يضيع أي عميل محتمل وأنت نائم.",
       },
-      quickActions: {
-        title: "إجراءات سريعة",
-        desc: "أسرع طريقة لإضافة حسابات، مزامنة محتواك، أو كتابة نص.",
+      publishing: {
+        title: "النشر",
+        desc: "انشر أو جدوِل الريلات على إنستغرام وتيك توك ويوتيوب من مكان واحد.",
       },
-      checklist: {
-        title: "أكمل الإعداد",
-        desc: "تابع من حيث توقفت — تعرض هذه البطاقة تقدّم إعدادك.",
+      calendar: {
+        title: "تقويم المحتوى",
+        desc: "خطّط مسبقًا وشاهد كل ما جدولته في لمحة.",
+      },
+      connections: {
+        title: "الربط",
+        desc: "اربط وأدر حساباتك على إنستغرام وتيك توك ويوتيوب.",
+      },
+      billing: {
+        title: "الاشتراك",
+        desc: "باقتك واستهلاكك والترقيات، كلها هنا.",
+      },
+      settings: {
+        title: "الإعدادات",
+        desc: "اضبط لغتك، أسلوب علامتك، الملخّص البريدي، وتفضيلات حسابك.",
       },
     },
   },

@@ -18,7 +18,48 @@ export function useTour(): TourContextValue {
 
 type Props = {
   children: ReactNode;
+  // Lets the site-wide tour reveal the sidebar on mobile (where it's an
+  // off-canvas drawer) so its nav items — every tour step's anchor — are
+  // actually on-screen while the tour runs. No-ops on desktop, where the
+  // sidebar is always visible.
+  onOpenSidebar?: () => void;
+  onCloseSidebar?: () => void;
 };
+
+const DESKTOP_QUERY = "(min-width: 1024px)";
+
+function isDesktopViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(DESKTOP_QUERY).matches;
+}
+
+// Wait until `selector` has settled *within* the viewport before driver.js
+// measures it. An off-canvas drawer element still reports client rects while
+// translated off-screen, so presence alone isn't enough — we wait until its
+// horizontal centre is inside the viewport (i.e. the drawer has slid in).
+// Resolves early once on-screen, or after `timeout` as a safety net.
+function waitForElement(selector: string, timeout = 800): Promise<void> {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const check = () => {
+      const el = document.querySelector(selector) as HTMLElement | null;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const centreX = rect.left + rect.width / 2;
+        const onScreen = rect.width > 0 && centreX >= 0 && centreX <= window.innerWidth;
+        if (onScreen) {
+          resolve();
+          return;
+        }
+      }
+      if (performance.now() - start > timeout) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  });
+}
 
 // Shared by both the global (site-wide) tour and per-page tours — builds and
 // drives one driver.js instance. Per-page tours pass no onDestroyed (or one
@@ -47,7 +88,7 @@ async function runDriverTour(steps: TourStep[], dict: Dict, onDestroyed: () => v
 // imported on first start so it never inflates the dashboard's initial
 // bundle; only its small base CSS (positioning/arrows) loads eagerly — visual
 // restyling lives in app/globals.css's .driver-popover overrides.
-export function TourProvider({ children }: Props) {
+export function TourProvider({ children, onOpenSidebar, onCloseSidebar }: Props) {
   const dict = useDict();
   const startedRef = useRef(false);
 
@@ -56,23 +97,31 @@ export function TourProvider({ children }: Props) {
     startedRef.current = true;
 
     void (async () => {
-      const isDesktop =
-        typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
-      const steps = buildTourSteps(dict.tour, isDesktop).filter((s) =>
-        document.querySelector(s.element)
-      );
+      // Every step anchors on a sidebar nav item. On mobile the sidebar is an
+      // off-canvas drawer, so open it first and wait for it to slide in before
+      // driver.js measures anything — otherwise it would position popovers over
+      // collapsed elements. On desktop the drawer callbacks no-op.
+      const onDrawer = !isDesktopViewport();
+      if (onDrawer) {
+        onOpenSidebar?.();
+        await waitForElement('[data-tour="nav-dashboard"]');
+      }
+
+      const steps = buildTourSteps(dict.tour).filter((s) => document.querySelector(s.element));
 
       if (steps.length === 0) {
+        if (onDrawer) onCloseSidebar?.();
         startedRef.current = false;
         return;
       }
 
       await runDriverTour(steps, dict, () => {
+        if (onDrawer) onCloseSidebar?.();
         startedRef.current = false;
         void completeTour();
       });
     })();
-  }, [dict]);
+  }, [dict, onOpenSidebar, onCloseSidebar]);
 
   // Per-page tour, triggered by the "?" button beside a page's title. Unlike
   // startTour, this never touches tour_completed_at — it's on-demand help,
