@@ -1,12 +1,11 @@
 // ReelSpy unified brand mark: a spy viewfinder locked onto a play button, with
 // a scanning beam sweeping through — "watching reels so you don't have to".
-// The mark uses FIXED brand colors (volt-yellow gradient tile + ink glyphs) so
-// the logo is identical everywhere — in-app, favicon (app/icon.svg), and the
-// PNG exports in public/brand — regardless of the user's color-theme preset.
+// The mark uses FIXED brand colors (deep-indigo intelligence tile + luminous
+// violet→cyan "signal" glyphs) so the logo is identical everywhere — in-app,
+// favicon (app/icon.svg), and the PNG exports in public/brand — regardless of
+// the user's color-theme preset.
 // If the geometry or colors change, update app/icon.svg and regenerate the
 // PNGs (scripts/generate-brand-assets.mjs) to keep them in sync.
-
-const INK = "#121212";
 
 type LogoMarkProps = {
   size?: number;
@@ -28,24 +27,48 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
     >
       <defs>
         {/* Shared ids across instances resolve to the first identical def — safe. */}
-        <linearGradient id="rsBg" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#FFEE55" />
-          <stop offset="0.55" stopColor="#F9E400" />
-          <stop offset="1" stopColor="#EBCB00" />
+        <linearGradient id="rsTile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#222850" />
+          <stop offset="0.5" stopColor="#131631" />
+          <stop offset="1" stopColor="#090A18" />
         </linearGradient>
-        <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="30" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.5" />
+        <radialGradient id="rsHalo" cx="32" cy="30" r="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#6D5CFF" stopOpacity="0.5" />
+          <stop offset="0.55" stopColor="#4E7DFF" stopOpacity="0.16" />
+          <stop offset="1" stopColor="#4E7DFF" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="rsGlyph" x1="14" y1="14" x2="52" y2="52" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#A78BFF" />
+          <stop offset="0.5" stopColor="#5D8DFF" />
+          <stop offset="1" stopColor="#2FE0FF" />
+        </linearGradient>
+        <linearGradient id="rsPlay" x1="27" y1="23" x2="44" y2="41" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#C7B7FF" />
+          <stop offset="0.45" stopColor="#7FA5FF" />
+          <stop offset="1" stopColor="#49E4FF" />
+        </linearGradient>
+        <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="26" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.10" />
           <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
         </linearGradient>
+        <filter id="rsBlur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.4" />
+        </filter>
       </defs>
 
-      <rect width="64" height="64" rx="14" fill="url(#rsBg)" />
-      <rect x="1" y="1" width="62" height="62" rx="13" fill="url(#rsSheen)" opacity="0.55" />
-      <rect x="0.5" y="0.5" width="63" height="63" rx="13.5" stroke={INK} strokeOpacity="0.12" />
+      <rect width="64" height="64" rx="14" fill="url(#rsTile)" />
+      <rect width="64" height="64" rx="14" fill="url(#rsHalo)" />
+      <rect x="1" y="1" width="62" height="62" rx="13" fill="url(#rsSheen)" />
+      <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" stroke="#FFFFFF" strokeOpacity="0.09" strokeWidth="1.5" />
+
+      {/* Soft glow behind the play triangle */}
+      <g filter="url(#rsBlur)" opacity="0.75">
+        <path d="M27 23.5 L43.5 32 L27 40.5 Z" fill="url(#rsPlay)" stroke="url(#rsPlay)" strokeWidth="3.5" strokeLinejoin="round" />
+      </g>
 
       {/* Viewfinder corner brackets */}
       <g
-        stroke={INK}
+        stroke="url(#rsGlyph)"
         strokeWidth="4.5"
         strokeLinecap="round"
         fill="none"
@@ -61,9 +84,9 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       {/* Play triangle */}
       <path
         d="M27 23.5 L43.5 32 L27 40.5 Z"
-        fill={INK}
-        stroke={INK}
-        strokeWidth="3"
+        fill="url(#rsPlay)"
+        stroke="url(#rsPlay)"
+        strokeWidth="3.5"
         strokeLinejoin="round"
         className={animated ? "logo-play" : undefined}
         style={{ transformOrigin: "33px 32px" }}
@@ -71,7 +94,7 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
 
       {/* Scanning beam */}
       {animated ? (
-        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill={INK} opacity="0.8" className="logo-scan" />
+        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#49E4FF" opacity="0.8" className="logo-scan" />
       ) : null}
     </svg>
   );
