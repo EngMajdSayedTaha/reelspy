@@ -28,7 +28,10 @@ export function DashboardShell({
 
   return (
     <ConfirmProvider>
-      <TourProvider>
+      <TourProvider
+        onOpenSidebar={() => setSidebarOpen(true)}
+        onCloseSidebar={() => setSidebarOpen(false)}
+      >
         <div className="min-h-screen bg-background text-foreground">
           <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
           {/* logical margin so the RTL sidebar sits on the correct side */}
