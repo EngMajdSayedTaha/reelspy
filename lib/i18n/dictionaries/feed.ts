@@ -70,10 +70,11 @@ const en = {
       resetsIn: (time: string) => `Resets in ${time}`,
       budgetLabel: "Sync budget",
       perHourSuffix: "this hour",
-      appPool: (pct: number) => `Shared app pool: ${pct}%`,
       hourlyBudgetHeading: "Your hourly budget",
       explainer:
         "Instagram limits how often we can fetch data. Your budget refills every hour — syncs pause automatically instead of failing.",
+      appWideNote:
+        "This pause is on Instagram's side and briefly affects the whole app, not just your account. Nothing's wrong with your sync.",
       autoResumeToggle: "Resume automatically when it resets",
     },
     reelCard: {
@@ -271,10 +272,11 @@ export const feedAr: FeedDict = {
       resetsIn: (time: string) => `يُعاد الضبط خلال ${time}`,
       budgetLabel: "ميزانية المزامنة",
       perHourSuffix: "هذه الساعة",
-      appPool: (pct: number) => `مجمع التطبيق المشترك: ${pct}٪`,
       hourlyBudgetHeading: "ميزانيتك الساعية",
       explainer:
         "يحدّ إنستغرام عدد مرات جلب البيانات. تتجدد ميزانيتك كل ساعة — تتوقف المزامنة تلقائيًا بدلًا من أن تفشل.",
+      appWideNote:
+        "هذا التوقّف من جانب إنستغرام ويؤثّر مؤقتًا على التطبيق بأكمله، وليس على حسابك فقط. لا مشكلة في مزامنتك.",
       autoResumeToggle: "استئناف تلقائي عند إعادة الضبط",
     },
     reelCard: {
