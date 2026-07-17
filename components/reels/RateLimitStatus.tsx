@@ -21,9 +21,16 @@ const SEGMENTS = 8;
 // Shows how much of the Instagram request budget is left and, when Meta's hourly
 // limit is hit, a clear cooldown countdown ("retry in mm:ss"). Polls the status
 // endpoint and reacts instantly to a 429 dispatched by the Sync button. Clicking
-// the pill opens a popover with the full numbers, the shared app-level pool, a
-// plain-language explainer, and (while throttled) an opt-in auto-resume toggle
-// that SyncButton listens for via the `reelspy:autoresume` event.
+// the pill opens a popover with the user's own hourly budget, a plain-language
+// explainer, and (while throttled) a note that the pause is app-wide plus an
+// opt-in auto-resume toggle that SyncButton listens for via `reelspy:autoresume`.
+//
+// The shared app-level pool figure (X-App-Usage %) is deliberately NOT shown here
+// — it's internal capacity a single user can't act on, and surfacing it just
+// implies users are competing for a fixed pool (they aren't; the budget scales
+// with the userbase). That gauge lives in the admin ops panel instead
+// (components/admin/ops/LimitsPanel.tsx). We still read appUsagePct from the API
+// to keep the status shape whole, but never render it to end users.
 export function RateLimitStatus() {
   const dict = useDict().feed.rateLimit;
   const [status, setStatus] = useState<Status | null>(null);
@@ -195,28 +202,23 @@ export function RateLimitStatus() {
             </p>
           </div>
 
-          <div>
-            <p className="text-xs text-muted-foreground">{dict.appPool(status.appUsagePct)}</p>
-            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-foreground/50 transition-all"
-                style={{ width: `${status.appUsagePct}%` }}
-              />
-            </div>
-          </div>
-
           <p className="text-xs text-subtle">{dict.explainer}</p>
 
           {throttled ? (
-            <label className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-foreground">
-              <input
-                type="checkbox"
-                checked={autoResume}
-                onChange={(e) => toggleAutoResume(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-2 focus:ring-primary/40"
-              />
-              {dict.autoResumeToggle}
-            </label>
+            <>
+              <p className="rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-muted-foreground">
+                {dict.appWideNote}
+              </p>
+              <label className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-foreground">
+                <input
+                  type="checkbox"
+                  checked={autoResume}
+                  onChange={(e) => toggleAutoResume(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-border-strong text-primary focus:ring-2 focus:ring-primary/40"
+                />
+                {dict.autoResumeToggle}
+              </label>
+            </>
           ) : null}
         </Popover.Content>
       </Popover.Portal>
