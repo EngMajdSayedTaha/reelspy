@@ -14,6 +14,19 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // This app is the SECONDARY zone behind reelspy.dev: the landing project owns
+  // the domain and proxies every product route here (see its DASHBOARD_ZONE_PATHS).
+  //
+  // Static assets need their own non-colliding path, because both zones would
+  // otherwise serve /_next/* and the proxied HTML would fetch its JS from the
+  // landing deployment. Next serves its own assets under the prefix, and the
+  // landing rewrites /dashboard-static/* back here.
+  //
+  // Deliberately NOT basePath: every route must keep its real path, since
+  // Supabase redirect URLs, the Stripe webhook and the Vercel crons all point
+  // at /auth/*, /api/* etc. Only in production — a bare `next dev` has no proxy
+  // in front of it.
+  assetPrefix: process.env.NODE_ENV === "production" ? "/dashboard-static" : undefined,
   // Bundle the yt-dlp static binary into the transcript route's serverless
   // function so it can be spawned at runtime.
   outputFileTracingIncludes: {

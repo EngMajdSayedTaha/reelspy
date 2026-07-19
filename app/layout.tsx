@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
-import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { PREFS_COOKIE, LANDING_LOCALE_COOKIE, parsePrefs } from "@/lib/prefs";
 import { THEME_COOKIE, normalizeColorTheme } from "@/lib/color-theme";
 import { dirForLocale } from "@/lib/i18n/config";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
@@ -67,7 +67,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
-  const { locale } = parsePrefs(cookieStore.get(PREFS_COOKIE)?.value);
+  // Second argument: a first-time visitor arriving from the marketing zone has
+  // no prefs cookie yet, so inherit the language they were just reading in.
+  const { locale } = parsePrefs(
+    cookieStore.get(PREFS_COOKIE)?.value,
+    cookieStore.get(LANDING_LOCALE_COOKIE)?.value
+  );
   const colorTheme = normalizeColorTheme(cookieStore.get(THEME_COOKIE)?.value);
 
   return (

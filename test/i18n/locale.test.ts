@@ -70,3 +70,28 @@ describe("prefs locale", () => {
     expect(parsePrefs(bogus).locale).toBe(DEFAULT_LOCALE);
   });
 });
+
+// The marketing site is a separate Next app on the same origin and keeps its
+// language choice in its own cookie. Someone who reads the landing page in
+// Arabic and signs up should not land in an English dashboard.
+describe("locale inherited from the marketing zone", () => {
+  it("uses the landing cookie when there are no prefs yet", () => {
+    expect(parsePrefs(undefined, "ar").locale).toBe("ar");
+    expect(parsePrefs(null, "ar").locale).toBe("ar");
+  });
+
+  it("uses it for a prefs cookie that predates the locale field", () => {
+    const legacy = encodeURIComponent(JSON.stringify({ toastMs: 3000 }));
+    expect(parsePrefs(legacy, "ar").locale).toBe("ar");
+  });
+
+  it("never overrides an explicit stored preference", () => {
+    const withEn = serializePrefs({ ...DEFAULT_PREFS, locale: "en" });
+    expect(parsePrefs(withEn, "ar").locale).toBe("en");
+  });
+
+  it("ignores a garbage landing cookie", () => {
+    expect(parsePrefs(undefined, "zz").locale).toBe(DEFAULT_LOCALE);
+    expect(parsePrefs(undefined, "").locale).toBe(DEFAULT_LOCALE);
+  });
+});

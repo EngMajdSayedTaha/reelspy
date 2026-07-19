@@ -6,6 +6,14 @@ import { DEFAULT_LOCALE, normalizeLocale, type Locale } from "@/lib/i18n/config"
 
 export const PREFS_COOKIE = "reelspy_prefs";
 
+// The marketing site (same origin, separate zone) stores its language choice
+// in its own cookie. A visitor who reads the landing page in Arabic and then
+// signs up has no prefs cookie yet, and would land in an English dashboard
+// despite having just told us which language they read. This lets the first
+// render inherit that choice; the moment they save preferences, the prefs
+// cookie takes over.
+export const LANDING_LOCALE_COOKIE = "reelspy_lang";
+
 export type UserPrefs = {
   /** How long toast notifications stay on screen (ms). */
   toastMs: number;
@@ -34,18 +42,29 @@ function pick<T extends number>(value: unknown, allowed: readonly T[], fallback:
 }
 
 // Tolerant parse: any malformed/missing cookie falls back to defaults.
-export function parsePrefs(raw: string | undefined | null): UserPrefs {
-  if (!raw) return DEFAULT_PREFS;
+//
+// `landingLocale` is the marketing site's language cookie, used only when this
+// user has no stored preference of their own (see LANDING_LOCALE_COOKIE).
+export function parsePrefs(
+  raw: string | undefined | null,
+  landingLocale?: string | undefined | null
+): UserPrefs {
+  const fallback: UserPrefs = landingLocale
+    ? { ...DEFAULT_PREFS, locale: normalizeLocale(landingLocale) }
+    : DEFAULT_PREFS;
+  if (!raw) return fallback;
   try {
     const json = JSON.parse(decodeURIComponent(raw)) as Partial<UserPrefs>;
     return {
       toastMs: pick(json.toastMs, TOAST_MS_OPTIONS, DEFAULT_PREFS.toastMs),
       syncLimit: pick(json.syncLimit, SYNC_LIMIT_OPTIONS, DEFAULT_PREFS.syncLimit),
       feedPerPage: pick(json.feedPerPage, FEED_PER_PAGE_OPTIONS, DEFAULT_PREFS.feedPerPage),
-      locale: normalizeLocale(json.locale),
+      // An existing cookie from before the locale field shipped has no locale
+      // of its own, so it should still inherit the landing choice.
+      locale: json.locale === undefined ? fallback.locale : normalizeLocale(json.locale),
     };
   } catch {
-    return DEFAULT_PREFS;
+    return fallback;
   }
 }
 
