@@ -1,9 +1,11 @@
 // ReelSpy unified brand mark: a spy viewfinder locked onto a play button, with
 // a scanning beam sweeping through — "watching reels so you don't have to".
-// The mark uses FIXED brand colors (deep-indigo intelligence tile + luminous
-// violet→cyan "signal" glyphs) so the logo is identical everywhere — in-app,
+// The mark uses FIXED brand colors (graphite intelligence tile + luminous
+// electric-yellow "signal" glyphs) so the logo is identical everywhere — in-app,
 // favicon (app/icon.svg), and the PNG exports in public/brand — regardless of
-// the user's color-theme preset.
+// the user's color-theme preset. The yellow is the brand's single accent
+// (#f9e400, the volt primary); the tile deliberately stays graphite so the mark
+// reads the same on light and dark surfaces.
 // If the geometry or colors change, update app/icon.svg and regenerate the
 // PNGs (scripts/generate-brand-assets.mjs) to keep them in sync.
 
@@ -28,24 +30,24 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
       <defs>
         {/* Shared ids across instances resolve to the first identical def — safe. */}
         <linearGradient id="rsTile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#222850" />
-          <stop offset="0.5" stopColor="#131631" />
-          <stop offset="1" stopColor="#090A18" />
+          <stop offset="0" stopColor="#2A2A31" />
+          <stop offset="0.5" stopColor="#17171B" />
+          <stop offset="1" stopColor="#0E0E11" />
         </linearGradient>
         <radialGradient id="rsHalo" cx="32" cy="30" r="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#6D5CFF" stopOpacity="0.5" />
-          <stop offset="0.55" stopColor="#4E7DFF" stopOpacity="0.16" />
-          <stop offset="1" stopColor="#4E7DFF" stopOpacity="0" />
+          <stop offset="0" stopColor="#F9E400" stopOpacity="0.35" />
+          <stop offset="0.55" stopColor="#EAB308" stopOpacity="0.10" />
+          <stop offset="1" stopColor="#EAB308" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="rsGlyph" x1="14" y1="14" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#A78BFF" />
-          <stop offset="0.5" stopColor="#5D8DFF" />
-          <stop offset="1" stopColor="#2FE0FF" />
+          <stop offset="0" stopColor="#FEF08A" />
+          <stop offset="0.5" stopColor="#F9E400" />
+          <stop offset="1" stopColor="#EAB308" />
         </linearGradient>
         <linearGradient id="rsPlay" x1="27" y1="23" x2="44" y2="41" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#C7B7FF" />
-          <stop offset="0.45" stopColor="#7FA5FF" />
-          <stop offset="1" stopColor="#49E4FF" />
+          <stop offset="0" stopColor="#FFFBE0" />
+          <stop offset="0.45" stopColor="#FDE047" />
+          <stop offset="1" stopColor="#F9E400" />
         </linearGradient>
         <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="26" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.10" />
@@ -94,7 +96,7 @@ export function LogoMark({ size = 32, animated = true, className, ariaLabel = "R
 
       {/* Scanning beam */}
       {animated ? (
-        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#49E4FF" opacity="0.8" className="logo-scan" />
+        <rect x="13" y="31" width="38" height="2.5" rx="1.25" fill="#F9E400" opacity="0.8" className="logo-scan" />
       ) : null}
     </svg>
   );

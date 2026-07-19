@@ -18,10 +18,12 @@ export function AuthShell({ children }: AuthShellProps) {
   const auth = dict.auth;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
-      {/* Ambient duotone glow — primary blob + offset paired-accent blob */}
-      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-primary/5 blur-[120px]" />
-      <div className="glow-drift pointer-events-none absolute left-1/4 bottom-0 h-[320px] w-[480px] -translate-x-1/2 rounded-full bg-accent-brand/5 blur-[120px]" />
+    <div className="auth-grid-bg relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
+      {/* Single yellow bloom — the one-accent system means no second hue here.
+          The old paired-accent blob is gone: under volt the accent is ink, so it
+          rendered as an invisible smudge. Matches the landing hero's treatment
+          so the landing → auth transition reads as one product. */}
+      <div className="glow-drift pointer-events-none absolute left-1/2 top-0 h-[420px] w-[620px] -translate-x-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
       <div className="animate-rise relative z-10 w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
@@ -34,7 +36,9 @@ export function AuthShell({ children }: AuthShellProps) {
           </div>
         </div>
 
-        <Card className="border-border bg-card text-foreground">
+        {/* The yellow rail on the card's top edge is the single highlight
+            moment on these pages — everything else stays graphite. */}
+        <Card className="relative overflow-hidden border-border bg-card text-foreground before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-primary before:content-['']">
           <CardContent className="space-y-4 pt-6">{children}</CardContent>
         </Card>
 

@@ -245,30 +245,45 @@ html.dark[data-theme="sunset"] {
   --chart-3: #a78bfa;
 }
 
-/* volt — electric yellow + blue, the brand DEFAULT (always stamped as
-   data-theme="volt"). The paired accent is a deep electric blue: yellow/blue
-   is a high-energy complementary pairing that keeps the neon primary honest
-   (the old violet #6d28d9/#a78bfa fought the yellow). chart-2 follows the blue
-   accent; chart-4 (violet in the base palette) stays distinct from it. */
+/* volt — graphite + electric yellow, the brand DEFAULT (always stamped as
+   data-theme="volt"). This is the ONE-accent system: #f9e400 is the only
+   chromatic voice, spent on the primary fill (CTA), the focus ring and single
+   highlight moments; everything else is the graphite neutral scale. The paired
+   `--accent-brand` is therefore INK, not a second hue — the old electric blue
+   (#1d4ed8/#60a5fa) competed with the yellow for attention and made the UI read
+   busy rather than premium. Because ~54 files consume --accent-brand (links,
+   badges, active nav, button `link` variant), redefining its value here turns
+   them all monochrome with no component churn, while the other 7 presets keep
+   their duotone pairings untouched.
+
+   Two amber neighbours are re-homed inside this preset only, because they sit
+   on the yellow's hue and muddy it: `--warning` (dark #fbbf24 was nearly
+   indistinguishable from #f9e400) moves to orange, and `--chart-6` follows it.
+   `--chart-2` drops the blue for a graphite series so charts read as
+   "yellow hero series + neutrals". */
 html[data-theme="volt"] {
   --primary: #f9e400;
   --primary-foreground: #121212;
   --ring: #a16207;
   --brand: #a16207;
-  --accent-brand: #1d4ed8;
+  --accent-brand: #18181b;
   --accent-brand-foreground: #ffffff;
+  --warning: #c2410c;
   --chart-1: #a16207;
-  --chart-2: #1d4ed8;
+  --chart-2: #52525b;
+  --chart-6: #ea580c;
 }
 html.dark[data-theme="volt"] {
   --primary: #f9e400;
   --primary-foreground: #121212;
   --ring: #f9e400;
   --brand: #f9e400;
-  --accent-brand: #60a5fa;
-  --accent-brand-foreground: #101014;
+  --accent-brand: #f4f4f5;
+  --accent-brand-foreground: #17171c;
+  --warning: #fb923c;
   --chart-1: #f9e400;
-  --chart-2: #60a5fa;
+  --chart-2: #a1a1aa;
+  --chart-6: #fb923c;
 }
 
 html[data-theme="cyan"] {
@@ -522,6 +537,23 @@ select:disabled,
     transition: transform 0.7s ease;
     transform: translateX(110%);
   }
+}
+
+/* Faint blueprint grid behind the auth pages — the same texture the landing
+   hero uses, so crossing from reelspy.dev into /login feels like one product.
+   Theme-aware (mixes off --foreground) and radially masked so it fades out
+   before it reaches the card. */
+.auth-grid-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--foreground) 6%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent 75%);
 }
 
 /* Slow ambient drift for the login page glow. */

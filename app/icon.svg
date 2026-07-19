@@ -1,28 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
   <!-- ReelSpy unified brand mark (premium): spy viewfinder locked on a play
-       button — glyphs in a violet→cyan "signal" gradient over a deep-indigo
+       button — glyphs in an electric-yellow "signal" gradient over a graphite
        intelligence tile. Keep in sync with components/brand/Logo.tsx and
        public/brand/*.png — same geometry and fixed brand colors everywhere. -->
   <defs>
     <linearGradient id="rsTile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#222850"/>
-      <stop offset="0.5" stop-color="#131631"/>
-      <stop offset="1" stop-color="#090A18"/>
+      <stop offset="0" stop-color="#2A2A31"/>
+      <stop offset="0.5" stop-color="#17171B"/>
+      <stop offset="1" stop-color="#0E0E11"/>
     </linearGradient>
     <radialGradient id="rsHalo" cx="32" cy="30" r="32" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6D5CFF" stop-opacity="0.5"/>
-      <stop offset="0.55" stop-color="#4E7DFF" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#4E7DFF" stop-opacity="0"/>
+      <stop offset="0" stop-color="#F9E400" stop-opacity="0.35"/>
+      <stop offset="0.55" stop-color="#EAB308" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#EAB308" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="rsGlyph" x1="14" y1="14" x2="52" y2="52" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#A78BFF"/>
-      <stop offset="0.5" stop-color="#5D8DFF"/>
-      <stop offset="1" stop-color="#2FE0FF"/>
+      <stop offset="0" stop-color="#FEF08A"/>
+      <stop offset="0.5" stop-color="#F9E400"/>
+      <stop offset="1" stop-color="#EAB308"/>
     </linearGradient>
     <linearGradient id="rsPlay" x1="27" y1="23" x2="44" y2="41" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C7B7FF"/>
-      <stop offset="0.45" stop-color="#7FA5FF"/>
-      <stop offset="1" stop-color="#49E4FF"/>
+      <stop offset="0" stop-color="#FFFBE0"/>
+      <stop offset="0.45" stop-color="#FDE047"/>
+      <stop offset="1" stop-color="#F9E400"/>
     </linearGradient>
     <linearGradient id="rsSheen" x1="0" y1="0" x2="0" y2="26" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>

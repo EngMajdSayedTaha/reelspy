@@ -19,7 +19,7 @@ export const COLOR_THEMES = [
 
 export type ColorTheme = (typeof COLOR_THEMES)[number];
 
-// Brand default: volt (electric yellow + blue). Unlike mono, volt has its own
+// Brand default: volt (graphite + electric yellow). Unlike mono, volt has its own
 // CSS override block, so the attribute is ALWAYS stamped (applyColorTheme and
 // the root layout never omit it) — "mono" simply has no block and falls
 // through to the base :root/.dark tokens.
@@ -41,9 +41,10 @@ export function normalizeColorTheme(value: unknown): ColorTheme {
 type Swatch = { bg: string; fg: string; accent: string };
 
 export const THEME_SWATCHES: Record<ColorTheme, { light: Swatch; dark: Swatch }> = {
+  // volt is the one-accent preset: its "accent" is ink, not a second hue.
   volt: {
-    light: { bg: "#f9e400", fg: "#121212", accent: "#1d4ed8" },
-    dark: { bg: "#f9e400", fg: "#121212", accent: "#60a5fa" },
+    light: { bg: "#f9e400", fg: "#121212", accent: "#18181b" },
+    dark: { bg: "#f9e400", fg: "#121212", accent: "#f4f4f5" },
   },
   rose: {
     light: { bg: "#e11d48", fg: "#ffffff", accent: "#b45309" },
