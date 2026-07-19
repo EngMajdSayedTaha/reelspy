@@ -35,6 +35,21 @@ const CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=86400";
 // In-window lookback. Matches the dashboard's Niche Radar default.
 const DAYS = 14;
 
+// Hard ceiling on the DB work. The Supabase client has no default timeout, so
+// a degraded database would otherwise hold this function open until the
+// platform kills it — and because the marketing page fetches this during
+// render, that stall would propagate to a visitor-facing page. Falling back to
+// an empty list (and therefore to the landing's fixtures) is strictly better
+// than a slow page.
+const QUERY_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(work: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), QUERY_TIMEOUT_MS)),
+  ]);
+}
+
 export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("niche");
   const niche = slugifyNiche(requested ?? SHOWCASE_NICHES[0]);
@@ -55,7 +70,10 @@ export async function GET(request: Request) {
     const admin = createAdminClient();
     // Over-fetch so the permalink/thumbnail filtering in toPublicReels can
     // drop unusable rows without leaving a short grid.
-    const found = await seedTrending(admin, { niche, days: DAYS, limit: SHOWCASE_LIMIT * 3 });
+    const found = await withTimeout(
+      seedTrending(admin, { niche, days: DAYS, limit: SHOWCASE_LIMIT * 3 }),
+      []
+    );
     reels = toPublicReels(found, SHOWCASE_LIMIT);
   } catch (err) {
     console.error("[public/trending] failed", { niche, err });
