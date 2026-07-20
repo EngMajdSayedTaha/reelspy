@@ -134,9 +134,10 @@ export default async function FeedPage({
   const group = first(params.group) ?? "all";
   const status = first(params.status) ?? "new"; // default to New only
   const q = (first(params.q) ?? "").trim();
-  // Default to the follower-normalized "Outperforming" ranking (W3/V5) so the
-  // best relative performers lead, not just the biggest accounts.
-  const sort = first(params.sort) ?? "outperforming";
+  // Default to "recent" so the newest reels lead the feed. Users can still opt
+  // into the follower-normalized "Outperforming" ranking (W3/V5) — or any other
+  // sort — from the feed controls.
+  const sort = first(params.sort) ?? "recent";
   const order = first(params.order) === "asc" ? "asc" : "desc";
   const page = Math.max(1, Number.parseInt(first(params.page) ?? "1", 10) || 1);
   // Explicit ?pp= wins, then the user's saved preference (Settings), then 10.
