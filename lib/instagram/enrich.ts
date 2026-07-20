@@ -10,7 +10,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaRateLimiter } from "./rate-limit";
 import { refreshAccountSnapshot, type HealthyToken } from "./snapshots";
-import { loadAllSeedAccounts } from "@/lib/trends/niche";
+import { loadAllSeedAccounts, slugifyNiche } from "@/lib/trends/niche";
+import { SHOWCASE_NICHES } from "@/lib/trends/public-showcase";
 import { numEnv } from "@/lib/utils/env";
 
 const DEFAULT_TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600); // 6h
@@ -59,6 +60,19 @@ export async function enrichSeedAccounts(
   const isActive = (u: string): boolean =>
     activeNiches.has((nicheByUsername.get(u) ?? "").toLowerCase());
 
+  // The public marketing showcase (app/api/public/trending) is backed by a fixed
+  // set of niches. Unlike active niches, no user profile references them, so
+  // without an explicit boost they lose every budget race to live tracked
+  // accounts and the active niche — which is exactly why food/travel sat
+  // 'pending' forever (never fetched) while fitness, a real user's niche, stayed
+  // warm and the landing's all-or-nothing showcase fell back to fixtures. Treat
+  // them as first-class so the same daily drain keeps every showcase tab
+  // populated.
+  const showcaseNiches = new Set(SHOWCASE_NICHES.map((n) => slugifyNiche(n)));
+  const isShowcase = (u: string): boolean =>
+    showcaseNiches.has(slugifyNiche(nicheByUsername.get(u) ?? ""));
+  const isPriority = (u: string): boolean => isActive(u) || isShowcase(u);
+
   const { data: snaps } = await admin
     .from("ig_account_snapshots")
     .select("ig_username, last_fetched_at, last_status");
@@ -81,10 +95,11 @@ export async function enrichSeedAccounts(
   const staleAll = allUsernames.filter(isStale);
   const stale = [...staleAll]
     .sort((a, b) => {
-      // Active-niche accounts (a real user set that niche) come first.
-      const aActive = isActive(a) ? 0 : 1;
-      const bActive = isActive(b) ? 0 : 1;
-      if (aActive !== bActive) return aActive - bActive;
+      // Priority accounts — a real user's active niche, or a public-showcase
+      // niche — come first, so the limited Meta budget always reaches them.
+      const aPriority = isPriority(a) ? 0 : 1;
+      const bPriority = isPriority(b) ? 0 : 1;
+      if (aPriority !== bPriority) return aPriority - bPriority;
       const ta = freshness.get(a)?.at ? new Date(freshness.get(a)!.at as string).getTime() : 0;
       const tb = freshness.get(b)?.at ? new Date(freshness.get(b)!.at as string).getTime() : 0;
       return ta - tb; // then oldest / never-fetched first
