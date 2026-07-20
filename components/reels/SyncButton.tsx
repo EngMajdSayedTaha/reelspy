@@ -206,6 +206,15 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
       toast(dict.stoppedToast);
     }
 
+    // Sync is over — the toast already reports the outcome, so retire the
+    // progress dots. They're only meaningful while a run is in flight or paused
+    // by a rate limit (kept below so the user can see where a resume picks up).
+    if (!rateLimited) {
+      setQueue([]);
+      setStatuses([]);
+      setCurrentIndex(-1);
+    }
+
     router.refresh();
   };
 

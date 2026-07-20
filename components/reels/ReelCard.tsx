@@ -170,24 +170,15 @@ export function ReelCard({
               </span>
             </button>
 
-            {/* Favorite toggle + outperforming badge (W3/V5) — stacked in one
-                column so the badge (only shown when the feed is sorted by the
-                relative "Outperforming" score) never overlaps the heart. */}
-            <div className="absolute start-2 top-2 z-10 flex flex-col items-start gap-1.5">
+            {/* Favorite toggle — top-left corner. The outperforming badge
+                (W3/V5) now lives in the bottom metrics row next to the view
+                count so the top corner stays uncluttered. */}
+            <div className="absolute start-2 top-2 z-10">
               <FavoriteButton
                 reelId={reel.id}
                 favorite={Boolean(reel.is_favorite)}
                 action={favoriteAction}
               />
-              {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
-                <div
-                  className="flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
-                  title={dict.outperformTooltip(username, formatOutperform(reel.outperform_ratio))}
-                >
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  {formatOutperform(reel.outperform_ratio)}
-                </div>
-              ) : null}
             </div>
 
             {/* Status badge */}
@@ -204,10 +195,22 @@ export function ReelCard({
               </Badge>
             </div>
 
-            {/* Views overlay (most relevant reel metric) */}
-            <div className="absolute bottom-2 start-2 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              <Eye className="h-3.5 w-3.5" />
-              {formatCompact(reel.view_count)} {dict.viewsSuffix}
+            {/* Bottom-left cluster: views (most relevant reel metric) with the
+                outperforming badge (W3/V5) sitting right beside it. */}
+            <div className="absolute bottom-2 start-2 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <Eye className="h-3.5 w-3.5" />
+                {formatCompact(reel.view_count)} {dict.viewsSuffix}
+              </div>
+              {reel.outperform_ratio != null && reel.outperform_ratio >= 1 ? (
+                <div
+                  className="flex items-center gap-1 rounded-full bg-success/90 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm"
+                  title={dict.outperformTooltip(username, formatOutperform(reel.outperform_ratio))}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {formatOutperform(reel.outperform_ratio)}
+                </div>
+              ) : null}
             </div>
 
             {/* Transcript indicator */}
