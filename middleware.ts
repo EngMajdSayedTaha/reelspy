@@ -121,5 +121,9 @@ export const config = {
   // the user lands — not only under /dashboard. This is what keeps mobile
   // signed in between visits. API routes are excluded on purpose: cron and
   // webhook endpoints authenticate with their own secrets, not user cookies.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // dashboard-static is excluded because the exclusions below are anchored at
+  // the start of the path: /dashboard-static/_next/static/* does NOT match the
+  // "_next/static" alternative, so without this the session check would treat
+  // every proxied asset as an unknown page and redirect it to /login.
+  matcher: ["/((?!api|dashboard-static|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

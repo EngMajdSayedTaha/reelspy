@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
   // landing deployment. Next serves its own assets under the prefix, and the
   // landing rewrites /dashboard-static/* back here.
   //
+  // assetPrefix only changes the URLs Next EMITS — it does not make the server
+  // respond at that prefix. The rewrite below maps the prefixed URLs back onto
+  // the real /_next/* files, and the middleware matcher excludes the prefix so
+  // it cannot redirect a chunk request to /login (which returns HTML where the
+  // browser expects JS, and takes the whole page down with a hydration error).
+  //
   // Deliberately NOT basePath: every route must keep its real path, since
   // Supabase redirect URLs, the Stripe webhook and the Vercel crons all point
   // at /auth/*, /api/* etc. Only in production — a bare `next dev` has no proxy
@@ -32,6 +38,17 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/reels/[reel_id]/transcript": ["./bin/yt-dlp_linux"],
     "/api/reels/diag": ["./bin/yt-dlp_linux"],
+  },
+  async rewrites() {
+    return {
+      // beforeFiles so the prefixed request resolves to the real asset before
+      // any filesystem route or dynamic segment gets a chance to claim it.
+      beforeFiles: [
+        { source: "/dashboard-static/_next/:path*", destination: "/_next/:path*" },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
