@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
@@ -93,11 +95,16 @@ export async function POST(request: Request) {
       .eq("id", user.id)
       .maybeSingle();
 
+    // The notes must come back in the language the user is reading the dashboard
+    // in — the prefs cookie is the same locale source the UI renders from.
+    const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+
     const tier = await resolveUserTier(supabase, user.id);
     const { notes, degraded, provider, usage } = await generateGrowthNotes(
       JSON.stringify(metricsPayload),
       (profile?.brand_voice as BrandVoice | null) ?? null,
-      tier
+      tier,
+      locale
     );
 
     // Instrumentation (L5): per-call AI cost.
