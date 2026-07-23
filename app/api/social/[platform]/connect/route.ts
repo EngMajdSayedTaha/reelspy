@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { isPlatform } from "@/lib/publishing/types";
+import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
 import { relativeRedirect } from "@/lib/http/redirect";
 
 // OAuth initiation for the net-new publishing platforms (TikTok, YouTube).
@@ -36,8 +37,8 @@ export async function GET(
 
   if (platform === "tiktok") {
     const clientKey = process.env.TIKTOK_CLIENT_KEY;
-    const redirectUri = process.env.TIKTOK_REDIRECT_URI;
-    if (!clientKey || !redirectUri) {
+    const redirectUri = getSocialRedirectUri("tiktok");
+    if (!clientKey) {
       return applyCookies(relativeRedirect(`${SETTINGS}?error=tiktok_env_missing`));
     }
     const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
@@ -49,8 +50,8 @@ export async function GET(
     authUrl = url.toString();
   } else {
     const clientId = process.env.YOUTUBE_CLIENT_ID;
-    const redirectUri = process.env.YOUTUBE_REDIRECT_URI;
-    if (!clientId || !redirectUri) {
+    const redirectUri = getSocialRedirectUri("youtube");
+    if (!clientId) {
       return applyCookies(relativeRedirect(`${SETTINGS}?error=youtube_env_missing`));
     }
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");

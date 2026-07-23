@@ -4,6 +4,7 @@ import { createRouteClient } from "@/lib/supabase/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { upsertConnection } from "@/lib/publishing/token-store";
 import { isPlatform, type Platform } from "@/lib/publishing/types";
+import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
 import { relativeRedirect } from "@/lib/http/redirect";
 
 // OAuth callback for TikTok / YouTube: verify state, exchange the code for
@@ -22,7 +23,8 @@ function fail(code: string) {
 async function exchangeTikTok(code: string) {
   const clientKey = process.env.TIKTOK_CLIENT_KEY!;
   const clientSecret = process.env.TIKTOK_CLIENT_SECRET!;
-  const redirectUri = process.env.TIKTOK_REDIRECT_URI!;
+  // Must match the redirect_uri used in the authorize step exactly.
+  const redirectUri = getSocialRedirectUri("tiktok");
 
   const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
     method: "POST",
@@ -79,7 +81,8 @@ async function exchangeTikTok(code: string) {
 async function exchangeYouTube(code: string) {
   const clientId = process.env.YOUTUBE_CLIENT_ID!;
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET!;
-  const redirectUri = process.env.YOUTUBE_REDIRECT_URI!;
+  // Must match the redirect_uri used in the authorize step exactly.
+  const redirectUri = getSocialRedirectUri("youtube");
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
