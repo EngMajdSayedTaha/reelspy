@@ -3,11 +3,27 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { relativeRedirect } from "@/lib/http/redirect";
 
-export async function middleware(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// A present-but-malformed NEXT_PUBLIC_SUPABASE_URL (missing scheme, stray
+// whitespace/quote, placeholder) passes a truthiness check but makes the
+// Supabase client constructor throw `TypeError: Invalid URL`. In edge
+// middleware that unhandled throw 500s EVERY page it runs on — /login and
+// /signup included — so a bad env var takes the whole auth surface down.
+// Validate up front and treat an invalid value exactly like a missing one:
+// degrade gracefully instead of hard-crashing.
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+export async function middleware(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!supabaseUrl || !supabaseAnonKey || !isValidHttpUrl(supabaseUrl)) {
     // Only env-missing routes that actually need auth; never block public pages.
     if (request.nextUrl.pathname.startsWith("/dashboard")) {
       return relativeRedirect("/login?error=supabase_env_missing");
