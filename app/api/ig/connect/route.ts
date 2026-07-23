@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
-import { buildInstagramConnectUrl } from "@/lib/instagram/graph-api";
+import { buildInstagramConnectUrl, getMetaRedirectUri } from "@/lib/instagram/graph-api";
 import { relativeRedirect } from "@/lib/http/redirect";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
@@ -22,7 +22,9 @@ export async function GET() {
   // Facebook Login flow: client_id must be the Facebook App ID.
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
-  const redirectUri = process.env.META_REDIRECT_URI;
+  // Defaults to the canonical site origin (reelspy.dev) so Facebook returns the
+  // user to the real domain, not a stale *.vercel.app host. See getMetaRedirectUri.
+  const redirectUri = getMetaRedirectUri();
   // The last four scopes power the Auto-Reply module (comment replies, private
   // reply DMs, page webhook subscription). NOTE: META_IG_SCOPES overrides this
   // list, and with META_FB_CONFIG_ID the permissions come from the Facebook
@@ -37,7 +39,7 @@ export async function GET() {
   // Facebook Login for Business: when set, permissions come from this configuration.
   const configId = process.env.META_FB_CONFIG_ID?.trim() || undefined;
 
-  if (!appId || !appSecret || !redirectUri) {
+  if (!appId || !appSecret) {
     return applyCookies(
       relativeRedirect("/dashboard/connections?error=meta_env_missing")
     );

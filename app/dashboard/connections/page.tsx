@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { ConnectionCard } from "@/components/publishing/ConnectionCard";
 import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
 import { listIgConnections } from "@/lib/instagram/connections";
+import { getMetaRedirectUri } from "@/lib/instagram/graph-api";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf } from "@/lib/billing/entitlements";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
@@ -90,7 +91,10 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
 
   // ── Instagram / Facebook (Meta OAuth) ──────────────────────────────────────
   const igAppId = process.env.META_IG_APP_ID || process.env.META_APP_ID;
-  const metaReady = Boolean(igAppId && process.env.META_APP_SECRET && process.env.META_REDIRECT_URI);
+  // The redirect URI is no longer a required env — it defaults to the canonical
+  // site origin (see getMetaRedirectUri) — so readiness only needs the app
+  // credentials, matching what /api/ig/connect actually requires.
+  const metaReady = Boolean(igAppId && process.env.META_APP_SECRET);
   const scopes = process.env.META_IG_SCOPES?.trim() || "instagram_business_basic";
 
   const igConnected = Boolean(profile?.ig_user_id);
@@ -214,7 +218,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
                 </p>
                 <p>
                   {dict.callbackUrlLabel}{" "}
-                  <span className="font-mono text-xs">{process.env.META_REDIRECT_URI ?? dict.notSet}</span>
+                  <span className="font-mono text-xs">{getMetaRedirectUri()}</span>
                 </p>
                 <p>
                   {dict.permissionsLabel} <span className="font-medium">{scopes}</span>

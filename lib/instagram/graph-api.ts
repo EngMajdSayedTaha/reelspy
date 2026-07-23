@@ -10,9 +10,27 @@
 //  - Token is a long-lived Facebook USER token
 
 import { MetaRateLimitError, type MetaRateLimiter } from "./rate-limit";
+import { getSiteUrl } from "@/lib/site";
 
 const GRAPH_VERSION = "v23.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+
+// The redirect URI Meta bounces back to after the Facebook Login dialog. Meta
+// requires this to be an EXACT, pre-registered string and it must be identical
+// in the authorize step (buildInstagramConnectUrl) and the token exchange
+// (exchangeCodeForAccessToken) — so both read it from here.
+//
+// It defaults to the canonical site origin (reelspy.dev via getSiteUrl) so it
+// always tracks the domain the app is actually served on, instead of a
+// hardcoded env that silently drifts to an old *.vercel.app host and drops the
+// user there after connecting. META_REDIRECT_URI still overrides for local dev
+// (http://localhost:3000/api/ig/callback), where the public origin isn't the
+// site URL. Whatever value this resolves to must be listed under the Meta app's
+// "Valid OAuth Redirect URIs".
+export function getMetaRedirectUri(): string {
+  const explicit = process.env.META_REDIRECT_URI?.trim();
+  return explicit || `${getSiteUrl()}/api/ig/callback`;
+}
 
 export type InstagramProfile = {
   id: string;
@@ -118,16 +136,16 @@ async function fetchJson<T>(
 export async function exchangeCodeForAccessToken(code: string): Promise<string> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
-  const redirectUri = process.env.META_REDIRECT_URI;
 
-  if (!appId || !appSecret || !redirectUri) {
-    throw new Error("Missing META_APP_ID, META_APP_SECRET, or META_REDIRECT_URI.");
+  if (!appId || !appSecret) {
+    throw new Error("Missing META_APP_ID or META_APP_SECRET.");
   }
 
   const url = toUrl(`${GRAPH_BASE}/oauth/access_token`, {
     client_id: appId,
     client_secret: appSecret,
-    redirect_uri: redirectUri,
+    // MUST match the redirect_uri used in the authorize step exactly.
+    redirect_uri: getMetaRedirectUri(),
     code,
   });
 
