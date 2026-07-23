@@ -70,12 +70,17 @@ const en = {
       resetsIn: (time: string) => `Resets in ${time}`,
       budgetLabel: "Sync budget",
       perHourSuffix: "this hour",
-      hourlyBudgetHeading: "Your hourly budget",
+      hourlyBudgetHeading: "Your hourly sync capacity",
+      capacityAvailable: (pct: number) => `${pct}% available`,
+      cooldownHeading: "Instagram cooldown",
+      pausedLabel: "Paused — resumes on its own",
       explainer:
-        "Instagram limits how often we can fetch data. Your budget refills every hour — syncs pause automatically instead of failing.",
+        "Most syncs are served instantly from a shared cache, so they don't touch your budget. When Instagram does throttle, syncs pause automatically instead of failing.",
       appWideNote:
         "This pause is on Instagram's side and briefly affects the whole app, not just your account. Nothing's wrong with your sync.",
-      autoResumeToggle: "Resume automatically when it resets",
+      backgroundNote:
+        "Fresh reels keep loading in the background and pick up automatically once the cooldown clears — no need to keep this open.",
+      autoResumeToggle: "Also resume in this tab the moment it clears",
     },
     reelCard: {
       playAria: "Play reel inline",
@@ -272,12 +277,17 @@ export const feedAr: FeedDict = {
       resetsIn: (time: string) => `يُعاد الضبط خلال ${time}`,
       budgetLabel: "ميزانية المزامنة",
       perHourSuffix: "هذه الساعة",
-      hourlyBudgetHeading: "ميزانيتك الساعية",
+      hourlyBudgetHeading: "سعة المزامنة الساعية",
+      capacityAvailable: (pct: number) => `${pct}% متاح`,
+      cooldownHeading: "مهلة تهدئة إنستغرام",
+      pausedLabel: "متوقّف مؤقتًا — يُستأنف تلقائيًا",
       explainer:
-        "يحدّ إنستغرام عدد مرات جلب البيانات. تتجدد ميزانيتك كل ساعة — تتوقف المزامنة تلقائيًا بدلًا من أن تفشل.",
+        "تُخدَّم معظم عمليات المزامنة فورًا من ذاكرة مؤقتة مشتركة، فلا تمسّ ميزانيتك. وعندما يفرض إنستغرام تقييدًا، تتوقف المزامنة تلقائيًا بدلًا من أن تفشل.",
       appWideNote:
         "هذا التوقّف من جانب إنستغرام ويؤثّر مؤقتًا على التطبيق بأكمله، وليس على حسابك فقط. لا مشكلة في مزامنتك.",
-      autoResumeToggle: "استئناف تلقائي عند إعادة الضبط",
+      backgroundNote:
+        "يستمر جلب الريلز الجديدة في الخلفية ويُستأنف تلقائيًا فور انتهاء المهلة — لا داعي لإبقاء هذه الصفحة مفتوحة.",
+      autoResumeToggle: "استأنف في هذه الصفحة أيضًا فور انتهاء المهلة",
     },
     reelCard: {
       playAria: "تشغيل الريل مباشرة",
