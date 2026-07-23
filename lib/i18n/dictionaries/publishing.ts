@@ -149,7 +149,7 @@ export const publishingEn = en;
 
 export const publishingAr: PublishingDict = {
   publishing: {
-    subtitle: "ارفع الفيديو مرة واحدة وانشره على إنستغرام وفيسبوك وتيك توك ويوتيوب — فورًا أو مجدولاً.",
+    subtitle: "ارفع الفيديو مرة واحدة وانشره على إنستغرام وفيسبوك وتيك توك ويوتيوب — فورًا أو مجدولًا.",
     postsDidntPublish: (n: number) =>
       n === 1 ? "منشور واحد لم يُنشر بالكامل" : `${n} منشورات لم تُنشر بالكامل`,
     reviewFailedIntro: "فشل النشر على بعض المنصات. راجع الأخطاء الخاصة بكل منصة أدناه واضغط",
@@ -184,7 +184,7 @@ export const publishingAr: PublishingDict = {
     sharedCaptionPlaceholder: "الوصف المشترك…",
     postToLabel: "النشر على",
     notConnectedSuffix: " · غير متصل",
-    connectFirstHint: "اربط هذه المنصة أولاً",
+    connectFirstHint: "اربط هذه المنصة أولًا",
     connectAtLeastOne: "اربط منصة واحدة على الأقل من تبويب الربط لتتمكن من النشر.",
     customizeCaptionPerPlatform: "تخصيص الوصف لكل منصة",
     perPlatformOffHint:
@@ -207,7 +207,7 @@ export const publishingAr: PublishingDict = {
     workingButton: "جارٍ التنفيذ…",
     schedulePostButton: "جدولة المنشور",
     postNowButton: "انشر الآن",
-    chooseVideoFirst: "اختر فيديو للرفع أولاً.",
+    chooseVideoFirst: "اختر فيديو للرفع أولًا.",
     selectPlatformFirst: "اختر منصة واحدة على الأقل.",
     pickDateTimeSchedule: "اختر تاريخًا ووقتًا للجدولة.",
     uploadFailed: (status: number) => `فشل الرفع (${status}). يرجى المحاولة مرة أخرى.`,
@@ -243,7 +243,7 @@ export const publishingAr: PublishingDict = {
     saveChanges: "حفظ التغييرات",
     deletePostConfirmTitle: "حذف هذا المنشور؟",
     deletePostConfirmDescription:
-      "سيُحذف الفيديو المرفوع وسجل النشر الخاص به. المنشورات المنشورة فعليًا على كل منصة لن تتأثر.",
+      "سيُحذف الفيديو المرفوع وسجل النشر الخاص به. أما المنشورات التي سبق نشرها على كل منصة فلن تتأثر.",
     keep: "إبقاء",
     deletedToast: "تم الحذف.",
     couldNotDelete: "تعذّر الحذف.",
@@ -273,7 +273,7 @@ export const publishingAr: PublishingDict = {
         },
         preview: {
           title: "معاينة مباشرة",
-          desc: "شاهد كيف سيبدو تعليقك والوسوم والوسائط على كل منصة مختارة.",
+          desc: "شاهد كيف سيبدو وصفك والوسوم والوسائط على كل منصة مختارة.",
         },
         history: {
           title: "سجل النشر",

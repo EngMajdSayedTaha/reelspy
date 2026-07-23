@@ -162,10 +162,10 @@ export const billingAr: BillingDict = {
       free: {
         name: "مجانية",
         tagline: "جرّب سير العمل",
-        highlights: ["3 حسابات متابَعة", "10 نصوص شهريًا", "ذكاء اصطناعي بالتعليق فقط"],
+        highlights: ["3 حسابات متابَعة", "10 نصوص شهريًا", "ذكاء اصطناعي بالوصف فقط"],
       },
       creator: {
-        name: "كرييتور",
+        name: "Creator",
         tagline: "للعاملين المستقلين",
         highlights: [
           "30 حسابًا متابَعًا",
@@ -175,8 +175,8 @@ export const billingAr: BillingDict = {
         ],
       },
       pro: {
-        name: "برو",
-        tagline: "لصانعي المحتوى الجادين ومديري السوشيال ميديا",
+        name: "Pro",
+        tagline: "لصنّاع المحتوى الجادّين ومديري وسائل التواصل الاجتماعي",
         highlights: [
           "50 حسابًا متابَعًا",
           "200 نص شهريًا",
@@ -186,7 +186,7 @@ export const billingAr: BillingDict = {
         ],
       },
       studio: {
-        name: "ستوديو",
+        name: "Studio",
         tagline: "للوكالات والفرق",
         highlights: [
           "100 حساب متابَع",

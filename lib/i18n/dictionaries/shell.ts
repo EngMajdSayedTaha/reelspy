@@ -105,8 +105,8 @@ export const shellAr: ShellDict = {
     closeMenu: "إغلاق القائمة",
     signOut: "تسجيل الخروج",
     switchLanguage: "تبديل اللغة",
-    appName: "ريل سباي",
-    logoAlt: "شعار ريل سباي",
+    appName: "ReelSpy",
+    logoAlt: "شعار ReelSpy",
   },
   prefs: {
     language: "اللغة",
@@ -114,7 +114,7 @@ export const shellAr: ShellDict = {
   },
   consent: {
     ariaLabel: "موافقة ملفات تعريف الارتباط",
-    message: "نستخدم ملفات تعريف ارتباط أساسية لإبقائك مسجّلاً للدخول وتذكّر تفضيلاتك. راجع",
+    message: "نستخدم ملفات تعريف ارتباط أساسية لإبقائك مسجّلًا للدخول وتذكّر تفضيلاتك. راجع",
     cookiePolicy: "سياسة ملفات تعريف الارتباط",
     and: "و",
     privacyPolicy: "سياسة الخصوصية",

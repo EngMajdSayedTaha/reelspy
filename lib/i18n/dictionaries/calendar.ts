@@ -88,7 +88,7 @@ export const calendarAr: CalendarDict = {
     legendScript: "نص — اسحبه إلى يوم لتخطيطه",
     legendPost: "منشور مجدول — اسحبه لإعادة الجدولة",
     pickDayFor: (hook: string) => `اختر يومًا لـ"${hook}"`,
-    cancelPlacing: "إلغاء التنسيب",
+    cancelPlacing: "إلغاء التحديد",
     previousMonth: "الشهر السابق",
     nextMonth: "الشهر التالي",
     scheduledPostsHeading: "المنشورات المجدولة",

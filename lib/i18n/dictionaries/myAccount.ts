@@ -202,9 +202,9 @@ export const myAccountAr: MyAccountDict = {
     ],
 
     ranges: {
-      d7: "٧ أيام",
-      d30: "٣٠ يوم",
-      d90: "٩٠ يوم",
+      d7: "7 أيام",
+      d30: "30 يومًا",
+      d90: "90 يومًا",
       all: "الكل",
     },
     performanceAnalytics: "تحليلات الأداء",

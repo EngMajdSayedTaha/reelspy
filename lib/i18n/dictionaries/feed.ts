@@ -220,7 +220,7 @@ export const feedAr: FeedDict = {
       subtitle: "شاهد الريلز المتابَعة مباشرة، وقيّم أداءها، وحوّل أفضل الأفكار إلى نصوص.",
     },
     controls: {
-      searchPlaceholder: "ابحث في التعليقات…",
+      searchPlaceholder: "ابحث في الأوصاف…",
       searching: "جارٍ البحث…",
       allAccountsOption: "كل الحسابات",
       filterByAccountAria: "التصفية حسب الحساب",
@@ -282,7 +282,7 @@ export const feedAr: FeedDict = {
     reelCard: {
       playAria: "تشغيل الريل مباشرة",
       reelByAlt: (username: string) => `ريل بواسطة @${username}`,
-      noCaption: "لا يوجد تعليق متاح.",
+      noCaption: "لا يوجد وصف متاح.",
       worked: "تم العمل عليه",
       new: "جديد",
       viewsSuffix: "مشاهدة",
