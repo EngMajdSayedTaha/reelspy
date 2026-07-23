@@ -1,9 +1,10 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteClient } from "@/lib/supabase/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { upsertConnection } from "@/lib/publishing/token-store";
 import { isPlatform, type Platform } from "@/lib/publishing/types";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 // OAuth callback for TikTok / YouTube: verify state, exchange the code for
 // tokens, and persist them with the service-role client (browser roles can't
@@ -12,8 +13,8 @@ import { isPlatform, type Platform } from "@/lib/publishing/types";
 const STATE_COOKIE = "reelspy_social_oauth_state";
 const SETTINGS = "/dashboard/connections";
 
-function fail(request: NextRequest, code: string) {
-  const res = NextResponse.redirect(new URL(`${SETTINGS}?error=${code}`, request.url));
+function fail(code: string) {
+  const res = relativeRedirect(`${SETTINGS}?error=${encodeURIComponent(code)}`);
   res.cookies.delete(STATE_COOKIE);
   return res;
 }
@@ -150,16 +151,16 @@ export async function GET(
   const error = url.searchParams.get("error");
   const state = url.searchParams.get("state");
 
-  if (error) return fail(request, error);
-  if (!code) return fail(request, "missing_code");
+  if (error) return fail(error);
+  if (!code) return fail("missing_code");
   if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
-    return fail(request, "unsupported_platform");
+    return fail("unsupported_platform");
   }
 
   const cookieStore = await cookies();
   const expected = cookieStore.get(STATE_COOKIE)?.value;
   if (!state || expected !== `${platform}:${state}`) {
-    return fail(request, "invalid_state");
+    return fail("invalid_state");
   }
 
   // Route-handler client: carry refreshed/rotated session cookies onto the
@@ -169,7 +170,7 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
+  if (!user) return applyCookies(relativeRedirect("/login"));
 
   try {
     const admin = createAdminClient();
@@ -198,13 +199,11 @@ export async function GET(
       });
     }
 
-    const res = applyCookies(
-      NextResponse.redirect(new URL(`${SETTINGS}?success=connected`, request.url))
-    );
+    const res = applyCookies(relativeRedirect(`${SETTINGS}?success=connected`));
     res.cookies.delete(STATE_COOKIE);
     return res;
   } catch (err) {
     console.error(`${platform} OAuth callback failed`, err);
-    return applyCookies(fail(request, "oauth_failed"));
+    return applyCookies(fail("oauth_failed"));
   }
 }

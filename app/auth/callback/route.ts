@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { completePostSignIn } from "@/lib/auth/post-signin";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 // Open-redirect guard: only allow same-origin relative paths.
 function sanitizeNext(next: string | null): string {
@@ -19,7 +20,10 @@ function redirectToLogin(
     // Keep it short so it fits comfortably in the URL / UI.
     url.searchParams.set("reason", reason.slice(0, 300));
   }
-  return NextResponse.redirect(url);
+  // Relative redirect: stay on whatever public origin the browser came in on
+  // (reelspy.dev) instead of leaking the internal deployment host through the
+  // marketing-zone proxy. See lib/http/redirect.ts.
+  return relativeRedirect(url);
 }
 
 // Value-free snapshot of the cookies/host that reached the server, so the next
@@ -87,7 +91,7 @@ export async function GET(request: NextRequest) {
       data: { user: existingUser },
     } = await supabase.auth.getUser();
     if (existingUser) {
-      return NextResponse.redirect(new URL(next, request.url));
+      return relativeRedirect(new URL(next, request.url));
     }
 
     const diag = diagnostics(request);
@@ -119,5 +123,5 @@ export async function GET(request: NextRequest) {
     return redirectToLogin(request, postSignInError.code, postSignInError.message);
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return relativeRedirect(new URL(next, request.url));
 }

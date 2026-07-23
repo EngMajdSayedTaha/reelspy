@@ -1,6 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteClient } from "@/lib/supabase/route";
+import { relativeRedirect } from "@/lib/http/redirect";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
 import {
@@ -28,16 +29,16 @@ export async function GET(request: NextRequest) {
   const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
 
   if (error) {
-    return NextResponse.redirect(new URL(`/dashboard/connections?error=${error}`, request.url));
+    return relativeRedirect(`/dashboard/connections?error=${encodeURIComponent(error)}`);
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL("/dashboard/connections?error=missing_code", request.url));
+    return relativeRedirect("/dashboard/connections?error=missing_code");
   }
 
   if (!state || !expectedState || state !== expectedState) {
-    const invalidStateResponse = NextResponse.redirect(
-      new URL("/dashboard/connections?error=invalid_state", request.url)
+    const invalidStateResponse = relativeRedirect(
+      "/dashboard/connections?error=invalid_state"
     );
     invalidStateResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return invalidStateResponse;
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
+    return applyCookies(relativeRedirect("/login"));
   }
 
   try {
@@ -64,9 +65,7 @@ export async function GET(request: NextRequest) {
 
     if (!igAccount) {
       const noAccountResponse = applyCookies(
-        NextResponse.redirect(
-          new URL("/dashboard/connections?error=no_ig_business_account", request.url)
-        )
+        relativeRedirect("/dashboard/connections?error=no_ig_business_account")
       );
       noAccountResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return noAccountResponse;
@@ -91,9 +90,7 @@ export async function GET(request: NextRequest) {
     } catch (updateError) {
       console.error("Failed to update profile with IG token", updateError);
       const profileUpdateResponse = applyCookies(
-        NextResponse.redirect(
-          new URL("/dashboard/connections?error=profile_update_failed", request.url)
-        )
+        relativeRedirect("/dashboard/connections?error=profile_update_failed")
       );
       profileUpdateResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return profileUpdateResponse;
@@ -155,7 +152,7 @@ export async function GET(request: NextRequest) {
     if (webhookWarning) {
       successUrl.searchParams.set("warning", webhookWarning);
     }
-    const successResponse = applyCookies(NextResponse.redirect(successUrl));
+    const successResponse = applyCookies(relativeRedirect(successUrl));
     successResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return successResponse;
   } catch (callbackError) {
@@ -170,7 +167,7 @@ export async function GET(request: NextRequest) {
     if (friendly) {
       target.searchParams.set("detail", friendly.slice(0, 200));
     }
-    const failureResponse = applyCookies(NextResponse.redirect(target));
+    const failureResponse = applyCookies(relativeRedirect(target));
     failureResponse.cookies.delete(OAUTH_STATE_COOKIE);
     return failureResponse;
   }

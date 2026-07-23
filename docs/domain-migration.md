@@ -177,6 +177,33 @@ Suggested body:
   - `https://reelspy-one.vercel.app/**` (keep temporarily during transition,
     remove once cutover is confirmed stable)
 
+> **Why this matters (the "lands on reelspy-one.vercel.app after Google login"
+> bug).** `signInWithOAuth` sends Supabase a `redirect_to` of
+> `https://reelspy.dev/auth/callback` (the browser's own origin). Supabase only
+> honors that if `https://reelspy.dev/**` is in the allow-list above —
+> otherwise it silently falls back to **Site URL**. So if Site URL is still the
+> old `reelspy-one.vercel.app`, or `reelspy.dev/**` is missing from the
+> allow-list, the whole OAuth round-trip ends on the old host regardless of
+> what the app code does. Set both to `reelspy.dev` and the fallback can't fire.
+
+### Redirects must stay origin-agnostic (code invariant)
+
+`reelspy.dev` is served by the marketing zone (`reelspy-landing`), which
+**proxies** product routes (`/login`, `/auth/*`, `/dashboard`, `/api/*`) to this
+deployment. Under that proxy the incoming `Host` header — and therefore
+`request.url` / `request.nextUrl` — is the **internal** deployment host
+(`reelspy-one.vercel.app`), *not* `reelspy.dev`. So a redirect built with
+`NextResponse.redirect(new URL(path, request.url))` emits an absolute `Location`
+on the internal host and yanks the user off `reelspy.dev` — most visibly right
+after Google sign-in.
+
+Every user-facing redirect therefore goes through `relativeRedirect()`
+(`lib/http/redirect.ts`), which emits a **relative** `Location` the browser
+resolves against whatever origin it actually requested. Do not reintroduce
+`NextResponse.redirect(new URL(path, request.url))` for in-app navigations —
+use `relativeRedirect(...)`. (External OAuth authorize URLs — Google/Meta/TikTok
+consent screens — stay absolute; those are real cross-origin redirects.)
+
 ## 8. Supabase — enable "Confirm email" (do this LAST)
 
 **Auth → Providers → Email → Confirm email → ON.**

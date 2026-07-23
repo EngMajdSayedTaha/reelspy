@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -9,7 +10,7 @@ export async function middleware(request: NextRequest) {
   if (!supabaseUrl || !supabaseAnonKey) {
     // Only env-missing routes that actually need auth; never block public pages.
     if (request.nextUrl.pathname.startsWith("/dashboard")) {
-      return NextResponse.redirect(new URL("/login?error=supabase_env_missing", request.url));
+      return relativeRedirect("/login?error=supabase_env_missing");
     }
     return NextResponse.next({ request });
   }
@@ -47,8 +48,11 @@ export async function middleware(request: NextRequest) {
   // otherwise drop the refreshed session cookies just set on
   // supabaseResponse above. Carry them over so a token refresh survives the
   // redirect instead of getting silently discarded.
+  // Relative Location so a redirect issued while this request is being proxied
+  // through the reelspy.dev marketing zone stays on reelspy.dev instead of
+  // leaking the internal deployment host. See lib/http/redirect.ts.
   const redirect = (path: string) => {
-    const response = NextResponse.redirect(new URL(path, request.url));
+    const response = relativeRedirect(path);
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     return response;
   };

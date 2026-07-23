@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { buildInstagramConnectUrl } from "@/lib/instagram/graph-api";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
 
-export async function GET(request: Request) {
+export async function GET() {
   // Route-handler client: getUser() may refresh + rotate the session, and we
   // must carry the refreshed cookies onto the redirect below (applyCookies) or
   // mobile users on an expired token get bounced to /login instead of Facebook.
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
+    return applyCookies(relativeRedirect("/login"));
   }
 
   // Facebook Login flow: client_id must be the Facebook App ID.
@@ -38,9 +39,7 @@ export async function GET(request: Request) {
 
   if (!appId || !appSecret || !redirectUri) {
     return applyCookies(
-      NextResponse.redirect(
-        new URL("/dashboard/connections?error=meta_env_missing", request.url)
-      )
+      relativeRedirect("/dashboard/connections?error=meta_env_missing")
     );
   }
 

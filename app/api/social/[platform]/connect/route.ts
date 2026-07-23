@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createRouteClient } from "@/lib/supabase/route";
 import { isPlatform } from "@/lib/publishing/types";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 // OAuth initiation for the net-new publishing platforms (TikTok, YouTube).
 // Instagram/Facebook reuse the existing /api/ig/connect flow. Mirrors that
@@ -24,12 +25,10 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return applyCookies(NextResponse.redirect(new URL("/login", request.url)));
+  if (!user) return applyCookies(relativeRedirect("/login"));
 
   if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
-    return applyCookies(
-      NextResponse.redirect(new URL(`${SETTINGS}?error=unsupported_platform`, request.url))
-    );
+    return applyCookies(relativeRedirect(`${SETTINGS}?error=unsupported_platform`));
   }
 
   const state = randomUUID();
@@ -39,9 +38,7 @@ export async function GET(
     const clientKey = process.env.TIKTOK_CLIENT_KEY;
     const redirectUri = process.env.TIKTOK_REDIRECT_URI;
     if (!clientKey || !redirectUri) {
-      return applyCookies(
-        NextResponse.redirect(new URL(`${SETTINGS}?error=tiktok_env_missing`, request.url))
-      );
+      return applyCookies(relativeRedirect(`${SETTINGS}?error=tiktok_env_missing`));
     }
     const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
     url.searchParams.set("client_key", clientKey);
@@ -54,9 +51,7 @@ export async function GET(
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const redirectUri = process.env.YOUTUBE_REDIRECT_URI;
     if (!clientId || !redirectUri) {
-      return applyCookies(
-        NextResponse.redirect(new URL(`${SETTINGS}?error=youtube_env_missing`, request.url))
-      );
+      return applyCookies(relativeRedirect(`${SETTINGS}?error=youtube_env_missing`));
     }
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", clientId);

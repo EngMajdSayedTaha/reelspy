@@ -1,7 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { completePostSignIn } from "@/lib/auth/post-signin";
+import { relativeRedirect } from "@/lib/http/redirect";
 
 // Verifies email-template links (password recovery + signup confirmation) via
 // token_hash + verifyOtp instead of the PKCE code-exchange /auth/callback
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
   failureUrl.searchParams.set("error", type === "recovery" ? "link_expired" : "confirm_failed");
 
   if (!tokenHash || !type) {
-    return NextResponse.redirect(failureUrl);
+    return relativeRedirect(failureUrl);
   }
 
   const supabase = await createClient();
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
       code: error?.code,
       message: error?.message,
     });
-    return NextResponse.redirect(failureUrl);
+    return relativeRedirect(failureUrl);
   }
 
   if (type === "signup" || type === "email") {
@@ -59,9 +60,9 @@ export async function GET(request: NextRequest) {
     if (postSignInError) {
       const url = new URL("/login", request.url);
       url.searchParams.set("error", postSignInError.code);
-      return NextResponse.redirect(url);
+      return relativeRedirect(url);
     }
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  return relativeRedirect(new URL(next, request.url));
 }
