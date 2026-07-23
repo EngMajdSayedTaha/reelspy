@@ -133,9 +133,14 @@ export function RateLimitStatus() {
   const throttled = status.throttled && retrySeconds > 0;
   const used = status.userUsed;
   const cap = status.userCap;
-  const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
-  const near = pct >= 80;
-  const filledSegments = cap > 0 ? Math.round((pct / 100) * SEGMENTS) : 0;
+  // Show REMAINING capacity, not consumption. Most syncs are served from the
+  // shared snapshot cache and never spend this budget, so "you have headroom" is
+  // both the truthful and the reassuring framing. 100% = full budget available.
+  const usedPct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+  const remainingPct = 100 - usedPct;
+  const near = remainingPct <= 20; // personal budget is running low (rare)
+  // Segments fill to show how much budget is LEFT (full bar = plenty of room).
+  const filledSegments = cap > 0 ? Math.round((remainingPct / 100) * SEGMENTS) : SEGMENTS;
 
   return (
     <Popover.Root>
@@ -186,19 +191,26 @@ export function RateLimitStatus() {
         >
           <div>
             <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-              <span>{dict.hourlyBudgetHeading}</span>
-              {status.userResetSeconds > 0 ? (
+              <span>{throttled ? dict.cooldownHeading : dict.hourlyBudgetHeading}</span>
+              {throttled ? (
+                <span className="tabular-nums">{formatCountdown(retrySeconds)}</span>
+              ) : status.userResetSeconds > 0 ? (
                 <span className="tabular-nums">{dict.resetsIn(formatCountdown(status.userResetSeconds))}</span>
               ) : null}
             </div>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              {/* Throttled = shared app-wide pause, so the personal bar reads as
+                  "paused" rather than a percentage that would contradict the
+                  cooldown. Otherwise the bar fills to show budget REMAINING. */}
               <div
-                className={`h-full rounded-full transition-all ${near ? "bg-warning" : "bg-primary"}`}
-                style={{ width: `${pct}%` }}
+                className={`h-full rounded-full transition-all ${
+                  throttled ? "bg-danger/60" : near ? "bg-warning" : "bg-primary"
+                }`}
+                style={{ width: throttled ? "100%" : `${remainingPct}%` }}
               />
             </div>
             <p className="mt-1 text-xs tabular-nums text-muted-foreground">
-              {used}/{cap} {dict.perHourSuffix}
+              {throttled ? dict.pausedLabel : dict.capacityAvailable(remainingPct)}
             </p>
           </div>
 
@@ -208,6 +220,9 @@ export function RateLimitStatus() {
             <>
               <p className="rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-muted-foreground">
                 {dict.appWideNote}
+              </p>
+              <p className="rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-muted-foreground">
+                {dict.backgroundNote}
               </p>
               <label className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-2 px-2.5 py-2 text-xs text-foreground">
                 <input
