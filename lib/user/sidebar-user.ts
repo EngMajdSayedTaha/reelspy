@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { readMyInsightsCache } from "@/lib/instagram/my-insights";
-import { resolveUserTier } from "@/lib/ai/tier";
+import { activeTierFromSubscription } from "@/lib/billing/subscription";
 import type { AiTier } from "@/lib/ai/tier";
 
 export type SidebarUser = {
@@ -13,7 +13,13 @@ export type SidebarUser = {
   avatarUrl: string | null;
   email: string | null;
   connected: boolean;
-  /** Subscription tier — drives the sidebar plan badge (L6). */
+  /**
+   * The tier the user actually PAYS for — drives the sidebar plan badge (L6).
+   * Deliberately NOT resolveUserTier(): that grants admins "studio" regardless of
+   * billing, which made the badge advertise a plan the user had never bought and
+   * contradict the billing page after a cancel or a switch. Admin elevation is an
+   * access override, not a plan; the Admin nav link already signals it.
+   */
   tier: AiTier;
   /** Founder/admin — drives the conditional Admin link in the sidebar. */
   isAdmin: boolean;
@@ -56,7 +62,9 @@ export async function getSidebarUser(): Promise<SidebarUser | null> {
     ? `@${igUsername}`
     : profile?.username ?? user.email ?? "Account";
 
-  const tier = await resolveUserTier(supabase, user.id);
+  // Same source and semantics as /dashboard/billing, so the badge and the billing
+  // page can never disagree: an active subscription's tier, else "free".
+  const tier: AiTier = (await activeTierFromSubscription(supabase, user.id)) ?? "free";
 
   return {
     handle,
