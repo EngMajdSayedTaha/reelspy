@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
-import { relativeRedirect } from "@/lib/http/redirect";
+import { middlewareRedirect } from "@/lib/http/redirect";
 
 // A present-but-malformed NEXT_PUBLIC_SUPABASE_URL (missing scheme, stray
 // whitespace/quote, placeholder) passes a truthiness check but makes the
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
   if (!supabaseUrl || !supabaseAnonKey || !isValidHttpUrl(supabaseUrl)) {
     // Only env-missing routes that actually need auth; never block public pages.
     if (request.nextUrl.pathname.startsWith("/dashboard")) {
-      return relativeRedirect("/login?error=supabase_env_missing");
+      return middlewareRedirect(request, "/login?error=supabase_env_missing");
     }
     return NextResponse.next({ request });
   }
@@ -64,11 +64,13 @@ export async function middleware(request: NextRequest) {
   // otherwise drop the refreshed session cookies just set on
   // supabaseResponse above. Carry them over so a token refresh survives the
   // redirect instead of getting silently discarded.
-  // Relative Location so a redirect issued while this request is being proxied
-  // through the reelspy.dev marketing zone stays on reelspy.dev instead of
-  // leaking the internal deployment host. See lib/http/redirect.ts.
+  // middlewareRedirect (NOT relativeRedirect) builds an absolute Location on
+  // this request's origin, which the edge adapter rewrites to relative — so the
+  // redirect stays on reelspy.dev under the marketing-zone proxy without the
+  // internal host leaking, AND without the `TypeError: Invalid URL` that a
+  // relative Location triggers inside the adapter. See lib/http/redirect.ts.
   const redirect = (path: string) => {
-    const response = relativeRedirect(path);
+    const response = middlewareRedirect(request, path);
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     return response;
   };
