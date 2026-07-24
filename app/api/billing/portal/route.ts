@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
+import { usableCustomerId } from "@/lib/billing/sync";
 
 // Open the Stripe Billing Portal (L6 / B1) so a subscriber can update their card,
 // change plan, or cancel. Returns { url } to redirect to. Requires an existing
@@ -25,13 +26,19 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   const sub = await getSubscription(admin, user.id);
-  if (!sub?.stripeCustomerId) {
+  // Verify the customer still exists in Stripe — a stale id (deleted customer, or
+  // one left behind by a test↔live key switch) should read as "nothing to manage
+  // yet", not as a broken portal button.
+  const customerId = await usableCustomerId(admin, stripe, user.id, sub?.stripeCustomerId).catch(
+    () => sub?.stripeCustomerId ?? null
+  );
+  if (!customerId) {
     return NextResponse.json({ error: "No billing account yet — subscribe first." }, { status: 400 });
   }
 
   try {
     const session = await stripe.billingPortal.sessions.create({
-      customer: sub.stripeCustomerId,
+      customer: customerId,
       return_url: `${siteOrigin(request)}/dashboard/billing`,
     });
     return NextResponse.json({ url: session.url });

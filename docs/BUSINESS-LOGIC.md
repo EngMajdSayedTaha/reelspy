@@ -61,9 +61,12 @@ Lookup **fails open**: a missing table or DB blip degrades to the env default; i
 | `charge.dispute.created` | — | Founder alert (`BILLING_ALERT_EMAIL`) |
 
 **Switch / cancel / refund policy:**
-- **Switch plans / cancel / update card** — self-served in the Stripe Billing Portal. Switches prorate; a cancel sets `cancel_at_period_end` (billing page shows "Cancels on …"), and access continues until period end, then `subscription.deleted` drops the tier to free.
+- **Switch plans** — an active subscriber clicking another fixed tier on the billing page switches **in place**: the existing subscription's line item is repriced with `proration_behavior: create_prorations` (one subscription, one row, no second checkout), the row is synced immediately, and the page toasts "Plan updated". Only a first purchase, or a switch to the custom plan (ad-hoc price), goes through Checkout. Switching also clears a pending cancellation.
+- **Cancel / update card** — self-served in the Stripe Billing Portal. A cancel sets `cancel_at_period_end` (billing page shows "Cancels on …") and access continues until period end, then `subscription.deleted` drops the tier to free.
+- **Returning from Checkout** — `/dashboard/billing?checkout=success` reconciles the subscription directly from Stripe before rendering, so the new plan is visible on that first load instead of waiting on the webhook. The webhook remains the durable source of truth and re-writes the same row idempotently.
 - **Refunds** — admin-issued (**Admin → Billing → Refund**, `POST /api/admin/billing/subscriptions/[userId]/refund`, `lib/billing/refund.ts`) or via the Stripe dashboard; both behave identically. **Full refund cancels immediately → Free; partial refund leaves access intact.** All effects route through the `charge.refunded` webhook (one policy, one path); the admin action is audited (`admin_audit_log`, `action: billing.refund`).
-- `past_due` still grants access during Stripe's dunning window; `canceled` / `unpaid` / `incomplete_expired` do not (`ACTIVE_STATUSES` in `lib/billing/subscription.ts`).
+- **Status → access** is defined once, by the allow-list `ACTIVE_STATUSES` in `lib/billing/subscription.ts`: `active`, `trialing`, `past_due` (dunning keeps access). Everything else — `canceled`, `unpaid`, `incomplete` (first payment never cleared), `incomplete_expired`, `paused` — grants nothing, and the webhook's writer derives "inactive" as the complement of that same set so a stored tier can never outrank what the read path honours.
+- **Stale Stripe ids self-heal.** A cached `stripe_customer_id`/`stripe_subscription_id` that no longer exists (customer deleted in the dashboard, or a test↔live key switch) is detected and cleared instead of dead-ending checkout — see `usableCustomerId` (`lib/billing/sync.ts`) and §10 of `docs/billing-setup.md`.
 
 **Where limits are enforced** (the four chokepoints):
 | Limit | Enforced at |

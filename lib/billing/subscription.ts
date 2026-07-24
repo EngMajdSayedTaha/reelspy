@@ -12,9 +12,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
 import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
 
-// Stripe statuses that grant paid access. `past_due` still has access during the
-// dunning window; `canceled`/`unpaid`/`incomplete_expired` do not.
-const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
+// Stripe statuses that grant paid access — the SINGLE definition of "is this
+// subscription paying?", used both when reading a row (here) and when the webhook
+// writes one (lib/billing/sync.ts). `past_due` keeps access during Stripe's
+// dunning window; everything else — `canceled`, `unpaid`, `incomplete`
+// (first payment never went through), `incomplete_expired`, `paused` — does not.
+// Keeping this in one place is what stops the reader and the writer from
+// disagreeing about a status neither list anticipated.
+export const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 export type Subscription = {
   tier: AiTier;

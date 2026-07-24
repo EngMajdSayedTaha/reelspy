@@ -28,6 +28,20 @@ export function stripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
 }
 
+// True when Stripe says the object simply isn't there: deleted in the dashboard,
+// or left over from a different account or the other mode (a test↔live key swap
+// keeps our stored ids but invalidates every one of them). Callers treat this as
+// "that reference is dead, start fresh" rather than as a hard failure — without
+// it a single stale id makes checkout/portal fail for that user forever.
+export function isMissingResource(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { type?: string; code?: string; statusCode?: number };
+  return (
+    e.code === "resource_missing" ||
+    (e.type === "StripeInvalidRequestError" && e.statusCode === 404)
+  );
+}
+
 // The absolute origin to build Checkout return URLs against. Prefers an explicit
 // NEXT_PUBLIC_SITE_URL, else falls back to the incoming request's origin (correct
 // on Vercel, which sets the deployment host on request.url).

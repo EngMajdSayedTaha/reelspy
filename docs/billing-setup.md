@@ -105,25 +105,37 @@ when the key is a test key.
 
 1. `STRIPE_SECRET_KEY` set → `/dashboard/billing` drops the "payments aren't
    live" banner and the Upgrade buttons enable.
-2. Start the local webhook forwarder and paste the `whsec_…` it prints into
-   `STRIPE_WEBHOOK_SECRET`:
+2. Start the local webhook forwarder. Stripe can't reach `localhost`, so without
+   one nothing in the lifecycle ever reaches the app:
    ```
-   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   npm run stripe:forward
    ```
+   `scripts/stripe-forward.mjs` polls the Stripe Events API and re-delivers each
+   event to `/api/stripe/webhook`, signed with your `STRIPE_WEBHOOK_SECRET` the
+   same way Stripe signs a real delivery — so signature verification is genuinely
+   exercised, and **no Stripe CLI install is required**. Any `whsec_…` value works
+   as long as the script and the app read the same one. Add `--since 30` to also
+   replay the last 30 minutes (safe — the webhook dedupes).
+   `stripe listen --forward-to localhost:3000/api/stripe/webhook` remains a drop-in
+   alternative if you do have the CLI.
 3. Subscribe with test card `4242 4242 4242 4242` (any future expiry / any CVC).
-   On return you land on `/dashboard/billing?checkout=success`.
-4. Within a few seconds the webhook flips the `subscriptions` row to the tier +
-   `active`; the sidebar plan badge and usage meters update on next load. A
-   **welcome email** is sent (check Resend logs, or the `[email] skipped` console
-   line if Resend isn't configured).
-5. Exercise the rest of the lifecycle with the Stripe CLI:
+   On return you land on `/dashboard/billing?checkout=success`, which reconciles
+   the subscription straight from Stripe — so the new plan shows up on that first
+   render even if the webhook hasn't landed (or isn't being forwarded at all).
+4. The webhook then flips the `subscriptions` row to the tier + `active`
+   (idempotently re-writing what the reconcile already wrote); the sidebar plan
+   badge and usage meters update on next load. A **welcome email** is sent (check
+   Resend logs, or the `[email] skipped` console line if Resend isn't configured).
+5. Exercise the rest of the lifecycle. With the Stripe CLI:
    ```
    stripe trigger invoice.payment_failed      # → dunning email
    stripe trigger charge.refunded             # → refund email
    stripe trigger customer.subscription.deleted  # → cancellation email + tier→free
    ```
-   Useful failing-payment card: `4000 0000 0000 0341` (attaches, then fails on
-   the renewal charge).
+   Without it, drive the same states through the API/dashboard and let
+   `npm run stripe:forward` relay them. Useful failing-payment fixtures: card
+   `4000 0000 0000 0341` (attaches, then fails on the renewal charge), or test
+   token `tok_chargeCustomerFail` when creating the subscription via the API.
 6. **Idempotency:** replay the same event twice (re-run a `stripe trigger`, or use
    "Resend" in the dashboard). The second delivery returns `{received:true,
    deduped:true}` and does **not** re-send the email or re-write the row — verify
@@ -186,7 +198,35 @@ have moved. To stay correct regardless of the endpoint version, the webhook
 of trusting the raw event payload's shape. When creating the production endpoint you
 can additionally pin it to `2025-02-24.acacia`, but the re-fetch makes that optional.
 
-## 10. The dynamic "build your own plan" card
+## 10. Stale Stripe references (self-healing)
+
+Our `subscriptions` row caches a `stripe_customer_id` / `stripe_subscription_id`.
+Either can stop existing on Stripe's side — a customer deleted in the dashboard,
+or every id at once after a test↔live key switch. Passing a dead id to Checkout
+returns `No such customer` and the user is stuck on "Could not start checkout"
+forever, with nothing in the UI to clear it.
+
+So every path that reuses a cached id verifies it first (`usableCustomerId` in
+`lib/billing/sync.ts`, `isMissingResource` in `lib/billing/stripe.ts`):
+
+- **Checkout** — dead customer ⇒ clear the row and mint a fresh customer; dead
+  subscription on a "switch plan" ⇒ fall through to a normal Checkout instead of
+  erroring.
+- **Billing portal** — dead customer ⇒ "No billing account yet — subscribe first".
+- **Admin sync** — a missing subscription id falls back to "whatever this customer
+  has now" rather than throwing.
+
+## 11. Status → access, in one place
+
+`ACTIVE_STATUSES` (`lib/billing/subscription.ts`) is the single definition of
+"this subscription is paying": `active`, `trialing`, `past_due`. The webhook's
+writer derives *inactive* as the complement of that set (`grantsAccess()` in
+`lib/billing/sync.ts`) instead of keeping a second list, so the row we write can
+never advertise a tier the read path would refuse to honour — and an unfamiliar
+status (`incomplete`, `paused`, anything Stripe adds later) defaults to no access
+rather than silently granting a plan that was never paid for.
+
+## 12. The dynamic "build your own plan" card
 
 The billing page also renders a slider-driven custom plan
 (`components/billing/DynamicPlanCard.tsx`): the user picks tracked accounts,

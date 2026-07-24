@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { Check, CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getSubscription } from "@/lib/billing/subscription";
+import { syncSubscriptionForUser } from "@/lib/billing/sync";
+import { getStripe } from "@/lib/billing/stripe";
 import { formatLimit, isUnlimited, entitlementsFor, ENTITLEMENTS } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
 import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
@@ -95,6 +98,23 @@ export default async function BillingPage({ searchParams }: PageProps) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Returning from Checkout: pull the subscription straight from Stripe and sync
+  // it before we render, so the new plan is visible on this very page load. The
+  // webhook is still the durable source of truth (and re-syncs the same row
+  // idempotently) — this just removes the "wait a few seconds and refresh" gap,
+  // and keeps checkout usable on a local machine Stripe can't reach.
+  if (checkout === "success") {
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        await syncSubscriptionForUser(createAdminClient(), stripe, user.id);
+      } catch (err) {
+        // Never block the page on reconciliation — the webhook will catch up.
+        console.error("[billing] checkout reconcile failed:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
 
   const sub = await getSubscription(supabase, user.id);
   // The billing page reflects the ACTUAL Stripe subscription, not any admin tier

@@ -2,6 +2,8 @@ import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { tierForStripePrice } from "@/lib/billing/plans";
+import { isMissingResource } from "@/lib/billing/stripe";
+import { ACTIVE_STATUSES } from "@/lib/billing/subscription";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
 import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
 
@@ -10,9 +12,13 @@ import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlement
 // row the same way. The subscriptions table stays single-shape regardless of
 // which path touched it.
 
-// Statuses that mean "no paid access" — drop the tier back to free so
-// entitlements revoke immediately when a sub lapses or is cancelled.
-export const INACTIVE_STATUSES = new Set(["canceled", "unpaid", "incomplete_expired"]);
+// "No paid access" is defined as the complement of ACTIVE_STATUSES rather than
+// its own list, so the row we WRITE can never claim a tier that the read path
+// (getSubscription) would refuse to honour. An allow-list is also the safe
+// default for a status Stripe adds later: unknown ⇒ no access.
+export function grantsAccess(status: string): boolean {
+  return ACTIVE_STATUSES.has(status);
+}
 
 export function customerIdOf(sub: Stripe.Subscription): string | null {
   return typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null;
@@ -73,7 +79,7 @@ export async function syncSubscription(
     return null;
   }
 
-  const inactive = INACTIVE_STATUSES.has(sub.status);
+  const inactive = !grantsAccess(sub.status);
   const tier: AiTier = inactive ? "free" : tierOfSubscription(sub);
   const customEntitlements = !inactive && tier === "custom" ? customEntitlementsOf(sub) : null;
   const periodEnd = sub.current_period_end
@@ -98,6 +104,33 @@ export async function syncSubscription(
   return { userId, tier, status: sub.status };
 }
 
+// Confirm a stored Stripe customer id is still usable before we hand it to
+// Checkout or the Billing Portal. Stripe customers can disappear (deleted in the
+// dashboard, or orphaned by a test↔live key switch), and passing a dead id makes
+// every subsequent checkout fail with "No such customer" — a dead end the user
+// can't escape from the UI. When the id is gone we clear it from our row so the
+// next checkout mints a fresh customer instead.
+export async function usableCustomerId(
+  admin: SupabaseClient,
+  stripe: Stripe,
+  userId: string,
+  customerId: string | null | undefined
+): Promise<string | null> {
+  if (!customerId) return null;
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (!(customer as Stripe.DeletedCustomer).deleted) return customerId;
+  } catch (err) {
+    if (!isMissingResource(err)) throw err;
+  }
+  console.warn(`[billing/sync] stale stripe customer ${customerId} for user ${userId} — clearing`);
+  await admin
+    .from("subscriptions")
+    .update({ stripe_customer_id: null, stripe_subscription_id: null, updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  return null;
+}
+
 // Admin action: re-pull a user's live subscription from Stripe and re-sync the
 // row. Finds the Stripe subscription via the stored subscription/customer id.
 // Returns a small result describing what happened (for audit + UI feedback).
@@ -115,12 +148,24 @@ export async function syncSubscriptionForUser(
   const subId = row?.stripe_subscription_id as string | null | undefined;
   const customerId = row?.stripe_customer_id as string | null | undefined;
 
+  // Try the stored subscription id first, then fall back to "whatever this
+  // customer has now". Either id can be stale, and a stale id must not abort the
+  // sync — it just means we look one level up (or report "nothing found").
   let sub: Stripe.Subscription | null = null;
   if (subId) {
-    sub = await stripe.subscriptions.retrieve(subId);
-  } else if (customerId) {
-    const list = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 1 });
-    sub = list.data[0] ?? null;
+    try {
+      sub = await stripe.subscriptions.retrieve(subId);
+    } catch (err) {
+      if (!isMissingResource(err)) throw err;
+    }
+  }
+  if (!sub && customerId) {
+    try {
+      const list = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 1 });
+      sub = list.data[0] ?? null;
+    } catch (err) {
+      if (!isMissingResource(err)) throw err;
+    }
   }
 
   if (!sub) {
