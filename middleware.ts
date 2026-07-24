@@ -66,9 +66,10 @@ export async function middleware(request: NextRequest) {
   // redirect instead of getting silently discarded.
   // middlewareRedirect (NOT relativeRedirect) builds an absolute Location on
   // this request's origin, which the edge adapter rewrites to relative — so the
-  // redirect stays on reelspy.dev under the marketing-zone proxy without the
-  // internal host leaking, AND without the `TypeError: Invalid URL` that a
-  // relative Location triggers inside the adapter. See lib/http/redirect.ts.
+  // redirect stays on whatever public origin the request arrived on
+  // (app.reelspy.dev directly, or reelspy.dev for the paths it still proxies)
+  // without the internal host leaking, AND without the `TypeError: Invalid URL`
+  // that a relative Location triggers inside the adapter. See lib/http/redirect.ts.
   const redirect = (path: string) => {
     const response = middlewareRedirect(request, path);
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));

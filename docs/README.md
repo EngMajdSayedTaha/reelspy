@@ -35,13 +35,14 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 | [`auto-reply-setup.md`](./auto-reply-setup.md) | Comment→DM automation: Meta webhook + tokens |
 | [`ig-cookies-runbook.md`](./ig-cookies-runbook.md) | Transcript pipeline cookies: rotation + health check |
 | [`cron-cadence.md`](./cron-cadence.md) | Vercel Hobby vs Pro cron layout, GitHub Actions workers |
-| [`domain-migration.md`](./domain-migration.md) | The reelspy.dev migration checklist (founder actions) |
+| [`domain-migration.md`](./domain-migration.md) | Domain history + the app.reelspy.dev subdomain split (founder actions) |
 
 ## Live infrastructure (quick reference)
 
 | Piece | Value |
 |---|---|
-| Production | https://reelspy.dev (Vercel project `reelspy`; legacy `reelspy-one.vercel.app`) |
+| Production (app) | https://app.reelspy.dev (Vercel project `reelspy`; also reachable at `reelspy-one.vercel.app`) |
+| Production (marketing) | https://reelspy.dev (Vercel project `reelspy-landing`) — proxies `/api`, `/privacy`, `/terms`, `/cookies`, `/brand` to the app; redirects `/login`, `/signup`, `/dashboard`, `/admin`, `/auth` to `app.reelspy.dev` |
 | GitHub | `EngMajdSayedTaha/reelspy`, default branch `master`, auto-deploys to prod |
 | Supabase | project ref `bsyzjlvgcpdxtdchkiva` (us-east-1, Free plan). GitHub integration pushes `supabase/migrations/` on merge to master |
 | Video storage | Cloudflare R2 bucket (`publish-media`) — Supabase Storage is **not** used for video (Free-plan 50 MB cap) |

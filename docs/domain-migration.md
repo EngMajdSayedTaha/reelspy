@@ -340,3 +340,75 @@ done:
       relying on it for real users
 - [ ] Only after all of the above: flip **Confirm email** on in Supabase
       (step 8) and do one more real signup to confirm the fully-live flow
+
+---
+
+# app.reelspy.dev — the subdomain split (2026-07-25)
+
+The sections above describe the original move to a **single origin**, where
+`reelspy.dev` (the `reelspy-landing` project) proxied every product route to this
+deployment. That has been superseded: the product now lives on its own origin,
+**https://app.reelspy.dev**, and `reelspy.dev` is the marketing site.
+
+## Why
+
+The single-origin design was chosen to avoid reconfiguring Supabase cookies and
+OAuth redirect URIs. That saved a one-time config change at a structural cost:
+
+- **Cookie isolation.** Supabase auth cookies were scoped to the origin serving
+  the marketing site, so any third-party tag or marketing-side XSS could read
+  them. On a separate origin they simply aren't there to read.
+- **The proxy sat in the auth path.** A relative `Location` header inside the
+  Next 16 edge adapter once 500'd *every* middleware redirect — the whole login
+  surface — precisely because the proxy made redirects origin-sensitive
+  (see "Redirects must stay origin-agnostic" above).
+- **Independent blast radius.** A marketing deploy can no longer take the app
+  down, and vice versa.
+
+## What splits, and what deliberately does not
+
+`reelspy.dev` still **proxies** (rewrites) to this app:
+
+| Path | Why it stays |
+|---|---|
+| `/privacy`, `/terms`, `/cookies` | Indexed on the apex; redirecting would discard their ranking |
+| `/brand/:path*` | Marketing assets |
+| `/api/:path*` | Webhook senders and API clients routinely do **not** follow redirects |
+| `/dashboard-static/:path*` | Carries this app's `assetPrefix` assets for the proxied pages |
+
+`reelspy.dev` **redirects** (307, not permanent — reversible during beta) to
+`app.reelspy.dev`: `/dashboard`, `/admin`, `/auth/*`, `/login`, `/signup`,
+`/forgot-password`, `/reset-password`.
+
+## The integration checklist
+
+Everything below derives from `getSiteUrl()` (`lib/site.ts`), so the env var is
+the single lever — but each provider keeps its own allow-list that must agree.
+
+| System | Setting | Value |
+|---|---|---|
+| Vercel (`reelspy`) | Domain | `app.reelspy.dev` → Production |
+| Vercel | `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL` | `https://app.reelspy.dev` |
+| Vercel | `META_REDIRECT_URI` | `https://app.reelspy.dev/api/ig/callback` |
+| Vercel | `YOUTUBE_REDIRECT_URI` | `https://app.reelspy.dev/api/social/youtube/callback` |
+| Vercel | `TIKTOK_REDIRECT_URI` | `https://app.reelspy.dev/api/social/tiktok/callback` |
+| Supabase | Auth → Site URL | `https://app.reelspy.dev` |
+| Supabase | Auth → Redirect URLs | `https://app.reelspy.dev/**` (kept `https://reelspy.dev/**` and localhost) |
+| Meta | Instagram business login → OAuth redirect URIs | added `https://app.reelspy.dev/api/ig/callback` |
+| Stripe | Webhook endpoint `we_1TwpVE…` | `https://app.reelspy.dev/api/stripe/webhook` |
+| Google Cloud | Authorized redirect URI (YouTube publishing) | **still to do** — add the YouTube callback above |
+| TikTok console | Redirect URI | **still to do** — add the TikTok callback above |
+
+**DNS, Resend and ImprovMX were deliberately not touched.** DNS is Vercel-hosted
+and `app.reelspy.dev` resolved via the existing wildcard. Mail is unaffected by
+an app subdomain: inbound `@reelspy.dev` forwards via ImprovMX (apex MX), and
+Resend sends from the isolated `send.reelspy.dev` subdomain with its own MX/SPF.
+Editing either would risk inbound mail for no benefit.
+
+## Gotcha found during the migration
+
+`META_REDIRECT_URI` was set to `https://reelspy.dev/api/ig/callback` while the
+Meta console only had `https://reelspy-one.vercel.app/api/ig/callback`
+registered — so Instagram connect was **already broken in production** before
+this migration. The two now agree on the subdomain. If IG connect ever fails
+with a redirect-URI error, compare those two values first.

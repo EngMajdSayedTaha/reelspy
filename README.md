@@ -1,6 +1,6 @@
 # ReelSpy
 
-ReelSpy is a Next.js App Router application for tracking inspiration reels, scoring virality, and generating original scripts. Production: **https://reelspy.dev**.
+ReelSpy is a Next.js App Router application for tracking inspiration reels, scoring virality, and generating original scripts. Production: **https://app.reelspy.dev** (marketing site: https://reelspy.dev).
 
 📚 **Documentation lives in [`docs/`](docs/README.md)** — start there for the business-logic rulebook ([`docs/BUSINESS-LOGIC.md`](docs/BUSINESS-LOGIC.md)), the full technical reference, and all setup runbooks.
 
