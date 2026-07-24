@@ -52,9 +52,11 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 ### Known production gaps (verified live 2026-07-16)
 
 - **Migration `20260704130000_ig_connections.sql` (X4 Studio multi-account) is NOT applied in prod** — the `ig_connections` table doesn't exist. Code fails open to single-connection behavior. Apply via Supabase MCP `apply_migration` to activate.
-- **Migration `20260708000000_custom_plan.sql` (B4 build-your-own plan) is NOT applied in prod** — `subscriptions.custom_entitlements` is missing, so a custom-plan checkout can't persist its limits. Apply before enabling Stripe.
+- ~~Migration `20260708000000_custom_plan.sql` (B4 build-your-own plan) is NOT applied in prod~~ — **APPLIED 2026-07-24** (`subscriptions.custom_entitlements` now exists; without it the Stripe webhook 500'd on every subscription upsert).
 - Stripe keys (`STRIPE_SECRET_KEY` etc.) and `ANTHROPIC_API_KEY` were not yet provisioned at last audit — billing runs in preview mode and paid-tier AI falls back accordingly (both fail open by design).
 - The live `supabase_migrations.schema_migrations` history uses apply-time timestamps for several 2026-07-07…15 migrations, so version numbers differ from repo filenames (names match). Schema objects are present (verified); reconcile the history before relying on `supabase db push` no-op behavior.
+
+**Payment hardening (2026-07-24):** billing emails (welcome / receipt / dunning / cancellation / refund / dispute alert), refund flow (admin UI + `charge.refunded` webhook; full refund → cancel), and webhook idempotency were added. Migration `20260724101832_billing_events.sql` **is applied in prod** (idempotency log). Still gated on Stripe keys + Resend keys (`RESEND_API_KEY`, `EMAIL_FROM`, `BILLING_ALERT_EMAIL`) — all fail open. See [`billing-setup.md`](./billing-setup.md).
 
 ## Keeping this folder honest
 

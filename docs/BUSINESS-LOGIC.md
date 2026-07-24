@@ -43,9 +43,27 @@ Source of truth: `lib/billing/entitlements.ts` (limits) · `lib/billing/plans.ts
 Lookup **fails open**: a missing table or DB blip degrades to the env default; it never blocks generation.
 
 **Billing mechanics** (`app/api/stripe/webhook`, `app/api/billing/*`, `lib/billing/`):
-- Stripe Checkout for purchase, Billing Portal for management. The **signature-verified webhook is the sole writer** of the `subscriptions` table (owner-read RLS; no client writes).
+- Stripe Checkout for purchase, Billing Portal for management (card / plan switch / cancel). The **signature-verified webhook is the sole writer** of the `subscriptions` table (owner-read RLS; no client writes) and the single place every billing side effect happens.
 - No Stripe keys configured ⇒ billing page renders in preview mode and checkout/portal/webhook routes return 503. The app builds and runs with zero Stripe config.
 - Setup runbook: [`billing-setup.md`](./billing-setup.md).
+
+**Billing lifecycle — events → effects** (`app/api/stripe/webhook`, `lib/email/billing.ts`). The webhook is **idempotent**: each processed Stripe `event.id` is recorded in `billing_events` and redeliveries are skipped (recorded only after the handler succeeds, so a 500 is safely retried). Emails go through Resend (`lib/email/send.ts`) and are **fail-open** — unconfigured/broken email never fails the webhook.
+
+| Stripe event | State effect | Email |
+|---|---|---|
+| `checkout.session.completed` / `customer.subscription.created` / `.updated` | upsert tier + status from the priced plan | — |
+| `invoice.payment_succeeded` (first) | — | Welcome / plan active |
+| `invoice.payment_succeeded` (renewal) | — | Payment receipt |
+| `invoice.payment_failed` | (Stripe dunning retries) | Payment failed |
+| `customer.subscription.deleted` | tier → free | Subscription cancelled |
+| `charge.refunded` (partial) | none | Refund issued |
+| `charge.refunded` (full) | cancels the sub → tier → free | Refund issued (+ cancellation) |
+| `charge.dispute.created` | — | Founder alert (`BILLING_ALERT_EMAIL`) |
+
+**Switch / cancel / refund policy:**
+- **Switch plans / cancel / update card** — self-served in the Stripe Billing Portal. Switches prorate; a cancel sets `cancel_at_period_end` (billing page shows "Cancels on …"), and access continues until period end, then `subscription.deleted` drops the tier to free.
+- **Refunds** — admin-issued (**Admin → Billing → Refund**, `POST /api/admin/billing/subscriptions/[userId]/refund`, `lib/billing/refund.ts`) or via the Stripe dashboard; both behave identically. **Full refund cancels immediately → Free; partial refund leaves access intact.** All effects route through the `charge.refunded` webhook (one policy, one path); the admin action is audited (`admin_audit_log`, `action: billing.refund`).
+- `past_due` still grants access during Stripe's dunning window; `canceled` / `unpaid` / `incomplete_expired` do not (`ACTIVE_STATUSES` in `lib/billing/subscription.ts`).
 
 **Where limits are enforced** (the four chokepoints):
 | Limit | Enforced at |
