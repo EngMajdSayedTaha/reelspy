@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "postinstall": "node scripts/fetch-ytdlp.mjs",
     "check:auth-setup": "node scripts/check-auth-setup.mjs",
-    "check:email": "node scripts/check-email-delivery.mjs"
+    "check:email": "node scripts/check-email-delivery.mjs",
+    "stripe:forward": "node scripts/stripe-forward.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

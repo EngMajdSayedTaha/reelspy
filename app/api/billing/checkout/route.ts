@@ -3,9 +3,9 @@ import type Stripe from "stripe";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStripe, siteOrigin } from "@/lib/billing/stripe";
+import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
-import { syncSubscription } from "@/lib/billing/sync";
+import { syncSubscription, usableCustomerId } from "@/lib/billing/sync";
 import { stripePriceIdForTier, isPaidTier } from "@/lib/billing/plans";
 import {
   CUSTOM_PLAN_RANGE,
@@ -93,8 +93,14 @@ export async function POST(request: Request) {
       await syncSubscription(admin, updated);
       return NextResponse.json({ switched: true, tier: parsed.data.tier });
     } catch (err) {
-      console.error("[billing/checkout] switch error:", err instanceof Error ? err.message : err);
-      return NextResponse.json({ error: "Could not switch your plan. Please try again." }, { status: 502 });
+      // A subscription id our row still points at but Stripe no longer has isn't
+      // an error the user can act on — treat it as "not subscribed" and fall
+      // through to Checkout instead of dead-ending on a 502.
+      if (!isMissingResource(err)) {
+        console.error("[billing/checkout] switch error:", err instanceof Error ? err.message : err);
+        return NextResponse.json({ error: "Could not switch your plan. Please try again." }, { status: 502 });
+      }
+      console.warn(`[billing/checkout] stale subscription ${existing.stripeSubscriptionId} — falling back to checkout`);
     }
   }
 
@@ -125,10 +131,12 @@ export async function POST(request: Request) {
   }
 
   // Reuse an existing Stripe customer (fetched above) so payment history stays on
-  // one record. Create one the first time.
-  let customerId = existing?.stripeCustomerId ?? null;
+  // one record — but only after confirming it still exists, since a customer
+  // deleted in the Stripe dashboard would otherwise 502 every checkout forever.
+  let customerId: string | null = null;
 
   try {
+    customerId = await usableCustomerId(admin, stripe, user.id, existing?.stripeCustomerId);
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
