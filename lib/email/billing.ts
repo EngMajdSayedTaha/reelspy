@@ -54,25 +54,38 @@ function shell(params: {
 const billingUrl = () => `${getSiteUrl()}/dashboard/billing`;
 
 // ── Welcome / subscription confirmed (first invoice) ─────────────────────────
+// Doubles as a payment confirmation: when the amount + hosted invoice are known
+// it shows what was charged and links to the Stripe invoice/receipt (which has a
+// downloadable PDF). Stripe also sends its own formal receipt when "Successful
+// payments" emails are enabled — this is the branded onboarding companion.
 export async function sendSubscriptionWelcome(params: {
   to: string;
   tierName: string;
   renewsOnLabel?: string | null;
+  amountLabel?: string | null;
+  invoiceUrl?: string | null;
 }): Promise<boolean> {
-  const { to, tierName, renewsOnLabel } = params;
+  const { to, tierName, renewsOnLabel, amountLabel, invoiceUrl } = params;
   const heading = `You're on ReelSpy ${tierName} 🎉`;
+  const paidLine = amountLabel
+    ? `<p style="font-size:14px;color:#475569;margin:0 0 8px">Payment received: <strong>${escapeHtml(amountLabel)}</strong>.${
+        invoiceUrl ? ` <a href="${invoiceUrl}" style="color:#0F172A;text-decoration:underline">View invoice / receipt</a>.` : ""
+      }</p>`
+    : "";
   const renewLine = renewsOnLabel
     ? `<p style="font-size:14px;color:#475569;margin:0 0 16px">Your plan renews on <strong>${escapeHtml(renewsOnLabel)}</strong>. Cancel or switch anytime from the billing page.</p>`
     : `<p style="font-size:14px;color:#475569;margin:0 0 16px">Manage or cancel anytime from the billing page.</p>`;
   const html = shell({
     heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 16px">Your subscription is active — every ${escapeHtml(tierName)} feature is unlocked.</p>${renewLine}`,
+    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 8px">Your subscription is active — every ${escapeHtml(tierName)} feature is unlocked.</p>${paidLine}${renewLine}`,
     cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
   });
   const text = [
     heading,
     "",
     `Your ${tierName} subscription is active — every feature is unlocked.`,
+    amountLabel ? `Payment received: ${amountLabel}.` : "",
+    invoiceUrl ? `Invoice / receipt: ${invoiceUrl}` : "",
     renewsOnLabel ? `Renews on ${renewsOnLabel}.` : "",
     `Manage anytime: ${billingUrl()}`,
   ]

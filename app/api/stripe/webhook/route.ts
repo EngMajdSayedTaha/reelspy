@@ -108,7 +108,13 @@ async function handleInvoicePaid(
   const renewsOnLabel = fmtUnix(line?.period?.end ?? invoice.period_end);
 
   if (reason === "subscription_create") {
-    await sendSubscriptionWelcome({ to, tierName, renewsOnLabel });
+    await sendSubscriptionWelcome({
+      to,
+      tierName,
+      renewsOnLabel,
+      amountLabel: formatMoney(invoice.amount_paid, invoice.currency),
+      invoiceUrl: invoice.hosted_invoice_url,
+    });
   } else {
     await sendPaymentReceipt({
       to,
