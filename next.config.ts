@@ -14,13 +14,16 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // This app is the SECONDARY zone behind reelspy.dev: the landing project owns
-  // the domain and proxies every product route here (see its DASHBOARD_ZONE_PATHS).
+  // This app is served directly on https://app.reelspy.dev, and is ALSO still
+  // proxied under reelspy.dev for the paths the marketing zone kept: the legal
+  // pages, /brand and /api (see DASHBOARD_PROXY_PATHS in the landing project).
   //
-  // Static assets need their own non-colliding path, because both zones would
+  // The prefix therefore still matters. Under the proxy both zones would
   // otherwise serve /_next/* and the proxied HTML would fetch its JS from the
-  // landing deployment. Next serves its own assets under the prefix, and the
-  // landing rewrites /dashboard-static/* back here.
+  // landing deployment; Next serves its own assets under the prefix, and the
+  // landing rewrites /dashboard-static/* back here. Serving app.reelspy.dev
+  // directly works too, because the rewrite below maps the prefixed URLs onto
+  // the real files on this origin as well.
   //
   // assetPrefix only changes the URLs Next EMITS — it does not make the server
   // respond at that prefix. The rewrite below maps the prefixed URLs back onto
