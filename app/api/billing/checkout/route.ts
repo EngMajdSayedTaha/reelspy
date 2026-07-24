@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
+import { syncSubscription } from "@/lib/billing/sync";
 import { stripePriceIdForTier, isPaidTier } from "@/lib/billing/plans";
 import {
   CUSTOM_PLAN_RANGE,
@@ -65,6 +66,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
   }
 
+  const admin = createAdminClient();
+  const existing = await getSubscription(admin, user.id);
+
+  // In-place SWITCH: an active subscriber changing to a different FIXED tier
+  // updates their existing subscription (with proration) instead of opening a
+  // second one — this is the smooth "Switch plan" path. Custom-plan switches
+  // still go through Checkout (their price is ad-hoc, built per-config below).
+  if (existing?.active && existing.stripeSubscriptionId && parsed.data.tier !== "custom") {
+    const priceId = stripePriceIdForTier(parsed.data.tier);
+    if (!priceId) {
+      return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
+    }
+    try {
+      const current = await stripe.subscriptions.retrieve(existing.stripeSubscriptionId);
+      const itemId = current.items.data[0]?.id;
+      if (!itemId) throw new Error("subscription has no line item to switch");
+      const updated = await stripe.subscriptions.update(existing.stripeSubscriptionId, {
+        items: [{ id: itemId, price: priceId }],
+        proration_behavior: "create_prorations",
+        cancel_at_period_end: false, // switching un-cancels a pending cancellation
+        metadata: { user_id: user.id, tier: parsed.data.tier },
+      });
+      // Reflect the new tier immediately so the billing page updates on reload
+      // without waiting on the webhook (which re-syncs the same row, idempotently).
+      await syncSubscription(admin, updated);
+      return NextResponse.json({ switched: true, tier: parsed.data.tier });
+    } catch (err) {
+      console.error("[billing/checkout] switch error:", err instanceof Error ? err.message : err);
+      return NextResponse.json({ error: "Could not switch your plan. Please try again." }, { status: 502 });
+    }
+  }
+
   let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
   let metadata: Record<string, string>;
 
@@ -91,10 +124,8 @@ export async function POST(request: Request) {
     metadata = { user_id: user.id, tier: parsed.data.tier };
   }
 
-  // Reuse an existing Stripe customer (admin client bypasses RLS to read the row
-  // even though the browser role could too). Create one the first time.
-  const admin = createAdminClient();
-  const existing = await getSubscription(admin, user.id);
+  // Reuse an existing Stripe customer (fetched above) so payment history stays on
+  // one record. Create one the first time.
   let customerId = existing?.stripeCustomerId ?? null;
 
   try {

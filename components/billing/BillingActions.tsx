@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ export async function postJson(
   url: string,
   fallbackError: string,
   body?: unknown
-): Promise<{ url?: string; error?: string }> {
+): Promise<{ url?: string; switched?: boolean; tier?: string; error?: string }> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -34,11 +35,12 @@ export function SubscribeButton({
   disabled?: boolean;
 }) {
   const dict = useDict();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function go() {
     setLoading(true);
-    const { url, error } = await postJson(
+    const { url, switched, error } = await postJson(
       "/api/billing/checkout",
       dict.common.unknownError,
       { tier }
@@ -46,6 +48,14 @@ export function SubscribeButton({
     if (url) {
       window.location.href = url;
       return; // keep the spinner through the redirect
+    }
+    if (switched) {
+      // In-place plan change (existing subscriber) — no redirect; refresh the
+      // server component so the new plan + usage limits render immediately.
+      toast.success(dict.billing.planSwitched ?? "Plan updated.");
+      router.refresh();
+      setLoading(false);
+      return;
     }
     toast.error(error ?? dict.billing.couldNotStartCheckout);
     setLoading(false);

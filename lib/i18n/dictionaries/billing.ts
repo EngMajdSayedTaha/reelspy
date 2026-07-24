@@ -29,6 +29,7 @@ const en = {
     upgrade: "Upgrade",
     switchPlan: "Switch plan",
     manageBilling: "Manage billing",
+    planSwitched: "Plan updated — your new limits are live.",
     couldNotStartCheckout: "Could not start checkout.",
     couldNotOpenPortal: "Could not open billing portal.",
     pageTour: {
@@ -140,6 +141,7 @@ export const billingAr: BillingDict = {
     upgrade: "ترقية",
     switchPlan: "تبديل الباقة",
     manageBilling: "إدارة الفوترة",
+    planSwitched: "تم تحديث باقتك — حدودك الجديدة فعّالة الآن.",
     couldNotStartCheckout: "تعذّر بدء عملية الدفع.",
     couldNotOpenPortal: "تعذّر فتح بوابة الفوترة.",
     pageTour: {

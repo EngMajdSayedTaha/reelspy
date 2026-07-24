@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { Check, CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { getSubscription } from "@/lib/billing/subscription";
-import { formatLimit, isUnlimited } from "@/lib/billing/entitlements";
+import { formatLimit, isUnlimited, entitlementsFor, ENTITLEMENTS } from "@/lib/billing/entitlements";
+import type { AiTier } from "@/lib/ai/tier";
 import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,8 +96,16 @@ export default async function BillingPage({ searchParams }: PageProps) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { tier, entitlements: ent } = await resolveUserEntitlements(supabase, user.id);
   const sub = await getSubscription(supabase, user.id);
+  // The billing page reflects the ACTUAL Stripe subscription, not any admin tier
+  // elevation (resolveUserTier gives admins "studio"). So an admin with no sub
+  // sees "Free" here and can test the real checkout/switch flow, and a real
+  // subscriber sees exactly the plan they pay for.
+  const billingTier: AiTier = sub && sub.active ? sub.tier : "free";
+  const ent =
+    billingTier === "custom"
+      ? sub?.customEntitlements ?? ENTITLEMENTS.custom
+      : entitlementsFor(billingTier);
 
   const [accountsUsed, automationsUsed, scriptsUsed, transcriptsUsed] = await Promise.all([
     count(supabase, "inspiration_accounts", user.id),
@@ -145,13 +153,13 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <Card data-tour="plan-usage">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
-            {t.planLabel(t.plans[tier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
-            <Badge variant={isPaidTier(tier) ? "default" : "secondary"}>
-              {isPaidTier(tier) ? t.active : t.free}
+            {t.planLabel(t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
+            <Badge variant={isPaidTier(billingTier) ? "default" : "secondary"}>
+              {isPaidTier(billingTier) ? t.active : t.free}
             </Badge>
           </CardTitle>
           <CardDescription>
-            {hasSubscription && sub
+            {sub?.active
               ? sub.cancelAtPeriodEnd && renewLabel
                 ? t.cancelsOn(renewLabel)
                 : renewLabel
@@ -180,9 +188,9 @@ export default async function BillingPage({ searchParams }: PageProps) {
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {PLANS.map((plan) => {
-          const isCurrent = plan.tier === tier;
+          const isCurrent = plan.tier === billingTier;
           const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);
-          const currentIndex = PLANS.findIndex((p) => p.tier === tier);
+          const currentIndex = PLANS.findIndex((p) => p.tier === billingTier);
           const isUpgrade = planIndex > currentIndex;
           const planCopy = t.plans[plan.tier as "free" | "creator" | "pro" | "studio"];
           return (
