@@ -1102,6 +1102,20 @@ revoke execute on function consume_user_action_monthly(uuid, text, int) from pub
 grant execute on function consume_user_action_monthly(uuid, text, int)
   to authenticated, service_role;
 
+-- billing_events — Stripe webhook idempotency + event log (see migration
+-- 20260724101832_billing_events.sql). One row per fully-processed Stripe event id;
+-- the webhook dedupes on it. Service-role write only; RLS on, no policies, no
+-- anon/authenticated grants.
+create table billing_events (
+  id text primary key,                       -- Stripe event id (evt_…)
+  type text not null,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz                    -- set once the handler completes
+);
+create index billing_events_received_idx on billing_events (received_at desc);
+alter table billing_events enable row level security;  -- no policies: webhook-only
+revoke all on table billing_events from anon, authenticated;
+
 -- ── outperforming_feed — relative "Outperforming" ranking (W3/V5) ────────────
 -- Ranks a user's feed by a follower-normalized relative score so small-niche
 -- accounts surface, and returns each reel's ratio vs its account's median.

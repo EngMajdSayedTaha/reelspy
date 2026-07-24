@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { ExternalLink, RefreshCw, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { requestJson, notifyError } from "@/lib/utils/api";
 import type { ListResponse } from "@/lib/admin/query";
 import type { AdminSubscriptionRow } from "@/app/api/admin/billing/subscriptions/route";
@@ -34,6 +35,8 @@ export function BillingSubscriptions() {
   const [status, setStatus] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [refunding, setRefunding] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const load = useCallback(
     async (signal: { cancelled: boolean }) => {
@@ -76,6 +79,30 @@ export function BillingSubscriptions() {
       notifyError(err);
     } finally {
       setSyncing(null);
+    }
+  };
+
+  const refund = async (userId: string) => {
+    const ok = await confirm({
+      title: "Refund latest payment?",
+      description:
+        "This refunds the subscriber's most recent payment in Stripe. A full refund cancels their subscription and drops them to Free. For a partial refund, use the Stripe dashboard.",
+      confirmText: "Refund in full",
+      destructive: true,
+    });
+    if (!ok) return;
+    setRefunding(userId);
+    try {
+      const res = await requestJson<{ amountLabel: string; full: boolean }>(
+        `/api/admin/billing/subscriptions/${userId}/refund`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
+      );
+      toast.success(`Refunded ${res.amountLabel}${res.full ? " — subscription will cancel" : ""}`);
+      load({ cancelled: false });
+    } catch (err) {
+      notifyError(err);
+    } finally {
+      setRefunding(null);
     }
   };
 
@@ -194,15 +221,29 @@ export function BillingSubscriptions() {
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={syncing === r.userId}
-                      onClick={() => sync(r.userId)}
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${syncing === r.userId ? "animate-spin" : ""}`} />
-                      Sync
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={syncing === r.userId}
+                        onClick={() => sync(r.userId)}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${syncing === r.userId ? "animate-spin" : ""}`} />
+                        Sync
+                      </Button>
+                      {r.stripeSubscriptionId ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={refunding === r.userId}
+                          onClick={() => refund(r.userId)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <RotateCcw className={`h-3.5 w-3.5 ${refunding === r.userId ? "animate-spin" : ""}`} />
+                          Refund
+                        </Button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))
