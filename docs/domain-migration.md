@@ -396,8 +396,9 @@ the single lever — but each provider keeps its own allow-list that must agree.
 | Supabase | Auth → Redirect URLs | `https://app.reelspy.dev/**` (kept `https://reelspy.dev/**` and localhost) |
 | Meta | Instagram business login → OAuth redirect URIs | added `https://app.reelspy.dev/api/ig/callback` |
 | Stripe | Webhook endpoint `we_1TwpVE…` | `https://app.reelspy.dev/api/stripe/webhook` |
-| Google Cloud | Authorized redirect URI (YouTube publishing) | **still to do** — add the YouTube callback above |
-| TikTok console | Redirect URI | **still to do** — add the TikTok callback above |
+| Google Cloud (`AHAMobile` project, OAuth client `reelspy`) | Authorized JavaScript origins | added `https://app.reelspy.dev` (kept `https://reelspy.dev`) |
+| Google Cloud | Authorized redirect URIs | added `https://app.reelspy.dev/api/social/youtube/callback`. **Do not remove** the Supabase entry `https://bsyzjlvgcpdxtdchkiva.supabase.co/auth/v1/callback` — that one is Google *sign-in*, not YouTube publishing; the same client serves both |
+| TikTok console | Domain property | `reelspy.dev` **verified** by DNS TXT, which covers `app.reelspy.dev` as a subdomain |
 
 **DNS, Resend and ImprovMX were deliberately not touched.** DNS is Vercel-hosted
 and `app.reelspy.dev` resolved via the existing wildcard. Mail is unaffected by
@@ -412,3 +413,31 @@ Meta console only had `https://reelspy-one.vercel.app/api/ig/callback`
 registered — so Instagram connect was **already broken in production** before
 this migration. The two now agree on the subdomain. If IG connect ever fails
 with a redirect-URI error, compare those two values first.
+
+## TikTok is not actually wired up yet
+
+Verifying the domain was the only migration-shaped task available. The TikTok app
+(`7653722387728386068`) is still a **Draft**: no products added (no Login Kit, no
+Content Posting API), no scopes, and never submitted for review. That is why
+there was no redirect-URI field to migrate — TikTok has `TIKTOK_CLIENT_KEY` /
+`TIKTOK_CLIENT_SECRET` in Vercel but nothing behind them.
+
+Shipping TikTok publishing is its own project: add the products, request scopes,
+supply the demo video, and submit for review. The domain is verified, so the
+redirect URI `https://app.reelspy.dev/api/social/tiktok/callback` (already set in
+Vercel) will be accepted when Login Kit is added.
+
+A stale unverified URL property, `https://reelspy-one.vercel.app/`, is still
+listed. Harmless — left in place rather than deleted.
+
+## DNS record added
+
+One record, additive, on the apex:
+
+```
+reelspy.dev  TXT  tiktok-developers-site-verification=UrlL5jpCjdK3oGIpIhO9ZpJNhkgRtfsH
+```
+
+Verified afterwards that the ImprovMX MX pair, the apex SPF
+(`include:spf.improvmx.com`) and Resend's `send.reelspy.dev` SPF were all
+unchanged. Mail was never touched by this migration.
