@@ -58,6 +58,9 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [limit, setLimit] = useState(25);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  // Absolute instant the cooldown expires; `cooldownSeconds` is only its
+  // rendered projection (see the tick effect below).
+  const [cooldownUntil, setCooldownUntil] = useState(0);
 
   // Per-account orchestration (only used on the `accounts` path).
   const [queue, setQueue] = useState<SyncAccount[]>([]);
@@ -82,13 +85,22 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     setLimit(getClientPrefs().syncLimit);
   }, []);
 
-  // Tick the cooldown down once per second so the button's inline countdown
-  // stays live without re-fetching anything.
+  // Cooldown countdown, derived from a DEADLINE rather than accumulated by the
+  // timer. Decrementing a counter once per tick drifts slow in a focused tab and
+  // breaks outright in a background one, where browsers throttle intervals to
+  // roughly once a minute — the button would stay disabled long after the wait
+  // had actually expired. Recomputing from the clock is immune to both.
   useEffect(() => {
-    if (cooldownSeconds <= 0) return;
-    const id = setInterval(() => setCooldownSeconds((s) => Math.max(0, s - 1)), 1000);
+    if (cooldownUntil <= 0) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSeconds(left);
+      if (left === 0) setCooldownUntil(0);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [cooldownSeconds]);
+  }, [cooldownUntil]);
 
   // The TopBar's budget popover (RateLimitStatus) exposes the same auto-resume
   // opt-in as a toggle, alongside the throttle toast's own action button.
@@ -104,6 +116,7 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
   const startCooldown = (seconds?: number) => {
     const secs = Math.max(0, Math.floor(seconds ?? 0));
     setCooldownSeconds(secs);
+    setCooldownUntil(secs > 0 ? Date.now() + secs * 1000 : 0);
     window.dispatchEvent(new CustomEvent("reelspy:ratelimit", { detail: { retryAfterSeconds: secs } }));
   };
 
@@ -189,7 +202,9 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     if (rateLimited) {
       const remaining = i + 1 < items.length;
       resumeRef.current = remaining ? { items, nextIndex: i + 1 } : null;
-      setCooldownSeconds(Math.max(0, Math.floor(retryAfterSeconds ?? 0)));
+      const cooldown = Math.max(0, Math.floor(retryAfterSeconds ?? 0));
+      setCooldownSeconds(cooldown);
+      setCooldownUntil(cooldown > 0 ? Date.now() + cooldown * 1000 : 0);
       toast.warning(dict.rateLimitedToast(formatWindow(dict, retryAfterSeconds)), {
         icon: "⏳",
         duration: 10000,
