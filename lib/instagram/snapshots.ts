@@ -90,8 +90,21 @@ export async function refreshAccountSnapshot(
     token: callerToken,
     limiter,
   });
-  const { reels, profile, error, rateLimited, retryAfterSeconds } =
-    await source.getRecentReels(uname, maxReels);
+
+  // One account refresh = one unit of the user's hourly quota, however many
+  // pages it takes underneath. getRecentReels pages up to 20 times for a deep
+  // sync (graph-api.ts MAX_PAGES); billing the user per page meant picking "200
+  // reels" in the depth dropdown quietly cost 20× as much as picking 25, with
+  // nothing in the UI saying so. The app-wide token bucket is still charged per
+  // real HTTP call — that's the cost Meta actually meters.
+  limiter.startOperation();
+  let fetchResult;
+  try {
+    fetchResult = await source.getRecentReels(uname, maxReels);
+  } finally {
+    limiter.endOperation();
+  }
+  const { reels, profile, error, rateLimited, retryAfterSeconds } = fetchResult;
 
   // Download a permanent copy of the avatar instead of trusting Instagram's
   // signed URL to stay alive (see media-cache.ts). Cheap — one image per

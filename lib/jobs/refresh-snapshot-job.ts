@@ -13,6 +13,7 @@ import {
   createMetaRateLimiter,
   readHourlyBudget,
   SYSTEM_USER_ID,
+  WORKER_BUDGET_SHARE,
 } from "@/lib/instagram/rate-limit";
 import {
   normalizeUsername,
@@ -52,11 +53,15 @@ export async function runRefreshSnapshot(
   const caller = await pickHealthyToken(admin);
   if (!caller) return "no_token";
 
-  // System limiter: full app budget as the per-user cap (this isn't a real user),
-  // still bounded by the shared token bucket + circuit breaker so background
-  // refreshes never blow past on-demand user syncs.
+  // System limiter: not a real user, so no per-user cap applies — but it takes
+  // only its share of the app budget, leaving the rest as headroom for people
+  // syncing on demand right now (see WORKER_BUDGET_SHARE).
   const budget = await readHourlyBudget(admin);
-  const limiter = createMetaRateLimiter(admin, SYSTEM_USER_ID, budget);
+  const limiter = createMetaRateLimiter(
+    admin,
+    SYSTEM_USER_ID,
+    Math.max(1, Math.floor(budget * WORKER_BUDGET_SHARE))
+  );
 
   const snap = await refreshAccountSnapshot(
     admin,

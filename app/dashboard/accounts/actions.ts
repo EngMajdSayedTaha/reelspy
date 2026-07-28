@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { fetchBusinessDiscovery, isValidIgUsername } from "@/lib/instagram/graph-api";
-import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
+import { createMetaRateLimiter, userHourlyRefreshCap } from "@/lib/instagram/rate-limit";
 import { track } from "@/lib/analytics/track";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf, withinLimitOf, isUnlimited } from "@/lib/billing/entitlements";
@@ -116,7 +116,12 @@ export async function addInspirationAccount(
 
   // Validate account exists on Instagram via Business Discovery. Routed through
   // the shared app-level guard so account-adds also respect Meta's rate limit.
-  const limiter = createMetaRateLimiter(admin, user.id);
+  const { entitlements: limiterEntitlements } = await resolveUserEntitlements(supabase, user.id);
+  const limiter = createMetaRateLimiter(
+    admin,
+    user.id,
+    userHourlyRefreshCap(limiterEntitlements.accounts)
+  );
   const { profile: igProfile, error: discoveryError } = await fetchBusinessDiscovery(
     credentials.igUserId,
     credentials.token,

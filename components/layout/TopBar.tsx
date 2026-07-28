@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { HelpCircle, Menu } from "lucide-react";
-import { RateLimitStatus } from "@/components/reels/RateLimitStatus";
+import { SyncStatus } from "@/components/reels/SyncStatus";
 import { useTour } from "@/components/tour/AppTour";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
@@ -62,9 +62,9 @@ export function TopBar({ onMenu }: TopBarProps) {
         >
           <HelpCircle className="h-[18px] w-[18px]" />
         </button>
-        {/* Global Instagram sync budget — visible on every page. Language
-            switching lives in Settings → Preferences only. */}
-        <RateLimitStatus />
+        {/* Sync freshness — visible on every page. Language switching lives in
+            Settings → Preferences only. */}
+        <SyncStatus />
         <span className="hidden h-2 w-2 animate-pulse rounded-full bg-primary sm:inline" />
       </div>
     </header>

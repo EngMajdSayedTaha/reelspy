@@ -1,6 +1,6 @@
 // Feed dictionary domain: `/dashboard/feed` page + actions, and every
 // `components/reels/*` component (ReelCard/ReelRow/ReelFeed, FeedControls,
-// FeedPagination, FeedViewToggle, RateLimitStatus, RisingNow/RisingGroupFilter,
+// FeedPagination, FeedViewToggle, SyncStatus, RisingNow/RisingGroupFilter,
 // SyncButton, FavoriteButton, TranscriptPanel — all shared by the feed even
 // though some also render inside Accounts/Hooks pages). Composed into the
 // root `Dict` by `lib/i18n/dictionaries/index.ts`.
@@ -64,23 +64,25 @@ const en = {
       reels: "Reels",
       viewTitle: (view: string) => `${view} view`,
     },
-    rateLimit: {
-      throttledLong: "Instagram hourly limit reached — retry in ",
-      throttledShort: "Rate limited",
-      resetsIn: (time: string) => `Resets in ${time}`,
-      budgetLabel: "Sync budget",
-      perHourSuffix: "this hour",
-      hourlyBudgetHeading: "Your hourly sync capacity",
-      capacityAvailable: (pct: number) => `${pct}% available`,
-      cooldownHeading: "Instagram cooldown",
-      pausedLabel: "Paused — resumes on its own",
-      explainer:
-        "Most syncs are served instantly from a shared cache, so they don't touch your budget. When Instagram does throttle, syncs pause automatically instead of failing.",
-      appWideNote:
-        "This pause is on Instagram's side and briefly affects the whole app, not just your account. Nothing's wrong with your sync.",
-      backgroundNote:
-        "Fresh reels keep loading in the background and pick up automatically once the cooldown clears — no need to keep this open.",
-      autoResumeToggle: "Also resume in this tab the moment it clears",
+    syncStatus: {
+      syncedJustNow: "Synced just now",
+      syncedMinutesAgo: (n: number) => `Synced ${n}m ago`,
+      syncedHoursAgo: (n: number) => `Synced ${n}h ago`,
+      syncedDaysAgo: (n: number) => `Synced ${n}d ago`,
+      neverSynced: "Not synced yet",
+      updatingCount: (n: number) => `Updating ${n} account${n === 1 ? "" : "s"}…`,
+      pausedLabel: "Paused",
+      upToDateHeading: "Your reels are up to date",
+      upToDateExplainer:
+        "Reels load instantly from a shared library that stays warm in the background, so syncing rarely has to wait on Instagram at all.",
+      refreshingHeading: "Updating in the background",
+      refreshingExplainer:
+        "New reels are being fetched right now. You can keep working — they'll appear on their own, and closing this page won't stop it.",
+      pausedHeading: "Instagram paused syncing",
+      pausedExplainer:
+        "Instagram limits how often anyone can request data, and it's pausing us briefly. Your reels still load normally, and syncing picks up on its own — there's nothing to fix.",
+      quotaNotice: (n: number) => `${n} manual refresh${n === 1 ? "" : "es"} left this hour.`,
+      quotaResets: (time: string) => `Resets in ${time}.`,
     },
     reelCard: {
       playAria: "Play reel inline",
@@ -271,23 +273,26 @@ export const feedAr: FeedDict = {
       reels: "ريلز",
       viewTitle: (view: string) => `عرض ${view}`,
     },
-    rateLimit: {
-      throttledLong: "تم بلوغ الحد الساعي لإنستغرام — أعد المحاولة خلال ",
-      throttledShort: "تم تقييد المعدل",
-      resetsIn: (time: string) => `يُعاد الضبط خلال ${time}`,
-      budgetLabel: "ميزانية المزامنة",
-      perHourSuffix: "هذه الساعة",
-      hourlyBudgetHeading: "سعة المزامنة الساعية",
-      capacityAvailable: (pct: number) => `${pct}% متاح`,
-      cooldownHeading: "مهلة تهدئة إنستغرام",
-      pausedLabel: "متوقّف مؤقتًا — يُستأنف تلقائيًا",
-      explainer:
-        "تُخدَّم معظم عمليات المزامنة فورًا من ذاكرة مؤقتة مشتركة، فلا تمسّ ميزانيتك. وعندما يفرض إنستغرام تقييدًا، تتوقف المزامنة تلقائيًا بدلًا من أن تفشل.",
-      appWideNote:
-        "هذا التوقّف من جانب إنستغرام ويؤثّر مؤقتًا على التطبيق بأكمله، وليس على حسابك فقط. لا مشكلة في مزامنتك.",
-      backgroundNote:
-        "يستمر جلب الريلز الجديدة في الخلفية ويُستأنف تلقائيًا فور انتهاء المهلة — لا داعي لإبقاء هذه الصفحة مفتوحة.",
-      autoResumeToggle: "استأنف في هذه الصفحة أيضًا فور انتهاء المهلة",
+    syncStatus: {
+      syncedJustNow: "تمت المزامنة الآن",
+      syncedMinutesAgo: (n: number) => `تمت المزامنة قبل ${n} د`,
+      syncedHoursAgo: (n: number) => `تمت المزامنة قبل ${n} س`,
+      syncedDaysAgo: (n: number) => `تمت المزامنة قبل ${n} ي`,
+      neverSynced: "لم تتم المزامنة بعد",
+      updatingCount: (n: number) => (n === 1 ? "جارٍ تحديث حساب واحد…" : `جارٍ تحديث ${n} حسابات…`),
+      pausedLabel: "متوقّف مؤقتًا",
+      upToDateHeading: "الريلز لديك محدَّثة",
+      upToDateExplainer:
+        "تُحمَّل الريلز فورًا من مكتبة مشتركة تبقى محدَّثة في الخلفية، لذا نادرًا ما تنتظر المزامنة إنستغرام أصلًا.",
+      refreshingHeading: "التحديث جارٍ في الخلفية",
+      refreshingExplainer:
+        "يجري جلب ريلز جديدة الآن. تابع عملك — ستظهر تلقائيًا، وإغلاق هذه الصفحة لن يوقف ذلك.",
+      pausedHeading: "أوقف إنستغرام المزامنة مؤقتًا",
+      pausedExplainer:
+        "يحدّ إنستغرام من عدد الطلبات المسموح بها للجميع، وهو يوقفنا مؤقتًا. ما زالت الريلز تُحمَّل بشكل طبيعي، وتستأنف المزامنة تلقائيًا — لا شيء يحتاج إلى إصلاح.",
+      quotaNotice: (n: number) =>
+        n === 1 ? "بقي تحديث يدوي واحد هذه الساعة." : `بقي ${n} تحديثات يدوية هذه الساعة.`,
+      quotaResets: (time: string) => `يُعاد الضبط خلال ${time}.`,
     },
     reelCard: {
       playAria: "تشغيل الريل مباشرة",

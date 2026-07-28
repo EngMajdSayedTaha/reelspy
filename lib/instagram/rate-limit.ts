@@ -28,8 +28,27 @@ const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
 const META_CALLS_PER_USER = numEnv("META_CALLS_PER_USER", 200);
 const BUDGET_SAFETY_FACTOR = numEnv("META_BUDGET_SAFETY_FACTOR", 0.7);
 const MAX_HOURLY_BUDGET = numEnv("META_MAX_HOURLY_BUDGET", 5000);
-// Max Business Discovery calls a single user may spend per rolling hour.
-const USER_HOURLY_BUDGET = numEnv("META_USER_HOURLY_BUDGET", 80);
+// Account refreshes a single user may spend per rolling hour. Counted in
+// REFRESHES, not HTTP calls — one refresh pages several times internally
+// (graph-api.ts MAX_PAGES) and a user can't be expected to reason about that.
+// The floor applies to everyone; beyond it the cap tracks how many accounts the
+// user's plan lets them track, so a plan can always refresh its whole list once
+// an hour. A flat cap punished exactly the customers who pay the most.
+const MIN_USER_HOURLY_REFRESHES = numEnv("META_MIN_USER_REFRESHES", 20);
+const MAX_USER_HOURLY_REFRESHES = numEnv("META_MAX_USER_REFRESHES", 500);
+// Fallback when the caller has no resolved entitlements (background paths).
+const USER_HOURLY_BUDGET = MIN_USER_HOURLY_REFRESHES;
+// Share of the app-wide budget the background worker may take, leaving the rest
+// as headroom for people clicking Sync right now. Without this the refresh cron
+// can drain the bucket and every interactive sync fails with `app_budget`.
+export const WORKER_BUDGET_SHARE = numEnv("META_WORKER_BUDGET_SHARE", 0.7);
+
+// Per-user hourly refresh cap for a resolved plan. `accounts` is the plan's
+// tracked-account entitlement; UNLIMITED (negative) maps to the hard ceiling.
+export function userHourlyRefreshCap(accounts: number): number {
+  if (!Number.isFinite(accounts) || accounts < 0) return MAX_USER_HOURLY_REFRESHES;
+  return Math.min(MAX_USER_HOURLY_REFRESHES, Math.max(MIN_USER_HOURLY_REFRESHES, Math.floor(accounts)));
+}
 // Cooldown when Meta gives no explicit regain time (its app throttle clears on
 // the rolling hour).
 const THROTTLE_COOLDOWN = numEnv("META_THROTTLE_COOLDOWN_SECONDS", 3600);
@@ -63,18 +82,18 @@ export type RateLimitReason = "circuit_open" | "user_quota" | "app_budget" | "ra
 // The FK from meta_api_user_usage to auth.users is dropped so this id can exist.
 export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+// Two very different situations used to read the same way to a user:
+//   * user_quota is THEIRS — they did a lot, and it's worth telling them so.
+//   * everything else is Instagram pausing us, app-wide. Phrasing that as a
+//     limit on their account made people think the product was broken (or that
+//     the plan they paid for was being withheld), which it isn't.
+// Both endings say the same reassuring thing: nothing is lost, reels still load.
 function messageFor(reason: string, retryAfterSeconds: number): string {
   const mins = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-  switch (reason) {
-    case "circuit_open":
-      return `Instagram's API is cooling down to avoid a block. Try again in about ${mins} min.`;
-    case "user_quota":
-      return `You've reached your hourly Instagram sync limit. Try again in about ${mins} min.`;
-    case "app_budget":
-      return `The app is near Instagram's hourly API limit. Try again in about ${mins} min.`;
-    default:
-      return `Instagram rate limit reached. Try again in about ${mins} min.`;
+  if (reason === "user_quota") {
+    return `You've refreshed a lot of accounts this hour. You can refresh again in about ${mins} min — your reels keep loading in the meantime.`;
   }
+  return `Instagram has paused new requests for everyone right now. Your reels still load, and syncing resumes on its own in about ${mins} min.`;
 }
 
 export class MetaRateLimitError extends Error {
@@ -142,14 +161,36 @@ export class MetaRateLimiter {
     private readonly userCap: number = USER_HOURLY_BUDGET
   ) {}
 
+  // A "logical refresh" — one account, however many pages it takes. The user is
+  // charged once for the whole thing; the app bucket is still charged per call.
+  // Callers that make a single call (adding an account, a profile lookup) don't
+  // need this: with no operation open, each acquire bills as its own refresh.
+  private operationOpen = false;
+  private operationCharged = false;
+
+  startOperation(): void {
+    this.operationOpen = true;
+    this.operationCharged = false;
+  }
+
+  endOperation(): void {
+    this.operationOpen = false;
+    this.operationCharged = false;
+  }
+
   // Pre-flight gate. Throws MetaRateLimitError when a call must be deferred.
   async acquire(cost = 1): Promise<void> {
+    // Continuation pages inside an open operation cost the user nothing, so a
+    // paged refresh can never be cut off half-way through.
+    const userCost = this.operationOpen && this.operationCharged ? 0 : 1;
+
     const { data, error } = await this.supabase.rpc("consume_meta_quota", {
       p_user_id: this.userId,
       p_cost: cost,
       p_capacity: HOURLY_BUDGET,
       p_refill_per_sec: REFILL_PER_SEC,
       p_user_cap: this.userCap,
+      p_user_cost: userCost,
     });
 
     if (error) {
@@ -166,6 +207,8 @@ export class MetaRateLimiter {
         row.retry_after_seconds ?? THROTTLE_COOLDOWN
       );
     }
+
+    if (this.operationOpen) this.operationCharged = true;
   }
 
   // Post-flight feedback from Meta's response headers (runs on success AND on
@@ -207,63 +250,72 @@ export class MetaRateLimiter {
   }
 }
 
-export type RateLimitStatus = {
-  throttled: boolean; // app-wide circuit breaker is open
-  retryAfterSeconds: number; // seconds until the circuit clears (0 if not throttled)
-  appUsagePct: number; // last observed worst-case X-App-Usage %
-  userUsed: number; // this user's calls in the current rolling hour
-  userCap: number; // per-user hourly cap
-  userResetSeconds: number; // seconds until the user's hourly window resets
-};
-
-// Read-only snapshot of the shared limiter + this user's window, for UI display.
-// Uses an admin client because the limiter tables are RLS-locked global state.
-export async function readRateLimitStatus(
-  admin: SupabaseClient,
-  userId: string
-): Promise<RateLimitStatus> {
-  const now = Date.now();
-
-  const { data: limiter } = await admin
+// When the app-wide circuit breaker is open, as an ABSOLUTE instant. Everything
+// user-facing is expressed as a deadline rather than a duration: a "seconds
+// remaining" number has to be counted down by the client, and a client that
+// counts down with setInterval stops being right the moment the tab is
+// backgrounded (browsers throttle background timers to roughly once a minute).
+// That was why a cooldown could still claim 50 minutes left an hour after it
+// had actually cleared. A deadline is re-derived from the clock on every render
+// and cannot drift.
+export async function readAppPausedUntil(admin: SupabaseClient): Promise<string | null> {
+  const { data } = await admin
     .from("meta_api_limiter")
-    .select("throttled_until, app_usage_pct, app_usage_at")
+    .select("throttled_until")
     .eq("id", 1)
     .maybeSingle();
 
-  const throttledUntil = limiter?.throttled_until
-    ? new Date(limiter.throttled_until).getTime()
-    : 0;
-  const throttled = throttledUntil > now;
+  if (!data?.throttled_until) return null;
+  const until = new Date(data.throttled_until);
+  return until.getTime() > Date.now() ? until.toISOString() : null;
+}
 
-  const appUsageObservedAt = limiter?.app_usage_at
-    ? new Date(limiter.app_usage_at).getTime()
-    : 0;
-  const appUsagePct = decayAppUsage(limiter?.app_usage_pct ?? 0, appUsageObservedAt, now);
+export type UserQuota = {
+  used: number; // refreshes spent in the current window
+  limit: number; // this plan's hourly refresh cap
+  resetAt: string | null; // absolute instant the window rolls over
+};
 
-  const { data: usage } = await admin
+// This user's refresh window. Admin client required — the limiter tables are
+// RLS-locked global state with no policies.
+export async function readUserQuota(
+  admin: SupabaseClient,
+  userId: string,
+  limit: number
+): Promise<UserQuota> {
+  const { data } = await admin
     .from("meta_api_user_usage")
     .select("window_start, call_count")
     .eq("user_id", userId)
     .maybeSingle();
 
-  let userUsed = 0;
-  let userResetSeconds = 0;
-  if (usage?.window_start) {
-    const ageSeconds = (now - new Date(usage.window_start).getTime()) / 1000;
-    if (ageSeconds < 3600) {
-      userUsed = usage.call_count ?? 0;
-      userResetSeconds = Math.ceil(3600 - ageSeconds);
-    }
-  }
+  if (!data?.window_start) return { used: 0, limit, resetAt: null };
+
+  const startedAt = new Date(data.window_start).getTime();
+  const endsAt = startedAt + 3600_000;
+  // An expired window reads as a fresh one — consume_meta_quota resets it on
+  // the next call, so reporting the stale count would contradict what the user
+  // would actually get if they clicked.
+  if (endsAt <= Date.now()) return { used: 0, limit, resetAt: null };
 
   return {
-    throttled,
-    retryAfterSeconds: throttled ? Math.ceil((throttledUntil - now) / 1000) : 0,
-    appUsagePct,
-    userUsed,
-    userCap: USER_HOURLY_BUDGET,
-    userResetSeconds,
+    used: Math.min(limit, data.call_count ?? 0),
+    limit,
+    resetAt: new Date(endsAt).toISOString(),
   };
+}
+
+// Last observed app-usage %, decayed toward 0 (admin ops panel only — this is
+// internal capacity a single user can neither read nor act on).
+export async function readAppUsagePct(admin: SupabaseClient): Promise<number> {
+  const { data } = await admin
+    .from("meta_api_limiter")
+    .select("app_usage_pct, app_usage_at")
+    .eq("id", 1)
+    .maybeSingle();
+
+  const observedAt = data?.app_usage_at ? new Date(data.app_usage_at).getTime() : 0;
+  return decayAppUsage(data?.app_usage_pct ?? 0, observedAt, Date.now());
 }
 
 export function createMetaRateLimiter(

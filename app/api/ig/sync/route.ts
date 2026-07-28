@@ -2,7 +2,8 @@ import { NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
-import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
+import { createMetaRateLimiter, userHourlyRefreshCap } from "@/lib/instagram/rate-limit";
+import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import {
   refreshAccountSnapshot,
   materializeForUser,
@@ -223,7 +224,15 @@ export async function POST(request: Request) {
     // Inline path: explicit single-account sync or `force` — fetch fresh now.
     // Shared, app-wide guard on the admin client (limiter RPCs are revoked for
     // browser-facing roles); Business Discovery is rate-limited per Meta APP.
-    const limiter = createMetaRateLimiter(admin, user.id);
+    // Cap scales with the plan's tracked-account allowance, so a customer can
+    // always refresh their whole list once an hour. A flat cap hit the biggest
+    // plans hardest, which is exactly backwards.
+    const { entitlements } = await resolveUserEntitlements(supabase, user.id);
+    const limiter = createMetaRateLimiter(
+      admin,
+      user.id,
+      userHourlyRefreshCap(entitlements.accounts)
+    );
     // Only pace between calls that actually hit Meta — cache hits need no throttle.
     let lastCalledMeta = false;
 
@@ -304,7 +313,7 @@ export async function POST(request: Request) {
 
   let rateLimitMessage: string | undefined;
   if (rateLimitHit) {
-    rateLimitMessage = `Instagram's hourly request limit was reached, so the sync paused. Try again in ${formatRetry(
+    rateLimitMessage = `Instagram paused new requests, so this sync stopped early. Your reels still load — try again in ${formatRetry(
       retryAfterSeconds
     )}.`;
     errors.push(rateLimitMessage);

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createMetaRateLimiter, refreshHourlyBudget, SYSTEM_USER_ID } from "@/lib/instagram/rate-limit";
+import {
+  createMetaRateLimiter,
+  refreshHourlyBudget,
+  SYSTEM_USER_ID,
+  WORKER_BUDGET_SHARE,
+} from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapshots";
 import { enrichSeedAccounts } from "@/lib/instagram/enrich";
 import { cronAuthorized } from "@/lib/utils/cron";
@@ -68,9 +73,16 @@ export async function GET(request: Request) {
     })
     .slice(0, BATCH);
 
-  // System limiter: full app budget as the per-user cap (the worker isn't a real
-  // user), but still bounded by the shared token bucket + circuit breaker.
-  const limiter = createMetaRateLimiter(admin, SYSTEM_USER_ID, budget);
+  // System limiter. The worker isn't a real user, so it isn't held to a user's
+  // cap — but it must not take the whole bucket either. Batch work used to be
+  // allowed the FULL app budget, so a big refresh run could drain it and leave
+  // someone clicking Sync with an `app_budget` denial they had no way to
+  // understand. Capping the worker leaves that share as interactive headroom.
+  const limiter = createMetaRateLimiter(
+    admin,
+    SYSTEM_USER_ID,
+    Math.max(1, Math.floor(budget * WORKER_BUDGET_SHARE))
+  );
 
   let processed = 0;
   let refreshed = 0;
