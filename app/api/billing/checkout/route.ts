@@ -9,7 +9,7 @@ import { usableCustomerId } from "@/lib/billing/sync";
 import { stripePriceIdForTier, isPaidTier, planFor } from "@/lib/billing/plans";
 import {
   cancelScheduledChangeForUser,
-  schedulePlanChangeForUser,
+  changePlanForUser,
   setSubscriptionCancellation,
 } from "@/lib/billing/plan-change";
 import { scheduleIdOf } from "@/lib/billing/schedule";
@@ -21,17 +21,23 @@ import {
   type CustomPlanConfig,
 } from "@/lib/billing/custom-pricing";
 
-// Buy a plan (L6 / B1, B4). Two very different situations behind one endpoint:
+// Buy a plan (L6 / B1, B4). Three situations behind one endpoint:
 //
 //   NO active subscription → Stripe Checkout. The plan starts now, because
 //   there's no paid period to protect; returns { url } to redirect to.
 //
-//   ALREADY subscribed → the change is SCHEDULED for the end of the period the
-//   user has already paid for (lib/billing/plan-change.ts). Nothing is charged
-//   or prorated today, nothing about their access changes today; returns
-//   { scheduled: true, … } describing exactly when it will. Picking the plan
-//   they're already on means "keep it": that cancels a scheduled change or a
-//   pending cancellation instead of booking a new one.
+//   ALREADY subscribed, moving UP → applied immediately, with only the prorated
+//   difference invoiced for the rest of the current period; returns
+//   { upgraded: true, chargedLabel, … }.
+//
+//   ALREADY subscribed, moving DOWN (or sideways) → SCHEDULED for the end of the
+//   period the user has already paid for. Nothing charged, nothing taken away
+//   today; returns { scheduled: true, effectiveOnLabel, … }.
+//
+// Which of the last two applies is decided server-side from the real Stripe
+// amounts (lib/billing/plan-change.ts), never from what the client asserts.
+// Picking the plan they're already on means "keep it": that cancels a scheduled
+// change or a pending cancellation instead of booking a new one.
 //
 // The custom plan's price + entitlements are always recomputed server-side from
 // the submitted config (lib/billing/custom-pricing.ts) — the client's live
@@ -138,7 +144,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
       }
 
-      const scheduled = await schedulePlanChangeForUser({
+      const changed = await changePlanForUser({
         admin,
         stripe,
         userId: user.id,
@@ -147,17 +153,29 @@ export async function POST(request: Request) {
         tier,
         config,
       });
-      if (!scheduled.ok) {
-        return NextResponse.json({ error: scheduled.error }, { status: scheduled.status });
+      if (!changed.ok) {
+        return NextResponse.json({ error: changed.error }, { status: changed.status });
+      }
+      if (changed.mode === "immediate") {
+        return NextResponse.json({
+          upgraded: true,
+          tier: changed.tier,
+          tierName: changed.tierName,
+          direction: changed.direction,
+          chargedLabel: changed.chargedLabel,
+          invoiceUrl: changed.invoiceUrl,
+          invoicePaid: changed.invoicePaid,
+          renewsOnLabel: changed.renewsOnLabel,
+        });
       }
       return NextResponse.json({
         scheduled: true,
-        tier: scheduled.tier,
-        tierName: scheduled.tierName,
-        effectiveAt: scheduled.effectiveAt,
-        effectiveOnLabel: scheduled.effectiveOnLabel,
-        priceAed: scheduled.priceAed,
-        direction: scheduled.direction,
+        tier: changed.tier,
+        tierName: changed.tierName,
+        effectiveAt: changed.effectiveAt,
+        effectiveOnLabel: changed.effectiveOnLabel,
+        priceAed: changed.priceAed,
+        direction: changed.direction,
       });
     }
   }

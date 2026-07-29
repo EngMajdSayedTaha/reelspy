@@ -36,8 +36,23 @@ const en = {
     // confirmation dialogs) so nobody has to click something to learn the rule.
     policy: {
       title: "How plan changes work",
-      body: "Upgrades and downgrades always start on your next renewal date. You keep the plan you've already paid for until then — nothing is charged, prorated or refunded in the middle of a billing period, and every change is confirmed before it's made.",
+      body: "Moving up takes effect immediately — your new limits unlock straight away and you're charged only the prorated difference for the days left in your current billing period. Moving down, or cancelling, takes effect at your next renewal date, so you always keep the plan you've already paid for. Every change is confirmed first, with the exact amount and date.",
     },
+    upgradeConfirm: {
+      title: (plan: string) => `Upgrade to ${plan} now?`,
+      body: (current: string, plan: string, charge: string, price: string, renews: string) =>
+        `Your ${plan} limits unlock immediately. You'll be charged ${charge} today — the prorated difference for the days left in your current billing period, with credit for the ${current} time you've already paid for. From ${renews} it's ${price} per month.`,
+      bodyNoCharge: (current: string, plan: string, price: string, renews: string) =>
+        `Your ${plan} limits unlock immediately. You'll be charged only the prorated difference for the days left in your current billing period, with credit for the ${current} time you've already paid for. From ${renews} it's ${price} per month.`,
+      cta: "Upgrade now",
+      done: (plan: string) => `You're on ${plan} — your new limits are live.`,
+      doneCharged: (plan: string, charge: string) =>
+        `You're on ${plan} — charged ${charge} for the rest of this period. Your new limits are live.`,
+      unpaid:
+        "Your upgrade is live, but the prorated payment hasn't gone through yet — update your card from the billing page.",
+      nextRenewalFallback: "your next renewal",
+    },
+    previewFailed: "Could not work out what this change would cost. Please try again.",
     scheduledBadge: "Scheduled",
     scheduledChange: {
       title: (plan: string) => `Scheduled: your plan changes to ${plan}`,
@@ -224,8 +239,22 @@ export const billingAr: BillingDict = {
     couldNotOpenPortal: "تعذّر فتح بوابة الفوترة.",
     policy: {
       title: "كيف تعمل تغييرات الباقة",
-      body: "تبدأ الترقية أو التخفيض دائمًا في تاريخ التجديد التالي. تحتفظ بالباقة التي دفعت ثمنها حتى ذلك التاريخ — فلا يتم خصم أي مبلغ أو احتسابه تناسبيًا أو ردّه في منتصف فترة الفوترة، ويُطلب تأكيدك قبل أي تغيير.",
+      body: "الترقية إلى باقة أعلى تسري فورًا — تُفتح حدودك الجديدة على الفور ولا يُخصم منك سوى الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية. أما الانتقال إلى باقة أقل أو الإلغاء فيسري في تاريخ التجديد التالي، لتحتفظ دائمًا بالباقة التي دفعت ثمنها. ويُطلب تأكيدك قبل أي تغيير مع بيان المبلغ والتاريخ بدقة.",
     },
+    upgradeConfirm: {
+      title: (plan: string) => `الترقية إلى ${plan} الآن؟`,
+      body: (current: string, plan: string, charge: string, price: string, renews: string) =>
+        `تُفتح حدود باقة ${plan} فورًا. سيتم خصم ${charge} اليوم — وهو الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية، مع احتساب رصيد للمدة التي دفعتها على باقة ${current}. واعتبارًا من ${renews} يصبح الاشتراك ${price} شهريًا.`,
+      bodyNoCharge: (current: string, plan: string, price: string, renews: string) =>
+        `تُفتح حدود باقة ${plan} فورًا. لن يُخصم منك سوى الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية، مع احتساب رصيد للمدة التي دفعتها على باقة ${current}. واعتبارًا من ${renews} يصبح الاشتراك ${price} شهريًا.`,
+      cta: "الترقية الآن",
+      done: (plan: string) => `أنت الآن على باقة ${plan} — حدودك الجديدة فعّالة.`,
+      doneCharged: (plan: string, charge: string) =>
+        `أنت الآن على باقة ${plan} — تم خصم ${charge} عن بقية هذه الفترة. حدودك الجديدة فعّالة.`,
+      unpaid: "تمت ترقيتك بالفعل، لكن الدفعة التناسبية لم تتم بعد — يرجى تحديث بطاقتك من صفحة الفوترة.",
+      nextRenewalFallback: "تجديدك التالي",
+    },
+    previewFailed: "تعذّر حساب تكلفة هذا التغيير. يرجى المحاولة مرة أخرى.",
     scheduledBadge: "مجدول",
     scheduledChange: {
       title: (plan: string) => `مجدول: ستتغيّر باقتك إلى ${plan}`,

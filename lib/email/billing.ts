@@ -101,7 +101,7 @@ export async function sendSubscriptionWelcome(params: {
   blocks.push({
     kind: "callout",
     text:
-      "Good to know: if you ever switch plans, the change starts at your next renewal date — you always keep the plan you've already paid for until the period you paid for is over.",
+      "Good to know: moving up a plan takes effect immediately and you're only charged the prorated difference for the rest of your billing period. Moving down takes effect at your next renewal, so you always keep the plan you've already paid for.",
   });
 
   const { html, text } = buildEmail({
@@ -127,8 +127,11 @@ export async function sendPaymentReceipt(params: {
   invoiceNumber?: string | null;
   paidOnLabel?: string | null;
   renewsOnLabel?: string | null;
+  /** "proration" = the mid-period difference charged when a plan was upgraded. */
+  kind?: "renewal" | "proration";
 }): Promise<boolean> {
-  const { to, tierName, amountLabel, invoiceUrl, invoiceNumber, paidOnLabel, renewsOnLabel } = params;
+  const { to, tierName, amountLabel, invoiceUrl, invoiceNumber, paidOnLabel, renewsOnLabel, kind } = params;
+  const proration = kind === "proration";
 
   const { html, text } = buildEmail({
     eyebrow: "Receipt",
@@ -137,14 +140,20 @@ export async function sendPaymentReceipt(params: {
     blocks: [
       {
         kind: "paragraph",
-        text: `We've charged your payment method for another month of ReelSpy ${tierName}. Nothing is needed from you — this email is just your receipt.`,
+        text: proration
+          ? `We've charged your payment method for your move to ReelSpy ${tierName}. This covers only the rest of your current billing period, with credit for the time you'd already paid for on your previous plan.`
+          : `We've charged your payment method for another month of ReelSpy ${tierName}. Nothing is needed from you — this email is just your receipt.`,
       },
       {
         kind: "rows",
         caption: "Receipt",
         rows: [
           { label: "Plan", value: `ReelSpy ${tierName}` },
-          { label: "Amount charged", value: amountLabel, emphasis: true },
+          {
+            label: proration ? "Charged (prorated)" : "Amount charged",
+            value: amountLabel,
+            emphasis: true,
+          },
           ...(paidOnLabel ? [{ label: "Charged on", value: paidOnLabel }] : []),
           ...(invoiceNumber ? [{ label: "Invoice", value: invoiceNumber }] : []),
           ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
@@ -353,7 +362,11 @@ export async function sendPlanChangeScheduled(params: {
   });
 }
 
-// ── Plan change applied (the scheduled phase went live) ──────────────────────
+// ── Plan change applied ──────────────────────────────────────────────────────
+// Two ways to arrive here, and the customer needs to be told which:
+//   immediate  — they upgraded, it's live now, and they were invoiced only the
+//                prorated difference for the rest of the current period.
+//   scheduled  — a booked change reached its renewal date and went live.
 export async function sendPlanChangeApplied(params: {
   to: string;
   previousTierName: string;
@@ -362,32 +375,65 @@ export async function sendPlanChangeApplied(params: {
   entitlements?: Entitlements | null;
   amountLabel?: string | null;
   renewsOnLabel?: string | null;
+  immediate?: boolean;
+  /** Prorated amount invoiced today (immediate upgrades only). */
+  chargedLabel?: string | null;
+  invoiceUrl?: string | null;
 }): Promise<boolean> {
-  const { to, previousTierName, tier, tierName, entitlements, amountLabel, renewsOnLabel } = params;
+  const {
+    to,
+    previousTierName,
+    tier,
+    tierName,
+    entitlements,
+    amountLabel,
+    renewsOnLabel,
+    immediate,
+    chargedLabel,
+    invoiceUrl,
+  } = params;
+
+  const intro = immediate
+    ? `Your upgrade is live — every ${tierName} feature and limit is available in your account right now.${
+        chargedLabel
+          ? ` We've charged ${chargedLabel}: that's the prorated difference for the days left in your current billing period, with credit for the ${previousTierName} time you'd already paid for.`
+          : ` Nothing extra was charged today — the credit for your unused ${previousTierName} time covered the difference.`
+      }`
+    : `The plan change you scheduled has taken effect at your renewal, exactly as booked. Your previous ${previousTierName} period ran to the end, and ${tierName} is now live on your account.`;
 
   const { html, text } = buildEmail({
     eyebrow: "Plan change",
-    preheader: `Your scheduled change is live — you're now on ReelSpy ${tierName}.`,
+    preheader: immediate
+      ? `Your upgrade to ReelSpy ${tierName} is live.`
+      : `Your scheduled change is live — you're now on ReelSpy ${tierName}.`,
     title: `You're now on ReelSpy ${tierName}`,
     blocks: [
-      {
-        kind: "paragraph",
-        text: `The plan change you scheduled has taken effect at your renewal, exactly as booked. Your previous ${previousTierName} period ran to the end, and ${tierName} is now live on your account.`,
-      },
+      { kind: "paragraph", text: intro },
       {
         kind: "rows",
         caption: "Your plan now",
         rows: [
           { label: "Previous plan", value: `ReelSpy ${previousTierName}` },
           { label: "Current plan", value: `ReelSpy ${tierName}`, emphasis: true },
-          ...(amountLabel ? [{ label: "Monthly price", value: amountLabel }] : []),
+          ...(immediate ? [{ label: "Charged today", value: chargedLabel ?? "Nothing" }] : []),
+          ...(amountLabel
+            ? [{ label: immediate ? "From your next renewal" : "Monthly price", value: `${amountLabel} / month` }]
+            : []),
           ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
         ],
       },
       { kind: "bullets", caption: "What's included now", items: planHighlights(tier, entitlements) },
     ],
     cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
-    secondary: { href: billingUrl(), label: "View billing" },
+    secondary: invoiceUrl
+      ? { href: invoiceUrl, label: "View invoice / receipt (PDF)" }
+      : { href: billingUrl(), label: "View billing" },
+    ...(immediate
+      ? {
+          footnote:
+            "Moving to a lower plan later works the other way round: it starts at your next renewal, so you keep what you've paid for.",
+        }
+      : {}),
     reason: PLAN_REASON,
   });
 

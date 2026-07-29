@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   formatMoney,
   planHighlights,
+  sendPlanChangeApplied,
   sendPlanChangeScheduled,
   sendCancellationScheduled,
   sendPaymentReceipt,
@@ -9,9 +10,9 @@ import {
 } from "@/lib/email/billing";
 
 // These assert the PROMISES the billing emails make, not their prose. The
-// deferred-change policy only holds up if the customer's written record says the
-// same thing the UI does: nothing charged today, the old plan runs to its date,
-// the change can still be called off.
+// billing policy only holds up if the customer's written record says the same
+// thing the UI said: an upgrade is live now and costs only the prorated
+// difference; a downgrade changes nothing until its date, and can be called off.
 
 type Sent = { to: string; subject: string; html: string; text: string };
 
@@ -105,7 +106,7 @@ describe("receipts and welcome", () => {
     expect(email.html).toContain("RS-0001");
   });
 
-  it("tells a new subscriber the end-of-period rule up front", async () => {
+  it("tells a new subscriber both halves of the plan-change rule up front", async () => {
     await sendSubscriptionWelcome({
       to: "user@example.com",
       tierName: "Creator",
@@ -114,7 +115,70 @@ describe("receipts and welcome", () => {
       amountLabel: "AED 49.00",
       invoiceUrl: null,
     });
-    expect(sent[0].text).toContain("the change starts at your next renewal date");
+    expect(sent[0].text).toContain("moving up a plan takes effect immediately");
+    expect(sent[0].text).toContain("Moving down takes effect at your next renewal");
+  });
+
+  it("labels a mid-period upgrade charge as prorated, not as a monthly renewal", async () => {
+    await sendPaymentReceipt({
+      to: "user@example.com",
+      tierName: "Studio",
+      amountLabel: "AED 63.42",
+      kind: "proration",
+    });
+    expect(sent[0].html).toContain("Charged (prorated)");
+    expect(sent[0].text).toContain("covers only the rest of your current billing period");
+    expect(sent[0].text).not.toContain("another month of");
+  });
+});
+
+describe("sendPlanChangeApplied", () => {
+  it("explains an immediate upgrade: live now, prorated charge, full price later", async () => {
+    await sendPlanChangeApplied({
+      to: "user@example.com",
+      previousTierName: "Creator",
+      tier: "pro",
+      tierName: "Pro",
+      amountLabel: "AED 149.00",
+      renewsOnLabel: "Aug 29, 2026",
+      immediate: true,
+      chargedLabel: "AED 63.42",
+      invoiceUrl: "https://invoice.stripe.com/xyz",
+    });
+    const email = sent[0];
+    expect(email.text).toContain("available in your account right now");
+    expect(email.text).toContain("AED 63.42");
+    expect(email.text).toContain("credit for the Creator time you'd already paid for");
+    expect(email.html).toContain("Charged today");
+    expect(email.html).toContain("From your next renewal");
+    expect(email.html).toContain("https://invoice.stripe.com/xyz");
+    // The other half of the policy is worth restating while they're reading it.
+    expect(email.text).toContain("Moving to a lower plan later");
+  });
+
+  it("says nothing was charged when the credit covered the upgrade", async () => {
+    await sendPlanChangeApplied({
+      to: "user@example.com",
+      previousTierName: "Creator",
+      tier: "pro",
+      tierName: "Pro",
+      immediate: true,
+      chargedLabel: null,
+    });
+    expect(sent[0].text).toContain("Nothing extra was charged today");
+    expect(sent[0].html).toContain("Nothing");
+  });
+
+  it("describes a scheduled change landing at the renewal instead", async () => {
+    await sendPlanChangeApplied({
+      to: "user@example.com",
+      previousTierName: "Studio",
+      tier: "creator",
+      tierName: "Creator",
+      renewsOnLabel: "Sep 29, 2026",
+    });
+    expect(sent[0].text).toContain("has taken effect at your renewal");
+    expect(sent[0].text).not.toContain("Charged today");
   });
 });
 

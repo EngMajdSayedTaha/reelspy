@@ -17,27 +17,116 @@ import { useDict } from "@/lib/i18n/I18nProvider";
 export type CheckoutResponse = {
   url?: string;
   scheduled?: boolean;
+  upgraded?: boolean;
   kept?: boolean;
   resumed?: boolean;
   tier?: string;
   tierName?: string;
   effectiveOnLabel?: string | null;
+  chargedLabel?: string | null;
+  invoicePaid?: boolean;
   cancelAtPeriodEnd?: boolean;
   accessUntilLabel?: string | null;
   error?: string;
 };
 
-export async function postJson(
+// What /api/billing/preview says confirming would do. The server owns this
+// decision — upgrade now vs. change at renewal, and the exact prorated figure —
+// so the dialog never has to guess at money.
+export type PlanPreview = {
+  mode?: "immediate" | "scheduled";
+  direction?: "upgrade" | "downgrade" | "change";
+  tierName?: string;
+  priceLabel?: string | null;
+  chargeTodayLabel?: string | null;
+  effectiveOnLabel?: string | null;
+  renewsOnLabel?: string | null;
+  error?: string;
+};
+
+export async function postJson<T = CheckoutResponse>(
   url: string,
   fallbackError: string,
   body?: unknown
-): Promise<CheckoutResponse> {
+): Promise<T & { error?: string }> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
-  return res.json().catch(() => ({ error: fallbackError }));
+  return res.json().catch(() => ({ error: fallbackError }) as T & { error?: string });
+}
+
+type BillingDict = ReturnType<typeof useDict>["billing"];
+
+// The confirmation copy for a plan change, driven entirely by the server's
+// preview: an immediate upgrade quotes what's charged today and what recurs
+// later; anything else quotes the date it starts and that nothing is charged.
+// Shared so the plan cards and the custom-plan card can't describe the same
+// change differently.
+export function planChangeDialog(
+  t: BillingDict,
+  args: {
+    preview: PlanPreview;
+    planName: string;
+    priceLabel: string;
+    currentPlanName: string;
+    /** Prefix (e.g. the custom plan's configuration summary). */
+    lead?: string;
+  }
+): { title: string; description: string; confirmText: string } {
+  const { preview, planName, currentPlanName, lead } = args;
+  const price = preview.priceLabel ?? args.priceLabel;
+  const renews = preview.renewsOnLabel ?? t.upgradeConfirm.nextRenewalFallback;
+  const withLead = (body: string) => (lead ? `${lead} ${body}` : body);
+
+  if (preview.mode === "immediate") {
+    return {
+      title: t.upgradeConfirm.title(planName),
+      description: withLead(
+        preview.chargeTodayLabel
+          ? t.upgradeConfirm.body(currentPlanName, planName, preview.chargeTodayLabel, price, renews)
+          : t.upgradeConfirm.bodyNoCharge(currentPlanName, planName, price, renews)
+      ),
+      confirmText: t.upgradeConfirm.cta,
+    };
+  }
+
+  const date = preview.effectiveOnLabel ?? preview.renewsOnLabel ?? null;
+  const direction = preview.direction ?? "change";
+  return {
+    title:
+      direction === "downgrade"
+        ? t.switchConfirm.downgradeTitle(planName)
+        : t.switchConfirm.changeTitle(planName),
+    description: withLead(
+      date
+        ? t.switchConfirm.body(currentPlanName, planName, date, price) +
+            (direction === "downgrade" ? t.switchConfirm.downgradeNote(currentPlanName, date) : "")
+        : t.switchConfirm.bodyNoDate(currentPlanName, planName, price)
+    ),
+    confirmText:
+      direction === "downgrade" ? t.switchConfirm.downgradeCta : t.switchConfirm.changeCta,
+  };
+}
+
+// Report an applied change the same way everywhere.
+export function toastPlanChange(t: BillingDict, result: CheckoutResponse, fallbackName: string) {
+  const name = result.tierName ?? fallbackName;
+  if (result.upgraded) {
+    toast.success(
+      result.chargedLabel
+        ? t.upgradeConfirm.doneCharged(name, result.chargedLabel)
+        : t.upgradeConfirm.done(name)
+    );
+    if (result.invoicePaid === false) toast.warning(t.upgradeConfirm.unpaid);
+    return;
+  }
+  toast.success(
+    result.effectiveOnLabel
+      ? t.switchConfirm.scheduled(name, result.effectiveOnLabel)
+      : t.switchConfirm.scheduledNoDate(name)
+  );
 }
 
 // Start Checkout (no subscription yet) or SCHEDULE a change for the next renewal
@@ -78,32 +167,41 @@ export function SubscribeButton({
   const [loading, setLoading] = useState(false);
 
   async function go() {
-    const ok = hasSubscription
-      ? await confirm({
-          title:
-            direction === "upgrade"
-              ? t.switchConfirm.upgradeTitle(planName)
-              : direction === "downgrade"
-                ? t.switchConfirm.downgradeTitle(planName)
-                : t.switchConfirm.changeTitle(planName),
-          description: effectiveOnLabel
-            ? t.switchConfirm.body(currentPlanName, planName, effectiveOnLabel, priceLabel) +
-              (direction === "downgrade"
-                ? t.switchConfirm.downgradeNote(currentPlanName, effectiveOnLabel)
-                : "")
-            : t.switchConfirm.bodyNoDate(currentPlanName, planName, priceLabel),
-          confirmText:
-            direction === "upgrade"
-              ? t.switchConfirm.upgradeCta
-              : direction === "downgrade"
-                ? t.switchConfirm.downgradeCta
-                : t.switchConfirm.changeCta,
+    let ok: boolean;
+
+    if (hasSubscription) {
+      // Ask the server what this would actually do and cost BEFORE describing it
+      // — an upgrade charges today, a downgrade waits for the renewal, and only
+      // Stripe knows the prorated figure.
+      setLoading(true);
+      const preview = await postJson<PlanPreview>("/api/billing/preview", dict.common.unknownError, {
+        tier,
+      });
+      setLoading(false);
+      if (preview.error) {
+        toast.error(preview.error ?? t.previewFailed);
+        return;
+      }
+      ok = await confirm(
+        planChangeDialog(t, {
+          preview: {
+            ...preview,
+            // Fall back to what the page already knows if Stripe couldn't say.
+            direction: preview.direction ?? direction,
+            effectiveOnLabel: preview.effectiveOnLabel ?? effectiveOnLabel,
+          },
+          planName,
+          priceLabel,
+          currentPlanName,
         })
-      : await confirm({
-          title: t.subscribeConfirm.title(planName),
-          description: t.subscribeConfirm.body(planName, priceLabel),
-          confirmText: t.subscribeConfirm.cta,
-        });
+      );
+    } else {
+      ok = await confirm({
+        title: t.subscribeConfirm.title(planName),
+        description: t.subscribeConfirm.body(planName, priceLabel),
+        confirmText: t.subscribeConfirm.cta,
+      });
+    }
     if (!ok) return;
 
     setLoading(true);
@@ -113,13 +211,8 @@ export function SubscribeButton({
       window.location.href = result.url;
       return; // keep the spinner through the redirect
     }
-    if (result.scheduled) {
-      const name = result.tierName ?? planName;
-      toast.success(
-        result.effectiveOnLabel
-          ? t.switchConfirm.scheduled(name, result.effectiveOnLabel)
-          : t.switchConfirm.scheduledNoDate(name)
-      );
+    if (result.scheduled || result.upgraded) {
+      toastPlanChange(t, result, planName);
       router.refresh();
       setLoading(false);
       return;

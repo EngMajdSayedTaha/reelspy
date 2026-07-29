@@ -156,6 +156,9 @@ async function handleInvoicePaid(
       invoiceNumber: invoice.number,
       paidOnLabel: dayLabelFromUnix(invoice.status_transitions?.paid_at ?? invoice.created),
       renewsOnLabel,
+      // `subscription_update` is the mid-period difference Stripe invoices when
+      // a customer upgrades — a receipt, but not a monthly one.
+      kind: reason === "subscription_update" ? "proration" : "renewal",
     });
   }
 }

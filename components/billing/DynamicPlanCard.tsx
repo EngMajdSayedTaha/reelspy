@@ -7,7 +7,12 @@ import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { postJson } from "@/components/billing/BillingActions";
+import {
+  postJson,
+  planChangeDialog,
+  toastPlanChange,
+  type PlanPreview,
+} from "@/components/billing/BillingActions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useDict } from "@/lib/i18n/I18nProvider";
 import {
@@ -60,17 +65,37 @@ export function DynamicPlanCard({
     );
     const current = currentPlanName ?? b.plans.free.name;
 
-    const ok = await confirm({
-      title: hasSubscription ? b.customPlanConfirm.switchTitle : b.customPlanConfirm.subscribeTitle,
-      description: `${summary} ${
-        hasSubscription
-          ? effectiveOnLabel
-            ? b.switchConfirm.body(current, b.plans.custom.name, effectiveOnLabel, priceLabel)
-            : b.switchConfirm.bodyNoDate(current, b.plans.custom.name, priceLabel)
-          : b.subscribeConfirm.body(b.plans.custom.name, priceLabel)
-      }`,
-      confirmText: hasSubscription ? b.switchConfirm.changeCta : b.subscribeConfirm.cta,
-    });
+    let ok: boolean;
+    if (hasSubscription) {
+      // Same server-side decision as the fixed plans: a custom plan that costs
+      // more than the current one is an upgrade and applies immediately; one
+      // that costs the same or less waits for the renewal.
+      setLoading(true);
+      const preview = await postJson<PlanPreview>("/api/billing/preview", dict.common.unknownError, {
+        tier: "custom",
+        config,
+      });
+      setLoading(false);
+      if (preview.error) {
+        toast.error(preview.error ?? b.previewFailed);
+        return;
+      }
+      ok = await confirm(
+        planChangeDialog(b, {
+          preview: { ...preview, effectiveOnLabel: preview.effectiveOnLabel ?? effectiveOnLabel },
+          planName: b.plans.custom.name,
+          priceLabel,
+          currentPlanName: current,
+          lead: summary,
+        })
+      );
+    } else {
+      ok = await confirm({
+        title: b.customPlanConfirm.subscribeTitle,
+        description: `${summary} ${b.subscribeConfirm.body(b.plans.custom.name, priceLabel)}`,
+        confirmText: b.subscribeConfirm.cta,
+      });
+    }
     if (!ok) return;
 
     setLoading(true);
@@ -82,13 +107,8 @@ export function DynamicPlanCard({
       window.location.href = result.url;
       return;
     }
-    if (result.scheduled) {
-      const name = result.tierName ?? b.plans.custom.name;
-      toast.success(
-        result.effectiveOnLabel
-          ? b.switchConfirm.scheduled(name, result.effectiveOnLabel)
-          : b.switchConfirm.scheduledNoDate(name)
-      );
+    if (result.scheduled || result.upgraded) {
+      toastPlanChange(b, result, b.plans.custom.name);
       router.refresh();
       setLoading(false);
       return;

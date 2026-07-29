@@ -56,6 +56,10 @@ export type NotifyOptions = {
   // Set when the caller has already told the user they're staying (scheduling a
   // plan change implicitly un-cancels), so we don't also send "resumed".
   suppressResumed?: boolean;
+  // Set when the caller is sending its own plan-change email with details this
+  // generic diff can't know — the prorated amount charged for an immediate
+  // upgrade, and the invoice it landed on.
+  suppressPlanChange?: boolean;
 };
 
 export async function notifySubscriptionChange(
@@ -78,6 +82,7 @@ export async function notifySubscriptionChange(
     if (
       isActive &&
       wasActive &&
+      !options.suppressPlanChange &&
       previous.tier !== "free" &&
       result.tier !== "free" &&
       previous.tier !== result.tier

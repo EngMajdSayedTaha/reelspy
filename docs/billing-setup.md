@@ -33,8 +33,8 @@ Together they create:
 - `billing_events` — webhook **idempotency** log: one row per fully-processed
   Stripe event id, so a redelivered/duplicate event is a no-op (see §8).
 - `subscriptions.pending_*` + `stripe_schedule_id` — the cached mirror of a
-  **scheduled plan change** (see §7a). Nullable and never gating access, so a
-  database without the fourth migration behaves exactly as before.
+  **plan change scheduled for the next renewal** (see §7a). Nullable and never
+  gating access, so a database without the fourth migration behaves as before.
 
 Until these run, tier resolution and quotas **fail open** (everyone resolves to
 `AI_DEFAULT_TIER`, monthly caps are not enforced, dedupe is skipped) — nothing
@@ -148,8 +148,13 @@ when the key is a test key.
    `npm run stripe:forward` relay them. Useful failing-payment fixtures: card
    `4000 0000 0000 0341` (attaches, then fails on the renewal charge), or test
    token `tok_chargeCustomerFail` when creating the subscription via the API.
-6. **Deferred plan change (§7a).** As the subscribed test user, pick a different
-   plan and confirm the dialog. Expect: no charge, no change to limits, the
+6. **Upgrade (§7a).** As the subscribed test user, pick a MORE expensive plan.
+   Expect: the dialog quotes a prorated amount from `/api/billing/preview`, the
+   switch is instant, Stripe raises a `subscription_update` invoice for that same
+   amount, and the "you're now on …" email states what was charged today and the
+   full price from the next renewal.
+7. **Downgrade (§7a).** Now pick a CHEAPER plan and confirm. Expect: no charge,
+   no change to limits, the
    billing page shows "Scheduled: your plan changes to … on <renewal date>", the
    target plan's card is badged *Scheduled*, and a "plan change scheduled" email
    goes out. In Stripe the subscription now has a schedule with two phases —
@@ -160,7 +165,7 @@ when the key is a test key.
    Stripe **test clocks** (Dashboard → Billing → Test clocks, or a customer
    created with `test_clock`) are the only way to see the phase transition
    without waiting a month.
-7. **Idempotency:** replay the same event twice (re-run a `stripe trigger`, or use
+8. **Idempotency:** replay the same event twice (re-run a `stripe trigger`, or use
    "Resend" in the dashboard). The second delivery returns `{received:true,
    deduped:true}` and does **not** re-send the email or re-write the row — verify
    one row per `event.id` in `billing_events`.
@@ -176,9 +181,10 @@ log and no-op). Sent by the webhook, keyed to Stripe events:
 | Welcome / plan active | `invoice.payment_succeeded`, `billing_reason=subscription_create` | customer |
 | Payment receipt | `invoice.payment_succeeded`, renewals | customer |
 | Renewal reminder | `invoice.upcoming` | customer |
+| Prorated upgrade receipt | `invoice.payment_succeeded`, `billing_reason=subscription_update` | customer |
 | Payment failed (dunning) | `invoice.payment_failed` | customer |
-| Plan change scheduled | user schedules an upgrade/downgrade in-app | customer |
-| Plan change applied | schedule phase goes live (`customer.subscription.updated`) | customer |
+| Plan change scheduled | user books a downgrade for the next renewal | customer |
+| Plan change applied | an upgrade goes live now, or a booked change reaches its date | customer |
 | Plan change cancelled | user keeps their current plan | customer |
 | Cancellation scheduled | `cancel_at_period_end` false → true | customer |
 | Subscription resumed | `cancel_at_period_end` true → false | customer |
@@ -202,15 +208,37 @@ Stripe's own card receipt (Dashboard → Settings → Emails) is complementary �
 app emails are branded + deep-linked; leave Stripe receipts on if you want a
 formal PDF receipt too.
 
-## 7a. Plan changes take effect at the END of the paid period
+## 7a. Plan changes: up now, down at the renewal
 
-**The policy.** An upgrade, a downgrade or a custom-plan reconfiguration never
-takes effect mid-cycle. The customer paid for the period they're in, so they keep
-that plan — its limits, its AI model — until the day the period ends. The new
-plan starts at the next renewal and is what they're charged from then on.
-Nothing is prorated, nothing is charged or credited on the day they ask.
+**The policy.**
 
-**The mechanism** (`lib/billing/schedule.ts`) is a Stripe **Subscription
+- **Upgrade** (the new plan costs **more**) — applies **immediately**. The
+  customer asked for more capacity, so they get it now, and Stripe invoices only
+  the **prorated difference** for the days left in the current period, crediting
+  the unused time on the old plan. They never pay twice for the same days.
+- **Downgrade or a same-price change** (the new plan costs the **same or less**)
+  — applies at the **end of the period they already paid for**. They keep the
+  plan they bought, with its limits and its AI model, until the day it runs out;
+  the cheaper plan starts at the next renewal. Nothing is prorated, refunded or
+  taken away early.
+- **Cancellation** is always end-of-period (§7b).
+
+**Which one applies is decided from the real Stripe amounts**, not from the order
+of the cards on the pricing page (`decidePlanChangeMode` in
+`lib/billing/plan-change.ts`): the configured Price of the target vs. the amount
+the subscription bills today. That's what makes it correct for the custom plan —
+which has no place on the tier ladder — and for any tier whose Stripe Price
+differs from the number printed on the card. When the amounts aren't comparable
+(missing, or different currencies) it falls back to the tier ladder, and an
+unrankable change **defers** rather than charging.
+
+**The upgrade path** is a plain `subscriptions.update` with
+`proration_behavior: "always_invoice"`, so the difference is billed there and
+then instead of being parked on the next invoice. Any pending downgrade schedule
+is released first — Stripe refuses item updates on a schedule-managed
+subscription, and a leftover phase would drag the customer back down later.
+
+**The deferred path** (`lib/billing/schedule.ts`) is a Stripe **Subscription
 Schedule**: phase 0 reproduces the current period verbatim (same price, same
 dates), phase 1 starts the moment phase 0 ends with the new price and
 `end_behavior: release`, so once the new phase has run an interval Stripe hands
@@ -220,9 +248,16 @@ price, entitlements can't change early even if the UI, the cache or a webhook is
 late.
 
 - `POST /api/billing/checkout` — no subscription yet ⇒ Stripe Checkout (starts
-  now, nothing to protect). Already subscribed ⇒ schedules the change and
-  returns `{ scheduled: true, effectiveAt, … }`. Picking the plan you're already
+  now, nothing to protect). Already subscribed ⇒ upgrade now
+  (`{ upgraded: true, chargedLabel, … }`) or schedule it
+  (`{ scheduled: true, effectiveOnLabel, … }`). Picking the plan you're already
   on means "keep it" and cancels a scheduled change or pending cancellation.
+- `POST /api/billing/preview` — read-only twin of the above: runs the same
+  decision and asks Stripe for the exact proration, so the confirmation dialog
+  can quote the real figure ("You'll be charged AED 63.42 today") instead of a
+  hedge. Computed from the upcoming invoice's proration line items, not its
+  `amount_due` (which also carries the next cycle's charge). If it fails, the
+  dialog still opens with generic wording — a preview never blocks a change.
 - `POST /api/billing/plan` — `keep_current` (drop a scheduled change), `cancel`
   (end at period end), `resume` (undo that).
 - `subscriptions.pending_tier` / `pending_effective_at` / `pending_price_aed` /
@@ -235,16 +270,17 @@ late.
   reused via `lookup_key: reelspy_custom_aed_<amount>`. Set the optional
   `STRIPE_PRODUCT_CUSTOM` env to hang them all off one product instead of one
   product per price point.
-- The UI states the rule permanently ("How plan changes work") **and** repeats it
-  inside every confirmation dialog, with the exact date, the exact price, and
-  what is charged today (nothing).
+- The UI states both halves of the rule permanently ("How plan changes work")
+  **and** repeats the relevant half inside every confirmation dialog, with the
+  exact amount and the exact date.
 
 > **Stripe Customer portal setting.** Turn **plan switching OFF** in
-> Dashboard → Settings → Billing → Customer portal. The portal's own switcher
-> prorates immediately, which is precisely the behaviour this section removes —
-> leave it on and a customer can bypass the policy. Keep payment-method updates,
-> invoice history and (optionally) cancellation enabled: a portal cancellation is
-> `cancel_at_period_end` and is handled identically to an in-app one.
+> Dashboard → Settings → Billing → Customer portal. The portal switches plans
+> with its own proration settings and would let a downgrade take effect
+> mid-period — bypassing the half of the policy that protects the paid period.
+> Keep payment-method updates, invoice history and (optionally) cancellation
+> enabled: a portal cancellation is `cancel_at_period_end` and is handled
+> identically to an in-app one.
 
 ## 7b. Cancel, switch & refunds
 

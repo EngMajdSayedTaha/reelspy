@@ -1,13 +1,25 @@
 // In-app plan-change service — the one place the billing UI's write actions are
 // implemented, so /api/billing/checkout and /api/billing/plan stay thin and the
-// end-of-period policy can't be half-applied by one of them.
+// billing policy can't be half-applied by one of them.
 //
-// Three actions, all of which respect what the customer already paid for:
-//   schedulePlanChangeForUser  — new plan starts at the next renewal, not now
-//   cancelScheduledChangeForUser — drop a scheduled change, keep today's plan
-//   setSubscriptionCancellation  — end (or un-end) the subscription at period end
+// THE POLICY, in one place:
 //
-// Each one drives Stripe first, re-syncs our row from the fresh Stripe object
+//   UPGRADE (the new plan costs MORE) → applies immediately. The customer wanted
+//   more capacity now, so they get it now and Stripe invoices only the prorated
+//   difference for the days left in the period they already paid for. They are
+//   never charged twice for the same days.
+//
+//   DOWNGRADE or a same-price change (the new plan costs the SAME or LESS) →
+//   applies at the end of the period they already paid for. They keep the plan
+//   they bought until the day it runs out; the cheaper plan starts at the next
+//   renewal. Nothing is prorated, refunded, or taken away early.
+//
+// Which one applies is decided HERE, from the real Stripe amounts (not from the
+// plan ladder or anything the client sent), and the UI is told the answer — see
+// previewPlanChangeForUser, which the confirmation dialog reads so the customer
+// sees the exact figure before agreeing to it.
+//
+// Every action drives Stripe first, re-syncs our row from the fresh Stripe object
 // (so the billing page is correct on the very next render instead of waiting for
 // the webhook), and then notifies. The webhook re-does all of it idempotently.
 
@@ -17,8 +29,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
 import { syncSubscription } from "@/lib/billing/sync";
-import { notifySubscriptionChange, emailForUser } from "@/lib/billing/notify";
-import { dayLabel, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
+import { notifySubscriptionChange, emailForUser, subscriptionAmountLabel } from "@/lib/billing/notify";
+import { dayLabel, dayLabelFromUnix, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
 import {
   customPlanPriceId,
   releasePlanChange,
@@ -32,12 +44,18 @@ import {
   computeCustomPriceAed,
   type CustomPlanConfig,
 } from "@/lib/billing/custom-pricing";
-import { sendPlanChangeCancelled, sendPlanChangeScheduled } from "@/lib/email/billing";
+import {
+  formatMoney,
+  sendPlanChangeApplied,
+  sendPlanChangeCancelled,
+  sendPlanChangeScheduled,
+} from "@/lib/email/billing";
 
 export type ActionFailure = { ok: false; status: number; error: string };
 
 export type ScheduledChange = {
   ok: true;
+  mode: "scheduled";
   tier: AiTier;
   tierName: string;
   /** ISO timestamp the new plan takes over (= current period end). */
@@ -47,36 +65,142 @@ export type ScheduledChange = {
   direction: PlanChangeDirection;
 };
 
-// Resolve what the next phase should bill: a fixed tier's configured Stripe
-// Price, or an ad-hoc monthly Price built from a validated custom config.
+export type ImmediateChange = {
+  ok: true;
+  mode: "immediate";
+  tier: AiTier;
+  tierName: string;
+  direction: PlanChangeDirection;
+  priceAed: number | null;
+  /** What Stripe actually invoiced for the rest of this period, if anything. */
+  chargedLabel: string | null;
+  invoiceUrl: string | null;
+  invoicePaid: boolean;
+  renewsOnLabel: string | null;
+};
+
+// What the confirmation dialog needs to state the consequences exactly.
+export type PlanChangePreview = {
+  ok: true;
+  mode: "immediate" | "scheduled";
+  direction: PlanChangeDirection;
+  tier: AiTier;
+  tierName: string;
+  /** Recurring price of the target plan, e.g. "AED 149". */
+  priceLabel: string | null;
+  /** Prorated amount due today — immediate upgrades only. */
+  chargeTodayLabel: string | null;
+  /** When the change lands (immediate: today; scheduled: the renewal date). */
+  effectiveOnLabel: string | null;
+  renewsOnLabel: string | null;
+};
+
+// A target price plus what it actually costs, which is what decides immediate vs
+// scheduled. Amounts come from Stripe (the configured Price), never from the
+// display prices in plans.ts.
+type ResolvedTarget = PlanChangeTarget & {
+  unitAmount: number | null;
+  currency: string | null;
+};
+
+// Resolve what the new plan bills: a fixed tier's configured Stripe Price, or an
+// ad-hoc monthly Price built from a validated custom config.
 async function resolveTarget(
   stripe: Stripe,
   userId: string,
   tier: AiTier,
   config?: CustomPlanConfig
-): Promise<PlanChangeTarget | ActionFailure> {
+): Promise<ResolvedTarget | ActionFailure> {
   if (tier === "custom") {
     if (!config) return { ok: false, status: 400, error: "Pick your custom plan options first." };
     const clamped = clampCustomConfig(config);
     const priceAed = computeCustomPriceAed(clamped);
     const entitlements = computeCustomEntitlements(clamped);
     const priceId = await customPlanPriceId(stripe, priceAed);
-    return { userId, tier, priceId, priceAed, entitlements };
+    return {
+      userId,
+      tier,
+      priceId,
+      priceAed,
+      entitlements,
+      unitAmount: priceAed * 100,
+      currency: "aed",
+    };
   }
 
   const priceId = stripePriceIdForTier(tier);
   if (!priceId) {
     return { ok: false, status: 503, error: "That plan isn't available for purchase yet." };
   }
-  return { userId, tier, priceId, priceAed: planFor(tier).priceAed || null, entitlements: null };
+  // The Price object is the authority on what this tier costs; planFor().priceAed
+  // is only the number we print on the card.
+  let unitAmount: number | null = null;
+  let currency: string | null = null;
+  try {
+    const price = await stripe.prices.retrieve(priceId);
+    unitAmount = price.unit_amount ?? null;
+    currency = price.currency ?? null;
+  } catch (err) {
+    console.warn(
+      "[billing/plan-change] price lookup failed, falling back to the plan ladder:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  return {
+    userId,
+    tier,
+    priceId,
+    priceAed: planFor(tier).priceAed || null,
+    entitlements: null,
+    unitAmount,
+    currency,
+  };
 }
 
-function isFailure(value: PlanChangeTarget | ActionFailure): value is ActionFailure {
-  return "ok" in value && value.ok === false;
+function isFailure<T>(value: T | ActionFailure): value is ActionFailure {
+  return typeof value === "object" && value !== null && "ok" in value && value.ok === false;
 }
 
-// Book `tier` to start at the end of the period the user has already paid for.
-export async function schedulePlanChangeForUser(params: {
+// The recurring amount the subscription bills today.
+function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; currency: string | null } {
+  const price = sub.items?.data?.[0]?.price;
+  return { amount: price?.unit_amount ?? null, currency: price?.currency ?? null };
+}
+
+// Upgrade or not? Decided on money: a plan that costs more per month is an
+// upgrade and applies now; anything else waits for the renewal. Comparing real
+// amounts (rather than the plan ladder) is what makes this correct for custom
+// plans, promotional prices, and any tier whose Stripe Price differs from the
+// number on the pricing card. Only when Stripe's amounts aren't comparable —
+// missing, or a different currency — do we fall back to the ladder, and an
+// unknown comparison defers rather than charging.
+export function decidePlanChangeMode(
+  sub: Stripe.Subscription,
+  currentTier: AiTier,
+  target: { tier: AiTier; unitAmount: number | null; currency: string | null }
+): { immediate: boolean; direction: PlanChangeDirection } {
+  const current = currentAmountOf(sub);
+  const comparable =
+    current.amount !== null &&
+    target.unitAmount !== null &&
+    current.currency !== null &&
+    target.currency !== null &&
+    current.currency === target.currency;
+
+  if (comparable) {
+    const up = (target.unitAmount as number) > (current.amount as number);
+    const down = (target.unitAmount as number) < (current.amount as number);
+    return { immediate: up, direction: up ? "upgrade" : down ? "downgrade" : "change" };
+  }
+
+  const direction = planChangeDirection(currentTier, target.tier);
+  return { immediate: direction === "upgrade", direction };
+}
+
+// THE entry point for "the user picked a different plan". Works out whether that
+// is an upgrade (apply now, invoice the difference) or not (start it at the next
+// renewal) and carries it out.
+export async function changePlanForUser(params: {
   admin: SupabaseClient;
   stripe: Stripe;
   userId: string;
@@ -84,15 +208,227 @@ export async function schedulePlanChangeForUser(params: {
   currentTier: AiTier;
   tier: AiTier;
   config?: CustomPlanConfig;
-}): Promise<ScheduledChange | ActionFailure> {
+}): Promise<ImmediateChange | ScheduledChange | ActionFailure> {
   const { admin, stripe, userId, subscriptionId, currentTier, tier, config } = params;
 
   const target = await resolveTarget(stripe, userId, tier, config);
   if (isFailure(target)) return target;
 
+  let sub: Stripe.Subscription;
+  try {
+    sub = await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (err) {
+    console.error("[billing/plan-change] retrieve failed:", err instanceof Error ? err.message : err);
+    return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
+  }
+
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  return immediate
+    ? applyPlanChangeNow({ admin, stripe, sub, userId, currentTier, target, direction })
+    : schedulePlanChangeAtPeriodEnd({ admin, stripe, sub, userId, currentTier, target, direction });
+}
+
+// Tell the UI what confirming would do — the same decision, same numbers, no
+// side effects. The dialog quotes this back to the customer before they agree.
+export async function previewPlanChangeForUser(params: {
+  stripe: Stripe;
+  userId: string;
+  subscriptionId: string;
+  currentTier: AiTier;
+  tier: AiTier;
+  config?: CustomPlanConfig;
+}): Promise<PlanChangePreview | ActionFailure> {
+  const { stripe, userId, subscriptionId, currentTier, tier, config } = params;
+
+  const target = await resolveTarget(stripe, userId, tier, config);
+  if (isFailure(target)) return target;
+
+  let sub: Stripe.Subscription;
+  try {
+    sub = await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (err) {
+    console.error("[billing/plan-change] preview retrieve failed:", err instanceof Error ? err.message : err);
+    return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
+  }
+
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  const renewsOnLabel = dayLabelFromUnix(sub.current_period_end);
+  const priceLabel =
+    target.unitAmount !== null
+      ? formatMoney(target.unitAmount, target.currency)
+      : target.priceAed
+        ? `AED ${target.priceAed}`
+        : null;
+
+  return {
+    ok: true,
+    mode: immediate ? "immediate" : "scheduled",
+    direction,
+    tier,
+    tierName: planFor(tier).name,
+    priceLabel,
+    chargeTodayLabel: immediate ? await previewProration(stripe, sub, target.priceId) : null,
+    effectiveOnLabel: immediate ? dayLabel(new Date()) : renewsOnLabel,
+    renewsOnLabel,
+  };
+}
+
+// What Stripe would invoice right now for switching mid-period: the charge for
+// the new plan's remaining days MINUS the credit for the old plan's unused days.
+// Read off the proration line items rather than the preview's amount_due, which
+// also carries the next cycle's charge. Null when it can't be computed or works
+// out to zero-or-credit — the UI then says "nothing today" instead of guessing.
+async function previewProration(
+  stripe: Stripe,
+  sub: Stripe.Subscription,
+  priceId: string
+): Promise<string | null> {
+  const itemId = sub.items?.data?.[0]?.id;
+  if (!itemId) return null;
+  const prorationDate = Math.floor(Date.now() / 1000);
+  try {
+    const upcoming = await stripe.invoices.retrieveUpcoming({
+      customer: typeof sub.customer === "string" ? sub.customer : sub.customer?.id,
+      subscription: sub.id,
+      subscription_details: {
+        items: [{ id: itemId, price: priceId }],
+        proration_behavior: "always_invoice",
+        proration_date: prorationDate,
+      },
+    });
+    const prorated = (upcoming.lines?.data ?? [])
+      .filter((line) => line.proration && line.period?.start === prorationDate)
+      .reduce((sum, line) => sum + (line.amount ?? 0), 0);
+    return prorated > 0 ? formatMoney(prorated, upcoming.currency) : null;
+  } catch (err) {
+    // A preview is a nicety; never block the change on it.
+    console.warn(
+      "[billing/plan-change] proration preview failed:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
+// UPGRADE: swap the plan now and let Stripe invoice the prorated difference for
+// the remainder of the current period. The customer is credited for the days
+// they'd already paid for on the old plan, so they never pay twice for the same
+// days, and their new limits are live the moment this returns.
+async function applyPlanChangeNow(params: {
+  admin: SupabaseClient;
+  stripe: Stripe;
+  sub: Stripe.Subscription;
+  userId: string;
+  currentTier: AiTier;
+  target: ResolvedTarget;
+  direction: PlanChangeDirection;
+}): Promise<ImmediateChange | ActionFailure> {
+  const { admin, stripe, sub, userId, currentTier, target, direction } = params;
+
+  const itemId = sub.items?.data?.[0]?.id;
+  if (!itemId) {
+    return { ok: false, status: 409, error: "Your subscription has no plan to change." };
+  }
+
+  let updated: Stripe.Subscription;
+  try {
+    // Stripe refuses item updates while a schedule manages the subscription, and
+    // a leftover phase would drag them back down later anyway — so a pending
+    // downgrade is dropped when the customer upgrades over the top of it.
+    const scheduleId = scheduleIdOf(sub);
+    if (scheduleId) await releasePlanChange(stripe, scheduleId);
+
+    updated = await stripe.subscriptions.update(sub.id, {
+      items: [{ id: itemId, price: target.priceId }],
+      // Invoice the difference now instead of parking it on the next bill: the
+      // customer sees one charge for the upgrade they just asked for.
+      proration_behavior: "always_invoice",
+      cancel_at_period_end: false, // upgrading un-cancels a pending cancellation
+      metadata: {
+        user_id: userId,
+        tier: target.tier,
+        // Empty string clears the key — a fixed tier must not inherit the
+        // previous custom plan's limits.
+        custom_entitlements: target.entitlements ? JSON.stringify(target.entitlements) : "",
+      },
+      expand: ["latest_invoice"],
+    });
+  } catch (err) {
+    console.error("[billing/plan-change] immediate upgrade failed:", err instanceof Error ? err.message : err);
+    return { ok: false, status: 502, error: "Could not change your plan. Please try again." };
+  }
+
+  // The invoice Stripe just raised for the proration (guarded by billing_reason
+  // so a stale latest_invoice from the last cycle can't be reported as today's
+  // charge).
+  const invoice =
+    updated.latest_invoice && typeof updated.latest_invoice === "object" ? updated.latest_invoice : null;
+  const prorationInvoice = invoice?.billing_reason === "subscription_update" ? invoice : null;
+  const chargedLabel =
+    prorationInvoice && prorationInvoice.amount_due > 0
+      ? formatMoney(prorationInvoice.amount_due, prorationInvoice.currency)
+      : null;
+
+  const result = await syncSubscription(admin, updated, stripe).catch((err) => {
+    console.warn("[billing/plan-change] post-upgrade sync failed:", err instanceof Error ? err.message : err);
+    return null;
+  });
+  // Both emails below are ours to send, with the numbers this path knows about —
+  // so the generic diff-notifier must not duplicate them.
+  if (result) {
+    await notifySubscriptionChange(admin, updated, result, {
+      suppressResumed: true,
+      suppressPlanChange: true,
+    });
+  }
+
+  const renewsOnLabel = dayLabelFromUnix(updated.current_period_end);
+  const to = await emailForUser(admin, userId);
+  if (to) {
+    await sendPlanChangeApplied({
+      to,
+      previousTierName: planFor(currentTier).name,
+      tier: target.tier,
+      tierName: planFor(target.tier).name,
+      entitlements: target.entitlements,
+      amountLabel: subscriptionAmountLabel(updated),
+      renewsOnLabel,
+      immediate: true,
+      chargedLabel,
+      invoiceUrl: prorationInvoice?.hosted_invoice_url ?? null,
+    });
+  }
+
+  return {
+    ok: true,
+    mode: "immediate",
+    tier: target.tier,
+    tierName: planFor(target.tier).name,
+    direction,
+    priceAed: target.priceAed,
+    chargedLabel,
+    invoiceUrl: prorationInvoice?.hosted_invoice_url ?? null,
+    invoicePaid: prorationInvoice ? prorationInvoice.status === "paid" : true,
+    renewsOnLabel,
+  };
+}
+
+// DOWNGRADE (or a same-price change): book `tier` to start at the end of the
+// period the user has already paid for.
+async function schedulePlanChangeAtPeriodEnd(params: {
+  admin: SupabaseClient;
+  stripe: Stripe;
+  sub: Stripe.Subscription;
+  userId: string;
+  currentTier: AiTier;
+  target: ResolvedTarget;
+  direction: PlanChangeDirection;
+}): Promise<ScheduledChange | ActionFailure> {
+  const { admin, stripe, sub, userId, currentTier, target, direction } = params;
+
   let pending;
   try {
-    pending = await schedulePlanChange(stripe, subscriptionId, target);
+    pending = await schedulePlanChange(stripe, sub.id, target);
   } catch (err) {
     console.error(
       "[billing/plan-change] schedule failed:",
@@ -104,7 +440,7 @@ export async function schedulePlanChangeForUser(params: {
   // Refresh our row from the subscription as Stripe now sees it (schedule
   // attached, any pending cancellation cleared) so the billing page renders the
   // scheduled change immediately.
-  const fresh = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
+  const fresh = await stripe.subscriptions.retrieve(sub.id).catch(() => null);
   if (fresh) {
     const result = await syncSubscription(admin, fresh, stripe).catch((err) => {
       console.warn("[billing/plan-change] post-schedule sync failed:", err instanceof Error ? err.message : err);
@@ -115,7 +451,6 @@ export async function schedulePlanChangeForUser(params: {
     if (result) await notifySubscriptionChange(admin, fresh, result, { suppressResumed: true });
   }
 
-  const direction = planChangeDirection(currentTier, tier);
   const effectiveOnLabel = dayLabel(pending.effectiveAt);
 
   const to = await emailForUser(admin, userId);
@@ -123,8 +458,8 @@ export async function schedulePlanChangeForUser(params: {
     await sendPlanChangeScheduled({
       to,
       currentTierName: planFor(currentTier).name,
-      nextTier: tier,
-      nextTierName: planFor(tier).name,
+      nextTier: target.tier,
+      nextTierName: planFor(target.tier).name,
       effectiveOnLabel,
       nextPriceLabel: pending.priceAed ? `AED ${pending.priceAed}` : null,
       nextEntitlements: pending.entitlements,
@@ -134,8 +469,9 @@ export async function schedulePlanChangeForUser(params: {
 
   return {
     ok: true,
-    tier,
-    tierName: planFor(tier).name,
+    mode: "scheduled",
+    tier: target.tier,
+    tierName: planFor(target.tier).name,
     effectiveAt: pending.effectiveAt,
     effectiveOnLabel,
     priceAed: pending.priceAed,
