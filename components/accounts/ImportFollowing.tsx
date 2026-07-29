@@ -15,6 +15,10 @@ type ImportFollowingProps = {
 };
 
 const USERNAME_RE = /^[a-z0-9._]{1,30}$/i;
+// Above this many new accounts, a first refresh is guaranteed to span Instagram's
+// hourly limit — so say so at import time rather than letting the pause surprise
+// the user later.
+const BULK_EXPECTATION_THRESHOLD = 10;
 
 // Pulls usernames out of whatever the user gives us:
 //  - a plain paste ("@user1, user2 user3")
@@ -135,6 +139,12 @@ export function ImportFollowing({ groups, bulkAddAction }: ImportFollowingProps)
         toast.success(parts.join(" · "));
         if ((result.added ?? 0) > 0) {
           toast.info(dict.photosBackfillToast);
+          // Set expectations up front for a big import: Instagram's hourly limit
+          // means these fetch over minutes, not seconds. Saying so here is what
+          // stops a paused refresh later from reading as "it broke".
+          if ((result.added ?? 0) >= BULK_EXPECTATION_THRESHOLD) {
+            toast(dict.bulkRefreshNotice(result.added ?? 0), { icon: "🔄", duration: 9000 });
+          }
         }
         setCandidates(null);
         setRawInput("");

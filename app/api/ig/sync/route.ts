@@ -192,19 +192,33 @@ export async function POST(request: Request) {
       // Refresh in the background when the shared snapshot is stale/missing.
       // Deduped by username: N users syncing @nike enqueue ONE fetch.
       const fetchedAt = freshAt.get(uname);
-      if (fetchedAt == null || fetchedAt <= staleBefore) {
+      const needsRefresh = fetchedAt == null || fetchedAt <= staleBefore;
+
+      if (needsRefresh) {
         const { skipped } = await enqueueJob(admin, {
           kind: "refresh_snapshot",
           payload: { ig_username: uname, max_reels: syncLimit },
           dedupKey: `refresh:${uname}`,
+          // A Meta cooldown can park this job for a full hour. Deferrals are
+          // attempt-neutral (lib/jobs/queue.ts), but leave real headroom for
+          // genuine retries on top of that.
+          maxAttempts: 10,
         });
         if (!skipped) queued += 1;
+      } else {
+        // Stamp ONLY when the account is genuinely current — i.e. served fresh
+        // from the shared cache with no refresh needed. When a refresh is
+        // queued, the job stamps it after a real successful fetch
+        // (lib/jobs/refresh-snapshot-job.ts). Stamping here would mark an
+        // account "synced" before its fetch even ran, so a background refresh
+        // that later failed would stay hidden behind the client's 30-minute
+        // staleness filter — the user would be told "everything is up to
+        // date" over stale data.
+        await supabase
+          .from("inspiration_accounts")
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq("id", account.id);
       }
-
-      await supabase
-        .from("inspiration_accounts")
-        .update({ last_synced_at: new Date().toISOString() })
-        .eq("id", account.id);
     }
 
     // Nudge the queue worker so background refreshes start within seconds instead
@@ -337,7 +351,22 @@ export async function POST(request: Request) {
     inserted: totalInserted,
     updated: totalUpdated,
     rateLimited: rateLimitHit,
+    // How much of this sync landed in the background queue vs. resolved inline —
+    // the ratio that tells us whether the shared cache is doing its job.
+    queued,
+    accounts: accounts.length,
+    mode: asyncMode ? "async" : "inline",
   });
+
+  // Separate event so throttling is countable on its own, not buried in a
+  // property of the success event (Admin → Analytics).
+  if (rateLimitHit) {
+    await track(user.id, "sync_throttled", {
+      retryAfterSeconds,
+      synced: totalInserted + totalUpdated,
+      accounts: accounts.length,
+    });
+  }
 
   // W5/V2: once reels have landed, enqueue transcribe jobs for the top
   // untranscribed ones (V4 durable queue). The cron worker does the Whisper work

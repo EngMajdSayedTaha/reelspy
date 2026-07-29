@@ -111,13 +111,22 @@ RPC `consume_user_action_monthly` (atomic check-and-increment in `user_monthly_u
 ### 2d. Sync modes & freshness — how "Sync All" scales (Moves 1 & 3)
 Two paths through `POST /api/ig/sync`:
 
-- **Async "Sync All"** — the dashboard button (per-account, `deferred: true`) and onboarding/bulk. **Never calls Meta inline.** Each account is materialized from the shared cache instantly (pure DB, no quota, no waiting); any account whose shared snapshot is older than **30 min** (`SYNC_BULK_TTL_SECONDS=1800`) is enqueued as a `refresh_snapshot` job **deduped by username** — so N users syncing @nike collapse to ONE background fetch. The queue worker is nudged immediately (`CRON_SECRET`) and does the fetch-once-then-materialize-to-all-trackers work (`lib/jobs/refresh-snapshot-job.ts`, fan-out capped at `REFRESH_FANOUT_LIMIT=500`). This is why Meta cost tracks **distinct accounts, not users × accounts** — nobody waits on the shared pool or on each other.
-- **Inline single-account** — a card's "Sync" button, or `force: true`. Fetches fresh from Meta now through the shared limiter for on-demand freshness. Paces 300ms only between real Meta calls; **stops early** on a throttle and returns 429 + `Retry-After` when nothing synced (partial success stays 200). The UI `SyncButton` honors `Retry-After` with a countdown + opt-in auto-resume.
+- **Async "Sync All"** — the dashboard button (per-account, `deferred: true`), a card's default **Sync**, and onboarding/bulk. **Never calls Meta inline.** Each account is materialized from the shared cache instantly (pure DB, no quota, no waiting); any account whose shared snapshot is older than **30 min** (`SYNC_BULK_TTL_SECONDS=1800`) is enqueued as a `refresh_snapshot` job **deduped by username** — so N users syncing @nike collapse to ONE background fetch. The queue worker is nudged immediately (`CRON_SECRET`) and does the fetch-once-then-materialize-to-all-trackers work (`lib/jobs/refresh-snapshot-job.ts`, fan-out capped at `REFRESH_FANOUT_LIMIT=500`). This is why Meta cost tracks **distinct accounts, not users × accounts** — nobody waits on the shared pool or on each other.
+- **Inline single-account** — a card's explicit **Force refresh**, or `force: true`. Fetches fresh from Meta now through the shared limiter for on-demand freshness, capped per user by `userHourlyRefreshCap` (`lib/instagram/rate-limit.ts`, scales with the plan's tracked-account entitlement). Paces 300ms only between real Meta calls; **stops early** on a throttle and returns 429 + `Retry-After` when nothing synced (partial success stays 200).
 
 - Background snapshot cache TTL (the `refresh-snapshots` cron): **6h** (`SNAPSHOT_TTL_SECONDS=21600`); an account with `last_status='ok'` fresher than TTL is served from cache — zero Meta calls.
 - Client-side, "Sync All" also skips accounts it synced within the last 30 min (`SYNC_SKIP_FRESH_SECONDS=1800`); throttled inline refreshes do **not** stamp `last_synced_at`.
+- **`last_synced_at` means "this account's data is genuinely current."** In async mode it is stamped only when the account was served fresh from the shared cache; when a refresh is *queued*, the background job stamps it after a real successful fetch (`lib/jobs/refresh-snapshot-job.ts`). Stamping at enqueue time would hide a failed background refresh behind the 30-min client filter and tell the user "everything is up to date" over stale data.
 - Per-account sync depth chosen in UI: 25 / 50 / 100 / 200 reels (Business Discovery pagination via cursors); snapshot store default 25 (`SNAPSHOT_MAX_REELS`).
 - Daily cron refreshes up to `SNAPSHOT_REFRESH_BATCH=50` stale accounts, then drains `SEED_ENRICH_BATCH=50` seed enrichments (§5).
+
+### 2e. Throttle handling in the job queue — defer, don't fail
+A `refresh_snapshot` job that can't run because Meta is cooling down is **deferred, not failed** (`deferJob`, `lib/jobs/queue.ts`):
+- `run_at` is set to the circuit's reopen time (`readAppPausedUntil`, `lib/instagram/rate-limit.ts`) **+ jitter** (`REFRESH_DEFER_JITTER_MS=60000`) so a whole cooldown's worth of jobs don't wake in lockstep and instantly re-trip the breaker.
+- The attempt that `claim_jobs` incremented is **rolled back**, so a deferral is attempt-neutral. Without this, a 1-hour cooldown exhausts all 5 attempts (~15 min of exponential backoff) and parks the job as `failed` ~45 min before it could ever have succeeded.
+- The worker reads the circuit **once per pass** and parks every claimed refresh job in one go rather than letting each burn an attempt against a closed door.
+- Meta-bound jobs are **paced** `REFRESH_JOB_PACE_MS=300` apart, matching the inline sync loop — an unpaced fan-out is what trips Instagram's app-level ceiling on a large first sync, independent of userbase size.
+- `refresh_snapshot` jobs are enqueued with `maxAttempts: 10`, and the daily `refresh-snapshots` cron **re-enqueues stranded `failed` jobs** whose account is still tracked and still stale (`not_found` stays terminal) — so no account can go permanently stale in silence.
 
 ---
 
@@ -238,7 +247,7 @@ Final ordering: **followers desc** (biggest, most recognizable creators first �
 
 ## 11. Background jobs & schedules
 
-Durable queue: `jobs` table + atomic `claim_jobs` RPC (`FOR UPDATE SKIP LOCKED`), exponential backoff, stuck-job reclaim after 600s. Worker: `/api/cron/run-jobs`. Job kinds: `publish_post`, `transcribe_reel`, `send_digest`, `refresh_snapshot` (background account refresh for async "Sync All" — deduped by username, fans the fresh cache out to all trackers, retried on throttle / no-token). Enqueued jobs can nudge the worker immediately via an authenticated `/api/cron/run-jobs` call so they don't wait for the next tick.
+Durable queue: `jobs` table + atomic `claim_jobs` RPC (`FOR UPDATE SKIP LOCKED`), exponential backoff for genuine faults, **attempt-neutral deferral for throttles** (§2e), stuck-job reclaim after 600s. Worker: `/api/cron/run-jobs`. Job kinds: `publish_post`, `transcribe_reel`, `send_digest`, `refresh_snapshot` (background account refresh for async "Sync All" — deduped by username, fans the fresh cache out to all trackers, retried on throttle / no-token). Enqueued jobs can nudge the worker immediately via an authenticated `/api/cron/run-jobs` call so they don't wait for the next tick.
 
 | Schedule | Where | Job |
 |---|---|---|

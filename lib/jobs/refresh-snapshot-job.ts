@@ -85,9 +85,18 @@ export async function runRefreshSnapshot(
     .eq("is_active", true)
     .limit(FANOUT_LIMIT);
 
+  const syncedAt = new Date().toISOString();
   for (const t of trackers ?? []) {
     try {
       await materializeForUser(admin, admin, t.user_id, t.id, uname, maxReels);
+      // The fetch genuinely succeeded and this tracker now holds the fresh reels,
+      // so it's honest to call it synced. The enqueueing route deliberately does
+      // NOT stamp queued accounts (see app/api/ig/sync/route.ts) — this is the
+      // only place a background refresh earns the timestamp.
+      await admin
+        .from("inspiration_accounts")
+        .update({ last_synced_at: syncedAt })
+        .eq("id", t.id);
     } catch (err) {
       // One user's materialize failing must not abort the fan-out for the rest.
       console.warn(

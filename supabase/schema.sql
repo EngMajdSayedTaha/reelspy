@@ -898,6 +898,14 @@ create index jobs_due_idx on jobs (status, run_at)
   where status in ('queued', 'running');
 create unique index jobs_dedup_active_idx on jobs (dedup_key)
   where dedup_key is not null and status in ('queued', 'running');
+-- Backs the stranded-job self-heal scan (app/api/cron/refresh-snapshots/route.ts),
+-- which looks for refresh_snapshot jobs stuck in `failed`.
+create index jobs_refresh_status_idx on jobs (kind, status, run_at)
+  where kind = 'refresh_snapshot' and status in ('queued', 'running', 'failed');
+-- Maps jobs back to accounts by `refresh:<username>`; the unique index above is
+-- partial over queued/running only, so it can't serve the failed rows.
+create index jobs_refresh_dedup_key_idx on jobs (dedup_key)
+  where kind = 'refresh_snapshot' and dedup_key is not null;
 
 create or replace function claim_jobs(
   p_worker text,

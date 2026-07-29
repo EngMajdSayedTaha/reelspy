@@ -109,6 +109,44 @@ export function backoffMs(attempts: number): number {
   return Math.min(cap, base * 2 ** Math.max(0, attempts - 1));
 }
 
+// Spread deferred wake-ups so a batch of jobs parked by the SAME cooldown doesn't
+// all fire in the same second, stampede Meta, and immediately re-trip the breaker.
+export function jitterMs(spreadMs = 60_000): number {
+  return Math.floor(Math.random() * Math.max(0, spreadMs));
+}
+
+// Reschedule a job WITHOUT counting it as a failed attempt — for work that could
+// not be *attempted* (the shared Meta circuit breaker is open), as opposed to
+// failJob, which is for work that was attempted and broke.
+//
+// This distinction is load-bearing. `claim_jobs` bumps `attempts` the moment it
+// hands a job out, so a plain reschedule still burns the attempt budget: against
+// a 1-hour Meta cooldown, five attempts of exponential backoff (~15 min total)
+// are spent long before the circuit can reopen, and the job parks as `failed`
+// ~45 minutes before it could ever have succeeded — with nothing to revive it.
+// Rolling that increment back keeps a deferral attempt-neutral, which is what
+// makes the product's "paused — resumes on its own" promise actually true.
+export async function deferJob(
+  admin: SupabaseClient,
+  job: Pick<Job, "id" | "attempts">,
+  runAt: Date,
+  reason: string
+): Promise<void> {
+  await admin
+    .from("jobs")
+    .update({
+      status: "queued",
+      run_at: runAt.toISOString(),
+      attempts: Math.max(0, job.attempts - 1),
+      // Informational, not a fault — kept so ops can see why it's waiting.
+      last_error: reason.slice(0, 1000),
+      locked_at: null,
+      locked_by: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", job.id);
+}
+
 // Failure handling: reschedule with backoff until max_attempts is spent, then
 // park the job as `failed`. The row is locked to this worker (claimed), so a
 // plain update is safe — no contention.
