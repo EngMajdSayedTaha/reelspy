@@ -32,6 +32,99 @@ const en = {
     planSwitched: "Plan updated — your new limits are live.",
     couldNotStartCheckout: "Could not start checkout.",
     couldNotOpenPortal: "Could not open billing portal.",
+    // The end-of-period policy, stated permanently on the page (not only in the
+    // confirmation dialogs) so nobody has to click something to learn the rule.
+    policy: {
+      title: "How plan changes work",
+      body: "Moving up takes effect immediately — your new limits unlock straight away and you're charged only the prorated difference for the days left in your current billing period. Moving down, or cancelling, takes effect at your next renewal date, so you always keep the plan you've already paid for. Every change is confirmed first, with the exact amount and date.",
+    },
+    upgradeConfirm: {
+      title: (plan: string) => `Upgrade to ${plan} now?`,
+      body: (current: string, plan: string, charge: string, price: string, renews: string) =>
+        `Your ${plan} limits unlock immediately. You'll be charged ${charge} today — the prorated difference for the days left in your current billing period, with credit for the ${current} time you've already paid for. From ${renews} it's ${price} per month.`,
+      bodyNoCharge: (current: string, plan: string, price: string, renews: string) =>
+        `Your ${plan} limits unlock immediately. You'll be charged only the prorated difference for the days left in your current billing period, with credit for the ${current} time you've already paid for. From ${renews} it's ${price} per month.`,
+      cta: "Upgrade now",
+      done: (plan: string) => `You're on ${plan} — your new limits are live.`,
+      doneCharged: (plan: string, charge: string) =>
+        `You're on ${plan} — charged ${charge} for the rest of this period. Your new limits are live.`,
+      unpaid:
+        "Your upgrade is live, but the prorated payment hasn't gone through yet — update your card from the billing page.",
+      nextRenewalFallback: "your next renewal",
+    },
+    previewFailed: "Could not work out what this change would cost. Please try again.",
+    scheduledBadge: "Scheduled",
+    scheduledChange: {
+      title: (plan: string) => `Scheduled: your plan changes to ${plan}`,
+      body: (current: string, plan: string, date: string) =>
+        `You stay on ${current} with your current limits until ${date}. On ${date} your subscription renews as ${plan} and the new limits apply.`,
+      bodyNoDate: (current: string, plan: string) =>
+        `You stay on ${current} until the end of your current billing period, then your subscription renews as ${plan}.`,
+      priceFrom: (price: string, date: string) => `From ${date} you'll be charged ${price} per month.`,
+      keep: "Keep my current plan",
+      confirmTitle: (plan: string) => `Cancel the scheduled switch to ${plan}?`,
+      confirmBody: (current: string, plan: string, date: string) =>
+        `The switch to ${plan} on ${date} will be called off. You stay on ${current} and it keeps renewing exactly as it does now. Nothing has been charged for the change, so there's nothing to refund. You can schedule a different plan at any time.`,
+      confirmCta: "Yes, keep my plan",
+      kept: (plan: string) => `Scheduled change cancelled — you're staying on ${plan}.`,
+    },
+    subscribeConfirm: {
+      title: (plan: string) => `Start the ${plan} plan?`,
+      body: (plan: string, price: string) =>
+        `You'll be taken to Stripe's secure checkout to subscribe to ${plan} at ${price} per month. Your plan and its limits become active as soon as the payment succeeds, and it renews every month until you cancel. Nothing is charged until you finish checkout.`,
+      cta: "Continue to checkout",
+    },
+    switchConfirm: {
+      upgradeTitle: (plan: string) => `Upgrade to ${plan} from your next renewal?`,
+      downgradeTitle: (plan: string) => `Move to ${plan} from your next renewal?`,
+      changeTitle: (plan: string) => `Switch to ${plan} from your next renewal?`,
+      body: (current: string, plan: string, date: string, price: string) =>
+        `Nothing changes today and nothing is charged today. You keep ${current} — with everything it includes — until ${date}, because you've already paid for that period. On ${date} your subscription renews as ${plan} at ${price} per month and your new limits apply from that moment. You can cancel this scheduled change any time before ${date}.`,
+      bodyNoDate: (current: string, plan: string, price: string) =>
+        `Nothing changes today and nothing is charged today. You keep ${current} until the end of the period you've already paid for, then your subscription renews as ${plan} at ${price} per month.`,
+      downgradeNote: (current: string, date: string) =>
+        ` Your higher ${current} limits stay available until ${date}.`,
+      upgradeCta: "Schedule upgrade",
+      downgradeCta: "Schedule downgrade",
+      changeCta: "Schedule change",
+      scheduled: (plan: string, date: string) => `Scheduled — you move to ${plan} on ${date}.`,
+      scheduledNoDate: (plan: string) => `Scheduled — you move to ${plan} at your next renewal.`,
+    },
+    cancelPlan: {
+      action: "Move to Free",
+      title: (plan: string) => `Cancel your ${plan} subscription?`,
+      body: (plan: string, date: string) =>
+        `You keep every ${plan} feature and limit until ${date} — you've already paid for that period, so nothing is cut short. On ${date} your subscription ends, you won't be charged again, and your account moves to the Free plan. Nothing in your account is deleted, and you can undo this at any time before ${date}.`,
+      bodyNoDate: (plan: string) =>
+        `You keep every ${plan} feature until the end of the period you've paid for. After that your subscription ends, you won't be charged again, and your account moves to the Free plan. Nothing in your account is deleted.`,
+      cta: "Cancel at period end",
+      done: (date: string) => `Cancelled — you keep full access until ${date}.`,
+      doneNoDate: "Cancelled — you keep access until the end of your paid period.",
+      pendingTitle: (date: string) => `Your plan ends on ${date}`,
+      pendingBody: (plan: string, date: string) =>
+        `You keep full ${plan} access until ${date}. You won't be charged again, and your account moves to the Free plan on that date.`,
+    },
+    resumePlan: {
+      action: "Resume subscription",
+      title: (plan: string) => `Resume your ${plan} subscription?`,
+      body: (plan: string, date: string, price: string) =>
+        `Your ${plan} plan will keep renewing instead of ending. Nothing is charged today — your normal renewal of ${price} continues on ${date}.`,
+      bodyNoDate: (plan: string) =>
+        `Your ${plan} plan will keep renewing instead of ending. Nothing is charged today.`,
+      cta: "Resume subscription",
+      done: (plan: string) => `Your ${plan} subscription will continue.`,
+    },
+    portalConfirm: {
+      title: "Open the Stripe billing portal?",
+      body: "You'll be taken to Stripe's secure portal, where you can update your card, view payment history and download invoices. Your ReelSpy plan and limits are not changed by opening it — come back to this page to change plans.",
+      cta: "Open Stripe portal",
+    },
+    customPlanConfirm: {
+      subscribeTitle: "Subscribe to your custom plan?",
+      switchTitle: "Switch to your custom plan from your next renewal?",
+      summary: (accounts: string, scripts: string, automations: string, targets: string, model: string) =>
+        `Your configuration: ${accounts} tracked accounts, ${scripts} scripts a month, ${automations} auto-replies, ${targets} publish targets, ${model}.`,
+    },
     pageTour: {
       steps: {
         planUsage: {
@@ -144,6 +237,96 @@ export const billingAr: BillingDict = {
     planSwitched: "تم تحديث باقتك — حدودك الجديدة فعّالة الآن.",
     couldNotStartCheckout: "تعذّر بدء عملية الدفع.",
     couldNotOpenPortal: "تعذّر فتح بوابة الفوترة.",
+    policy: {
+      title: "كيف تعمل تغييرات الباقة",
+      body: "الترقية إلى باقة أعلى تسري فورًا — تُفتح حدودك الجديدة على الفور ولا يُخصم منك سوى الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية. أما الانتقال إلى باقة أقل أو الإلغاء فيسري في تاريخ التجديد التالي، لتحتفظ دائمًا بالباقة التي دفعت ثمنها. ويُطلب تأكيدك قبل أي تغيير مع بيان المبلغ والتاريخ بدقة.",
+    },
+    upgradeConfirm: {
+      title: (plan: string) => `الترقية إلى ${plan} الآن؟`,
+      body: (current: string, plan: string, charge: string, price: string, renews: string) =>
+        `تُفتح حدود باقة ${plan} فورًا. سيتم خصم ${charge} اليوم — وهو الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية، مع احتساب رصيد للمدة التي دفعتها على باقة ${current}. واعتبارًا من ${renews} يصبح الاشتراك ${price} شهريًا.`,
+      bodyNoCharge: (current: string, plan: string, price: string, renews: string) =>
+        `تُفتح حدود باقة ${plan} فورًا. لن يُخصم منك سوى الفرق التناسبي عن الأيام المتبقية من فترة الفوترة الحالية، مع احتساب رصيد للمدة التي دفعتها على باقة ${current}. واعتبارًا من ${renews} يصبح الاشتراك ${price} شهريًا.`,
+      cta: "الترقية الآن",
+      done: (plan: string) => `أنت الآن على باقة ${plan} — حدودك الجديدة فعّالة.`,
+      doneCharged: (plan: string, charge: string) =>
+        `أنت الآن على باقة ${plan} — تم خصم ${charge} عن بقية هذه الفترة. حدودك الجديدة فعّالة.`,
+      unpaid: "تمت ترقيتك بالفعل، لكن الدفعة التناسبية لم تتم بعد — يرجى تحديث بطاقتك من صفحة الفوترة.",
+      nextRenewalFallback: "تجديدك التالي",
+    },
+    previewFailed: "تعذّر حساب تكلفة هذا التغيير. يرجى المحاولة مرة أخرى.",
+    scheduledBadge: "مجدول",
+    scheduledChange: {
+      title: (plan: string) => `مجدول: ستتغيّر باقتك إلى ${plan}`,
+      body: (current: string, plan: string, date: string) =>
+        `تبقى على باقة ${current} بحدودها الحالية حتى ${date}. وفي ${date} يتم تجديد اشتراكك على باقة ${plan} وتُطبَّق الحدود الجديدة.`,
+      bodyNoDate: (current: string, plan: string) =>
+        `تبقى على باقة ${current} حتى نهاية فترة الفوترة الحالية، ثم يتم تجديد اشتراكك على باقة ${plan}.`,
+      priceFrom: (price: string, date: string) => `اعتبارًا من ${date} سيتم خصم ${price} شهريًا.`,
+      keep: "الاحتفاظ بباقتي الحالية",
+      confirmTitle: (plan: string) => `إلغاء التبديل المجدول إلى ${plan}؟`,
+      confirmBody: (current: string, plan: string, date: string) =>
+        `سيتم إلغاء التبديل إلى ${plan} في ${date}. تبقى على باقة ${current} ويستمر تجديدها تمامًا كما هي الآن. لم يتم خصم أي مبلغ مقابل التغيير، لذا لا يوجد ما يُردّ. ويمكنك جدولة باقة أخرى في أي وقت.`,
+      confirmCta: "نعم، احتفظ بباقتي",
+      kept: (plan: string) => `تم إلغاء التغيير المجدول — ستبقى على باقة ${plan}.`,
+    },
+    subscribeConfirm: {
+      title: (plan: string) => `هل تريد بدء باقة ${plan}؟`,
+      body: (plan: string, price: string) =>
+        `سيتم نقلك إلى صفحة الدفع الآمنة عبر Stripe للاشتراك في باقة ${plan} بسعر ${price} شهريًا. تصبح الباقة وحدودها فعّالة فور نجاح الدفع، ويتجدد الاشتراك شهريًا حتى تقوم بإلغائه. ولن يتم خصم أي مبلغ قبل إتمام عملية الدفع.`,
+      cta: "المتابعة إلى الدفع",
+    },
+    switchConfirm: {
+      upgradeTitle: (plan: string) => `الترقية إلى ${plan} بدءًا من التجديد التالي؟`,
+      downgradeTitle: (plan: string) => `الانتقال إلى ${plan} بدءًا من التجديد التالي؟`,
+      changeTitle: (plan: string) => `التبديل إلى ${plan} بدءًا من التجديد التالي؟`,
+      body: (current: string, plan: string, date: string, price: string) =>
+        `لن يتغيّر شيء اليوم ولن يتم خصم أي مبلغ اليوم. تحتفظ بباقة ${current} بكل ما تتضمّنه حتى ${date} لأنك دفعت ثمن تلك الفترة بالفعل. وفي ${date} يتم تجديد اشتراكك على باقة ${plan} بسعر ${price} شهريًا وتُطبَّق حدودك الجديدة من تلك اللحظة. ويمكنك إلغاء هذا التغيير المجدول في أي وقت قبل ${date}.`,
+      bodyNoDate: (current: string, plan: string, price: string) =>
+        `لن يتغيّر شيء اليوم ولن يتم خصم أي مبلغ اليوم. تحتفظ بباقة ${current} حتى نهاية الفترة المدفوعة، ثم يتم تجديد اشتراكك على باقة ${plan} بسعر ${price} شهريًا.`,
+      downgradeNote: (current: string, date: string) =>
+        ` تبقى حدود باقة ${current} الأعلى متاحة لك حتى ${date}.`,
+      upgradeCta: "جدولة الترقية",
+      downgradeCta: "جدولة التخفيض",
+      changeCta: "جدولة التغيير",
+      scheduled: (plan: string, date: string) => `تمت الجدولة — ستنتقل إلى ${plan} في ${date}.`,
+      scheduledNoDate: (plan: string) => `تمت الجدولة — ستنتقل إلى ${plan} عند التجديد التالي.`,
+    },
+    cancelPlan: {
+      action: "الانتقال إلى المجانية",
+      title: (plan: string) => `إلغاء اشتراك ${plan}؟`,
+      body: (plan: string, date: string) =>
+        `تحتفظ بكل مزايا وحدود باقة ${plan} حتى ${date} — فقد دفعت ثمن تلك الفترة ولن يتم إنهاؤها مبكرًا. وفي ${date} ينتهي اشتراكك، ولن يتم خصم أي مبلغ بعد ذلك، وينتقل حسابك إلى الباقة المجانية. لن يُحذف أي شيء من حسابك، ويمكنك التراجع في أي وقت قبل ${date}.`,
+      bodyNoDate: (plan: string) =>
+        `تحتفظ بكل مزايا باقة ${plan} حتى نهاية الفترة المدفوعة. بعدها ينتهي اشتراكك ولن يتم خصم أي مبلغ، وينتقل حسابك إلى الباقة المجانية. ولن يُحذف أي شيء من حسابك.`,
+      cta: "الإلغاء في نهاية الفترة",
+      done: (date: string) => `تم الإلغاء — تحتفظ بكامل الصلاحيات حتى ${date}.`,
+      doneNoDate: "تم الإلغاء — تحتفظ بصلاحياتك حتى نهاية الفترة المدفوعة.",
+      pendingTitle: (date: string) => `تنتهي باقتك في ${date}`,
+      pendingBody: (plan: string, date: string) =>
+        `تحتفظ بكامل صلاحيات باقة ${plan} حتى ${date}. لن يتم خصم أي مبلغ بعد ذلك، وينتقل حسابك إلى الباقة المجانية في ذلك التاريخ.`,
+    },
+    resumePlan: {
+      action: "استئناف الاشتراك",
+      title: (plan: string) => `استئناف اشتراك ${plan}؟`,
+      body: (plan: string, date: string, price: string) =>
+        `ستستمر باقة ${plan} في التجديد بدلاً من الانتهاء. لن يتم خصم أي مبلغ اليوم — ويستمر تجديدك المعتاد بمبلغ ${price} في ${date}.`,
+      bodyNoDate: (plan: string) =>
+        `ستستمر باقة ${plan} في التجديد بدلاً من الانتهاء. ولن يتم خصم أي مبلغ اليوم.`,
+      cta: "استئناف الاشتراك",
+      done: (plan: string) => `سيستمر اشتراك ${plan} الخاص بك.`,
+    },
+    portalConfirm: {
+      title: "فتح بوابة الفوترة من Stripe؟",
+      body: "سيتم نقلك إلى بوابة Stripe الآمنة حيث يمكنك تحديث بطاقتك والاطّلاع على سجل المدفوعات وتنزيل الفواتير. لن تتغيّر باقتك أو حدودك في ReelSpy بمجرد فتحها — عُد إلى هذه الصفحة لتغيير الباقة.",
+      cta: "فتح بوابة Stripe",
+    },
+    customPlanConfirm: {
+      subscribeTitle: "الاشتراك في باقتك المخصّصة؟",
+      switchTitle: "التبديل إلى باقتك المخصّصة بدءًا من التجديد التالي؟",
+      summary: (accounts: string, scripts: string, automations: string, targets: string, model: string) =>
+        `إعداداتك: ${accounts} حسابًا متابَعًا، ${scripts} نصًا شهريًا، ${automations} ردًا آليًا، ${targets} وجهة نشر، ${model}.`,
+    },
     pageTour: {
       steps: {
         planUsage: {

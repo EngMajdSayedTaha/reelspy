@@ -108,6 +108,11 @@ set server-side.
 **This means you must edit the link URL in each template — do not use the
 default `{{ .ConfirmationURL }}`.**
 
+> The branded, ready-to-paste versions of both templates (matching the product's
+> email design — logo header, footer, support link) live in
+> [`email-templates.md`](./email-templates.md). The snippets below are the
+> minimal originals, kept for reference; prefer the branded ones.
+
 ### Confirm signup
 
 Set the link href to:

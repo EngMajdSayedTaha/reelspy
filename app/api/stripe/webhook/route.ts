@@ -3,13 +3,24 @@ import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/billing/stripe";
-import { syncSubscription, resolveUserId, customerIdOf, tierOfSubscription } from "@/lib/billing/sync";
+import {
+  syncSubscription,
+  resolveUserId,
+  customerIdOf,
+  tierOfSubscription,
+  customEntitlementsOf,
+} from "@/lib/billing/sync";
+import { notifySubscriptionChange, emailForUser } from "@/lib/billing/notify";
+import { dayLabelFromUnix } from "@/lib/billing/format";
 import { planFor, tierForStripePrice } from "@/lib/billing/plans";
+import type { AiTier } from "@/lib/ai/tier";
+import type { Entitlements } from "@/lib/billing/entitlements";
 import {
   formatMoney,
   sendSubscriptionWelcome,
   sendPaymentReceipt,
   sendPaymentFailed,
+  sendRenewalReminder,
   sendSubscriptionCancelled,
   sendRefundIssued,
   sendDisputeAlert,
@@ -21,6 +32,12 @@ import {
 // dashboard all behave identically. Every request is signature-verified against
 // STRIPE_WEBHOOK_SECRET before we trust a byte of it; an unverified/forged call is
 // rejected 400.
+//
+// This is also where DEFERRED PLAN CHANGES actually land. A scheduled upgrade or
+// downgrade doesn't touch the app when the user requests it — Stripe advances the
+// subscription schedule's phase at the renewal date and sends
+// customer.subscription.updated, and only THEN does `tier` move here and the
+// "your new plan is live" email go out. See lib/billing/schedule.ts.
 //
 // Idempotency: Stripe delivers events AT LEAST once (retries on our 5xx, plus the
 // odd duplicate). We record each fully-processed event id in `billing_events` and
@@ -36,32 +53,34 @@ export const runtime = "nodejs";
 
 // ── small helpers ────────────────────────────────────────────────────────────
 
-// Look up a user's email from GoTrue (service-role). Best-effort — null on any
-// failure so a missing email just means "no notification", never a 500.
-async function emailForUser(admin: SupabaseClient, userId: string | null): Promise<string | null> {
-  if (!userId) return null;
+// Which plan a Stripe Price sells. A custom (build-your-own) subscription's
+// ad-hoc price matches no STRIPE_PRICE_* id, so it reads as the custom tier.
+function planFromPriceId(priceId: string | null | undefined): { tier: AiTier; name: string } {
+  const tier: AiTier = (priceId ? tierForStripePrice(priceId) : null) ?? "custom";
+  return { tier, name: planFor(tier).name };
+}
+
+function subscriptionIdOf(invoice: Stripe.Invoice): string | null {
+  const sub = invoice.subscription;
+  if (!sub) return null;
+  return typeof sub === "string" ? sub : sub.id;
+}
+
+// A custom subscriber's own limits, for emails that list what a plan includes.
+// Only fetched when it matters (custom tier) — fixed tiers read ENTITLEMENTS.
+async function customEntitlementsForInvoice(
+  stripe: Stripe,
+  invoice: Stripe.Invoice,
+  tier: AiTier
+): Promise<Entitlements | null> {
+  if (tier !== "custom") return null;
+  const subId = subscriptionIdOf(invoice);
+  if (!subId) return null;
   try {
-    const { data } = await admin.auth.admin.getUserById(userId);
-    return data.user?.email ?? null;
+    return customEntitlementsOf(await stripe.subscriptions.retrieve(subId));
   } catch {
     return null;
   }
-}
-
-// Display name of the plan a Stripe Price sells; "Custom" for the ad-hoc
-// (build-your-own) price, which matches no fixed STRIPE_PRICE_* id.
-function tierNameFromPriceId(priceId: string | null | undefined): string {
-  const tier = priceId ? tierForStripePrice(priceId) : null;
-  return tier ? planFor(tier).name : "Custom";
-}
-
-function fmtUnix(unix: number | null | undefined): string | null {
-  if (!unix) return null;
-  return new Date(unix * 1000).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 // ── event handlers ───────────────────────────────────────────────────────────
@@ -85,6 +104,17 @@ async function canonicalSub(stripe: Stripe, sub: Stripe.Subscription): Promise<S
   }
 }
 
+// Sync + diff-notify: writes the row, then lets lib/billing/notify decide which
+// (if any) lifecycle email this transition earns.
+async function syncAndNotify(
+  admin: SupabaseClient,
+  stripe: Stripe,
+  sub: Stripe.Subscription
+): Promise<void> {
+  const result = await syncSubscription(admin, sub, stripe);
+  if (result) await notifySubscriptionChange(admin, sub, result);
+}
+
 async function handleInvoicePaid(
   admin: SupabaseClient,
   stripe: Stripe,
@@ -104,13 +134,15 @@ async function handleInvoicePaid(
   if (!to) return;
 
   const line = invoice.lines?.data?.[0];
-  const tierName = tierNameFromPriceId(line?.price?.id);
-  const renewsOnLabel = fmtUnix(line?.period?.end ?? invoice.period_end);
+  const { tier, name: tierName } = planFromPriceId(line?.price?.id);
+  const renewsOnLabel = dayLabelFromUnix(line?.period?.end ?? invoice.period_end);
 
   if (reason === "subscription_create") {
     await sendSubscriptionWelcome({
       to,
       tierName,
+      tier,
+      entitlements: await customEntitlementsForInvoice(stripe, invoice, tier),
       renewsOnLabel,
       amountLabel: formatMoney(invoice.amount_paid, invoice.currency),
       invoiceUrl: invoice.hosted_invoice_url,
@@ -121,7 +153,12 @@ async function handleInvoicePaid(
       tierName,
       amountLabel: formatMoney(invoice.amount_paid, invoice.currency),
       invoiceUrl: invoice.hosted_invoice_url,
+      invoiceNumber: invoice.number,
+      paidOnLabel: dayLabelFromUnix(invoice.status_transitions?.paid_at ?? invoice.created),
       renewsOnLabel,
+      // `subscription_update` is the mid-period difference Stripe invoices when
+      // a customer upgrades — a receipt, but not a monthly one.
+      kind: reason === "subscription_update" ? "proration" : "renewal",
     });
   }
 }
@@ -138,20 +175,70 @@ async function handleInvoiceFailed(
   const userId = await resolveUserId(admin, undefined, customerId);
   const to = invoice.customer_email ?? (await emailForUser(admin, userId));
   if (!to) return;
-  const tierName = tierNameFromPriceId(invoice.lines?.data?.[0]?.price?.id);
-  await sendPaymentFailed({ to, tierName });
+  const { name: tierName } = planFromPriceId(invoice.lines?.data?.[0]?.price?.id);
+  await sendPaymentFailed({
+    to,
+    tierName,
+    amountLabel: formatMoney(invoice.amount_due, invoice.currency),
+    nextAttemptLabel: dayLabelFromUnix(invoice.next_payment_attempt),
+    invoiceUrl: invoice.hosted_invoice_url,
+  });
+}
+
+// invoice.upcoming — Stripe's advance notice (a few days before it charges).
+// The upcoming invoice has no id and can't be re-fetched, so read it as sent.
+async function handleInvoiceUpcoming(
+  admin: SupabaseClient,
+  invoice: Stripe.Invoice
+): Promise<void> {
+  const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id ?? null;
+  const userId = await resolveUserId(admin, undefined, customerId);
+  const to = invoice.customer_email ?? (await emailForUser(admin, userId));
+  if (!to) return;
+
+  const renewsOnLabel = dayLabelFromUnix(
+    invoice.next_payment_attempt ?? invoice.period_end ?? invoice.lines?.data?.[0]?.period?.end
+  );
+  if (!renewsOnLabel) return;
+
+  // Name the pending plan too, if one is scheduled — this is the last email
+  // before a deferred change takes effect, so it doubles as the final heads-up.
+  let pendingTierName: string | null = null;
+  let currentTierName = planFromPriceId(invoice.lines?.data?.[0]?.price?.id).name;
+  if (userId) {
+    try {
+      const { data } = await admin
+        .from("subscriptions")
+        .select("tier, pending_tier")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (data?.tier) currentTierName = planFor(data.tier as AiTier).name;
+      if (data?.pending_tier) pendingTierName = planFor(data.pending_tier as AiTier).name;
+    } catch {
+      // Pre-migration database — the reminder is still worth sending without it.
+    }
+  }
+
+  await sendRenewalReminder({
+    to,
+    tierName: currentTierName,
+    amountLabel: formatMoney(invoice.amount_due, invoice.currency),
+    renewsOnLabel,
+    pendingTierName,
+  });
 }
 
 async function handleSubscriptionDeleted(
   admin: SupabaseClient,
+  stripe: Stripe,
   sub: Stripe.Subscription
 ): Promise<void> {
   // Sync first — drops the row's tier to free so entitlements revoke — then notify.
-  await syncSubscription(admin, sub);
+  const tierName = planFor(tierOfSubscription(sub)).name;
+  await syncSubscription(admin, sub, stripe);
   const userId = await resolveUserId(admin, sub.metadata?.user_id, customerIdOf(sub));
   const to = await emailForUser(admin, userId);
   if (!to) return;
-  const tierName = planFor(tierOfSubscription(sub)).name;
   await sendSubscriptionCancelled({ to, tierName, accessUntilLabel: null });
 }
 
@@ -164,7 +251,11 @@ async function handleChargeRefunded(
   const userId = await resolveUserId(admin, undefined, customerId);
   const to = charge.billing_details?.email ?? (await emailForUser(admin, userId));
   if (to) {
-    await sendRefundIssued({ to, amountLabel: formatMoney(charge.amount_refunded, charge.currency) });
+    await sendRefundIssued({
+      to,
+      amountLabel: formatMoney(charge.amount_refunded, charge.currency),
+      full: charge.refunded,
+    });
   }
 
   // Policy: a FULL refund cancels the subscription immediately. charge.refunded is
@@ -207,6 +298,7 @@ async function handleDispute(
     amountLabel: formatMoney(dispute.amount, dispute.currency),
     reason: dispute.reason,
     customerEmail,
+    dueByLabel: dayLabelFromUnix(dispute.evidence_details?.due_by),
   });
 }
 
@@ -266,19 +358,21 @@ export async function POST(request: Request) {
           if (!sub.metadata?.user_id && session.metadata?.user_id) {
             sub.metadata = { ...sub.metadata, user_id: session.metadata.user_id };
           }
-          await syncSubscription(admin, sub);
+          await syncSubscription(admin, sub, stripe);
         }
         break;
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {
+        // Also the moment a SCHEDULED plan change goes live: Stripe advances the
+        // schedule phase at the renewal and the new price lands here.
         const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
-        await syncSubscription(admin, sub);
+        await syncAndNotify(admin, stripe, sub);
         break;
       }
       case "customer.subscription.deleted": {
         const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
-        await handleSubscriptionDeleted(admin, sub);
+        await handleSubscriptionDeleted(admin, stripe, sub);
         break;
       }
       case "invoice.payment_succeeded": {
@@ -287,6 +381,10 @@ export async function POST(request: Request) {
       }
       case "invoice.payment_failed": {
         await handleInvoiceFailed(admin, stripe, event.data.object as Stripe.Invoice);
+        break;
+      }
+      case "invoice.upcoming": {
+        await handleInvoiceUpcoming(admin, event.data.object as Stripe.Invoice);
         break;
       }
       case "charge.refunded": {

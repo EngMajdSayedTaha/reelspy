@@ -1,9 +1,11 @@
 // Publish-failure summary email (L9 / B4). Composes a per-platform failure
-// digest and sends it via `sendEmail`. Server-only, fail-open — a broken or
-// unconfigured notification must never affect the publish result.
+// digest on the shared branded template (lib/email/layout.ts) and sends it via
+// `sendEmail`. Server-only, fail-open — a broken or unconfigured notification
+// must never affect the publish result.
 
 import "server-only";
 import { sendEmail } from "./send";
+import { buildEmail, type EmailBlock } from "./layout";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
 import { getSiteUrl } from "@/lib/site";
 
@@ -11,14 +13,6 @@ export type FailedTarget = {
   platform: Platform;
   error: string;
 };
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 // Sends one summary email when a post finishes with at least one failed target.
 // `published` is the count of targets that succeeded (so the copy can say
@@ -34,47 +28,48 @@ export async function notifyPublishFailure(params: {
 
   const deepLink = `${getSiteUrl()}/dashboard/publishing`;
   const partial = published > 0;
-  const heading = partial
+  const title = partial
     ? `Your post published to ${published} platform${published === 1 ? "" : "s"}, but ${failed.length} failed`
     : `Your post couldn't be published`;
 
-  const rowsHtml = failed
-    .map(
-      (f) =>
-        `<li style="margin-bottom:8px"><strong>${escapeHtml(PLATFORM_LABELS[f.platform])}</strong>: ${escapeHtml(f.error)}</li>`
-    )
-    .join("");
-
-  const html = `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0F172A;max-width:520px;margin:0 auto">
-    <h2 style="font-size:18px;margin:0 0 12px">${escapeHtml(heading)}</h2>
-    <p style="font-size:14px;color:#475569;margin:0 0 16px">
-      Post: <strong>${escapeHtml(postTitle)}</strong>
-    </p>
-    <ul style="font-size:14px;color:#0F172A;padding-left:18px;margin:0 0 20px">${rowsHtml}</ul>
-    <a href="${deepLink}"
-       style="display:inline-block;background:#F9E400;color:#121212;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">
-      Review &amp; retry
-    </a>
-    <p style="font-size:12px;color:#94A3B8;margin:20px 0 0">
-      Retrying a failed platform re-runs only that target — successful posts are never duplicated.
-    </p>
-  </div>`;
-
-  const textLines = [
-    heading,
-    "",
-    `Post: ${postTitle}`,
-    "",
-    ...failed.map((f) => `- ${PLATFORM_LABELS[f.platform]}: ${f.error}`),
-    "",
-    `Review & retry: ${deepLink}`,
+  const blocks: EmailBlock[] = [
+    {
+      kind: "paragraph",
+      text: partial
+        ? `Part of this post went out. The platforms below rejected it and are waiting for a retry — the ones that succeeded are already live and are never re-posted.`
+        : `None of the targets accepted this post. Nothing was published, so retrying is safe.`,
+    },
+    {
+      kind: "rows",
+      caption: "Post",
+      rows: [
+        { label: "Title", value: postTitle, emphasis: true },
+        { label: "Published", value: `${published} platform${published === 1 ? "" : "s"}` },
+        { label: "Failed", value: `${failed.length} platform${failed.length === 1 ? "" : "s"}` },
+      ],
+    },
+    {
+      kind: "bullets",
+      caption: "What went wrong",
+      items: failed.map((f) => `${PLATFORM_LABELS[f.platform]}: ${f.error}`),
+    },
   ];
+
+  const { html, text } = buildEmail({
+    eyebrow: "Publishing",
+    preheader: `${failed.length} platform${failed.length === 1 ? "" : "s"} rejected "${postTitle}".`,
+    title,
+    blocks,
+    cta: { href: deepLink, label: "Review & retry" },
+    footnote:
+      "Retrying a failed platform re-runs only that target — successful posts are never duplicated.",
+    reason: "You're receiving this because a post you scheduled in ReelSpy didn't fully publish.",
+  });
 
   return sendEmail({
     to,
     subject: partial ? `Partial publish — ${failed.length} platform(s) failed` : `Publish failed`,
     html,
-    text: textLines.join("\n"),
+    text,
   });
 }
