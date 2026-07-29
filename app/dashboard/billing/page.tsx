@@ -1,18 +1,25 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { Check, CheckCircle2, XCircle } from "lucide-react";
+import { CalendarClock, Check, CheckCircle2, Info, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSubscription } from "@/lib/billing/subscription";
+import { getSubscription, getPendingPlanChange } from "@/lib/billing/subscription";
 import { syncSubscriptionForUser } from "@/lib/billing/sync";
 import { getStripe } from "@/lib/billing/stripe";
 import { formatLimit, isUnlimited, entitlementsFor, ENTITLEMENTS } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
 import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
+import { planChangeDirection, planPriceLabel } from "@/lib/billing/format";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SubscribeButton, ManageBillingButton } from "@/components/billing/BillingActions";
+import {
+  SubscribeButton,
+  ManageBillingButton,
+  KeepCurrentPlanButton,
+  CancelSubscriptionButton,
+  ResumeSubscriptionButton,
+} from "@/components/billing/BillingActions";
 import { DynamicPlanCard } from "@/components/billing/DynamicPlanCard";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -135,13 +142,28 @@ export default async function BillingPage({ searchParams }: PageProps) {
   ]);
 
   const hasSubscription = Boolean(sub?.stripeCustomerId);
-  const renewLabel = sub?.currentPeriodEnd
-    ? new Date(sub.currentPeriodEnd).toLocaleDateString(intlLocale(locale), {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      })
+  const dateLabel = (value: string | null | undefined) =>
+    value
+      ? new Date(value).toLocaleDateString(intlLocale(locale), {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : null;
+  const renewLabel = dateLabel(sub?.currentPeriodEnd);
+
+  // A plan change the user has already scheduled for their next renewal. It is
+  // deliberately NOT applied to `billingTier`/`ent` above: until Stripe advances
+  // the schedule, the customer is on — and entitled to — the plan they paid for.
+  const pending = sub?.active ? await getPendingPlanChange(supabase, user.id) : null;
+  const pendingPlanName = pending
+    ? t.plans[pending.tier as "free" | "creator" | "pro" | "studio" | "custom"].name
     : null;
+  const pendingEffectiveLabel = dateLabel(pending?.effectiveAt) ?? renewLabel;
+  const currentPlanName = t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name;
+  const currentPriceLabel = planPriceLabel(billingTier) ?? "";
+  // Every in-app plan action needs a live Stripe subscription to schedule against.
+  const canManagePlan = Boolean(sub?.active && sub.stripeSubscriptionId);
 
   return (
     <div className="space-y-6">
@@ -193,6 +215,58 @@ export default async function BillingPage({ searchParams }: PageProps) {
             </div>
           ) : null}
         </CardHeader>
+
+        {/* A scheduled plan change: what's coming, when, and the way out of it. */}
+        {pending && pendingPlanName ? (
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-warning/5 px-6 py-4">
+            <div className="space-y-1">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <CalendarClock className="h-4 w-4 shrink-0 text-warning" />
+                {t.scheduledChange.title(pendingPlanName)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {pendingEffectiveLabel
+                  ? t.scheduledChange.body(currentPlanName, pendingPlanName, pendingEffectiveLabel)
+                  : t.scheduledChange.bodyNoDate(currentPlanName, pendingPlanName)}
+                {pending.priceAed && pendingEffectiveLabel
+                  ? ` ${t.scheduledChange.priceFrom(`AED ${pending.priceAed}`, pendingEffectiveLabel)}`
+                  : null}
+              </p>
+            </div>
+            {canManagePlan ? (
+              <KeepCurrentPlanButton
+                currentPlanName={currentPlanName}
+                pendingPlanName={pendingPlanName}
+                effectiveOnLabel={pendingEffectiveLabel}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* A scheduled cancellation: access continues, and it can be undone. */}
+        {sub?.active && sub.cancelAtPeriodEnd ? (
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b bg-destructive/5 px-6 py-4">
+            <div className="space-y-1">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <CalendarClock className="h-4 w-4 shrink-0 text-destructive" />
+                {renewLabel ? t.cancelPlan.pendingTitle(renewLabel) : t.cancelPlan.action}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {renewLabel
+                  ? t.cancelPlan.pendingBody(currentPlanName, renewLabel)
+                  : t.cancelPlan.bodyNoDate(currentPlanName)}
+              </p>
+            </div>
+            {canManagePlan ? (
+              <ResumeSubscriptionButton
+                planName={currentPlanName}
+                renewsOnLabel={renewLabel}
+                priceLabel={currentPriceLabel}
+              />
+            ) : null}
+          </div>
+        ) : null}
+
         <CardContent className="grid gap-4 pt-4 sm:grid-cols-2">
           <UsageRow label={t.usage.trackedAccounts} used={accountsUsed} limit={ent.accounts} />
           <UsageRow label={t.usage.scriptsThisMonth} used={scriptsUsed} limit={ent.scripts_mo} />
@@ -205,10 +279,21 @@ export default async function BillingPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
+      {/* The end-of-period rule, stated permanently — not only inside the
+          confirmation dialogs — so it's never a surprise. */}
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-2 px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-foreground">{t.policy.title}</p>
+          <p className="text-sm text-muted-foreground">{t.policy.body}</p>
+        </div>
+      </div>
+
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {PLANS.map((plan) => {
           const isCurrent = plan.tier === billingTier;
+          const isPendingPlan = pending?.tier === plan.tier;
           const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);
           const currentIndex = PLANS.findIndex((p) => p.tier === billingTier);
           const isUpgrade = planIndex > currentIndex;
@@ -216,12 +301,18 @@ export default async function BillingPage({ searchParams }: PageProps) {
           return (
             <Card
               key={plan.tier}
-              className={isCurrent ? "ring-2 ring-primary" : undefined}
+              className={
+                isCurrent ? "ring-2 ring-primary" : isPendingPlan ? "ring-2 ring-warning/60" : undefined
+              }
             >
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   {planCopy.name}
-                  {isCurrent ? <Badge variant="secondary">{t.current}</Badge> : null}
+                  {isCurrent ? (
+                    <Badge variant="secondary">{t.current}</Badge>
+                  ) : isPendingPlan ? (
+                    <Badge variant="outline">{t.scheduledBadge}</Badge>
+                  ) : null}
                 </CardTitle>
                 <CardDescription>{planCopy.tagline}</CardDescription>
                 <div className="pt-1 text-2xl font-semibold text-foreground">
@@ -247,15 +338,33 @@ export default async function BillingPage({ searchParams }: PageProps) {
                   ))}
                 </ul>
                 <div className="mt-auto">
-                  {isPaidTier(plan.tier) && !isCurrent ? (
+                  {isPendingPlan && pendingEffectiveLabel ? (
+                    <p className="text-center text-xs text-muted-foreground">
+                      {t.scheduledChange.title(planCopy.name)} · {pendingEffectiveLabel}
+                    </p>
+                  ) : isPaidTier(plan.tier) && !isCurrent ? (
                     <SubscribeButton
                       tier={plan.tier as PaidTier}
                       label={isUpgrade ? t.upgrade : t.switchPlan}
                       variant={isUpgrade ? "default" : "outline"}
                       disabled={!stripeConfigured()}
+                      planName={planCopy.name}
+                      priceLabel={planPriceLabel(plan.tier) ?? ""}
+                      currentPlanName={currentPlanName}
+                      effectiveOnLabel={renewLabel}
+                      direction={planChangeDirection(billingTier, plan.tier)}
+                      hasSubscription={canManagePlan}
                     />
                   ) : isCurrent ? (
                     <p className="text-center text-xs text-muted-foreground">{t.yourCurrentPlan}</p>
+                  ) : plan.tier === "free" && canManagePlan && !sub?.cancelAtPeriodEnd ? (
+                    // Downgrading to Free means ending the subscription — same
+                    // end-of-period promise, so it lives on the Free card.
+                    <CancelSubscriptionButton
+                      planName={currentPlanName}
+                      accessUntilLabel={renewLabel}
+                      className="w-full"
+                    />
                   ) : (
                     <p className="text-center text-xs text-muted-foreground">{t.included}</p>
                   )}
@@ -267,7 +376,12 @@ export default async function BillingPage({ searchParams }: PageProps) {
       </div>
 
       {/* Dynamic "build your own plan" card (B4) */}
-      <DynamicPlanCard disabled={!stripeConfigured()} />
+      <DynamicPlanCard
+        disabled={!stripeConfigured()}
+        hasSubscription={canManagePlan}
+        currentPlanName={currentPlanName}
+        effectiveOnLabel={renewLabel}
+      />
     </div>
   );
 }

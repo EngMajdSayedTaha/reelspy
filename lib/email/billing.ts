@@ -1,23 +1,32 @@
-// Billing lifecycle emails (payment hardening). Composes the transactional
-// emails the Stripe webhook sends across a subscription's life — welcome,
-// renewal receipt, failed payment (dunning), cancellation, refund — plus an
-// internal founder alert on a dispute. Server-only and FAIL-OPEN throughout:
-// every function delegates to `sendEmail`, which no-ops (returns false) when
-// Resend isn't configured, so a missing/broken notification can never fail the
-// webhook or a billing state change. Stripe still sends its own card receipts;
-// these are the app-branded, deep-linked layer on top.
+// Billing lifecycle emails. Every money- or plan-related message a customer can
+// receive is composed here, on the shared branded template (lib/email/layout.ts),
+// so the whole subscription lifecycle reads as one voice:
+//
+//   subscription started        → sendSubscriptionWelcome
+//   renewal charged             → sendPaymentReceipt
+//   renewal coming up           → sendRenewalReminder
+//   card declined               → sendPaymentFailed
+//   plan change booked          → sendPlanChangeScheduled   (upgrade or downgrade)
+//   plan change went live       → sendPlanChangeApplied
+//   plan change called off      → sendPlanChangeCancelled
+//   cancellation booked         → sendCancellationScheduled
+//   cancellation called off     → sendSubscriptionResumed
+//   subscription ended          → sendSubscriptionCancelled
+//   money returned              → sendRefundIssued
+//   chargeback (internal)       → sendDisputeAlert
+//
+// Server-only and FAIL-OPEN throughout: every function delegates to `sendEmail`,
+// which no-ops (returns false) when Resend isn't configured, so a missing or
+// broken notification can never fail the webhook or a billing state change.
+// Stripe still sends its own card receipts; these are the app-branded,
+// deep-linked layer on top.
 
 import "server-only";
 import { sendEmail } from "./send";
+import { buildEmail, type EmailBlock } from "./layout";
 import { getSiteUrl } from "@/lib/site";
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
+import type { AiTier } from "@/lib/ai/tier";
+import { entitlementsFor, formatLimit, type Entitlements } from "@/lib/billing/entitlements";
 
 // Format a Stripe minor-unit amount (e.g. 4900) + currency ("aed") as "AED 49.00".
 export function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined): string {
@@ -26,72 +35,87 @@ export function formatMoney(amountMinor: number | null | undefined, currency: st
   return `${code} ${major.toFixed(2)}`;
 }
 
-// Shared branded shell so every billing email reads as one system. Light layout
-// (renders reliably across mail clients) with the neon-yellow CTA, matching
-// lib/email/publish-failure.ts. `cta` is optional (the dispute alert has none).
-function shell(params: {
-  heading: string;
-  bodyHtml: string;
-  cta?: { href: string; label: string };
-  footnote?: string;
-}): string {
-  const { heading, bodyHtml, cta, footnote } = params;
-  const ctaHtml = cta
-    ? `<a href="${cta.href}" style="display:inline-block;background:#F9E400;color:#121212;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;font-weight:600">${escapeHtml(cta.label)}</a>`
-    : "";
-  const footHtml = footnote
-    ? `<p style="font-size:12px;color:#94A3B8;margin:20px 0 0">${footnote}</p>`
-    : "";
-  return `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0F172A;max-width:520px;margin:0 auto">
-    <h2 style="font-size:18px;margin:0 0 12px">${escapeHtml(heading)}</h2>
-    ${bodyHtml}
-    ${ctaHtml}
-    ${footHtml}
-  </div>`;
+const billingUrl = () => `${getSiteUrl()}/dashboard/billing`;
+
+const MODEL_LABELS: Record<Entitlements["model"], string> = {
+  haiku: "Claude Haiku",
+  sonnet: "Claude Sonnet",
+  opus: "Claude Opus",
+};
+
+// What a plan actually gives you, spelled out. Used wherever an email tells the
+// customer what they're getting (or losing) so the numbers always come from the
+// same entitlements table the product enforces — never from hand-written copy.
+export function planHighlights(tier: AiTier, custom?: Entitlements | null): string[] {
+  const ent = custom ?? entitlementsFor(tier);
+  return [
+    `${formatLimit(ent.accounts)} tracked competitor accounts`,
+    `${formatLimit(ent.scripts_mo)} AI scripts per month`,
+    `${formatLimit(ent.transcripts_mo)} reel transcripts per month`,
+    `${formatLimit(ent.automations)} comment auto-replies`,
+    `${MODEL_LABELS[ent.model]} powering your scripts`,
+    ...(ent.publish_targets > 0
+      ? [`Publishing to ${formatLimit(ent.publish_targets)} connected channel${ent.publish_targets === 1 ? "" : "s"}`]
+      : []),
+  ];
 }
 
-const billingUrl = () => `${getSiteUrl()}/dashboard/billing`;
+const PLAN_REASON = "You're receiving this because you have a paid ReelSpy subscription.";
 
 // ── Welcome / subscription confirmed (first invoice) ─────────────────────────
 // Doubles as a payment confirmation: when the amount + hosted invoice are known
 // it shows what was charged and links to the Stripe invoice/receipt (which has a
-// downloadable PDF). Stripe also sends its own formal receipt when "Successful
-// payments" emails are enabled — this is the branded onboarding companion.
+// downloadable PDF).
 export async function sendSubscriptionWelcome(params: {
   to: string;
   tierName: string;
+  tier?: AiTier;
+  entitlements?: Entitlements | null;
   renewsOnLabel?: string | null;
   amountLabel?: string | null;
   invoiceUrl?: string | null;
 }): Promise<boolean> {
-  const { to, tierName, renewsOnLabel, amountLabel, invoiceUrl } = params;
-  const heading = `You're on ReelSpy ${tierName} 🎉`;
-  const paidLine = amountLabel
-    ? `<p style="font-size:14px;color:#475569;margin:0 0 8px">Payment received: <strong>${escapeHtml(amountLabel)}</strong>.${
-        invoiceUrl ? ` <a href="${invoiceUrl}" style="color:#0F172A;text-decoration:underline">View invoice / receipt</a>.` : ""
-      }</p>`
-    : "";
-  const renewLine = renewsOnLabel
-    ? `<p style="font-size:14px;color:#475569;margin:0 0 16px">Your plan renews on <strong>${escapeHtml(renewsOnLabel)}</strong>. Cancel or switch anytime from the billing page.</p>`
-    : `<p style="font-size:14px;color:#475569;margin:0 0 16px">Manage or cancel anytime from the billing page.</p>`;
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 8px">Your subscription is active — every ${escapeHtml(tierName)} feature is unlocked.</p>${paidLine}${renewLine}`,
-    cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
+  const { to, tierName, tier, entitlements, renewsOnLabel, amountLabel, invoiceUrl } = params;
+
+  const blocks: EmailBlock[] = [
+    {
+      kind: "paragraph",
+      text: `Your subscription is active and every ${tierName} feature is unlocked — you can start tracking accounts and generating scripts right now.`,
+    },
+    {
+      kind: "rows",
+      caption: "Subscription summary",
+      rows: [
+        { label: "Plan", value: `ReelSpy ${tierName}`, emphasis: true },
+        ...(amountLabel ? [{ label: "Paid today", value: amountLabel }] : []),
+        ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
+        { label: "Billing cycle", value: "Monthly" },
+      ],
+    },
+  ];
+
+  if (tier) {
+    blocks.push({ kind: "bullets", caption: "What's included", items: planHighlights(tier, entitlements) });
+  }
+
+  blocks.push({
+    kind: "callout",
+    text:
+      "Good to know: if you ever switch plans, the change starts at your next renewal date — you always keep the plan you've already paid for until the period you paid for is over.",
   });
-  const text = [
-    heading,
-    "",
-    `Your ${tierName} subscription is active — every feature is unlocked.`,
-    amountLabel ? `Payment received: ${amountLabel}.` : "",
-    invoiceUrl ? `Invoice / receipt: ${invoiceUrl}` : "",
-    renewsOnLabel ? `Renews on ${renewsOnLabel}.` : "",
-    `Manage anytime: ${billingUrl()}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  return sendEmail({ to, subject: `Welcome to ReelSpy ${tierName}`, html, text });
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `Your ReelSpy ${tierName} subscription is active${renewsOnLabel ? ` and renews on ${renewsOnLabel}` : ""}.`,
+    title: `Welcome to ReelSpy ${tierName}`,
+    blocks,
+    cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
+    ...(invoiceUrl ? { secondary: { href: invoiceUrl, label: "View invoice / receipt (PDF)" } } : {}),
+    footnote: "Manage your plan, payment method and invoices any time from the billing page.",
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Welcome to ReelSpy ${tierName} — your subscription is active`, html, text });
 }
 
 // ── Renewal receipt (subscription_cycle invoices) ────────────────────────────
@@ -100,80 +124,447 @@ export async function sendPaymentReceipt(params: {
   tierName: string;
   amountLabel: string;
   invoiceUrl?: string | null;
+  invoiceNumber?: string | null;
+  paidOnLabel?: string | null;
   renewsOnLabel?: string | null;
 }): Promise<boolean> {
-  const { to, tierName, amountLabel, invoiceUrl, renewsOnLabel } = params;
-  const heading = `Payment received — thank you`;
-  const renewLine = renewsOnLabel
-    ? `<p style="font-size:14px;color:#475569;margin:0 0 16px">Next renewal: <strong>${escapeHtml(renewsOnLabel)}</strong>.</p>`
-    : "";
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 8px">We charged <strong>${escapeHtml(amountLabel)}</strong> for your ReelSpy <strong>${escapeHtml(tierName)}</strong> plan.</p>${renewLine}`,
-    cta: invoiceUrl
-      ? { href: invoiceUrl, label: "View invoice" }
-      : { href: billingUrl(), label: "View billing" },
+  const { to, tierName, amountLabel, invoiceUrl, invoiceNumber, paidOnLabel, renewsOnLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Receipt",
+    preheader: `Payment of ${amountLabel} received for your ReelSpy ${tierName} plan.`,
+    title: "Payment received — thank you",
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We've charged your payment method for another month of ReelSpy ${tierName}. Nothing is needed from you — this email is just your receipt.`,
+      },
+      {
+        kind: "rows",
+        caption: "Receipt",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}` },
+          { label: "Amount charged", value: amountLabel, emphasis: true },
+          ...(paidOnLabel ? [{ label: "Charged on", value: paidOnLabel }] : []),
+          ...(invoiceNumber ? [{ label: "Invoice", value: invoiceNumber }] : []),
+          ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
+        ],
+      },
+    ],
+    cta: invoiceUrl ? { href: invoiceUrl, label: "View invoice" } : { href: billingUrl(), label: "View billing" },
+    ...(invoiceUrl ? { secondary: { href: billingUrl(), label: "Manage your plan" } } : {}),
     footnote: "This is a receipt for your records — no action is needed.",
+    reason: PLAN_REASON,
   });
-  const text = [
-    heading,
-    "",
-    `Charged ${amountLabel} for your ReelSpy ${tierName} plan.`,
-    renewsOnLabel ? `Next renewal: ${renewsOnLabel}.` : "",
-    invoiceUrl ? `Invoice: ${invoiceUrl}` : `Billing: ${billingUrl()}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+
   return sendEmail({ to, subject: `Your ReelSpy receipt — ${amountLabel}`, html, text });
+}
+
+// ── Renewal reminder (invoice.upcoming) ──────────────────────────────────────
+// Sent a few days before Stripe charges the card, so a renewal is never a
+// surprise. When a plan change is already scheduled it says so here too — this
+// is the last email before the new price applies.
+export async function sendRenewalReminder(params: {
+  to: string;
+  tierName: string;
+  amountLabel: string;
+  renewsOnLabel: string;
+  pendingTierName?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, amountLabel, renewsOnLabel, pendingTierName } = params;
+  const switching = Boolean(pendingTierName && pendingTierName !== tierName);
+
+  const blocks: EmailBlock[] = [
+    {
+      kind: "paragraph",
+      text: switching
+        ? `Your scheduled plan change takes effect on ${renewsOnLabel}. Here's what will be charged and what changes.`
+        : `Your ReelSpy subscription renews on ${renewsOnLabel}. Here's what to expect, in advance.`,
+    },
+    {
+      kind: "rows",
+      caption: "Upcoming charge",
+      rows: [
+        { label: "Current plan", value: `ReelSpy ${tierName}` },
+        ...(switching ? [{ label: "Plan from renewal", value: `ReelSpy ${pendingTierName}`, emphasis: true }] : []),
+        { label: "Renews on", value: renewsOnLabel },
+        { label: "Amount", value: amountLabel, emphasis: true },
+      ],
+    },
+  ];
+
+  if (switching) {
+    blocks.push({
+      kind: "callout",
+      text: `You're on ${tierName} until ${renewsOnLabel}. From that date your subscription becomes ${pendingTierName} and the new limits apply. You can still call this change off from the billing page until then.`,
+    });
+  }
+
+  blocks.push({
+    kind: "paragraph",
+    text: "If your card has changed, update it before the renewal date so nothing is interrupted.",
+    muted: true,
+  });
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `${amountLabel} will be charged on ${renewsOnLabel}.`,
+    title: switching
+      ? `Your plan changes to ${pendingTierName} on ${renewsOnLabel}`
+      : `Your ReelSpy ${tierName} plan renews on ${renewsOnLabel}`,
+    blocks,
+    cta: { href: billingUrl(), label: "Review billing" },
+    footnote: "No action is needed if everything above looks right.",
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({
+    to,
+    subject: switching
+      ? `Heads-up: your ReelSpy plan changes to ${pendingTierName} on ${renewsOnLabel}`
+      : `Your ReelSpy renewal — ${amountLabel} on ${renewsOnLabel}`,
+    html,
+    text,
+  });
 }
 
 // ── Payment failed / dunning ─────────────────────────────────────────────────
 export async function sendPaymentFailed(params: {
   to: string;
   tierName: string;
+  amountLabel?: string | null;
+  nextAttemptLabel?: string | null;
+  invoiceUrl?: string | null;
 }): Promise<boolean> {
-  const { to, tierName } = params;
-  const heading = `Your payment didn't go through`;
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 16px">We couldn't charge your card for the ReelSpy <strong>${escapeHtml(tierName)}</strong> plan. Stripe will retry automatically, but updating your payment method now avoids any interruption to your subscription.</p>`,
+  const { to, tierName, amountLabel, nextAttemptLabel, invoiceUrl } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Action needed",
+    preheader: `We couldn't charge your card for ReelSpy ${tierName}. Your plan stays active while we retry.`,
+    title: "Your payment didn't go through",
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We tried to charge your payment method for your ReelSpy ${tierName} plan and the bank declined it. This is usually an expired card, a spending limit, or a bank block on online payments.`,
+      },
+      {
+        kind: "rows",
+        caption: "Failed payment",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}` },
+          ...(amountLabel ? [{ label: "Amount due", value: amountLabel, emphasis: true }] : []),
+          ...(nextAttemptLabel ? [{ label: "Next automatic retry", value: nextAttemptLabel }] : []),
+        ],
+      },
+      {
+        kind: "bullets",
+        caption: "How to fix it",
+        items: [
+          "Open the billing page and update your card — the charge is retried immediately.",
+          "Or check with your bank that online/recurring payments are allowed.",
+          "Stripe also retries automatically over the next few days.",
+        ],
+      },
+      {
+        kind: "callout",
+        tone: "warn",
+        text:
+          "Your plan is still active for now. If every retry fails, the subscription ends and your account moves to the Free plan — your data stays, but paid limits and models stop.",
+      },
+    ],
     cta: { href: billingUrl(), label: "Update payment method" },
-    footnote: "If your card keeps failing, your plan will pause and you'll drop to the Free tier.",
+    ...(invoiceUrl ? { secondary: { href: invoiceUrl, label: "View the unpaid invoice" } } : {}),
+    reason: PLAN_REASON,
   });
-  const text = [
-    heading,
-    "",
-    `We couldn't charge your card for the ReelSpy ${tierName} plan.`,
-    `Update your payment method: ${billingUrl()}`,
-  ].join("\n");
-  return sendEmail({ to, subject: `Action needed — ReelSpy payment failed`, html, text });
+
+  return sendEmail({ to, subject: `Action needed — your ReelSpy payment failed`, html, text });
 }
 
-// ── Subscription cancelled ───────────────────────────────────────────────────
+// ── Plan change scheduled (upgrade or downgrade) ─────────────────────────────
+// The single most important email in this file: it's the written record of the
+// end-of-period policy the billing UI promises. It must be unambiguous about
+// three things — nothing is charged today, nothing changes today, and the change
+// can still be called off.
+export async function sendPlanChangeScheduled(params: {
+  to: string;
+  currentTierName: string;
+  nextTier: AiTier;
+  nextTierName: string;
+  effectiveOnLabel: string;
+  nextPriceLabel?: string | null;
+  nextEntitlements?: Entitlements | null;
+  direction: "upgrade" | "downgrade" | "change";
+}): Promise<boolean> {
+  const {
+    to,
+    currentTierName,
+    nextTier,
+    nextTierName,
+    effectiveOnLabel,
+    nextPriceLabel,
+    nextEntitlements,
+    direction,
+  } = params;
+
+  const verb = direction === "upgrade" ? "upgrade" : direction === "downgrade" ? "downgrade" : "plan change";
+
+  const { html, text } = buildEmail({
+    eyebrow: "Plan change",
+    preheader: `Nothing changes today — your ${nextTierName} plan starts on ${effectiveOnLabel}.`,
+    title: `Your plan changes to ${nextTierName} on ${effectiveOnLabel}`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `Your ${verb} is booked. You've already paid for your current billing period, so you keep ReelSpy ${currentTierName} — with every limit and feature it includes — right up until ${effectiveOnLabel}.`,
+      },
+      {
+        kind: "rows",
+        caption: "What was scheduled",
+        rows: [
+          { label: "Plan until " + effectiveOnLabel, value: `ReelSpy ${currentTierName}` },
+          { label: "Plan from " + effectiveOnLabel, value: `ReelSpy ${nextTierName}`, emphasis: true },
+          ...(nextPriceLabel ? [{ label: "Price from then", value: `${nextPriceLabel} / month` }] : []),
+          { label: "Charged today", value: "Nothing" },
+        ],
+      },
+      {
+        kind: "callout",
+        tone: "success",
+        text: `Nothing changes in your account today. On ${effectiveOnLabel} your subscription renews on the ${nextTierName} plan${
+          nextPriceLabel ? ` at ${nextPriceLabel}` : ""
+        }, and your new limits apply from that moment.`,
+      },
+      {
+        kind: "bullets",
+        caption: `What ${nextTierName} gives you from ${effectiveOnLabel}`,
+        items: planHighlights(nextTier, nextEntitlements),
+      },
+    ],
+    cta: { href: billingUrl(), label: "View scheduled change" },
+    footnote: `Changed your mind? You can cancel this scheduled change from the billing page any time before ${effectiveOnLabel} and stay on ${currentTierName} — nothing has been charged for it.`,
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({
+    to,
+    subject: `Confirmed: your ReelSpy plan changes to ${nextTierName} on ${effectiveOnLabel}`,
+    html,
+    text,
+  });
+}
+
+// ── Plan change applied (the scheduled phase went live) ──────────────────────
+export async function sendPlanChangeApplied(params: {
+  to: string;
+  previousTierName: string;
+  tier: AiTier;
+  tierName: string;
+  entitlements?: Entitlements | null;
+  amountLabel?: string | null;
+  renewsOnLabel?: string | null;
+}): Promise<boolean> {
+  const { to, previousTierName, tier, tierName, entitlements, amountLabel, renewsOnLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Plan change",
+    preheader: `Your scheduled change is live — you're now on ReelSpy ${tierName}.`,
+    title: `You're now on ReelSpy ${tierName}`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `The plan change you scheduled has taken effect at your renewal, exactly as booked. Your previous ${previousTierName} period ran to the end, and ${tierName} is now live on your account.`,
+      },
+      {
+        kind: "rows",
+        caption: "Your plan now",
+        rows: [
+          { label: "Previous plan", value: `ReelSpy ${previousTierName}` },
+          { label: "Current plan", value: `ReelSpy ${tierName}`, emphasis: true },
+          ...(amountLabel ? [{ label: "Monthly price", value: amountLabel }] : []),
+          ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
+        ],
+      },
+      { kind: "bullets", caption: "What's included now", items: planHighlights(tier, entitlements) },
+    ],
+    cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
+    secondary: { href: billingUrl(), label: "View billing" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy plan is now ${tierName}`, html, text });
+}
+
+// ── Scheduled plan change called off ─────────────────────────────────────────
+export async function sendPlanChangeCancelled(params: {
+  to: string;
+  tierName: string;
+  cancelledTierName: string;
+  renewsOnLabel?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, cancelledTierName, renewsOnLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Plan change",
+    preheader: `You're staying on ReelSpy ${tierName} — the scheduled change to ${cancelledTierName} was cancelled.`,
+    title: "Your scheduled plan change was cancelled",
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We've called off the switch to ${cancelledTierName}. You stay on ReelSpy ${tierName} and it keeps renewing as it did before — no change to your limits, and nothing extra charged.`,
+      },
+      {
+        kind: "rows",
+        caption: "Where you stand",
+        rows: [
+          { label: "Your plan", value: `ReelSpy ${tierName}`, emphasis: true },
+          { label: "Cancelled change", value: `ReelSpy ${cancelledTierName}` },
+          ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
+        ],
+      },
+    ],
+    cta: { href: billingUrl(), label: "View billing" },
+    footnote: "You can schedule a different plan any time — changes always start at your next renewal date.",
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy plan change was cancelled — you're staying on ${tierName}`, html, text });
+}
+
+// ── Cancellation scheduled (cancel at period end) ────────────────────────────
+export async function sendCancellationScheduled(params: {
+  to: string;
+  tierName: string;
+  accessUntilLabel?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, accessUntilLabel } = params;
+  const untilPhrase = accessUntilLabel ? `until ${accessUntilLabel}` : "until the end of your current billing period";
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `Your ${tierName} plan stays active ${untilPhrase}, then moves to Free.`,
+    title: accessUntilLabel
+      ? `Your ReelSpy ${tierName} plan ends on ${accessUntilLabel}`
+      : `Your ReelSpy ${tierName} plan is set to end`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We've scheduled your cancellation. You've paid for your current period, so nothing is cut short — you keep full ${tierName} access ${untilPhrase}. You won't be charged again.`,
+      },
+      {
+        kind: "rows",
+        caption: "What happens next",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}` },
+          ...(accessUntilLabel ? [{ label: "Access until", value: accessUntilLabel, emphasis: true }] : []),
+          { label: "Future charges", value: "None" },
+          { label: "After that date", value: "Free plan" },
+        ],
+      },
+      {
+        kind: "bullets",
+        caption: "On the Free plan",
+        items: [
+          "Your account, tracked accounts, scripts and saved hooks all stay — nothing is deleted.",
+          "Monthly limits drop to the Free tier and premium AI models stop.",
+          "Resubscribing restores your paid limits immediately.",
+        ],
+      },
+      {
+        kind: "callout",
+        text: `Changed your mind? Resuming before ${accessUntilLabel ?? "the end date"} keeps everything exactly as it is — no new charge until your normal renewal date.`,
+      },
+    ],
+    cta: { href: billingUrl(), label: "Keep my plan" },
+    footnote: "If you cancelled by accident, resuming takes one click on the billing page.",
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({
+    to,
+    subject: accessUntilLabel
+      ? `Your ReelSpy ${tierName} plan ends on ${accessUntilLabel}`
+      : `Your ReelSpy ${tierName} plan is scheduled to end`,
+    html,
+    text,
+  });
+}
+
+// ── Cancellation called off ──────────────────────────────────────────────────
+export async function sendSubscriptionResumed(params: {
+  to: string;
+  tierName: string;
+  renewsOnLabel?: string | null;
+  amountLabel?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, renewsOnLabel, amountLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `Your ReelSpy ${tierName} subscription will continue as normal.`,
+    title: "Your subscription will continue",
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `Good news — the cancellation has been called off. Your ReelSpy ${tierName} plan stays active and renews as usual, with no break in access.`,
+      },
+      {
+        kind: "rows",
+        caption: "Your subscription",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}`, emphasis: true },
+          ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
+          ...(amountLabel ? [{ label: "Amount", value: `${amountLabel} / month` }] : []),
+        ],
+      },
+    ],
+    cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} subscription will continue`, html, text });
+}
+
+// ── Subscription ended ───────────────────────────────────────────────────────
 export async function sendSubscriptionCancelled(params: {
   to: string;
   tierName: string;
   accessUntilLabel?: string | null;
 }): Promise<boolean> {
   const { to, tierName, accessUntilLabel } = params;
-  const heading = `Your ReelSpy ${tierName} plan is cancelled`;
-  const accessLine = accessUntilLabel
-    ? `<p style="font-size:14px;color:#475569;margin:0 0 16px">You keep ${escapeHtml(tierName)} access until <strong>${escapeHtml(accessUntilLabel)}</strong>, then you'll move to the Free plan.</p>`
-    : `<p style="font-size:14px;color:#475569;margin:0 0 16px">You've been moved to the Free plan.</p>`;
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 8px">Your subscription has been cancelled.</p>${accessLine}`,
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: accessUntilLabel
+      ? `You keep ${tierName} access until ${accessUntilLabel}.`
+      : `Your account has moved to the Free plan.`,
+    title: `Your ReelSpy ${tierName} plan has ended`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: accessUntilLabel
+          ? `Your subscription is cancelled. You keep ${tierName} access until ${accessUntilLabel}, then your account moves to the Free plan.`
+          : `Your subscription has ended and your account is now on the Free plan. Thank you for having been a ReelSpy ${tierName} subscriber.`,
+      },
+      {
+        kind: "bullets",
+        caption: "What stays",
+        items: [
+          "Your account and everything in it — tracked accounts, reels, scripts and saved hooks.",
+          "Free-plan limits and access, for as long as you want them.",
+          "Your billing history and invoices, available any time from the billing page.",
+        ],
+      },
+      {
+        kind: "paragraph",
+        text: "If something wasn't working for you, reply to this email — we read every response and it genuinely shapes what we build.",
+      },
+    ],
     cta: { href: billingUrl(), label: "Resubscribe" },
-    footnote: "Changed your mind? You can resubscribe anytime and pick up where you left off.",
+    footnote: "Resubscribing restores your paid limits straight away — you pick up exactly where you left off.",
+    reason: "You're receiving this because you had a paid ReelSpy subscription.",
   });
-  const text = [
-    heading,
-    "",
-    "Your subscription has been cancelled.",
-    accessUntilLabel ? `Access continues until ${accessUntilLabel}.` : "You've moved to the Free plan.",
-    `Resubscribe: ${billingUrl()}`,
-  ].join("\n");
-  return sendEmail({ to, subject: `Your ReelSpy subscription is cancelled`, html, text });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} subscription has ended`, html, text });
 }
 
 // ── Refund issued ────────────────────────────────────────────────────────────
@@ -183,20 +574,38 @@ export async function sendSubscriptionCancelled(params: {
 export async function sendRefundIssued(params: {
   to: string;
   amountLabel: string;
+  full?: boolean;
 }): Promise<boolean> {
-  const { to, amountLabel } = params;
-  const heading = `Your refund is on its way`;
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 16px">We've refunded <strong>${escapeHtml(amountLabel)}</strong> to your original payment method. Depending on your bank it can take 5–10 business days to appear.</p>`,
+  const { to, amountLabel, full } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Refund",
+    preheader: `${amountLabel} is on its way back to your original payment method.`,
+    title: "Your refund is on its way",
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We've issued a ${full === false ? "partial " : ""}refund of ${amountLabel} to the card you paid with. Refunds are processed by your bank, so it usually lands within 5–10 business days.`,
+      },
+      {
+        kind: "rows",
+        caption: "Refund details",
+        rows: [
+          { label: "Amount refunded", value: amountLabel, emphasis: true },
+          { label: "Refunded to", value: "Your original payment method" },
+          { label: "Expected arrival", value: "5–10 business days" },
+        ],
+      },
+      {
+        kind: "paragraph",
+        text: "If it hasn't appeared after 10 business days, reply to this email with the date and we'll trace it with Stripe.",
+        muted: true,
+      },
+    ],
     cta: { href: billingUrl(), label: "View billing" },
+    reason: "You're receiving this because a refund was issued on your ReelSpy account.",
   });
-  const text = [
-    heading,
-    "",
-    `We've refunded ${amountLabel} to your original payment method (5–10 business days).`,
-    `Billing: ${billingUrl()}`,
-  ].join("\n");
+
   return sendEmail({ to, subject: `Your ReelSpy refund — ${amountLabel}`, html, text });
 }
 
@@ -208,33 +617,34 @@ export async function sendDisputeAlert(params: {
   amountLabel: string;
   reason?: string | null;
   customerEmail?: string | null;
+  dueByLabel?: string | null;
 }): Promise<boolean> {
   const to = (process.env.BILLING_ALERT_EMAIL || process.env.EMAIL_FROM || "").trim();
   if (!to) return false;
-  const { chargeId, amountLabel, reason, customerEmail } = params;
-  const heading = `⚠️ New Stripe dispute — ${amountLabel}`;
-  const html = shell({
-    heading,
-    bodyHtml: `<p style="font-size:14px;color:#475569;margin:0 0 8px">A customer opened a dispute.</p>
-      <ul style="font-size:14px;color:#0F172A;padding-left:18px;margin:0 0 16px">
-        <li>Charge: <strong>${escapeHtml(chargeId)}</strong></li>
-        <li>Amount: <strong>${escapeHtml(amountLabel)}</strong></li>
-        ${reason ? `<li>Reason: ${escapeHtml(reason)}</li>` : ""}
-        ${customerEmail ? `<li>Customer: ${escapeHtml(customerEmail)}</li>` : ""}
-      </ul>`,
+  const { chargeId, amountLabel, reason, customerEmail, dueByLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Internal alert",
+    preheader: `A customer disputed ${amountLabel}. Evidence is due before Stripe's deadline.`,
+    title: `New Stripe dispute — ${amountLabel}`,
+    blocks: [
+      { kind: "paragraph", text: "A customer opened a dispute (chargeback). Stripe has already debited the amount plus the dispute fee; responding with evidence is the only way to get it back." },
+      {
+        kind: "rows",
+        caption: "Dispute",
+        rows: [
+          { label: "Amount", value: amountLabel, emphasis: true },
+          { label: "Charge", value: chargeId },
+          ...(reason ? [{ label: "Stated reason", value: reason }] : []),
+          ...(customerEmail ? [{ label: "Customer", value: customerEmail }] : []),
+          ...(dueByLabel ? [{ label: "Evidence due", value: dueByLabel }] : []),
+        ],
+      },
+    ],
     cta: { href: "https://dashboard.stripe.com/disputes", label: "Respond in Stripe" },
     footnote: "Respond before Stripe's evidence deadline or the dispute is lost by default.",
+    reason: "Internal ReelSpy billing alert.",
   });
-  const text = [
-    heading,
-    "",
-    `Charge: ${chargeId}`,
-    `Amount: ${amountLabel}`,
-    reason ? `Reason: ${reason}` : "",
-    customerEmail ? `Customer: ${customerEmail}` : "",
-    "Respond: https://dashboard.stripe.com/disputes",
-  ]
-    .filter(Boolean)
-    .join("\n");
-  return sendEmail({ to, subject: `⚠️ Stripe dispute opened — ${amountLabel}`, html, text });
+
+  return sendEmail({ to, subject: `[ReelSpy] Stripe dispute opened — ${amountLabel}`, html, text });
 }

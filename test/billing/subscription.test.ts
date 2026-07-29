@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { getSubscription, activeTierFromSubscription } from "@/lib/billing/subscription";
+import {
+  getSubscription,
+  getPendingPlanChange,
+  activeTierFromSubscription,
+} from "@/lib/billing/subscription";
 import { fakeSupabase, throwingSupabase } from "../helpers/fake-supabase";
 
 const USER = "user-1";
@@ -104,5 +108,75 @@ describe("activeTierFromSubscription", () => {
   it("returns null when there is no subscription", async () => {
     const none = await activeTierFromSubscription(fakeSupabase({ maybeSingle: { data: null, error: null } }), USER);
     expect(none).toBeNull();
+  });
+});
+
+describe("getPendingPlanChange", () => {
+  function pendingRow(overrides: Record<string, unknown> = {}) {
+    return {
+      pending_tier: "pro",
+      pending_effective_at: "2026-08-29T00:00:00Z",
+      pending_price_aed: 149,
+      pending_custom_entitlements: null,
+      stripe_schedule_id: "sub_sched_1",
+      ...overrides,
+    };
+  }
+
+  it("maps a scheduled change", async () => {
+    const pending = await getPendingPlanChange(
+      fakeSupabase({ maybeSingle: { data: pendingRow(), error: null } }),
+      USER
+    );
+    expect(pending).toMatchObject({
+      tier: "pro",
+      effectiveAt: "2026-08-29T00:00:00Z",
+      priceAed: 149,
+      scheduleId: "sub_sched_1",
+    });
+  });
+
+  it("carries a custom plan's pending entitlements", async () => {
+    const entitlements = {
+      accounts: 40,
+      scripts_mo: 80,
+      transcripts_mo: 40,
+      automations: 10,
+      publish_targets: 2,
+      ig_connections: 1,
+      model: "opus",
+    };
+    const pending = await getPendingPlanChange(
+      fakeSupabase({
+        maybeSingle: {
+          data: pendingRow({ pending_tier: "custom", pending_custom_entitlements: entitlements }),
+          error: null,
+        },
+      }),
+      USER
+    );
+    expect(pending?.entitlements).toMatchObject({ accounts: 40, model: "opus" });
+  });
+
+  it("reads 'nothing scheduled' for an empty or invalid pending tier", async () => {
+    for (const pending_tier of [null, "mystery"]) {
+      const pending = await getPendingPlanChange(
+        fakeSupabase({ maybeSingle: { data: pendingRow({ pending_tier }), error: null } }),
+        USER
+      );
+      expect(pending).toBeNull();
+    }
+  });
+
+  // The pending_* columns arrived in a later migration: on a database without
+  // it, the billing page must still render the CURRENT plan rather than break.
+  it("fails open (null) on a DB error or a throwing client", async () => {
+    expect(
+      await getPendingPlanChange(
+        fakeSupabase({ maybeSingle: { data: null, error: { message: "column does not exist" } } }),
+        USER
+      )
+    ).toBeNull();
+    expect(await getPendingPlanChange(throwingSupabase(), USER)).toBeNull();
   });
 });

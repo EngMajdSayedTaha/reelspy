@@ -68,6 +68,46 @@ export async function getSubscription(
   }
 }
 
+// A plan change the user has scheduled for their next renewal (see
+// lib/billing/schedule.ts). Read separately from getSubscription on purpose: the
+// columns arrived in a later migration, and folding them into the main select
+// would make every tier lookup fail (→ everyone drops to the env default tier)
+// on a database where that migration hasn't been applied yet.
+export type PendingPlanChangeRow = {
+  tier: AiTier;
+  effectiveAt: string | null;
+  priceAed: number | null;
+  entitlements: Entitlements | null;
+  scheduleId: string | null;
+};
+
+// Fail-open: no row, no scheduled change, or an un-migrated table all read as
+// "nothing pending" — the billing page then just shows the current plan.
+export async function getPendingPlanChange(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<PendingPlanChangeRow | null> {
+  try {
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select(
+        "pending_tier, pending_effective_at, pending_price_aed, pending_custom_entitlements, stripe_schedule_id"
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data || !isAiTier(data.pending_tier)) return null;
+    return {
+      tier: data.pending_tier as AiTier,
+      effectiveAt: data.pending_effective_at ?? null,
+      priceAed: typeof data.pending_price_aed === "number" ? data.pending_price_aed : null,
+      entitlements: coerceEntitlements(data.pending_custom_entitlements),
+      scheduleId: data.stripe_schedule_id ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // The tier granted by an ACTIVE subscription, or null when the user has none
 // (so the caller can apply its own fallback — env default in resolveUserTier).
 export async function activeTierFromSubscription(

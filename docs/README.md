@@ -30,7 +30,8 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 | Runbook | When you need it |
 |---|---|
 | [`google-supabase-setup.md`](./google-supabase-setup.md) | First-time env + Supabase + Google OAuth setup |
-| [`billing-setup.md`](./billing-setup.md) | Provisioning Stripe (keys, prices, webhook) |
+| [`billing-setup.md`](./billing-setup.md) | Provisioning Stripe (keys, prices, webhook), end-of-period plan changes |
+| [`email-templates.md`](./email-templates.md) | The shared email template + the Supabase auth templates |
 | [`publishing-setup.md`](./publishing-setup.md) | Cross-posting setup: Meta, TikTok, YouTube, Cloudflare R2 |
 | [`auto-reply-setup.md`](./auto-reply-setup.md) | Comment→DM automation: Meta webhook + tokens |
 | [`ig-cookies-runbook.md`](./ig-cookies-runbook.md) | Transcript pipeline cookies: rotation + health check |
@@ -58,6 +59,8 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 - The live `supabase_migrations.schema_migrations` history uses apply-time timestamps for several 2026-07-07…15 migrations, so version numbers differ from repo filenames (names match). Schema objects are present (verified); reconcile the history before relying on `supabase db push` no-op behavior.
 
 **Payment hardening (2026-07-24):** billing emails (welcome / receipt / dunning / cancellation / refund / dispute alert), refund flow (admin UI + `charge.refunded` webhook; full refund → cancel), and webhook idempotency were added. Migration `20260724101832_billing_events.sql` **is applied in prod** (idempotency log). Still gated on Stripe keys + Resend keys (`RESEND_API_KEY`, `EMAIL_FROM`, `BILLING_ALERT_EMAIL`) — all fail open. See [`billing-setup.md`](./billing-setup.md).
+
+**Deferred plan changes + email system (2026-07-29):** upgrades and downgrades no longer apply mid-cycle — they're booked onto a Stripe Subscription Schedule and start at the next renewal, with confirmation dialogs on every billing action and a permanent explanation of the rule on the page (`billing-setup.md` §7a). Adds the plan-change / cancellation-scheduled / resumed / renewal-reminder emails, and moves **every** email in the product onto one branded template with the ReelSpy logo (`lib/email/layout.ts`, see [`email-templates.md`](./email-templates.md)). Migration `20260729120000_scheduled_plan_changes.sql` **needs applying in prod** (nullable columns; the app fails open without it). Founder action: turn plan switching OFF in the Stripe customer portal so it can't bypass the end-of-period rule.
 
 ## Keeping this folder honest
 

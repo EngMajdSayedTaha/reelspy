@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { emailConfigured, sendEmail } from "@/lib/email/send";
+import { buildEmail } from "@/lib/email/layout";
 import { claimAlertSlot, getIgCookieStatus } from "@/lib/media/ig-cookies";
 import { getReelMetadata } from "@/lib/media/ytdlp";
 import { classifyYtDlpError } from "@/lib/media/ytdlp-errors";
@@ -59,22 +60,43 @@ export async function GET(request: Request) {
       const ageDays = before.updatedAt
         ? Math.floor((Date.now() - Date.parse(before.updatedAt)) / 86_400_000)
         : null;
-      const text = [
-        `The daily Instagram cookie health check failed (${kind}).`,
-        ``,
-        `Cookie source: ${before.source ?? "none configured"}`,
-        `Cookie age: ${ageDays === null ? "unknown" : `${ageDays} day(s)`}`,
-        `Last successful authenticated run: ${before.lastOkAt ?? "never"}`,
-        `Error: ${detail.slice(0, 400)}`,
-        ``,
-        `If the session is dead, export fresh cookies from the dedicated Instagram`,
-        `account and run:  node scripts/update-ig-cookies.mjs <cookies.txt> --url <app-url>`,
-        `Full procedure: docs/ig-cookies-runbook.md`,
-      ].join("\n");
+      const { html, text } = buildEmail({
+        eyebrow: "Internal alert",
+        preheader: `The daily Instagram cookie health check failed (${kind}).`,
+        title: `Instagram cookie health check failed`,
+        blocks: [
+          {
+            kind: "paragraph",
+            text: "The daily authenticated extraction against the health-check reel did not succeed. Until the session is restored, cookie-gated Instagram features degrade to the public-only path.",
+          },
+          {
+            kind: "rows",
+            caption: "Check result",
+            rows: [
+              { label: "Failure kind", value: kind, emphasis: true },
+              { label: "Cookie source", value: before.source ?? "none configured" },
+              { label: "Cookie age", value: ageDays === null ? "unknown" : `${ageDays} day(s)` },
+              { label: "Last successful run", value: before.lastOkAt ?? "never" },
+            ],
+          },
+          { kind: "heading", text: "Error" },
+          { kind: "paragraph", text: detail.slice(0, 400) },
+          {
+            kind: "bullets",
+            caption: "How to fix",
+            items: [
+              "Export fresh cookies from the dedicated Instagram account.",
+              "Run: node scripts/update-ig-cookies.mjs <cookies.txt> --url <app-url>",
+              "Full procedure: docs/ig-cookies-runbook.md",
+            ],
+          },
+        ],
+        reason: "Internal ReelSpy infrastructure alert.",
+      });
       alerted = await sendEmail({
         to,
         subject: `[ReelSpy] Instagram cookie health check failed (${kind})`,
-        html: `<pre style="font-family:monospace">${text.replace(/</g, "&lt;")}</pre>`,
+        html,
         text,
       });
     }

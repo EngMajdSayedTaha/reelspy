@@ -1044,8 +1044,16 @@ create table subscriptions (
   current_period_end timestamptz,
   cancel_at_period_end boolean not null default false,
   updated_at timestamptz not null default now(),
-  custom_entitlements jsonb            -- tier='custom' limits, set by the Stripe webhook
+  custom_entitlements jsonb,           -- tier='custom' limits, set by the Stripe webhook
                                        -- (lib/billing/custom-pricing.ts); overrides ENTITLEMENTS
+  -- Deferred plan change (20260729120000): the plan that takes over at the NEXT
+  -- renewal. Mirrors the Stripe Subscription Schedule; never gates access — the
+  -- columns above still describe what the user can do today.
+  stripe_schedule_id text,
+  pending_tier text,
+  pending_effective_at timestamptz,
+  pending_price_aed int,
+  pending_custom_entitlements jsonb
 );
 create index subscriptions_stripe_customer_idx on subscriptions (stripe_customer_id);
 

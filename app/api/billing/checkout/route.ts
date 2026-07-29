@@ -5,8 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
-import { syncSubscription, usableCustomerId } from "@/lib/billing/sync";
-import { stripePriceIdForTier, isPaidTier } from "@/lib/billing/plans";
+import { usableCustomerId } from "@/lib/billing/sync";
+import { stripePriceIdForTier, isPaidTier, planFor } from "@/lib/billing/plans";
+import {
+  cancelScheduledChangeForUser,
+  schedulePlanChangeForUser,
+  setSubscriptionCancellation,
+} from "@/lib/billing/plan-change";
+import { scheduleIdOf } from "@/lib/billing/schedule";
 import {
   CUSTOM_PLAN_RANGE,
   clampCustomConfig,
@@ -15,14 +21,21 @@ import {
   type CustomPlanConfig,
 } from "@/lib/billing/custom-pricing";
 
-// Start a Stripe Checkout session for a paid tier (L6 / B1), or for a
-// dynamically-configured "custom" plan (B4). Returns { url } to redirect the
-// browser to. Reuses the user's Stripe customer when we already have one (from
-// a prior checkout) so their payment history stays on one record.
+// Buy a plan (L6 / B1, B4). Two very different situations behind one endpoint:
 //
-// The custom price + entitlements are always recomputed server-side from the
-// submitted config (lib/billing/custom-pricing.ts) — the client's live preview
-// is UI-only and never trusted as the charged amount.
+//   NO active subscription → Stripe Checkout. The plan starts now, because
+//   there's no paid period to protect; returns { url } to redirect to.
+//
+//   ALREADY subscribed → the change is SCHEDULED for the end of the period the
+//   user has already paid for (lib/billing/plan-change.ts). Nothing is charged
+//   or prorated today, nothing about their access changes today; returns
+//   { scheduled: true, … } describing exactly when it will. Picking the plan
+//   they're already on means "keep it": that cancels a scheduled change or a
+//   pending cancellation instead of booking a new one.
+//
+// The custom plan's price + entitlements are always recomputed server-side from
+// the submitted config (lib/billing/custom-pricing.ts) — the client's live
+// preview is UI-only and never trusted as the charged amount.
 
 const customConfigSchema = z.object({
   accounts: z.number().int().min(CUSTOM_PLAN_RANGE.accounts.min).max(CUSTOM_PLAN_RANGE.accounts.max),
@@ -41,6 +54,24 @@ const bodySchema = z.discriminatedUnion("tier", [
   z.object({ tier: z.enum(["creator", "pro", "studio"]) }),
   z.object({ tier: z.literal("custom"), config: customConfigSchema }),
 ]);
+
+// A subscription id our row still points at but Stripe no longer has isn't an
+// error the user can act on — treat it as "not subscribed" and let them check
+// out fresh instead of dead-ending on a 502.
+async function liveSubscription(
+  stripe: Stripe,
+  subscriptionId: string
+): Promise<Stripe.Subscription | null> {
+  try {
+    return await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (err) {
+    if (isMissingResource(err)) {
+      console.warn(`[billing/checkout] stale subscription ${subscriptionId} — falling back to checkout`);
+      return null;
+    }
+    throw err;
+  }
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -62,53 +93,80 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
   }
-  if (parsed.data.tier !== "custom" && !isPaidTier(parsed.data.tier)) {
+  if (!isPaidTier(parsed.data.tier)) {
     return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const existing = await getSubscription(admin, user.id);
+  const tier = parsed.data.tier;
+  const config: CustomPlanConfig | undefined =
+    parsed.data.tier === "custom" ? clampCustomConfig(parsed.data.config) : undefined;
 
-  // In-place SWITCH: an active subscriber changing to a different FIXED tier
-  // updates their existing subscription (with proration) instead of opening a
-  // second one — this is the smooth "Switch plan" path. Custom-plan switches
-  // still go through Checkout (their price is ad-hoc, built per-config below).
-  if (existing?.active && existing.stripeSubscriptionId && parsed.data.tier !== "custom") {
-    const priceId = stripePriceIdForTier(parsed.data.tier);
-    if (!priceId) {
-      return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
-    }
+  // ── Existing subscriber: schedule the change for the next renewal ──────────
+  if (existing?.active && existing.stripeSubscriptionId) {
+    let live: Stripe.Subscription | null;
     try {
-      const current = await stripe.subscriptions.retrieve(existing.stripeSubscriptionId);
-      const itemId = current.items.data[0]?.id;
-      if (!itemId) throw new Error("subscription has no line item to switch");
-      const updated = await stripe.subscriptions.update(existing.stripeSubscriptionId, {
-        items: [{ id: itemId, price: priceId }],
-        proration_behavior: "create_prorations",
-        cancel_at_period_end: false, // switching un-cancels a pending cancellation
-        metadata: { user_id: user.id, tier: parsed.data.tier },
-      });
-      // Reflect the new tier immediately so the billing page updates on reload
-      // without waiting on the webhook (which re-syncs the same row, idempotently).
-      await syncSubscription(admin, updated);
-      return NextResponse.json({ switched: true, tier: parsed.data.tier });
+      live = await liveSubscription(stripe, existing.stripeSubscriptionId);
     } catch (err) {
-      // A subscription id our row still points at but Stripe no longer has isn't
-      // an error the user can act on — treat it as "not subscribed" and fall
-      // through to Checkout instead of dead-ending on a 502.
-      if (!isMissingResource(err)) {
-        console.error("[billing/checkout] switch error:", err instanceof Error ? err.message : err);
-        return NextResponse.json({ error: "Could not switch your plan. Please try again." }, { status: 502 });
+      console.error("[billing/checkout] Stripe error:", err instanceof Error ? err.message : err);
+      return NextResponse.json({ error: "Could not reach Stripe. Please try again." }, { status: 502 });
+    }
+
+    if (live) {
+      const subscriptionId = live.id;
+
+      // Choosing the plan you're already on = "keep it". A custom subscriber is
+      // excluded: re-submitting the sliders is a real change of configuration.
+      if (tier === existing.tier && tier !== "custom") {
+        if (scheduleIdOf(live)) {
+          const kept = await cancelScheduledChangeForUser({ admin, stripe, userId: user.id, subscriptionId });
+          if (!kept.ok) return NextResponse.json({ error: kept.error }, { status: kept.status });
+          return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
+        }
+        if (live.cancel_at_period_end) {
+          const resumed = await setSubscriptionCancellation({
+            admin,
+            stripe,
+            userId: user.id,
+            subscriptionId,
+            cancel: false,
+          });
+          if (!resumed.ok) return NextResponse.json({ error: resumed.error }, { status: resumed.status });
+          return NextResponse.json({ resumed: true, tier, tierName: planFor(tier).name });
+        }
+        return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
       }
-      console.warn(`[billing/checkout] stale subscription ${existing.stripeSubscriptionId} — falling back to checkout`);
+
+      const scheduled = await schedulePlanChangeForUser({
+        admin,
+        stripe,
+        userId: user.id,
+        subscriptionId,
+        currentTier: existing.tier,
+        tier,
+        config,
+      });
+      if (!scheduled.ok) {
+        return NextResponse.json({ error: scheduled.error }, { status: scheduled.status });
+      }
+      return NextResponse.json({
+        scheduled: true,
+        tier: scheduled.tier,
+        tierName: scheduled.tierName,
+        effectiveAt: scheduled.effectiveAt,
+        effectiveOnLabel: scheduled.effectiveOnLabel,
+        priceAed: scheduled.priceAed,
+        direction: scheduled.direction,
+      });
     }
   }
 
+  // ── New subscriber: Stripe Checkout ───────────────────────────────────────
   let lineItem: Stripe.Checkout.SessionCreateParams.LineItem;
   let metadata: Record<string, string>;
 
-  if (parsed.data.tier === "custom") {
-    const config: CustomPlanConfig = clampCustomConfig(parsed.data.config);
+  if (config) {
     const priceAed = computeCustomPriceAed(config);
     const entitlements = computeCustomEntitlements(config);
     lineItem = {
@@ -122,12 +180,12 @@ export async function POST(request: Request) {
     };
     metadata = { user_id: user.id, tier: "custom", custom_entitlements: JSON.stringify(entitlements) };
   } else {
-    const priceId = stripePriceIdForTier(parsed.data.tier);
+    const priceId = stripePriceIdForTier(tier);
     if (!priceId) {
       return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
     }
     lineItem = { price: priceId, quantity: 1 };
-    metadata = { user_id: user.id, tier: parsed.data.tier };
+    metadata = { user_id: user.id, tier };
   }
 
   // Reuse an existing Stripe customer (fetched above) so payment history stays on

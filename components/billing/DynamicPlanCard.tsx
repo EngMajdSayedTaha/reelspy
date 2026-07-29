@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { postJson } from "@/components/billing/BillingActions";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useDict } from "@/lib/i18n/I18nProvider";
 import {
   CUSTOM_PLAN_RANGE,
@@ -20,9 +22,24 @@ import {
 // tier: "custom" + the chosen config. The server (app/api/billing/checkout)
 // recomputes the price and entitlements from this same config — this preview
 // is purely so the user sees the number move before they commit.
-export function DynamicPlanCard({ disabled }: { disabled?: boolean }) {
+export function DynamicPlanCard({
+  disabled,
+  hasSubscription = false,
+  currentPlanName,
+  effectiveOnLabel,
+}: {
+  disabled?: boolean;
+  /** True when the user already pays for a plan — then this SCHEDULES a change. */
+  hasSubscription?: boolean;
+  currentPlanName?: string;
+  /** Renewal date a scheduled change would take effect on. */
+  effectiveOnLabel?: string | null;
+}) {
   const dict = useDict();
   const t = dict.billing.customPlan;
+  const b = dict.billing;
+  const confirm = useConfirm();
+  const router = useRouter();
   const [config, setConfig] = useState<CustomPlanConfig>(DEFAULT_CUSTOM_CONFIG);
   const [loading, setLoading] = useState(false);
 
@@ -33,16 +50,50 @@ export function DynamicPlanCard({ disabled }: { disabled?: boolean }) {
   }
 
   async function subscribe() {
+    const priceLabel = `AED ${price}`;
+    const summary = b.customPlanConfirm.summary(
+      String(config.accounts),
+      config.scriptsUnlimited ? t.unlimitedScripts : String(config.scripts),
+      String(config.automations),
+      String(config.publishTargets),
+      config.model === "opus" ? t.modelOpus : t.modelSonnet
+    );
+    const current = currentPlanName ?? b.plans.free.name;
+
+    const ok = await confirm({
+      title: hasSubscription ? b.customPlanConfirm.switchTitle : b.customPlanConfirm.subscribeTitle,
+      description: `${summary} ${
+        hasSubscription
+          ? effectiveOnLabel
+            ? b.switchConfirm.body(current, b.plans.custom.name, effectiveOnLabel, priceLabel)
+            : b.switchConfirm.bodyNoDate(current, b.plans.custom.name, priceLabel)
+          : b.subscribeConfirm.body(b.plans.custom.name, priceLabel)
+      }`,
+      confirmText: hasSubscription ? b.switchConfirm.changeCta : b.subscribeConfirm.cta,
+    });
+    if (!ok) return;
+
     setLoading(true);
-    const { url, error } = await postJson("/api/billing/checkout", dict.common.unknownError, {
+    const result = await postJson("/api/billing/checkout", dict.common.unknownError, {
       tier: "custom",
       config,
     });
-    if (url) {
-      window.location.href = url;
+    if (result.url) {
+      window.location.href = result.url;
       return;
     }
-    toast.error(error ?? dict.billing.couldNotStartCheckout);
+    if (result.scheduled) {
+      const name = result.tierName ?? b.plans.custom.name;
+      toast.success(
+        result.effectiveOnLabel
+          ? b.switchConfirm.scheduled(name, result.effectiveOnLabel)
+          : b.switchConfirm.scheduledNoDate(name)
+      );
+      router.refresh();
+      setLoading(false);
+      return;
+    }
+    toast.error(result.error ?? b.couldNotStartCheckout);
     setLoading(false);
   }
 

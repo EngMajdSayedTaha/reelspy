@@ -21,6 +21,7 @@ Run these in order in the Supabase SQL editor (or via the Supabase MCP
 1. `supabase/migrations/20260703000003_billing.sql`
 2. `supabase/migrations/20260708000000_custom_plan.sql`
 3. `supabase/migrations/20260724101832_billing_events.sql`
+4. `supabase/migrations/20260729120000_scheduled_plan_changes.sql`
 
 Together they create:
 
@@ -30,7 +31,10 @@ Together they create:
 - `user_monthly_usage` + `consume_user_action_monthly(...)` — the calendar-month
   quota enforcing per-tier scripts/month and transcripts/month.
 - `billing_events` — webhook **idempotency** log: one row per fully-processed
-  Stripe event id, so a redelivered/duplicate event is a no-op (see §7).
+  Stripe event id, so a redelivered/duplicate event is a no-op (see §8).
+- `subscriptions.pending_*` + `stripe_schedule_id` — the cached mirror of a
+  **scheduled plan change** (see §7a). Nullable and never gating access, so a
+  database without the fourth migration behaves exactly as before.
 
 Until these run, tier resolution and quotas **fail open** (everyone resolves to
 `AI_DEFAULT_TIER`, monthly caps are not enforced, dedupe is skipped) — nothing
@@ -66,10 +70,14 @@ Stripe Dashboard → Developers → Webhooks → add endpoint:
 - Events:
   - `checkout.session.completed`
   - `customer.subscription.created`
-  - `customer.subscription.updated`
+  - `customer.subscription.updated` — **also where a scheduled plan change lands**
+    (Stripe advances the schedule phase at the renewal) → tier moves + "your new
+    plan is live" email; also cancellation-scheduled / resumed emails
   - `customer.subscription.deleted` — cancellation email + tier → free
   - `invoice.payment_succeeded` — welcome (first invoice) / receipt (renewals)
   - `invoice.payment_failed` — dunning email
+  - `invoice.upcoming` — advance renewal reminder (and the final heads-up before
+    a scheduled plan change takes effect)
   - `charge.refunded` — refund email; a **full** refund also cancels the sub
   - `charge.dispute.created` — founder alert to `BILLING_ALERT_EMAIL`
 
@@ -92,6 +100,10 @@ NEXT_PUBLIC_SITE_URL=https://<your-domain>   # optional; pins Checkout return UR
 RESEND_API_KEY=re_...
 EMAIL_FROM="ReelSpy <billing@your-domain>"
 BILLING_ALERT_EMAIL=you@your-domain      # dispute alerts; falls back to EMAIL_FROM
+
+# Optional: an existing Stripe Product to hang ad-hoc custom-plan prices off
+# (see §7a). Unset simply means one product per distinct custom price point.
+STRIPE_PRODUCT_CUSTOM=prod_...
 ```
 
 A tier with no `STRIPE_PRICE_*` set is simply not offered for purchase. Redeploy
@@ -136,7 +148,19 @@ when the key is a test key.
    `npm run stripe:forward` relay them. Useful failing-payment fixtures: card
    `4000 0000 0000 0341` (attaches, then fails on the renewal charge), or test
    token `tok_chargeCustomerFail` when creating the subscription via the API.
-6. **Idempotency:** replay the same event twice (re-run a `stripe trigger`, or use
+6. **Deferred plan change (§7a).** As the subscribed test user, pick a different
+   plan and confirm the dialog. Expect: no charge, no change to limits, the
+   billing page shows "Scheduled: your plan changes to … on <renewal date>", the
+   target plan's card is badged *Scheduled*, and a "plan change scheduled" email
+   goes out. In Stripe the subscription now has a schedule with two phases —
+   phase 0 must still carry the ORIGINAL price and the original period dates.
+   Then either "Keep my current plan" (schedule released, plan unchanged) or
+   advance the test clock past the period end and watch
+   `customer.subscription.updated` flip the tier and send "you're now on …".
+   Stripe **test clocks** (Dashboard → Billing → Test clocks, or a customer
+   created with `test_clock`) are the only way to see the phase transition
+   without waiting a month.
+7. **Idempotency:** replay the same event twice (re-run a `stripe trigger`, or use
    "Resend" in the dashboard). The second delivery returns `{received:true,
    deduped:true}` and does **not** re-send the email or re-write the row — verify
    one row per `event.id` in `billing_events`.
@@ -151,22 +175,85 @@ log and no-op). Sent by the webhook, keyed to Stripe events:
 |-------|---------|----|
 | Welcome / plan active | `invoice.payment_succeeded`, `billing_reason=subscription_create` | customer |
 | Payment receipt | `invoice.payment_succeeded`, renewals | customer |
+| Renewal reminder | `invoice.upcoming` | customer |
 | Payment failed (dunning) | `invoice.payment_failed` | customer |
+| Plan change scheduled | user schedules an upgrade/downgrade in-app | customer |
+| Plan change applied | schedule phase goes live (`customer.subscription.updated`) | customer |
+| Plan change cancelled | user keeps their current plan | customer |
+| Cancellation scheduled | `cancel_at_period_end` false → true | customer |
+| Subscription resumed | `cancel_at_period_end` true → false | customer |
 | Subscription cancelled | `customer.subscription.deleted` | customer |
 | Refund issued | `charge.refunded` | customer |
 | Dispute alert | `charge.dispute.created` | `BILLING_ALERT_EMAIL` |
+
+All of them render through the shared branded template
+(`lib/email/layout.ts` — logo header, details table, CTA, support/legal footer,
+HTML + plain text). See [`email-templates.md`](./email-templates.md), which also
+carries the matching Supabase auth templates.
+
+The state-change emails (plan applied, cancellation scheduled, resumed) are
+decided by **diffing** the row we're about to write against the row as it was
+(`lib/billing/notify.ts`), not by trusting the caller — so a cancellation made in
+the Stripe portal or dashboard notifies exactly like one made in-app. Both the
+webhook and the in-app routes run that diff after syncing; whichever sees the
+transition first sends, the other sees no diff and stays quiet.
 
 Stripe's own card receipt (Dashboard → Settings → Emails) is complementary — the
 app emails are branded + deep-linked; leave Stripe receipts on if you want a
 formal PDF receipt too.
 
-## 7. Cancel, switch & refunds
+## 7a. Plan changes take effect at the END of the paid period
 
-- **Cancel / switch plan / update card** — the customer self-serves via the
-  **Stripe Billing Portal** (opened from the billing page). Enable plan switching
-  + set proration behaviour in Dashboard → Settings → Billing → Customer portal.
-  Switches prorate automatically; cancels set `cancel_at_period_end` and the
-  billing page then shows "Cancels on …".
+**The policy.** An upgrade, a downgrade or a custom-plan reconfiguration never
+takes effect mid-cycle. The customer paid for the period they're in, so they keep
+that plan — its limits, its AI model — until the day the period ends. The new
+plan starts at the next renewal and is what they're charged from then on.
+Nothing is prorated, nothing is charged or credited on the day they ask.
+
+**The mechanism** (`lib/billing/schedule.ts`) is a Stripe **Subscription
+Schedule**: phase 0 reproduces the current period verbatim (same price, same
+dates), phase 1 starts the moment phase 0 ends with the new price and
+`end_behavior: release`, so once the new phase has run an interval Stripe hands
+the subscription back and it continues on the new price forever. Because our
+`tier` column only moves when `customer.subscription.updated` reports a new
+price, entitlements can't change early even if the UI, the cache or a webhook is
+late.
+
+- `POST /api/billing/checkout` — no subscription yet ⇒ Stripe Checkout (starts
+  now, nothing to protect). Already subscribed ⇒ schedules the change and
+  returns `{ scheduled: true, effectiveAt, … }`. Picking the plan you're already
+  on means "keep it" and cancels a scheduled change or pending cancellation.
+- `POST /api/billing/plan` — `keep_current` (drop a scheduled change), `cancel`
+  (end at period end), `resume` (undo that).
+- `subscriptions.pending_tier` / `pending_effective_at` / `pending_price_aed` /
+  `pending_custom_entitlements` / `stripe_schedule_id` cache what's scheduled so
+  the billing page renders it without a Stripe round-trip. The schedule itself is
+  the source of truth; the cache is refreshed on every sync and is only cleared
+  when Stripe proves there's nothing scheduled.
+- **Custom plans** need a real Price object (schedule phases can't take inline
+  `price_data`), so one recurring AED price per distinct amount is created and
+  reused via `lookup_key: reelspy_custom_aed_<amount>`. Set the optional
+  `STRIPE_PRODUCT_CUSTOM` env to hang them all off one product instead of one
+  product per price point.
+- The UI states the rule permanently ("How plan changes work") **and** repeats it
+  inside every confirmation dialog, with the exact date, the exact price, and
+  what is charged today (nothing).
+
+> **Stripe Customer portal setting.** Turn **plan switching OFF** in
+> Dashboard → Settings → Billing → Customer portal. The portal's own switcher
+> prorates immediately, which is precisely the behaviour this section removes —
+> leave it on and a customer can bypass the policy. Keep payment-method updates,
+> invoice history and (optionally) cancellation enabled: a portal cancellation is
+> `cancel_at_period_end` and is handled identically to an in-app one.
+
+## 7b. Cancel, switch & refunds
+
+- **Switch plan / cancel / resume** — done in-app on `/dashboard/billing`, behind
+  confirmation dialogs (§7a). Cancellation sets `cancel_at_period_end`, so access
+  continues to the paid-through date and the page shows "Your plan ends on …"
+  with a one-click resume.
+- **Update card / invoice history** — the **Stripe Billing Portal**, opened from
+  the billing page.
 - **Refunds** — admins issue them from **Admin → Billing → Refund** (or the Stripe
   dashboard; both behave identically). Policy: a **full** refund cancels the
   subscription immediately and drops the user to Free; a **partial** refund leaves
@@ -241,7 +328,10 @@ for this — no fixed Price object exists for "custom":
 - `POST /api/billing/checkout` with `{ tier: "custom", config }` creates a
   Stripe Checkout session using an **ad-hoc `price_data` line item** (no
   pre-created Price) and stamps the computed entitlements as JSON into
-  `subscription_data.metadata.custom_entitlements`.
+  `subscription_data.metadata.custom_entitlements`. For a user who is **already
+  subscribed**, the same request instead schedules the custom plan for the next
+  renewal (§7a) — including a custom→custom reconfiguration, which is a real
+  change of price and limits, so it is never treated as "keep your plan".
 - Because the ad-hoc price never matches a known `STRIPE_PRICE_*` id, the
   webhook's existing price→tier lookup falls through to the metadata tier
   (`"custom"`) with no code changes needed there beyond persisting
