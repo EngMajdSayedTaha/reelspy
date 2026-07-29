@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { EmailOtpStep } from "@/components/auth/EmailOtpStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,6 @@ import { useDict } from "@/lib/i18n/I18nProvider";
 import { mapAuthError } from "@/lib/auth/errors";
 
 const MIN_PASSWORD_LENGTH = 8;
-const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function SignupPage() {
   return (
@@ -33,16 +33,9 @@ function SignupForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [checkEmail, setCheckEmail] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
   const [existingAccount, setExistingAccount] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const timer = setInterval(() => setCooldown((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(timer);
-  }, [cooldown]);
 
   const handleOAuth = async () => {
     if (!isSupabaseConfigured) {
@@ -93,9 +86,11 @@ function SignupForm() {
       email,
       password,
       options: {
-        // Mirror the OAuth flow: without this, Supabase falls back to the
-        // project's default Site URL, which never resolves through
-        // /auth/callback, so the confirmation link's code is silently dropped.
+        // The confirmation email carries a 6-digit code (verified below on the
+        // code screen) AND a link, for whoever clicks instead of typing. This
+        // keeps the link pointed at /auth/callback: without it Supabase falls
+        // back to the project's default Site URL, which never resolves through
+        // the callback, so the link's code is silently dropped.
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -118,35 +113,14 @@ function SignupForm() {
     // Supabase answers a duplicate signup with a 200 that mimics a fresh one —
     // no session, and even a fabricated `confirmation_sent_at` — but sends no
     // email to an already-confirmed address. An empty `identities` array is the
-    // only tell. Without this branch the person sits on "check your email"
-    // waiting for a mail that was never sent.
+    // only tell. Without this branch the person sits on the code screen waiting
+    // for a mail that was never sent.
     if ((data.user?.identities?.length ?? 0) === 0) {
       setExistingAccount(true);
       return;
     }
 
-    setCheckEmail(true);
-    setCooldown(RESEND_COOLDOWN_SECONDS);
-  };
-
-  const handleResend = async () => {
-    if (!isSupabaseConfigured || !email || cooldown > 0) return;
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
-
-    const { error: resendError } = await supabase.auth.resend({
-      type: "signup",
-      email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-
-    setIsLoading(false);
-    if (resendError) {
-      setError(mapAuthError(resendError, auth.authErrors));
-      return;
-    }
-    setCooldown(RESEND_COOLDOWN_SECONDS);
+    setAwaitingCode(true);
   };
 
   if (existingAccount) {
@@ -168,30 +142,17 @@ function SignupForm() {
     );
   }
 
-  if (checkEmail) {
+  if (awaitingCode) {
     return (
       <AuthShell>
-        <h2 className="text-lg font-semibold text-foreground">{auth.checkEmailHeading}</h2>
-        <p className="text-sm text-subtle">{auth.checkEmailBody}</p>
-
-        <Button
-          className="w-full"
-          onClick={() => void handleResend()}
-          disabled={isLoading || cooldown > 0}
-          type="button"
-          variant="secondary"
-        >
-          {cooldown > 0 ? auth.resendEmailCooldown.replace("{seconds}", String(cooldown)) : auth.resendEmailButton}
-        </Button>
-
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-
-        <p className="text-center text-sm text-subtle">
-          {auth.haveAccountPrompt}{" "}
-          <a href="/login" className="text-accent-brand hover:underline">
-            {auth.signInLink}
-          </a>
-        </p>
+        <EmailOtpStep
+          email={email}
+          onVerified={() => {
+            router.push("/dashboard");
+            router.refresh();
+          }}
+          onChangeEmail={() => setAwaitingCode(false)}
+        />
       </AuthShell>
     );
   }

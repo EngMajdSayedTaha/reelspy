@@ -282,8 +282,9 @@ Admins resolve to the top tier for entitlements (§1).
 
 ## 13. Auth & account lifecycle
 
-- Sign-in: **Google OAuth** (via Supabase; the Google client lives in Supabase's provider config, not app env) **and email/password** with email confirmation (`/auth/confirm`), forgot/reset password pages.
-- Both entry paths share `lib/auth/post-signin.ts`: profile row upsert (insert-or-ignore) + signup funnel event.
+- Sign-in: **Google OAuth** (via Supabase; the Google client lives in Supabase's provider config, not app env) **and email/password**, plus forgot/reset password pages.
+- Signing up confirms the address with a **6-digit code emailed on the spot**: `/signup` swaps the form for a code screen, `verifyOtp({ type: "signup" })` turns the code into a session, and the new account lands on the dashboard without leaving the tab. The same email still carries a confirmation link (`/auth/confirm`), so clicking works too — and an account that was never confirmed can request a fresh code straight from `/login`. Password reset stays a link flow.
+- All three entry paths share `lib/auth/post-signin.ts`: profile row upsert (insert-or-ignore) + signup funnel event. The code path reaches it through `POST /api/auth/post-signin`, because that verification happens in the browser.
 - Email send failures are surfaced to the user (not faked as success); signup tells you when the email is already registered. Auth emails go through the site origin `https://reelspy.dev` (`lib/site.ts`).
 - Middleware guards `/dashboard` + `/admin`; sessions via `@supabase/ssr`.
 - PDPL compliance: full data export (rate-limited, §2b) and account deletion.

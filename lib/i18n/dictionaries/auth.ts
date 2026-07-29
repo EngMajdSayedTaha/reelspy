@@ -27,21 +27,29 @@ const en = {
     forgotPasswordLink: "Forgot password?",
     noAccountPrompt: "No account?",
     createAccountLink: "Create one",
-    resendConfirmationPrompt: "Didn't get a confirmation email?",
-    resendConfirmationButton: "Resend confirmation email",
-    resendConfirmationSent: "Confirmation email sent — check your inbox.",
+    resendConfirmationPrompt: "Haven't confirmed your email yet?",
+    resendConfirmationButton: "Email me a verification code",
 
     // /signup
     signupHeading: "Create your account",
     haveAccountPrompt: "Already have an account?",
     signInLink: "Sign in",
-    checkEmailHeading: "Check your email",
-    checkEmailBody: "We've sent a confirmation link to activate your account.",
-    resendEmailButton: "Resend email",
-    resendEmailCooldown: "Resend in {seconds}s",
     existingAccountHeading: "You already have an account",
     existingAccountBody:
-      "An account with this email already exists, so we didn't send a confirmation link. Sign in instead — or reset your password if you've forgotten it.",
+      "An account with this email already exists, so we didn't send a verification code. Sign in instead — or reset your password if you've forgotten it.",
+
+    // Emailed 6-digit code step (components/auth/EmailOtpStep.tsx), shared by
+    // /signup and the unconfirmed-account branch of /login.
+    verifyEmailHeading: "Enter your verification code",
+    verifyEmailBody: "We sent a 6-digit code to {email}. Enter it below to activate your account.",
+    otpInputLabel: "Verification code digit",
+    verifyCodeButton: "Verify and continue",
+    noCodePrompt: "No code yet? Check your spam folder.",
+    resendCodeButton: "Send a new code",
+    resendCodeCooldown: "Send a new code in {seconds}s",
+    codeResent: "New code sent — check your inbox.",
+    wrongEmailPrompt: "Wrong email?",
+    changeEmailLink: "Use a different address",
 
     // /forgot-password
     forgotPasswordHeading: "Forgot your password?",
@@ -81,8 +89,14 @@ const en = {
       emailNotConfirmed: "Please confirm your email before signing in.",
       weakPassword: "Password is too weak. Use at least 8 characters.",
       samePassword: "New password must be different from your current password.",
-      otpExpired: "This link has expired. Please request a new one.",
+      // GoTrue answers a wrong code and an expired one with the same
+      // `otp_expired` — on purpose, so guessing tells an attacker nothing. The
+      // two strings are the same error on its two surfaces: an emailed link
+      // and a typed code (see OtpSurface in lib/auth/errors.ts).
+      otpExpired: "This link is invalid or has expired. Please request a new one.",
+      invalidOtp: "That code is wrong or has expired. Request a new one.",
       overEmailSendRateLimit: "Too many requests right now. Please wait a few minutes and try again.",
+      overRequestRateLimit: "Too many attempts. Please wait a few minutes and try again.",
       emailSendFailed:
         "We couldn't send that email — our mail provider rejected it. This is on our side, not yours. Please contact support@reelspy.dev.",
       userAlreadyExists: "This email is already registered. Sign in instead.",
@@ -115,20 +129,26 @@ export const authAr: AuthDict = {
     forgotPasswordLink: "نسيت كلمة المرور؟",
     noAccountPrompt: "لا تملك حسابًا؟",
     createAccountLink: "أنشئ حسابًا",
-    resendConfirmationPrompt: "لم تصلك رسالة التفعيل؟",
-    resendConfirmationButton: "إعادة إرسال رسالة التفعيل",
-    resendConfirmationSent: "تم إرسال رسالة التفعيل — تحقق من بريدك الوارد.",
+    resendConfirmationPrompt: "لم تفعّل بريدك الإلكتروني بعد؟",
+    resendConfirmationButton: "أرسل لي رمز تحقق",
 
     signupHeading: "أنشئ حسابك",
     haveAccountPrompt: "لديك حساب بالفعل؟",
     signInLink: "تسجيل الدخول",
-    checkEmailHeading: "تحقق من بريدك الإلكتروني",
-    checkEmailBody: "أرسلنا رابط تفعيل لحسابك.",
-    resendEmailButton: "إعادة إرسال البريد",
-    resendEmailCooldown: "إعادة الإرسال خلال {seconds} ثانية",
     existingAccountHeading: "لديك حساب بالفعل",
     existingAccountBody:
-      "يوجد حساب مسجّل بهذا البريد الإلكتروني، لذلك لم نرسل رابط تفعيل. سجّل الدخول بدلًا من ذلك — أو أعد تعيين كلمة المرور إذا نسيتها.",
+      "يوجد حساب مسجّل بهذا البريد الإلكتروني، لذلك لم نرسل رمز تحقق. سجّل الدخول بدلًا من ذلك — أو أعد تعيين كلمة المرور إذا نسيتها.",
+
+    verifyEmailHeading: "أدخل رمز التحقق",
+    verifyEmailBody: "أرسلنا رمزًا من 6 أرقام إلى {email}. أدخله أدناه لتفعيل حسابك.",
+    otpInputLabel: "خانة رمز التحقق",
+    verifyCodeButton: "تحقّق وتابع",
+    noCodePrompt: "لم يصلك الرمز؟ تحقق من مجلد البريد غير المرغوب فيه.",
+    resendCodeButton: "إرسال رمز جديد",
+    resendCodeCooldown: "إرسال رمز جديد خلال {seconds} ثانية",
+    codeResent: "تم إرسال رمز جديد — تحقق من بريدك الوارد.",
+    wrongEmailPrompt: "البريد الإلكتروني غير صحيح؟",
+    changeEmailLink: "استخدم عنوانًا آخر",
 
     forgotPasswordHeading: "نسيت كلمة المرور؟",
     forgotPasswordDescription: "أدخل بريدك الإلكتروني وسنرسل لك رابطًا لإعادة تعيين كلمة المرور.",
@@ -164,8 +184,10 @@ export const authAr: AuthDict = {
       emailNotConfirmed: "يرجى تفعيل بريدك الإلكتروني قبل تسجيل الدخول.",
       weakPassword: "كلمة المرور ضعيفة جدًا. استخدم 8 أحرف على الأقل.",
       samePassword: "يجب أن تختلف كلمة المرور الجديدة عن كلمة المرور الحالية.",
-      otpExpired: "انتهت صلاحية هذا الرابط. يرجى طلب رابط جديد.",
+      otpExpired: "هذا الرابط غير صالح أو انتهت صلاحيته. يرجى طلب رابط جديد.",
+      invalidOtp: "هذا الرمز غير صحيح أو انتهت صلاحيته. اطلب رمزًا جديدًا.",
       overEmailSendRateLimit: "محاولات كثيرة جدًا الآن. يرجى الانتظار بضع دقائق ثم إعادة المحاولة.",
+      overRequestRateLimit: "محاولات كثيرة جدًا. يرجى الانتظار بضع دقائق ثم إعادة المحاولة.",
       emailSendFailed:
         "تعذّر إرسال البريد الإلكتروني — رفضه مزوّد البريد لدينا. المشكلة من جانبنا وليست منك. يرجى التواصل مع support@reelspy.dev.",
       userAlreadyExists: "هذا البريد الإلكتروني مسجّل بالفعل. سجّل الدخول بدلًا من ذلك.",

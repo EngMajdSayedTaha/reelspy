@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { EmailOtpStep } from "@/components/auth/EmailOtpStep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +44,8 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [awaitingCode, setAwaitingCode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const authError = searchParams.get("error");
@@ -66,7 +67,6 @@ function LoginForm() {
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
-    setNotice(null);
 
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -97,7 +97,6 @@ function LoginForm() {
     const supabase = createClient();
     setIsLoading(true);
     setError(null);
-    setNotice(null);
     setNeedsConfirmation(false);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -113,7 +112,10 @@ function LoginForm() {
     router.refresh();
   };
 
-  const handleResendConfirmation = async () => {
+  // An account that was created but never confirmed can't sign in with a
+  // password. Rather than a dead end, mail a fresh 6-digit code and hand them
+  // the same verification step /signup uses — confirming there signs them in.
+  const handleSendConfirmationCode = async () => {
     if (!isSupabaseConfigured || !email) return;
     const supabase = createClient();
     setIsLoading(true);
@@ -130,8 +132,27 @@ function LoginForm() {
       setError(mapAuthError(resendError, auth.authErrors));
       return;
     }
-    setNotice(auth.resendConfirmationSent);
+    setAwaitingCode(true);
   };
+
+  if (awaitingCode) {
+    return (
+      <AuthShell>
+        <EmailOtpStep
+          email={email}
+          onVerified={() => {
+            router.push("/dashboard");
+            router.refresh();
+          }}
+          onChangeEmail={() => {
+            setAwaitingCode(false);
+            setNeedsConfirmation(false);
+            setError(null);
+          }}
+        />
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell>
@@ -187,8 +208,6 @@ function LoginForm() {
 
       {!isSupabaseConfigured ? <p className="text-sm text-warning">{auth.supabaseMissingWarning}</p> : null}
 
-      {notice ? <p className="text-sm text-success">{notice}</p> : null}
-
       {error || queryError ? <p className="text-sm text-danger">{error ?? queryError}</p> : null}
 
       {needsConfirmation ? (
@@ -196,7 +215,7 @@ function LoginForm() {
           <p className="text-xs text-subtle">{auth.resendConfirmationPrompt}</p>
           <button
             type="button"
-            onClick={() => void handleResendConfirmation()}
+            onClick={() => void handleSendConfirmationCode()}
             disabled={isLoading}
             className="text-sm text-accent-brand hover:underline disabled:opacity-50"
           >
