@@ -115,6 +115,11 @@ default `{{ .ConfirmationURL }}`.**
 
 ### Confirm signup
 
+> **Superseded:** signup now confirms with a 6-digit `{{ .Token }}` code, with
+> this link kept only as a fallback. Paste the current template from
+> [`email-templates.md`](./email-templates.md) — the snippet below is the
+> original, kept for reference.
+
 Set the link href to:
 
 ```
@@ -219,7 +224,7 @@ confirmation before custom SMTP is wired up will silently break signups for
 everyone after the first couple of users each hour. The app code already
 handles both states (`app/signup/page.tsx` checks `data.session` — if
 confirmation is off, signup returns a live session immediately; if it's on,
-it shows the "check your email" state), so shipping the code ahead of this
+it shows the 6-digit code screen), so shipping the code ahead of this
 flag is safe.
 
 ## 9. OAuth consoles

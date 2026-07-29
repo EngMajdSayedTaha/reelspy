@@ -48,6 +48,26 @@ describe("mapAuthError", () => {
     expect(mapAuthError({ code: "something_new", message: "" }, dict)).toBe(dict.generic);
   });
 
+  it("names the surface the one-time token came from", () => {
+    // GoTrue sends otp_expired for an emailed link AND for a typed code, so the
+    // caller says which noun the reader is looking at.
+    const rejected = { code: "otp_expired", message: "Token has expired or is invalid" };
+    expect(mapAuthError(rejected, dict)).toBe(dict.otpExpired);
+    expect(mapAuthError(rejected, dict, "link")).toBe(dict.otpExpired);
+    expect(mapAuthError(rejected, dict, "code")).toBe(dict.invalidOtp);
+  });
+
+  it("never says whether a rejected code was wrong or merely expired", () => {
+    // Telling them apart would hand a guesser a hit/miss oracle.
+    expect(dict.invalidOtp).toMatch(/wrong or has expired/i);
+    expect(mapAuthError({ code: "otp_expired", message: "" }, dict, "code")).not.toBe(dict.generic);
+  });
+
+  it("separates too-many-attempts from too-many-emails", () => {
+    expect(mapAuthError({ code: "over_request_rate_limit", message: "" }, dict)).toBe(dict.overRequestRateLimit);
+    expect(mapAuthError({ code: "over_email_send_rate_limit", message: "" }, dict)).toBe(dict.overEmailSendRateLimit);
+  });
+
   it("names a taken email, but never reveals an unknown one", () => {
     expect(mapAuthError({ code: "user_already_exists", message: "" }, dict)).toBe(dict.userAlreadyExists);
     // Password reset is triggerable by anyone for any address, so this one must

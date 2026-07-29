@@ -26,7 +26,17 @@ export function isEmailSendFailure(error: RawAuthError): boolean {
   return (error.status ?? 0) >= 500 && /error sending/i.test(error.message ?? "");
 }
 
-export function mapAuthError(error: RawAuthError, dict: AuthErrorDict): string {
+// Which of the two one-time-token surfaces the error came from. GoTrue sends
+// the SAME `otp_expired` for an emailed link and for a typed 6-digit code
+// (deliberately — a wrong code and an expired one must be indistinguishable to
+// a guesser), so only the caller knows which noun to put in front of the user.
+export type OtpSurface = "link" | "code";
+
+export function mapAuthError(
+  error: RawAuthError,
+  dict: AuthErrorDict,
+  surface: OtpSurface = "link"
+): string {
   const code = error.code ?? "";
   if (isEmailSendFailure(error)) {
     return dict.emailSendFailed;
@@ -41,9 +51,14 @@ export function mapAuthError(error: RawAuthError, dict: AuthErrorDict): string {
     case "same_password":
       return dict.samePassword;
     case "otp_expired":
-      return dict.otpExpired;
+      return surface === "code" ? dict.invalidOtp : dict.otpExpired;
     case "over_email_send_rate_limit":
       return dict.overEmailSendRateLimit;
+    case "over_request_rate_limit":
+      // GoTrue's brute-force brake on /verify: too many code attempts from one
+      // address. Distinct from the send limit above — waiting is the fix, and
+      // asking for yet another code is not.
+      return dict.overRequestRateLimit;
     case "user_already_exists":
       // Deliberate product decision: we tell people their email is taken rather
       // than leave them staring at a "check your inbox" screen for a mail that
