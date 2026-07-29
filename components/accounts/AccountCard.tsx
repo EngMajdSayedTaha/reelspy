@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power } from "lucide-react";
+import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ type AccountCardProps = {
 type SyncResult = {
   inserted?: number;
   updated?: number;
+  queued?: number;
   errors?: string[];
 };
 
@@ -102,16 +103,36 @@ export function AccountCard({
     });
   };
 
-  const handleSync = async () => {
+  // Default sync is CACHE-FIRST (`deferred`): if the shared snapshot is already
+  // current the server serves it instantly for zero Instagram quota; if it's
+  // stale the fetch is queued in the background. Forcing a fetch on every click
+  // is what made a browsing session burn through the app-wide hourly budget, so
+  // that behavior now lives behind an explicit "Force refresh" action instead of
+  // being the default.
+  const runSync = async (force: boolean) => {
     setIsSyncing(true);
     window.dispatchEvent(new CustomEvent("reelspy:syncing"));
     try {
       const json = await requestJson<SyncResult>("/api/ig/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ account_id: account.id, limit: syncLimit }),
+        body: JSON.stringify({
+          account_id: account.id,
+          limit: syncLimit,
+          ...(force ? { force: true } : { deferred: true }),
+        }),
       });
-      toast.success(t.syncResultToast(account.ig_username, json.inserted ?? 0, json.updated ?? 0));
+
+      const inserted = json.inserted ?? 0;
+      const updated = json.updated ?? 0;
+      if ((json.queued ?? 0) > 0) {
+        toast(t.queuedToast(account.ig_username), { icon: "🔄" });
+      } else if (!force && inserted === 0 && updated === 0) {
+        toast.success(t.alreadyFreshToast(account.ig_username));
+      } else {
+        toast.success(t.syncResultToast(account.ig_username, inserted, updated));
+      }
+
       if (json.errors?.length) {
         toast.warning(json.errors.join(" · "));
       }
@@ -127,6 +148,9 @@ export function AccountCard({
       setIsSyncing(false);
     }
   };
+
+  const handleSync = () => runSync(false);
+  const handleForceSync = () => runSync(true);
 
   const handleToggleActive = () => {
     const data = new FormData();
@@ -272,6 +296,20 @@ export function AccountCard({
         >
           <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
           {isSyncing ? t.syncing : t.syncButton}
+        </Button>
+
+        {/* Escape hatch: bypass the cache and pull from Instagram now. Kept
+            deliberately secondary — it spends shared hourly quota. */}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={handleForceSync}
+          disabled={busy}
+          aria-label={t.forceSyncLabel}
+          title={t.forceSyncTitle}
+        >
+          <Zap className="h-4 w-4" />
         </Button>
 
         <Button

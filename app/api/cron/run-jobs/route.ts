@@ -6,11 +6,14 @@ import { numEnv } from "@/lib/utils/env";
 import {
   claimJobs,
   completeJob,
+  deferJob,
   enqueueJob,
   failJob,
+  jitterMs,
   type Job,
   type JobKind,
 } from "@/lib/jobs/queue";
+import { readAppPausedUntil } from "@/lib/instagram/rate-limit";
 import { dispatchPost } from "@/lib/publishing/dispatcher";
 import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-job";
 import { runSendDigest } from "@/lib/email/digest-job";
@@ -26,6 +29,24 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const KINDS: JobKind[] = ["publish_post", "transcribe_reel", "send_digest", "refresh_snapshot"];
+
+// Pause between consecutive jobs that actually call Meta. Without this the worker
+// fires Business Discovery back-to-back — a fresh 100-account "Sync All" becomes
+// dozens of calls in seconds and trips Instagram's app-level ceiling on its own,
+// long before the userbase is big enough to matter. The inline sync route paces
+// identically (app/api/ig/sync/route.ts).
+const REFRESH_PACE_MS = numEnv("REFRESH_JOB_PACE_MS", 300);
+// Spread for deferred wake-ups so a whole cooldown's worth of jobs don't resume
+// in lockstep.
+const DEFER_JITTER_MS = numEnv("REFRESH_DEFER_JITTER_MS", 60_000);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// What a job run tells the loop: whether it spent a Meta call (so the next
+// Meta-bound job gets paced) and whether it was deferred rather than completed.
+type JobRun = { hitMeta: boolean; deferred: boolean };
 
 // Enqueue publish jobs for any scheduled post that's past due but has no active
 // job — covers posts scheduled before the queue existed and any missed enqueue.
@@ -53,14 +74,14 @@ async function reconcileDuePublishPosts(admin: ReturnType<typeof createAdminClie
   return queued;
 }
 
-async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Promise<void> {
+async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Promise<JobRun> {
   switch (job.kind) {
     case "publish_post": {
       const postId = String(job.payload.post_id ?? "");
       if (!postId) throw new Error("publish_post job missing post_id");
       await dispatchPost(admin, postId); // idempotent (pending-jobs-only)
       await completeJob(admin, job.id);
-      return;
+      return { hitMeta: false, deferred: false };
     }
     case "transcribe_reel": {
       const reelId = String(job.payload.reel_id ?? "");
@@ -73,27 +94,43 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
       } else {
         await completeJob(admin, job.id);
       }
-      return;
+      return { hitMeta: false, deferred: false };
     }
     case "send_digest": {
       const userId = String(job.payload.user_id ?? job.user_id ?? "");
       if (!userId) throw new Error("send_digest job missing user_id");
       await runSendDigest(admin, userId); // throws on send failure → reschedules
       await completeJob(admin, job.id);
-      return;
+      return { hitMeta: false, deferred: false };
     }
     case "refresh_snapshot": {
       const username = String(job.payload.ig_username ?? "");
       if (!username) throw new Error("refresh_snapshot job missing ig_username");
       const maxReels = Number(job.payload.max_reels) || undefined;
       const outcome = await runRefreshSnapshot(admin, username, maxReels);
-      if (RETRYABLE_REFRESH_OUTCOMES.has(outcome)) {
-        // Shared limiter closed / no healthy token — reschedule with backoff.
-        await failJob(admin, job, new Error(`refresh outcome: ${outcome}`));
-      } else {
-        await completeJob(admin, job.id);
+
+      // A throttle is "not now", not "broken" — defer to when the shared circuit
+      // actually reopens WITHOUT spending an attempt, so the job outlives a full
+      // 1-hour Meta cooldown instead of dying inside it.
+      if (outcome === "throttled") {
+        const pausedUntil = await readAppPausedUntil(admin);
+        const resumeAt = new Date(
+          (pausedUntil ? new Date(pausedUntil).getTime() : Date.now() + 60_000) +
+            jitterMs(DEFER_JITTER_MS)
+        );
+        await deferJob(admin, job, resumeAt, `throttled — waiting until ${resumeAt.toISOString()}`);
+        return { hitMeta: true, deferred: true };
       }
-      return;
+
+      if (RETRYABLE_REFRESH_OUTCOMES.has(outcome)) {
+        // `no_token` — a genuine fault (nobody has a healthy IG connection).
+        await failJob(admin, job, new Error(`refresh outcome: ${outcome}`));
+        return { hitMeta: false, deferred: false };
+      }
+
+      await completeJob(admin, job.id);
+      // not_found / failed still consumed a Business Discovery call, so they pace.
+      return { hitMeta: outcome !== "skipped", deferred: false };
     }
   }
 }
@@ -121,17 +158,45 @@ export async function GET(request: Request) {
   let done = 0;
   let retried = 0;
   let failed = 0;
+  let deferred = 0;
   let processed = 0;
+
+  // Read the shared circuit breaker ONCE per pass when Meta-bound work is in the
+  // batch. If Instagram is cooling down, every refresh job is parked in one go
+  // rather than each one waking, failing, and burning an attempt against a door
+  // we already know is closed.
+  const pausedUntil = claimed.some((j) => j.kind === "refresh_snapshot")
+    ? await readAppPausedUntil(admin)
+    : null;
+
+  let lastHitMeta = false;
 
   for (const job of claimed) {
     // Leave headroom so we don't get killed mid-job; the lease reclaims anything
     // left `running` past the lock timeout on a later pass.
     if (Date.now() - startedAt > budgetMs) break;
+
+    if (job.kind === "refresh_snapshot" && pausedUntil) {
+      const resumeAt = new Date(new Date(pausedUntil).getTime() + jitterMs(DEFER_JITTER_MS));
+      await deferJob(admin, job, resumeAt, `circuit open — waiting until ${resumeAt.toISOString()}`);
+      deferred++;
+      continue;
+    }
+
+    // Pace only between jobs that actually reach Meta — cache hits and non-Meta
+    // kinds need no throttle.
+    if (job.kind === "refresh_snapshot" && lastHitMeta && REFRESH_PACE_MS > 0) {
+      await sleep(REFRESH_PACE_MS);
+    }
+
     processed++;
     try {
-      await runJob(admin, job);
-      done++;
+      const result = await runJob(admin, job);
+      lastHitMeta = result.hitMeta;
+      if (result.deferred) deferred++;
+      else done++;
     } catch (err) {
+      lastHitMeta = false;
       const result = await failJob(admin, job, err);
       if (result.retried) retried++;
       else failed++;
@@ -166,6 +231,10 @@ export async function GET(request: Request) {
     processed,
     done,
     retried,
+    // Parked until Meta's cooldown clears — not failures, and not attempts spent.
+    deferred,
     failed,
+    throttled: Boolean(pausedUntil) || undefined,
+    resumesAt: pausedUntil ?? undefined,
   });
 }

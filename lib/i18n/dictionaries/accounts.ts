@@ -48,6 +48,13 @@ const en = {
       syncSelectAria: "Reels to sync",
       syncButton: "Sync",
       syncing: "Syncing…",
+      // Cache-first sync: when the shared snapshot is already current there is
+      // nothing to fetch, so say so instead of implying work happened.
+      alreadyFreshToast: (username: string) => `@${username} is already up to date.`,
+      queuedToast: (username: string) => `Refreshing @${username} in the background…`,
+      forceSyncLabel: "Force refresh from Instagram",
+      forceSyncTitle:
+        "Fetch fresh data from Instagram right now. Uses part of your hourly quota.",
       pauseAria: "Pause account",
       activateAria: "Activate account",
       pauseTitle: "Pause (hide from feed)",
@@ -112,6 +119,8 @@ const en = {
       existingCountToast: (count: number) => `${count} already tracked`,
       invalidCountToast: (count: number) => `${count} invalid skipped`,
       photosBackfillToast: "Profile photos and follower counts will fill in on the first sync.",
+      bulkRefreshNotice: (count: number) =>
+        `Fetching ${count} accounts in the background. Instagram limits how fast we can pull, so this can take a few minutes — you can leave this page.`,
       importFailedError: "Import failed. Please try again.",
       selectAtLeastOneError: "Select at least one account.",
     },
@@ -203,6 +212,10 @@ export const accountsAr: AccountsDict = {
       syncSelectAria: "عدد الريلز للمزامنة",
       syncButton: "مزامنة",
       syncing: "جارٍ المزامنة…",
+      alreadyFreshToast: (username: string) => `@${username} محدَّث بالفعل.`,
+      queuedToast: (username: string) => `جارٍ تحديث @${username} في الخلفية…`,
+      forceSyncLabel: "تحديث فوري من إنستغرام",
+      forceSyncTitle: "جلب بيانات جديدة من إنستغرام الآن. يستهلك جزءًا من حصتك بالساعة.",
       pauseAria: "إيقاف الحساب",
       activateAria: "تفعيل الحساب",
       pauseTitle: "إيقاف (إخفاء من المحتوى)",
@@ -266,6 +279,8 @@ export const accountsAr: AccountsDict = {
       existingCountToast: (count: number) => `${count} متابَع بالفعل`,
       invalidCountToast: (count: number) => `${count} غير صالح تم تجاهله`,
       photosBackfillToast: "ستُستكمل الصور الشخصية وأعداد المتابعين تلقائيًا عند أول مزامنة.",
+      bulkRefreshNotice: (count: number) =>
+        `جارٍ جلب ${count} حساب في الخلفية. يحدّ إنستغرام من سرعة الجلب، لذا قد يستغرق ذلك بضع دقائق — يمكنك مغادرة هذه الصفحة.`,
       importFailedError: "فشل الاستيراد. يرجى المحاولة مرة أخرى.",
       selectAtLeastOneError: "اختر حسابًا واحدًا على الأقل.",
     },
