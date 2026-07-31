@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, IBM_Plex_Sans_Arabic } from "next/font/google";
 import { cookies } from "next/headers";
+import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { CookieConsent } from "@/components/legal/CookieConsent";
@@ -32,6 +33,11 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 
 const description =
   "Track inspiration reels, spot what's rising, and turn the best ideas into scripts.";
+
+// clarity.microsoft.com project id — not a secret, it's embedded in the
+// client-side tag either way. Fallback is the ReelSpy prod project.
+const CLARITY_PROJECT_ID =
+  process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID?.trim() || "xuzukpwv8n";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -74,6 +80,9 @@ export default async function RootLayout({
     cookieStore.get(LANDING_LOCALE_COOKIE)?.value
   );
   const colorTheme = normalizeColorTheme(cookieStore.get(THEME_COOKIE)?.value);
+  // Only fire Clarity once the visitor has accepted cookies (mirrored by
+  // CookieConsent into this cookie); no consent yet means no script.
+  const analyticsConsent = cookieStore.get("cookie_consent")?.value === "accepted";
 
   return (
     <html
@@ -86,6 +95,15 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${plexArabic.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        {analyticsConsent && (
+          <Script id="ms-clarity" strategy="afterInteractive">
+            {`(function(c,l,a,r,i,t,y){
+    c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+    t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+    y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+})(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`}
+          </Script>
+        )}
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
