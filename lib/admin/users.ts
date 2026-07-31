@@ -49,6 +49,54 @@ export async function resolveEmails(
   return new Map(entries);
 }
 
+// Same lookup as resolveEmails, but keeps the whole GoTrue record (email +
+// last-sign-in + ban state) — for the admin user directory, which needs all
+// three per row and would otherwise pay for the same getUserById call twice.
+export async function resolveAuthUsers(
+  admin: SupabaseClient,
+  ids: string[]
+): Promise<Map<string, AdminAuthUser>> {
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const { data } = await admin.auth.admin.getUserById(id);
+        return [id, toAdminAuthUser(data.user)] as const;
+      } catch {
+        return [id, null] as const;
+      }
+    })
+  );
+  const map = new Map<string, AdminAuthUser>();
+  for (const [id, u] of entries) {
+    if (u) map.set(id, u);
+  }
+  return map;
+}
+
+// Most recent `app_events` timestamp per user id — the "did something in the
+// app" half of the directory's Last active column (the other half is GoTrue's
+// last_sign_in_at, from resolveAuthUsers). No aggregate view exists for this,
+// so it's one bounded query per id, same N+1-but-page-bounded tradeoff as
+// resolveEmails above.
+export async function resolveLastEventAt(
+  admin: SupabaseClient,
+  ids: string[]
+): Promise<Map<string, string | null>> {
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      const { data } = await admin
+        .from("app_events")
+        .select("created_at")
+        .eq("user_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return [id, (data as { created_at?: string } | null)?.created_at ?? null] as const;
+    })
+  );
+  return new Map(entries);
+}
+
 // Find a single auth user by exact email. GoTrue's JS admin API has no email
 // filter, so scan listUsers pages (bounded) and match case-insensitively. Fine
 // at current scale; returns null past the cap.

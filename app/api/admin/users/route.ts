@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/auth";
 import { parseListQuery, listResponse } from "@/lib/admin/query";
-import { resolveEmails, findUserIdByEmail } from "@/lib/admin/users";
+import { resolveAuthUsers, resolveLastEventAt, findUserIdByEmail } from "@/lib/admin/users";
 
 export const runtime = "nodejs";
 
@@ -14,8 +14,18 @@ export type AdminUserRow = {
   createdAt: string | null;
   isAdmin: boolean;
   tier: string;
+  /** Stripe/billing subscription status ("active" | "trialing" | … | "inactive" for no subscription). Not an account-activity signal — see lastActiveAt. */
   status: string;
+  /** Most recent of GoTrue last_sign_in_at and the latest tracked app_events row; null if the user has never done either. */
+  lastActiveAt: string | null;
+  isBanned: boolean;
 };
+
+function maxIso(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
 
 // GET /api/admin/users — paginated user directory.
 // Search (q): an "@"-containing term is treated as an exact email; a term
@@ -77,9 +87,11 @@ export async function GET(request: Request) {
   }[];
   const ids = rows.map((r) => r.id);
 
-  // Emails (auth API) + subscription tier/status (one query), both by id.
-  const [emails, subsResult] = await Promise.all([
-    resolveEmails(admin, ids),
+  // Auth metadata (email, last sign-in, ban state), last tracked app event, and
+  // subscription tier/status — all by id, in parallel.
+  const [authById, lastEventById, subsResult] = await Promise.all([
+    resolveAuthUsers(admin, ids),
+    resolveLastEventAt(admin, ids),
     ids.length
       ? admin.from("subscriptions").select("user_id, tier, status").in("user_id", ids)
       : Promise.resolve({ data: [] as { user_id: string; tier: string; status: string }[] }),
@@ -93,14 +105,17 @@ export async function GET(request: Request) {
 
   const result: AdminUserRow[] = rows.map((r) => {
     const sub = subsById.get(r.id);
+    const auth = authById.get(r.id) ?? null;
     return {
       id: r.id,
       username: r.username,
-      email: emails.get(r.id) ?? null,
+      email: auth?.email ?? null,
       createdAt: r.created_at,
       isAdmin: r.is_admin === true,
       tier: sub?.tier ?? "free",
       status: sub?.status ?? "inactive",
+      lastActiveAt: maxIso(auth?.lastSignInAt ?? null, lastEventById.get(r.id) ?? null),
+      isBanned: auth?.bannedUntil != null,
     };
   });
 

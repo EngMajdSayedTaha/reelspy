@@ -32,6 +32,7 @@ export function DataTable<T>({
   params,
   rowKey,
   emptyMessage = "No results.",
+  onReady,
 }: {
   endpoint: string;
   columns: Column<T>[];
@@ -40,6 +41,9 @@ export function DataTable<T>({
   params?: Record<string, string | undefined>;
   rowKey: (row: T) => string;
   emptyMessage?: string;
+  /** Called once with a refetch function, so a row action (e.g. a mutation
+   * button in a column's render) can refresh the table after it completes. */
+  onReady?: (refetch: () => void) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -114,6 +118,10 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchInput(q);
   }, [q]);
+
+  useEffect(() => {
+    onReady?.(() => load({ cancelled: false }));
+  }, [onReady, load]);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
