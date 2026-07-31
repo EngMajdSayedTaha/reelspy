@@ -32,8 +32,13 @@ export const runtime = "nodejs";
 // a cold cache never blocks a visitor on a DB round-trip.
 const CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=86400";
 
-// In-window lookback. Matches the dashboard's Niche Radar default.
-const DAYS = 14;
+// In-window lookback. Wider than the dashboard's own Niche Radar default (14d)
+// on purpose: the showcase niches share a small daily enrichment budget with
+// every other niche real users have picked (lib/instagram/enrich.ts), so any
+// one showcase niche can go a couple of weeks between refreshes. A tighter
+// window flips that niche's tab to fixtures on a rotating basis even though
+// the accounts are healthy — this just buys slack against that cadence.
+const DAYS = 21;
 
 // Hard ceiling on the DB work. The Supabase client has no default timeout, so
 // a degraded database would otherwise hold this function open until the

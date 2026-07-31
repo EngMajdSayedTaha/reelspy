@@ -71,7 +71,17 @@ export async function enrichSeedAccounts(
   const showcaseNiches = new Set(SHOWCASE_NICHES.map((n) => slugifyNiche(n)));
   const isShowcase = (u: string): boolean =>
     showcaseNiches.has(slugifyNiche(nicheByUsername.get(u) ?? ""));
-  const isPriority = (u: string): boolean => isActive(u) || isShowcase(u);
+
+  // Showcase niches strictly outrank a user's active niche, not just tie with
+  // it. They used to share one priority tier, and on days when an active
+  // niche's stale pool was bigger than the showcase's it could still crowd
+  // the batch out (sort ties broke on username, not niche) — that's why
+  // fitness (also a real user's active niche) sat unrefreshed for two weeks
+  // while food/travel got occasional runs. The showcase set is small and
+  // fixed (3 niches, ~60 accounts total), so giving it first claim on the
+  // daily batch is cheap and keeps every tab inside the trending window.
+  const priorityTier = (u: string): 0 | 1 | 2 =>
+    isShowcase(u) ? 0 : isActive(u) ? 1 : 2;
 
   const { data: snaps } = await admin
     .from("ig_account_snapshots")
@@ -95,11 +105,8 @@ export async function enrichSeedAccounts(
   const staleAll = allUsernames.filter(isStale);
   const stale = [...staleAll]
     .sort((a, b) => {
-      // Priority accounts — a real user's active niche, or a public-showcase
-      // niche — come first, so the limited Meta budget always reaches them.
-      const aPriority = isPriority(a) ? 0 : 1;
-      const bPriority = isPriority(b) ? 0 : 1;
-      if (aPriority !== bPriority) return aPriority - bPriority;
+      const tierDiff = priorityTier(a) - priorityTier(b);
+      if (tierDiff !== 0) return tierDiff;
       const ta = freshness.get(a)?.at ? new Date(freshness.get(a)!.at as string).getTime() : 0;
       const tb = freshness.get(b)?.at ? new Date(freshness.get(b)!.at as string).getTime() : 0;
       return ta - tb; // then oldest / never-fetched first

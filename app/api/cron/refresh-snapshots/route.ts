@@ -19,7 +19,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const BATCH = numEnv("SNAPSHOT_REFRESH_BATCH", 50);
-const SEED_BATCH = numEnv("SEED_ENRICH_BATCH", 50);
+const SEED_BATCH = numEnv("SEED_ENRICH_BATCH", 100);
 const TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600);
 const REQUEUE_BATCH = numEnv("REFRESH_REQUEUE_BATCH", 100);
 

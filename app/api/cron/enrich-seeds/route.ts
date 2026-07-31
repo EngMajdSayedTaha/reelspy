@@ -14,7 +14,7 @@ import { numEnv } from "@/lib/utils/env";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const BATCH = numEnv("SEED_ENRICH_BATCH", 50);
+const BATCH = numEnv("SEED_ENRICH_BATCH", 100);
 const HOURLY_BUDGET = numEnv("META_HOURLY_BUDGET", 160);
 
 export async function GET(request: Request) {
