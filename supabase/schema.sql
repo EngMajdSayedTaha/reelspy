@@ -16,7 +16,7 @@
 -- ║ Token columns are locked down to SERVER-ONLY via column grants below.      ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 create table profiles (
-  id uuid primary key references auth.users(id),
+  id uuid primary key references auth.users(id) on delete cascade,
   username text,
   ig_access_token text,                 -- SERVER ONLY (revoked from browser roles)
   ig_user_id text,
