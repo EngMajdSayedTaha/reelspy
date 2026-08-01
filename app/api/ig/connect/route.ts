@@ -103,6 +103,18 @@ export async function GET(request: NextRequest) {
     origin: origin.canonicalOrigin,
     redirectUri,
     usingConfigId: Boolean(configId),
+    // App id and config id are NOT secrets — both are visible to anyone who
+    // watches the address bar during the handoff. Logging them makes a
+    // "URL Blocked" report actionable without asking the founder to read env
+    // vars back: they identify exactly which Meta app, and which Login for
+    // Business configuration, has to carry the redirect URI above.
+    appId,
+    configId: configId ?? null,
+    // The full dialog URL with `state` redacted, so the handshake can be
+    // replayed by hand in any browser to confirm a console fix took effect.
+    // `state` is the one query parameter that must never be logged: it is the
+    // CSRF token bound to this user's session.
+    authorizeUrl: authorizeUrl.replace(/([?&]state=)[^&]*/, "$1REDACTED"),
     ...ctx,
   });
 
