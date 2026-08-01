@@ -81,6 +81,7 @@ const en = {
       supabaseEnvMissing: "Supabase environment variables are missing.",
       confirmFailed: "This confirmation link is invalid or has expired. Please sign up again or request a new link.",
       linkExpired: "This link has expired or was already used. Request a new one.",
+      sessionExpired: "Your session expired. Sign in again to connect your account.",
     },
 
     // Raw Supabase Auth error codes, mapped via lib/auth/errors.ts.
@@ -177,6 +178,7 @@ export const authAr: AuthDict = {
       supabaseEnvMissing: "متغيرات بيئة Supabase مفقودة.",
       confirmFailed: "رابط التفعيل غير صالح أو منتهي الصلاحية. يرجى إنشاء حساب مرة أخرى أو طلب رابط جديد.",
       linkExpired: "انتهت صلاحية هذا الرابط أو تم استخدامه بالفعل. اطلب رابطًا جديدًا.",
+      sessionExpired: "انتهت صلاحية جلستك. سجّل الدخول مرة أخرى لربط حسابك.",
     },
 
     authErrors: {

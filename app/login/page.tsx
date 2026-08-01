@@ -21,6 +21,10 @@ function getQueryErrorMap(auth: AuthDict["auth"]): Record<string, string> {
     profile_upsert_failed: auth.errors.profileUpsertFailed,
     supabase_env_missing: auth.errors.supabaseEnvMissing,
     confirm_failed: auth.errors.confirmFailed,
+    // Set by the OAuth connect routes when the session is gone by the time the
+    // user taps "Connect" — otherwise they land on a bare login screen with no
+    // idea why connecting an account bounced them here.
+    session_expired: auth.errors.sessionExpired,
   };
 }
 

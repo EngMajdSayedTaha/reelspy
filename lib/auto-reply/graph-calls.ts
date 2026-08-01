@@ -13,10 +13,17 @@
 const GRAPH_VERSION = "v23.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
+// Same reasoning as GRAPH_TIMEOUT_MS in lib/instagram/graph-api.ts: a Meta call
+// with no ceiling can outlive the serverless invocation, which kills the handler
+// before it can log or redirect. subscribePageToWebhooks runs inside the connect
+// callback, so an untimed hang there strands the user on a blank page.
+const GRAPH_TIMEOUT_MS = Number(process.env.META_GRAPH_TIMEOUT_MS) || 15_000;
+
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     cache: "no-store",
+    signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });

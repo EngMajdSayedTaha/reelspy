@@ -4,6 +4,8 @@ import { createRouteClient } from "@/lib/supabase/route";
 import { isPlatform } from "@/lib/publishing/types";
 import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
 import { relativeRedirect } from "@/lib/http/redirect";
+import { checkOAuthOrigin } from "@/lib/oauth/origin";
+import { oauthLog, requestContext } from "@/lib/oauth/log";
 
 // OAuth initiation for the net-new publishing platforms (TikTok, YouTube).
 // Instagram/Facebook reuse the existing /api/ig/connect flow. Mirrors that
@@ -18,6 +20,32 @@ export async function GET(
   { params }: { params: Promise<{ platform: string }> }
 ) {
   const { platform } = await params;
+  const ctx = requestContext(request);
+
+  if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
+    return relativeRedirect(`${SETTINGS}?error=unsupported_platform`);
+  }
+
+  // Origin pin — before any cookie is written. reelspy.dev proxies /api/* to
+  // this deployment, so this handler can run on an origin the provider will
+  // never return to, and both the state cookie and the session cookie would be
+  // dropped on the way back. Same defect as the Instagram flow; see
+  // lib/oauth/origin.ts.
+  const origin = checkOAuthOrigin(
+    request,
+    getSocialRedirectUri(platform),
+    `/api/social/${platform}/connect`
+  );
+  if (origin.pinned) {
+    oauthLog({
+      flow: platform,
+      step: "connect:origin-pinned",
+      from: origin.requestOrigin,
+      to: origin.canonicalOrigin,
+      ...ctx,
+    });
+    return NextResponse.redirect(origin.redirectTo, 307);
+  }
 
   // Route-handler client: carry any refreshed/rotated session cookies onto the
   // redirects below so a mobile user on an expired token reaches the provider's
@@ -26,10 +54,9 @@ export async function GET(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return applyCookies(relativeRedirect("/login"));
-
-  if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
-    return applyCookies(relativeRedirect(`${SETTINGS}?error=unsupported_platform`));
+  if (!user) {
+    oauthLog({ flow: platform, step: "connect:no-session", ...ctx });
+    return applyCookies(relativeRedirect("/login?error=session_expired"));
   }
 
   const state = randomUUID();
@@ -70,6 +97,8 @@ export async function GET(
     authUrl = url.toString();
   }
 
+  oauthLog({ flow: platform, step: "connect:redirecting", origin: origin.canonicalOrigin, ...ctx });
+
   const response = applyCookies(NextResponse.redirect(authUrl));
   // Scope the state to the platform so two parallel connect flows can't collide.
   response.cookies.set(STATE_COOKIE, `${platform}:${state}`, {
@@ -77,7 +106,10 @@ export async function GET(
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 10,
+    // One hour, not ten minutes: provider consent on a phone (sign-in, SMS 2FA,
+    // account picker) routinely outlives the old window, and an expired cookie
+    // surfaces as an unexplained "could not be verified" on the way back.
+    maxAge: 60 * 60,
   });
   return response;
 }

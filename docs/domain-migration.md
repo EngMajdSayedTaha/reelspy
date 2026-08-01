@@ -416,6 +416,52 @@ an app subdomain: inbound `@reelspy.dev` forwards via ImprovMX (apex MX), and
 Resend sends from the isolated `send.reelspy.dev` subdomain with its own MX/SPF.
 Editing either would risk inbound mail for no benefit.
 
+## OAuth connect flows must be origin-PINNED (code invariant)
+
+The invariant above ("redirects must stay origin-agnostic") is right for
+navigation, and wrong for OAuth. The two rules cover different things and both
+have to hold:
+
+| | Rule | Why |
+|---|---|---|
+| In-app navigation | stay on whatever origin the browser came in on (`relativeRedirect`) | the internal deployment host must never leak into the address bar |
+| OAuth connect | force the flow onto the origin in the registered redirect URI | the provider returns to ONE fixed origin, and only cookies from that origin come back with it |
+
+`reelspy.dev` still proxies `/api/:path*` here, so `/api/ig/connect` answers on
+both `reelspy.dev` and `app.reelspy.dev`, while Facebook always returns to
+`META_REDIRECT_URI`. Start the flow on the wrong origin and two cookies are
+dropped on the way back — the `reelspy_ig_oauth_state` CSRF cookie *and* the
+Supabase session — so the callback reports `invalid_state`, finds no user, and
+sends the browser to `/login`, which on the marketing origin is itself a 307
+back to `app.reelspy.dev`, where the middleware sees a valid session and
+forwards to `/dashboard`. The user sees a tab that spins and lands nowhere.
+Nothing is logged, because every step of that is a redirect.
+
+This is what broke Instagram connect after the subdomain split: the last
+successful `ig_connected` event was 2026-07-23, two days before the move. It
+reads as a phone-only bug because the phone is where the old `reelspy.dev`
+bookmark and home-screen icon live, while a desktop set up after the migration
+goes straight to `app.reelspy.dev` and never crosses an origin.
+
+`lib/oauth/origin.ts` (`checkOAuthOrigin`) enforces the pin: every `connect`
+route bounces to the canonical origin **before writing any cookie**. The target
+is derived from server config, never from a request header, so it cannot become
+an open redirect. Preview deployments are exempt — their host can't be
+registered with a provider anyway.
+
+Two belts hold the flow up even if a cookie is still lost:
+
+- **Signed state** (`lib/oauth/state.ts`). `state` is an HMAC-signed payload
+  carrying the user id, so the callback can verify it with no cookie at all.
+  That is a *stronger* CSRF binding than the old cookie, which proved only "this
+  browser started some flow", never "this flow belongs to this account".
+- **A one-hour state TTL**, up from ten minutes. Desktop consent is two clicks
+  on an already-signed-in Facebook session; on a phone it's sign-in, an SMS 2FA
+  code (which means leaving the browser), a Page picker and an IG account picker.
+
+Both connect and callback log every decision under `[oauth]` — filter the Vercel
+runtime logs on that prefix to see exactly where an attempt ended.
+
 ## Gotcha found during the migration
 
 `META_REDIRECT_URI` was set to `https://reelspy.dev/api/ig/callback` while the
