@@ -102,10 +102,11 @@ async function main() {
   let response;
   let body = "";
   try {
-    // No redirect following: a healthy dialog answers 200 (login/consent) or
-    // 302 to a Facebook login page. The URL-Blocked error is served as 200 HTML
-    // and is checked below by content, since Facebook does not give it a
-    // distinct status code.
+    // No redirect following. Facebook validates the redirect URI only AFTER it
+    // has a logged-in viewer: an anonymous request is bounced to login.php
+    // first, whitelisted or not. So a 302 proves nothing — see the verdict
+    // handling below. The URL-Blocked error is served as 200 HTML and is
+    // checked by content, since Facebook gives it no distinct status code.
     response = await fetch(authorizeUrl, {
       redirect: "manual",
       headers: {
@@ -123,6 +124,9 @@ async function main() {
     process.exit(1);
   }
 
+  const location = response.headers.get("location") || "";
+  const bouncedToLogin =
+    response.status >= 300 && response.status < 400 && /\/login\.php/.test(location);
   const blocked = /URL Blocked/i.test(body) || /not whitelisted/i.test(body);
   const misconfigured = /Invalid App ID|app_id.*invalid/i.test(body);
   const notActive = /App Not Active|not currently accessible/i.test(body);
@@ -158,8 +162,24 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("PASS  Facebook accepted the redirect URI — no “URL Blocked”.");
-  console.log(`      (HTTP ${response.status}; Facebook is now asking the user to log in or consent.)`);
+  if (bouncedToLogin) {
+    const appId_ = encodeURIComponent(appId);
+    console.log("INCONCLUSIVE  Facebook bounced this anonymous request to login.php");
+    console.log("              BEFORE it looked at the redirect URI.\n");
+    console.log("      This is the normal answer for every unauthenticated request, and it");
+    console.log("      is returned whether or not the URI is whitelisted — so it is NOT");
+    console.log("      evidence that the handshake is healthy. Do not read it as a pass.\n");
+    console.log("      The authoritative check needs a logged-in session. Open:\n");
+    console.log(`          https://developers.facebook.com/apps/${appId_}/${configId ? "business-login" : "fb-login"}/settings/\n`);
+    console.log("      and paste the URI below into the “Redirect URI Validator” at the top");
+    console.log("      of that page. It answers “valid”/“invalid” against the real list:\n");
+    console.log(`          ${redirectUri}\n`);
+    console.log("      Then confirm it also appears verbatim under Valid OAuth Redirect URIs.");
+    return;
+  }
+
+  console.log("PASS  Facebook served the dialog and did not answer “URL Blocked”.");
+  console.log(`      (HTTP ${response.status}.)`);
   console.log("\n      This checks the handshake only. It cannot verify permissions,");
   console.log("      app-review state, or whether the signed-in account has a role while");
   console.log("      the app is in Development mode.");

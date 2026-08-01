@@ -492,11 +492,17 @@ entries, exact strings — https, no trailing slash, case-sensitive:
 
 ```
 https://app.reelspy.dev/api/ig/callback
-http://localhost:3000/api/ig/callback          # local dev only
 ```
 
-Also on that screen: **Client OAuth Login** and **Web OAuth Login** both ON, and
-`app.reelspy.dev` listed under **App Domains** (Settings → Basic).
+`http://localhost:3000/api/ig/callback` **cannot be added** while *Enforce HTTPS*
+is on — Facebook silently drops the whole submission and the list reverts with no
+error shown. Leave *Enforce HTTPS* on and connect against a deployed preview for
+local work; turning it off just to test locally weakens every redirect.
+
+Also on that screen: **Client OAuth Login** and **Web OAuth Login** both ON,
+**Use Strict Mode for redirect URIs** is on (so the match is exact — a bare
+`reelspy.dev` entry will never cover `app.reelspy.dev`), and `app.reelspy.dev`
+listed under **App Domains** (Settings → Basic).
 
 Whatever is listed there must equal `getMetaRedirectUri()` byte for byte —
 `META_REDIRECT_URI` if set, otherwise `${NEXT_PUBLIC_SITE_URL}/api/ig/callback`.
@@ -506,15 +512,28 @@ Production logs print the value the app actually sends on every attempt:
 [oauth] ig connect:redirecting {"redirectUri":"https://app.reelspy.dev/api/ig/callback", …}
 ```
 
-Verify without a browser after any domain change:
+Verify after any domain change:
 
 ```bash
 npm run check:meta
 ```
 
-It performs the real handshake and fails loudly on "URL Blocked", naming the
-exact string to paste. **Run it as part of every domain migration** — it is the
-check whose absence let this sit broken for a week.
+It replays the handshake and fails loudly if Facebook answers "URL Blocked",
+naming the exact string to paste. **Run it as part of every domain migration.**
+
+But note its limit: Facebook checks the redirect URI only once it has a
+logged-in viewer, so an anonymous request is bounced to `login.php` *before*
+validation — whitelisted or not. The script reports that case as
+**INCONCLUSIVE**, never as a pass. The authoritative check needs a browser
+session:
+
+> Facebook Login for Business → Settings → **Redirect URI Validator** (top of
+> the page) → paste the URI → *Check URI*. It answers "This is a valid redirect
+> URI for this application" or "invalid" against the real list.
+
+Confirmed on 2026-08-01: the list held only `https://reelspy.dev/api/ig/callback`
+(pre-migration domain), the validator called `https://app.reelspy.dev/api/ig/callback`
+invalid, and adding it flipped the validator to valid.
 
 ## Gotcha found during the migration
 
