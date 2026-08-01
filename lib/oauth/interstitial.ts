@@ -56,9 +56,10 @@ const COPY: Record<"en" | "ar", (provider: string) => InterstitialCopy> = {
     manualCta: `Continue to ${provider}`,
     stuckHeading: `${provider} didn't load`,
     stuckBody:
-      `Your browser opened ${provider} but nothing appeared. That is almost always a browser ` +
-      `privacy setting or a content blocker refusing to load ${provider}, not a problem with your account.`,
+      `Your browser opened ${provider} but you ended up back here. Either ${provider} showed an ` +
+      `error, or your browser refused to load it. Here's how to tell which:`,
     tips: [
+      `If ${provider} showed "URL Blocked — the redirect URI is not whitelisted", that is a server configuration problem on our side, not yours. Nothing you change in your browser will help — please report it and we'll fix the app settings.`,
       `If you use Brave: tap the lion icon and turn Shields DOWN for this site, then enable Settings → Brave Shields & privacy → Social media blocking → "Allow Facebook logins".`,
       `Turn off any ad blocker, content blocker or private-DNS filter for ${provider.toLowerCase()}.com and try again.`,
       `Or just open this page in a different browser (Chrome, Safari, Firefox) and connect there — the connection is saved to your account, not to the browser.`,
@@ -72,9 +73,10 @@ const COPY: Record<"en" | "ar", (provider: string) => InterstitialCopy> = {
     manualCta: `المتابعة إلى ${provider}`,
     stuckHeading: `لم يتم تحميل ${provider}`,
     stuckBody:
-      `فتح متصفحك ${provider} لكن لم يظهر أي شيء. غالبًا ما يكون السبب إعداد خصوصية في المتصفح أو أداة حظر محتوى ` +
-      `ترفض تحميل ${provider}، وليست مشكلة في حسابك.`,
+      `فتح متصفحك ${provider} لكنك عدت إلى هنا. إمّا أن ${provider} أظهر رسالة خطأ، أو أن متصفحك رفض تحميله. ` +
+      `إليك كيف تعرف السبب:`,
     tips: [
+      `إذا أظهر ${provider} رسالة "URL Blocked — the redirect URI is not whitelisted"، فهذه مشكلة في إعدادات الخادم لدينا وليست لديك. لن يفيد تغيير أي شيء في متصفحك — يرجى إبلاغنا وسنصلح إعدادات التطبيق.`,
       `إذا كنت تستخدم Brave: اضغط على أيقونة الأسد وأوقف الدروع (Shields) لهذا الموقع، ثم فعّل الإعدادات ← Brave Shields & privacy ← Social media blocking ← "Allow Facebook logins".`,
       `أوقف أي مانع إعلانات أو حاجب محتوى أو فلترة DNS خاصة بالنسبة إلى ${provider.toLowerCase()}.com ثم أعد المحاولة.`,
       `أو افتح هذه الصفحة في متصفح آخر (Chrome أو Safari أو Firefox) واربط حسابك من هناك — يُحفظ الربط في حسابك وليس في المتصفح.`,

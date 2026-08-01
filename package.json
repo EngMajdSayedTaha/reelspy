@@ -12,6 +12,7 @@
     "postinstall": "node scripts/fetch-ytdlp.mjs",
     "check:auth-setup": "node scripts/check-auth-setup.mjs",
     "check:email": "node scripts/check-email-delivery.mjs",
+    "check:meta": "node scripts/check-meta-oauth.mjs",
     "stripe:forward": "node scripts/stripe-forward.mjs"
   },
   "dependencies": {

@@ -462,6 +462,60 @@ Two belts hold the flow up even if a cookie is still lost:
 Both connect and callback log every decision under `[oauth]` — filter the Vercel
 runtime logs on that prefix to see exactly where an attempt ended.
 
+## "URL Blocked" — the redirect URI must be in FACEBOOK LOGIN's settings
+
+Symptom: tapping Connect lands on a Facebook page reading
+
+> **URL Blocked** — This redirect failed because the redirect URI is not
+> whitelisted in the app's Client OAuth Settings. Make sure Client and Web OAuth
+> Login are on and add all your app domains as Valid OAuth Redirect URIs.
+
+This is a **dead end**: Facebook rejects the handshake before the user can
+authorize and never redirects back, so `/api/ig/callback` is never reached and
+**nothing is logged server-side**. The only visible evidence is an absence — no
+new `ig_connected` rows. That is how this survived from the 2026-07-25
+subdomain move until it was reported: the last successful connect was
+2026-07-23 and no error ever surfaced anywhere.
+
+**The trap.** The table above records the redirect URI as added under *Instagram
+business login → OAuth redirect URIs*. That is a **different product** and a
+different field. This app authorizes through **Facebook Login** —
+`www.facebook.com/<version>/dialog/oauth` against `graph.facebook.com`, chosen
+because it is the only flow that exposes Business Discovery (see the header of
+`lib/instagram/graph-api.ts`). Instagram-login redirect URIs have no effect on
+it.
+
+Put the value in **Facebook Login for Business → Settings → Client OAuth
+Settings → Valid OAuth Redirect URIs** (`META_FB_CONFIG_ID` is set, so the
+product is Login for Business; without it, plain *Facebook Login*). Required
+entries, exact strings — https, no trailing slash, case-sensitive:
+
+```
+https://app.reelspy.dev/api/ig/callback
+http://localhost:3000/api/ig/callback          # local dev only
+```
+
+Also on that screen: **Client OAuth Login** and **Web OAuth Login** both ON, and
+`app.reelspy.dev` listed under **App Domains** (Settings → Basic).
+
+Whatever is listed there must equal `getMetaRedirectUri()` byte for byte —
+`META_REDIRECT_URI` if set, otherwise `${NEXT_PUBLIC_SITE_URL}/api/ig/callback`.
+Production logs print the value the app actually sends on every attempt:
+
+```
+[oauth] ig connect:redirecting {"redirectUri":"https://app.reelspy.dev/api/ig/callback", …}
+```
+
+Verify without a browser after any domain change:
+
+```bash
+npm run check:meta
+```
+
+It performs the real handshake and fails loudly on "URL Blocked", naming the
+exact string to paste. **Run it as part of every domain migration** — it is the
+check whose absence let this sit broken for a week.
+
 ## Gotcha found during the migration
 
 `META_REDIRECT_URI` was set to `https://reelspy.dev/api/ig/callback` while the

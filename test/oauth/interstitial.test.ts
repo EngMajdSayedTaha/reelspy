@@ -44,6 +44,13 @@ describe("renderOAuthInterstitial", () => {
     expect(html).toContain("event.persisted");
   });
 
+  it("names URL Blocked first — a server-config dead end the user cannot fix", () => {
+    // Facebook's "URL Blocked" page never redirects back, so this is the only
+    // surface that can tell the user it is our problem, not their browser's.
+    expect(html).toContain("URL Blocked");
+    expect(html).toContain("server configuration problem on our side");
+  });
+
   it("names the browser-side causes the user can actually act on", () => {
     expect(html).toContain("Brave");
     expect(html).toContain("Allow Facebook logins");
