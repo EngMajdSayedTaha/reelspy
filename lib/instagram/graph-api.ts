@@ -108,6 +108,15 @@ export function buildInstagramConnectUrl(params: FacebookConnectUrlParams) {
   return toUrl(`https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`, query).toString();
 }
 
+// Per-request ceiling for a Graph API call. Without one, a Meta endpoint that
+// hangs takes the whole serverless invocation down with it: the function hits
+// the platform's execution limit and is killed, so the handler's catch block
+// never runs and NOTHING is logged — the user just sees a page that never
+// arrives. That is precisely the "it just keeps loading" report this guards
+// against. 15s leaves room for the callback's several sequential calls while
+// still failing inside the function, where it can be logged and shown.
+const GRAPH_TIMEOUT_MS = Number(process.env.META_GRAPH_TIMEOUT_MS) || 15_000;
+
 // When a `limiter` is supplied, every call passes through the shared app-level
 // guard: acquire() before the request (may throw MetaRateLimitError), observe()
 // after to feed Meta's usage headers back into the circuit breaker.
@@ -118,7 +127,11 @@ async function fetchJson<T>(
 ): Promise<T> {
   await limiter?.acquire();
 
-  const response = await fetch(url, { ...init, cache: "no-store" });
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+    ...init,
+    cache: "no-store",
+  });
 
   if (limiter) {
     await limiter.observe(response.headers, response.status);

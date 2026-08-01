@@ -10,6 +10,8 @@ const en = {
 
     // OAuth round-trip error map (query-param driven)
     invalidState: "Sign-in could not be verified. Please try connecting again.",
+    stateExpired:
+      "This connection attempt took too long and expired. Tap Connect again — you'll be signed in to Instagram already, so it should be quick.",
     missingCode: "The provider did not return an authorization code.",
     oauthFailed: "Connection failed. Please try again.",
     tiktokEnvMissing: "TikTok isn't configured on the server yet.",
@@ -94,6 +96,8 @@ export const connectionsAr: ConnectionsDict = {
       "مكان واحد لربط وإدارة كل حساب تواصل اجتماعي تعمل معه ReelSpy — المزامنة والنشر والرد الآلي تعمل جميعها عبر هذه الروابط.",
 
     invalidState: "تعذّر التحقق من تسجيل الدخول. يرجى إعادة محاولة الربط.",
+    stateExpired:
+      "استغرقت محاولة الربط وقتًا طويلًا وانتهت صلاحيتها. اضغط «ربط» مرة أخرى — ستكون مسجّلًا في إنستغرام بالفعل، لذا ستكون العملية سريعة.",
     missingCode: "لم يُرجع المزوّد رمز التفويض.",
     oauthFailed: "فشل الربط. يرجى المحاولة مرة أخرى.",
     tiktokEnvMissing: "تيك توك غير مهيأ على الخادم بعد.",

@@ -26,6 +26,7 @@ function firstParam(value: string | string[] | undefined) {
 function errorMap(dict: Dict["connections"]): Record<string, string> {
   return {
     invalid_state: dict.invalidState,
+    state_expired: dict.stateExpired,
     missing_code: dict.missingCode,
     oauth_failed: dict.oauthFailed,
     tiktok_env_missing: dict.tiktokEnvMissing,

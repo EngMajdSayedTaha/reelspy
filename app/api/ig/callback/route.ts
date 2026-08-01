@@ -17,6 +17,8 @@ import {
   parseGraphError,
 } from "@/lib/instagram/graph-api";
 import { subscribePageToWebhooks } from "@/lib/auto-reply/graph-calls";
+import { verifyOAuthState, safeEqual } from "@/lib/oauth/state";
+import { oauthLog, oauthError, requestContext } from "@/lib/oauth/log";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_oauth_state";
 
@@ -26,36 +28,87 @@ export async function GET(request: NextRequest) {
   const error = requestUrl.searchParams.get("error");
   const state = requestUrl.searchParams.get("state");
   const cookieStore = await cookies();
-  const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
+  const cookieState = cookieStore.get(OAUTH_STATE_COOKIE)?.value ?? null;
+  const ctx = requestContext(request);
 
   if (error) {
+    // Facebook's own refusal (user hit Cancel, app not live, scope declined).
+    oauthError({
+      flow: "ig",
+      step: "callback:provider-error",
+      providerError: error,
+      providerReason: requestUrl.searchParams.get("error_reason"),
+      providerDescription: requestUrl.searchParams.get("error_description"),
+      ...ctx,
+    });
     return relativeRedirect(`/dashboard/connections?error=${encodeURIComponent(error)}`);
   }
 
   if (!code) {
+    oauthError({ flow: "ig", step: "callback:missing-code", ...ctx });
     return relativeRedirect("/dashboard/connections?error=missing_code");
-  }
-
-  if (!state || !expectedState || state !== expectedState) {
-    const invalidStateResponse = relativeRedirect(
-      "/dashboard/connections?error=invalid_state"
-    );
-    invalidStateResponse.cookies.delete(OAUTH_STATE_COOKIE);
-    return invalidStateResponse;
   }
 
   // Route-handler client: getUser() may refresh + rotate the session on the way
   // back from Facebook. applyCookies carries the refreshed cookies onto every
   // redirect below so mobile users aren't silently bounced to /login (which
   // leaves Instagram unconnected even though OAuth succeeded).
+  //
+  // Resolved BEFORE the state check (it used to be after) because the state is
+  // now bound to a user id and has to be checked against the session that came
+  // back — see lib/oauth/state.ts.
   const { supabase, applyCookies } = await createRouteClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return applyCookies(relativeRedirect("/login"));
+    oauthError({ flow: "ig", step: "callback:no-session", hadStateCookie: Boolean(cookieState), ...ctx });
+    return applyCookies(relativeRedirect("/login?error=session_expired"));
   }
+
+  // ── State verification ─────────────────────────────────────────────────────
+  // Two independent proofs, either of which is sufficient:
+  //   * the httpOnly cookie still matches (the classic check), or
+  //   * the state carries our HMAC and names THIS user (survives a cookie the
+  //     phone dropped between the two hops — the failure this whole change is
+  //     about).
+  // A cookie miss alone is no longer fatal; a forged or stale state still is.
+  const appSecret = process.env.META_APP_SECRET;
+  const cookieMatches = Boolean(state && cookieState && safeEqual(state, cookieState));
+  const signed =
+    state && appSecret ? verifyOAuthState(appSecret, state) : ({ ok: false, reason: "malformed" } as const);
+  const signatureMatches = signed.ok && signed.payload.u === user.id;
+
+  if (!cookieMatches && !signatureMatches) {
+    const reason = !state
+      ? "missing"
+      : signed.ok
+        ? "user_mismatch"
+        : signed.reason;
+    oauthError({
+      flow: "ig",
+      step: "callback:invalid-state",
+      reason,
+      hadStateCookie: Boolean(cookieState),
+      ...ctx,
+    });
+    const invalidStateResponse = applyCookies(
+      relativeRedirect(
+        `/dashboard/connections?error=${reason === "expired" ? "state_expired" : "invalid_state"}`
+      )
+    );
+    invalidStateResponse.cookies.delete(OAUTH_STATE_COOKIE);
+    return invalidStateResponse;
+  }
+
+  oauthLog({
+    flow: "ig",
+    step: "callback:state-ok",
+    via: cookieMatches ? "cookie" : "signature",
+    hadStateCookie: Boolean(cookieState),
+    ...ctx,
+  });
 
   try {
     const shortToken = await exchangeCodeForAccessToken(code);
@@ -64,6 +117,7 @@ export async function GET(request: NextRequest) {
     const igAccount = await getInstagramBusinessAccount(longLivedToken);
 
     if (!igAccount) {
+      oauthError({ flow: "ig", step: "callback:no-business-account", ...ctx });
       const noAccountResponse = applyCookies(
         relativeRedirect("/dashboard/connections?error=no_ig_business_account")
       );
@@ -147,6 +201,14 @@ export async function GET(request: NextRequest) {
 
     // Instrumentation (L5): funnel step after signup.
     await track(user.id, "ig_connected");
+    oauthLog({
+      flow: "ig",
+      step: "callback:connected",
+      igUserId: igProfile.id,
+      hasPage: Boolean(igAccount.pageId),
+      webhookWarning,
+      ...ctx,
+    });
 
     const successUrl = new URL("/dashboard/connections?success=connected", request.url);
     if (webhookWarning) {
@@ -162,6 +224,15 @@ export async function GET(request: NextRequest) {
     console.error("Instagram callback failed", callbackError);
     const raw = callbackError instanceof Error ? callbackError.message : String(callbackError);
     const friendly = parseGraphError(raw);
+    oauthError({
+      flow: "ig",
+      step: "callback:exchange-failed",
+      // Meta's own message only — never the raw body, which can carry request
+      // metadata. The full error is on the console.error line above.
+      metaMessage: friendly,
+      timedOut: /timed out|aborted|AbortError/i.test(raw),
+      ...ctx,
+    });
     const target = new URL("/dashboard/connections", request.url);
     target.searchParams.set("error", "oauth_failed");
     if (friendly) {
