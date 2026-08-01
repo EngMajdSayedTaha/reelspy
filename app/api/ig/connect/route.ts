@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { cookies } from "next/headers";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { renderOAuthInterstitial } from "@/lib/oauth/interstitial";
 import { createRouteClient } from "@/lib/supabase/route";
 import { buildInstagramConnectUrl, getMetaRedirectUri } from "@/lib/instagram/graph-api";
 import { relativeRedirect } from "@/lib/http/redirect";
@@ -103,7 +106,30 @@ export async function GET(request: NextRequest) {
     ...ctx,
   });
 
-  const redirectResponse = applyCookies(NextResponse.redirect(authorizeUrl));
+  // Hand off from a page we control rather than a bare 307. A privacy browser
+  // or content blocker that refuses to load facebook.com otherwise leaves the
+  // user on a blank screen with no error and nothing to tap — the exact report
+  // that led here, with production logs showing correct redirects and zero
+  // callbacks. See lib/oauth/interstitial.ts.
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const redirectResponse = applyCookies(
+    new NextResponse(
+      renderOAuthInterstitial({
+        authorizeUrl,
+        provider: "Facebook",
+        locale,
+        flow: "ig",
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          // Holds a one-time state; must never be served from a cache.
+          "cache-control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    )
+  );
 
   redirectResponse.cookies.set(OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
