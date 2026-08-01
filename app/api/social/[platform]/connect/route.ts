@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
+import { renderOAuthInterstitial } from "@/lib/oauth/interstitial";
 import { createRouteClient } from "@/lib/supabase/route";
 import { isPlatform } from "@/lib/publishing/types";
 import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
@@ -99,7 +102,27 @@ export async function GET(
 
   oauthLog({ flow: platform, step: "connect:redirecting", origin: origin.canonicalOrigin, ...ctx });
 
-  const response = applyCookies(NextResponse.redirect(authUrl));
+  // Same handoff page as the Instagram flow: a provider dialog blocked by a
+  // privacy browser or content blocker must explain itself instead of leaving
+  // a blank screen. See lib/oauth/interstitial.ts.
+  const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
+  const response = applyCookies(
+    new NextResponse(
+      renderOAuthInterstitial({
+        authorizeUrl: authUrl,
+        provider: platform === "tiktok" ? "TikTok" : "YouTube",
+        locale,
+        flow: platform,
+      }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store, no-cache, must-revalidate",
+        },
+      }
+    )
+  );
   // Scope the state to the platform so two parallel connect flows can't collide.
   response.cookies.set(STATE_COOKIE, `${platform}:${state}`, {
     httpOnly: true,
