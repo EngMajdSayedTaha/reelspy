@@ -95,6 +95,53 @@ export async function clearIgToken(admin: SupabaseClient, userId: string): Promi
   await clearIgConnections(admin, userId);
 }
 
+// ── Facebook app-scoped user ID (Meta platform callbacks) ────────────────────
+// Meta's Deauthorize and Data Deletion callbacks identify the user ONLY by the
+// app-scoped user ID (ASID) inside `signed_request` — not by the Instagram
+// business account id we key everything else on. Recording it at connect time
+// is what makes those callbacks able to find a user at all, which App Review
+// checks. See lib/meta/signed-request.ts and Plan_Reelspy/09-platform-access.md.
+//
+// Both functions are FAIL-OPEN on a missing column, matching connections.ts: on
+// a deployment where migration 20260802120000 hasn't been applied yet, storing
+// no-ops and lookups return null, so the connect flow and the callbacks keep
+// working (the callbacks just resolve nobody) instead of throwing.
+
+export async function storeFacebookUserId(
+  admin: SupabaseClient,
+  userId: string,
+  fbUserId: string
+): Promise<void> {
+  const { error } = await admin
+    .from("profiles")
+    .update({ fb_user_id: fbUserId })
+    .eq("id", userId);
+
+  if (error) {
+    console.warn("[token-store] fb_user_id write skipped:", error.message);
+  }
+}
+
+// Reverse lookup for the platform callbacks. Returns null when the ASID is
+// unknown — which is the normal case for a user who connected before the column
+// existed, and must therefore never be treated as an error.
+export async function findUserIdByFacebookUserId(
+  admin: SupabaseClient,
+  fbUserId: string
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("fb_user_id", fbUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[token-store] fb_user_id lookup skipped:", error.message);
+    return null;
+  }
+  return (data?.id as string | undefined) ?? null;
+}
+
 // ── Facebook Page credentials (Auto-Reply module) ────────────────────────────
 // Private replies (comment-to-DM) are sent with a PAGE access token. It's
 // derived from the long-lived user token, so it gets the same treatment: only

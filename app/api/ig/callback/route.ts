@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { track } from "@/lib/analytics/track";
 import {
   markWebhookSubscribed,
+  storeFacebookUserId,
   storeIgToken,
   storePageCredentials,
 } from "@/lib/instagram/token-store";
@@ -13,6 +14,7 @@ import { setActiveIgConnection, upsertIgConnection } from "@/lib/instagram/conne
 import {
   exchangeCodeForAccessToken,
   exchangeForLongLivedToken,
+  getFacebookUserId,
   getInstagramBusinessAccount,
   parseGraphError,
 } from "@/lib/instagram/graph-api";
@@ -148,6 +150,17 @@ export async function GET(request: NextRequest) {
       );
       profileUpdateResponse.cookies.delete(OAUTH_STATE_COOKIE);
       return profileUpdateResponse;
+    }
+
+    // Record the app-scoped user id so Meta's Deauthorize / Data Deletion
+    // callbacks can resolve this account later (they carry no other identifier
+    // — see lib/meta/signed-request.ts). Best-effort on both hops: a failure
+    // here must never cost the user a working connection.
+    try {
+      const fbUserId = await getFacebookUserId(longLivedToken);
+      if (fbUserId) await storeFacebookUserId(admin, user.id, fbUserId);
+    } catch (asidError) {
+      console.warn("app-scoped user id capture failed (non-fatal)", asidError);
     }
 
     // Auto-Reply module: private replies need the PAGE token, and Meta only

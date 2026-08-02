@@ -19,8 +19,42 @@ in the same commit. Each checkbox = one Claude Code session/patch.
 
 ---
 
+## Platform Access — P-series (see `09-platform-access.md`)
+
+Getting **strangers** (not just app-role testers) onto Instagram, then TikTok, then YouTube.
+Mostly external approvals; the code items are marked. [AGENT] = a Claude session can do it
+end to end, [FOUNDER] = a human must click/upload/submit.
+
+**Phase 0 — go live inside Standard access (this week)**
+- [ ] **P0.1** [FOUNDER] Invite beta users as Meta app **Testers** + send them the accept-invite steps
+- [ ] **P0.2** [AGENT] **Code:** `META_BETA_MODE` gate on `/dashboard/connections` + honest provider-error copy (en/ar)
+- [x] **P0.3** [AGENT] `npm run check:meta` preflight — exists, run after every domain/env/console change
+- [ ] **P0.4** [FOUNDER] Stripe, `ig_connections` migration, mailboxes, API keys — see `GO-LIVE-CHECKLIST.md`
+
+**Phase 1 — Meta Advanced Access without a trade licence**
+- [x] **P1.1** [AGENT] **Code:** Meta Deauthorize + Data Deletion callbacks, `fb_user_id` capture, status page, tests
+- [ ] **P1.2** [FOUNDER] Point the App Dashboard at the new callback URLs
+- [ ] **P1.3** [AGENT] Privacy policy names each Meta permission and its purpose
+- [ ] **P1.4** [AGENT] Seed a reviewer demo account with a connected IG account you control
+- [ ] **P1.5** [FOUNDER] Screencast + submit App Review for the **P0 scope set only**
+- [ ] **P1.R** [FOUNDER] Business Verification ladder: unregistered → freelance permit → US LLC (§1b — **decision point, ask the founder**)
+
+**Phase 2 — TikTok** (independent of Meta, no licence needed)
+- [ ] **T1** [FOUNDER] Individual developer account + Content Posting API product
+- [ ] **T2** [FOUNDER/AGENT] R2 custom domain attached + URL prefix verified in TikTok portal
+- [ ] **T4** [AGENT] **Code:** audit `PublishComposer` against TikTok UX guidelines (privacy selector from `creator_info/query`, draft-vs-direct choice, disclosure toggles, music-usage confirmation)
+- [ ] **T5** [FOUNDER] Submit the audit → **T6** [AGENT] set `TIKTOK_ALLOW_PUBLIC=true`
+
+**Phase 3 — YouTube/Google** (independent, no licence needed)
+- [ ] **Y1** [FOUNDER] Google Cloud project + OAuth consent screen (External, individual)
+- [ ] **Y2** [AGENT] Narrow the scope list to `youtube.upload` alone
+- [ ] **Y3** [FOUNDER] Verify `reelspy.dev` in Search Console under the project's Google account
+- [ ] **Y4/Y5** [FOUNDER] OAuth verification (Gate A) + YouTube compliance audit (Gate B) → **Y6** [AGENT] `YOUTUBE_ALLOW_PUBLIC=true`
+
+---
+
 ## Known unknowns to verify before/during Launch (not code work, do in parallel)
-- [ ] Confirm Meta app review covers `instagram_content_publish` + `instagram_manage_messages` in production (Meta App Dashboard, not code)
+- [ ] Confirm Meta app review covers `instagram_content_publish` + `instagram_manage_messages` in production (Meta App Dashboard, not code) — **now tracked as P1.5; submit the P0 scope set first**
 - [ ] Confirm Stripe UAE account approval timeline — start application now, it's the long pole outside the code
 
 See `plan/08-verification-and-unknowns.md` for the full verification plan per item.

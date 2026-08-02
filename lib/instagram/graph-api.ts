@@ -218,6 +218,31 @@ export function isUnsupportedOperationError(message: string): boolean {
   );
 }
 
+// The Facebook APP-SCOPED user ID (ASID) for this token.
+//
+// It is the id Meta puts in the `signed_request` of the Deauthorize and Data
+// Deletion callbacks, and the only identifier those callbacks carry — so
+// without recording it at connect time, a deauthorize POST cannot be resolved
+// to a ReelSpy account. "App-scoped" means it is stable for this app and this
+// user, and meaningless to any other app.
+//
+// Returns null rather than throwing: this is a best-effort enrichment on a
+// connect flow that must not fail because of it.
+export async function getFacebookUserId(token: string): Promise<string | null> {
+  try {
+    const json = await fetchJson<JsonRecord>(
+      toUrl(`${GRAPH_BASE}/me`, { fields: "id", access_token: token })
+    );
+    return typeof json.id === "string" ? json.id : null;
+  } catch (err) {
+    console.warn(
+      "[graph-api] app-scoped user id lookup failed:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}
+
 // Find the Instagram Business account linked to the user's Facebook Pages.
 // Also returns the linking Page's credentials: private replies (Auto-Reply
 // module) are sent with the PAGE token, not the user token. A page token

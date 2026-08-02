@@ -32,10 +32,22 @@
 - **Until set:** `/dashboard/billing` shows preview mode, checkout/portal/webhook return 503.
 - Walkthrough: `docs/billing-setup.md`
 
-### Meta app review (needed for automations + publishing to work for real users)
-- [ ] Confirm Meta App review covers **`instagram_content_publish`** +
-      **`instagram_manage_messages`** in **production** (Meta App Dashboard — not code).
-      Without it, publishing + comment→DM automation only work for app testers.
+### Meta app review (needed for ANY non-tester to connect at all)
+> ⚠️ **This is bigger than it looks and now has its own plan:**
+> [`09-platform-access.md`](./09-platform-access.md). Advanced Access requires Business
+> Verification *first*, and until it lands, **only people with a role on the app can connect
+> Instagram at all** — not just publishing and automations. Phase 0 of that plan is how you
+> launch and charge money in the meantime, and §1b is the ladder for verifying **without a
+> trade licence**.
+
+- [ ] Work `09-platform-access.md` Phase 0 (invite-gated launch) — **do this first**
+- [ ] Business Verification (§1b ladder: unregistered → freelance permit → US LLC)
+- [ ] App Review for the **P0 scope set** (`instagram_basic`, `pages_show_list`,
+      `pages_read_engagement`, `business_management`, `instagram_manage_insights`) — the wedge
+- [ ] App Review round 2: **`instagram_content_publish`** + **`instagram_manage_messages`**
+      for publishing + comment→DM automation
+- [ ] Point App Settings → Basic at the new callbacks:
+      `/api/meta/deauthorize` and `/api/meta/data-deletion` (shipped, see §1d)
 
 ### Database — one migration still to apply
 - [ ] Apply **`supabase/migrations/20260704130000_ig_connections.sql`** (X4 Studio
@@ -70,6 +82,11 @@
 - Details: `docs/cron-cadence.md`
 
 ### TikTok / YouTube publishing (optional platforms — stay private until audited)
+> Full step-by-step in [`09-platform-access.md`](./09-platform-access.md) Phases 2–3.
+> **Neither needs a company licence** — TikTok registers individuals, and Google verifies
+> domain ownership instead of an entity. Both are independent of Meta: run them in parallel
+> rather than waiting on App Review.
+
 - [ ] Pass **TikTok app audit** → then set `TIKTOK_ALLOW_PUBLIC=true`
 - [ ] Pass **YouTube API audit** → then set `YOUTUBE_ALLOW_PUBLIC=true`
 - **Until then:** posts to these platforms are forced private (UI shows honest notice).
