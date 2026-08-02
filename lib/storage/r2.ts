@@ -14,6 +14,14 @@
 //   R2_ACCESS_KEY_ID      R2 API token Access Key ID.
 //   R2_SECRET_ACCESS_KEY  R2 API token Secret Access Key.
 //   R2_BUCKET             Bucket name (e.g. "publish-media").
+//   R2_PUBLIC_BASE_URL    Optional. A Custom Domain (Cloudflare dashboard → R2
+//                         → bucket → Settings → Custom Domains, e.g.
+//                         https://media.reelspy.dev) bound to the bucket. TikTok's
+//                         Content Posting API (PULL_FROM_URL) requires the video
+//                         URL's domain to be verified in the TikTok developer
+//                         portal, and the raw <account>.r2.cloudflarestorage.com
+//                         S3 API host can never be verified — it isn't a domain
+//                         you control DNS for. See docs/BUSINESS-LOGIC.md.
 //
 // The bucket also needs a CORS rule allowing PUT/GET from the app origin so the
 // browser upload's preflight succeeds — see docs/publishing-setup.md.
@@ -97,6 +105,18 @@ export async function presignPutUrl(
 // Short-lived URL the platform adapters hand to IG/TikTok/YouTube so they can
 // pull the video bytes directly from R2.
 export async function presignGetUrl(key: string, expiresSeconds = 60 * 30): Promise<string> {
+  const publicBase = process.env.R2_PUBLIC_BASE_URL?.trim();
+  if (publicBase) {
+    // A Custom Domain serves bucket objects directly over HTTPS — it isn't part
+    // of the S3 API and doesn't understand SigV4 query auth, so this is
+    // intentionally unsigned. Access control is the unguessable UUID key, same
+    // as every other presigned link in this file; expiresSeconds doesn't apply
+    // here (kept in the signature so callers don't need a platform-specific
+    // branch), so treat R2_PUBLIC_BASE_URL objects as reachable indefinitely.
+    const safeKey = key.split("/").map(encodeURIComponent).join("/");
+    return `${publicBase.replace(/\/+$/, "")}/${safeKey}`;
+  }
+
   const config = getConfig();
   const url = new URL(objectUrl(config, key));
   url.searchParams.set("X-Amz-Expires", String(expiresSeconds));

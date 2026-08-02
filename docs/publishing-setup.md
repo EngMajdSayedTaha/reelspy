@@ -92,8 +92,13 @@ with Supabase Storage's 50 MB limit.
    R2_BUCKET=publish-media
    ```
 
-That's it — no public bucket, no custom domain. The platform adapters fetch each
-video from R2 via a short-lived presigned GET URL at publish time.
+That's it for Instagram and YouTube — no public bucket, no custom domain. The
+platform adapters fetch each video from R2 via a short-lived presigned GET URL
+at publish time. **TikTok needs one more step** — see §3 below: its
+`PULL_FROM_URL` mode requires the video URL's domain to be one you can verify,
+which the raw `<account>.r2.cloudflarestorage.com` S3 API host never can be
+(you don't control DNS for it). Set `R2_PUBLIC_BASE_URL` to a Custom Domain
+bound to the bucket to unblock this — see `lib/storage/r2.ts`.
 
 ---
 
@@ -136,14 +141,19 @@ handed to Meta as a short-lived signed URL, so uploads must finish processing
    add the **Content Posting API** product.
 2. Request the scopes `user.info.basic`, `video.publish`, `video.upload`.
 3. Add your **Redirect URI**: `https://<your-domain>/api/social/tiktok/callback`.
-4. Because the adapter uses `PULL_FROM_URL`, verify your domain under the app's
-   **URL properties** (URL Prefix verification). *(Alternative: switch the
-   adapter to `FILE_UPLOAD` if you prefer not to verify a domain.)*
+4. Because the adapter uses `PULL_FROM_URL`, verify a domain under the app's
+   **URL properties** (URL Prefix verification). This domain must be the one
+   `presignGetUrl()` hands TikTok — bind a Cloudflare **Custom Domain** to the
+   R2 bucket (R2 → bucket → Settings → Custom Domains) and set
+   `R2_PUBLIC_BASE_URL` to it (step 1 above); the raw R2 S3 endpoint can't be
+   verified since you don't control its DNS. *(Alternative: switch the adapter
+   to `FILE_UPLOAD` if you'd rather not stand up a custom domain at all.)*
 5. Set env vars:
    ```
    TIKTOK_CLIENT_KEY=
    TIKTOK_CLIENT_SECRET=
    TIKTOK_REDIRECT_URI=https://<your-domain>/api/social/tiktok/callback
+   R2_PUBLIC_BASE_URL=https://<your custom domain bound to the R2 bucket>
    ```
 6. **Publishing → Connections → TikTok → Connect.** Posts now work, but TikTok
    forces them to **`SELF_ONLY`** (visible only to you).
