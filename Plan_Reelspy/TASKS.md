@@ -43,7 +43,7 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 **Phase 2 — TikTok** (independent of Meta, no licence needed)
 - [ ] **T1** [FOUNDER] Individual developer account + Content Posting API product
 - [ ] **T2** [FOUNDER/AGENT] R2 custom domain attached + URL prefix verified in TikTok portal
-- [ ] **T4** [AGENT] **Code:** audit `PublishComposer` against TikTok UX guidelines (privacy selector from `creator_info/query`, draft-vs-direct choice, disclosure toggles, music-usage confirmation)
+- [x] **T4** [AGENT] **Code:** audit `PublishComposer` against TikTok UX guidelines (privacy selector from `creator_info/query`, draft-vs-direct choice, disclosure toggles, music-usage confirmation)
 - [ ] **T5** [FOUNDER] Submit the audit → **T6** [AGENT] set `TIKTOK_ALLOW_PUBLIC=true`
 
 **Phase 3 — YouTube/Google** (independent, no licence needed)

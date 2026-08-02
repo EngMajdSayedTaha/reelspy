@@ -12,7 +12,7 @@
 import type { PlatformAdapter, PublishInput, PublishResult } from "../types";
 import { buildCaption } from "../caption";
 
-const API_BASE = "https://open.tiktokapis.com/v2";
+export const API_BASE = "https://open.tiktokapis.com/v2";
 const MAX_POLLS = 30;
 const POLL_INTERVAL_MS = 4000;
 
@@ -20,9 +20,9 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type TikTokError = { code?: string; message?: string };
+export type TikTokError = { code?: string; message?: string };
 
-function tiktokError(error: TikTokError | undefined, status: number): string {
+export function tiktokError(error: TikTokError | undefined, status: number): string {
   if (error && error.code && error.code !== "ok") {
     return `TikTok error: ${error.message ?? error.code}`;
   }
@@ -32,8 +32,53 @@ function tiktokError(error: TikTokError | undefined, status: number): string {
 export const tiktokAdapter: PlatformAdapter = {
   async publish(input: PublishInput): Promise<PublishResult> {
     const allowPublic = process.env.TIKTOK_ALLOW_PUBLIC === "true";
-    const privacyLevel =
-      input.privacy === "public" && allowPublic ? "PUBLIC_TO_EVERYONE" : "SELF_ONLY";
+    const options = input.tiktokOptions;
+
+    // "Draft" routes to the inbox/upload endpoint — TikTok imports the video
+    // into the creator's own app inbox and the creator finishes composing
+    // (caption, privacy, disclosure) inside TikTok itself. None of post_info
+    // applies there, so the direct-post-only fields below are skipped entirely.
+    if (options?.postMode === "draft") {
+      const inboxRes = await fetch(`${API_BASE}/post/publish/inbox/video/init/`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${input.creds.accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+        },
+        body: JSON.stringify({
+          source_info: { source: "PULL_FROM_URL", video_url: input.signedVideoUrl },
+        }),
+      });
+      const inboxJson = (await inboxRes.json()) as {
+        data?: { publish_id?: string };
+        error?: TikTokError;
+      };
+      if (!inboxRes.ok || !inboxJson.data?.publish_id) {
+        throw new Error(tiktokError(inboxJson.error, inboxRes.status));
+      }
+      // The inbox flow has no further server-side completion to poll for —
+      // the creator finishes the post inside TikTok, so the publish_id is
+      // just a durable receipt of the upload.
+      return { remoteId: inboxJson.data.publish_id, remoteUrl: null };
+    }
+
+    // Requested privacy level comes straight from the creator's real options
+    // (fetched live from creator_info/query — never hardcoded here). Until
+    // the app audit passes, TikTok forces every direct post to SELF_ONLY
+    // regardless of what was requested.
+    const requestedLevel = options?.privacyLevel ?? (input.privacy === "public" ? "PUBLIC_TO_EVERYONE" : "SELF_ONLY");
+    const privacyLevel = allowPublic ? requestedLevel : "SELF_ONLY";
+
+    // TikTok rejects branded/paid-partnership content posted privately — the
+    // disclosure has to be visible to an audience. The composer + server
+    // action both gate this before we get here; this is the last line of
+    // defense so a bad request never reaches TikTok's API unexplained.
+    if (options?.brandedContent && privacyLevel === "SELF_ONLY") {
+      throw new Error(
+        "TikTok does not allow branded content to post as private — pick a public privacy level, or wait until the app audit passes."
+      );
+    }
 
     const initRes = await fetch(`${API_BASE}/post/publish/video/init/`, {
       method: "POST",
@@ -49,6 +94,8 @@ export const tiktokAdapter: PlatformAdapter = {
           disable_comment: false,
           disable_duet: false,
           disable_stitch: false,
+          brand_content_toggle: Boolean(options?.brandedContent),
+          brand_organic_toggle: Boolean(options?.brandOrganic),
         },
         source_info: {
           source: "PULL_FROM_URL",

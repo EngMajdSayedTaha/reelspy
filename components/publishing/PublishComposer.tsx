@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Send, CalendarClock, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
@@ -9,10 +9,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { notifyError, requestJson } from "@/lib/utils/api";
-import { PLATFORMS, PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { PLATFORMS, PLATFORM_LABELS, type Platform, type TikTokPostOptions } from "@/lib/publishing/types";
 import { PublishPreview } from "@/components/publishing/PublishPreview";
 import { createPublishPost } from "@/app/dashboard/publishing/actions";
 import { useDict } from "@/lib/i18n/I18nProvider";
+
+type TikTokCreatorInfo = {
+  creatorAvatarUrl: string | null;
+  creatorUsername: string | null;
+  creatorNickname: string | null;
+  privacyLevelOptions: string[];
+  commentDisabled: boolean;
+  duetDisabled: boolean;
+  stitchDisabled: boolean;
+  maxVideoPostDurationSec: number | null;
+};
 
 type Props = {
   connected: Record<Platform, boolean>;
@@ -67,6 +78,18 @@ export function PublishComposer({
   });
   const [busy, setBusy] = useState(false);
 
+  // TikTok compliance panel (T4) — draft-vs-direct, real privacy options fetched
+  // live from creator_info/query, disclosure toggles, and the required Music
+  // Usage / Terms confirmation. Only relevant once TikTok is selected.
+  const [tiktokInfo, setTiktokInfo] = useState<TikTokCreatorInfo | null>(null);
+  const [tiktokInfoLoading, setTiktokInfoLoading] = useState(false);
+  const [tiktokInfoError, setTiktokInfoError] = useState<string | null>(null);
+  const [tiktokPostMode, setTiktokPostMode] = useState<"direct" | "draft">("direct");
+  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState("");
+  const [tiktokBrandedContent, setTiktokBrandedContent] = useState(false);
+  const [tiktokBrandOrganic, setTiktokBrandOrganic] = useState(false);
+  const [tiktokConfirmed, setTiktokConfirmed] = useState(false);
+
   const anyConnected = PLATFORMS.some((p) => connected[p]);
 
   // Platforms still locked to private by their pending app audit (server flag).
@@ -85,6 +108,47 @@ export function PublishComposer({
       return next;
     });
   }
+
+  const tiktokSelected = selected.has("tiktok");
+
+  // Fetch the creator's real account info (avatar/nickname + privacy_level
+  // options) once TikTok is selected and connected — never a hardcoded
+  // privacy list per TikTok's UX guidelines. Fetched at most once per mount;
+  // re-fetch if it previously failed and the panel is shown again.
+  useEffect(() => {
+    if (!tiktokSelected || !connected.tiktok) return;
+    if (tiktokInfo || tiktokInfoLoading) return;
+
+    let cancelled = false;
+    setTiktokInfoLoading(true);
+    setTiktokInfoError(null);
+    requestJson<TikTokCreatorInfo>("/api/publishing/tiktok/creator-info")
+      .then((info) => {
+        if (cancelled) return;
+        setTiktokInfo(info);
+        setTiktokPrivacyLevel((prev) => prev || info.privacyLevelOptions[0] || "SELF_ONLY");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setTiktokInfoError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (!cancelled) setTiktokInfoLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiktokSelected, connected.tiktok]);
+
+  // The client-side mirror of the server guard in actions.ts: branded content
+  // can't post privately, and until the app audit passes every TikTok direct
+  // post is forced private regardless of the chosen level.
+  const tiktokBrandedBlocked =
+    tiktokBrandedContent &&
+    tiktokPostMode === "direct" &&
+    (tiktokPrivacyLevel === "SELF_ONLY" || !publicAllowed.tiktok);
 
   // Upload the file straight to Cloudflare R2 via a one-time presigned PUT URL,
   // returning the object path the post will reference. The bytes go directly to
@@ -126,6 +190,22 @@ export function PublishComposer({
       toast.error(t.pickDateTimeSchedule);
       return;
     }
+    if (tiktokSelected) {
+      if (tiktokInfoLoading || !tiktokInfo) {
+        toast.error(t.tiktokSettings.loading);
+        return;
+      }
+      if (!tiktokConfirmed) {
+        toast.error(t.tiktokSettings.confirmRequiredError);
+        return;
+      }
+      if (tiktokBrandedBlocked) {
+        toast.error(
+          !publicAllowed.tiktok ? t.tiktokSettings.brandedNeedsAuditWarning : t.tiktokSettings.brandedPrivacyWarning
+        );
+        return;
+      }
+    }
 
     setBusy(true);
     try {
@@ -140,6 +220,21 @@ export function PublishComposer({
         }
       }
 
+      const tiktokOptions: TikTokPostOptions | undefined = tiktokSelected
+        ? {
+            // Draft mode ignores privacy/disclosure server-side (the creator
+            // sets them inside TikTok), so SELF_ONLY here is just a valid
+            // placeholder satisfying the type, not a real choice.
+            privacyLevel:
+              tiktokPostMode === "draft"
+                ? "SELF_ONLY"
+                : (tiktokPrivacyLevel as TikTokPostOptions["privacyLevel"]),
+            postMode: tiktokPostMode,
+            brandedContent: tiktokPostMode === "direct" && tiktokBrandedContent,
+            brandOrganic: tiktokPostMode === "direct" && tiktokBrandOrganic,
+          }
+        : undefined;
+
       const result = await createPublishPost({
         videoPath,
         title: title.trim() || null,
@@ -149,6 +244,7 @@ export function PublishComposer({
         captions: Object.keys(captions).length > 0 ? captions : undefined,
         privacy,
         scheduledAt: scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        tiktokOptions,
       });
 
       if (result.publishedNow) {
@@ -167,6 +263,10 @@ export function PublishComposer({
       setPlatformCaptions({ instagram: "", facebook: "", tiktok: "", youtube: "" });
       setScheduled(false);
       setScheduledAt("");
+      setTiktokPostMode("direct");
+      setTiktokBrandedContent(false);
+      setTiktokBrandOrganic(false);
+      setTiktokConfirmed(false);
       if (fileInput.current) fileInput.current.value = "";
       router.refresh();
     } catch (error) {
@@ -270,6 +370,148 @@ export function PublishComposer({
           <p className="text-xs text-warning">{t.connectAtLeastOne}</p>
         ) : null}
       </div>
+
+      {/* TikTok compliance panel — draft-vs-direct, real privacy options,
+          disclosure toggles, creator identity, Music Usage/Terms confirmation. */}
+      {tiktokSelected && connected.tiktok ? (
+        <div className="space-y-3 rounded-xl border border-border bg-background p-4">
+          <Label>{t.tiktokSettings.heading}</Label>
+
+          {tiktokInfoLoading ? (
+            <p className="flex items-center gap-2 text-xs text-subtle">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.tiktokSettings.loading}
+            </p>
+          ) : tiktokInfoError ? (
+            <p className="text-xs text-danger">{t.tiktokSettings.loadFailed(tiktokInfoError)}</p>
+          ) : tiktokInfo ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                {tiktokInfo.creatorAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={tiktokInfo.creatorAvatarUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
+                  />
+                ) : (
+                  <span className="h-8 w-8 shrink-0 rounded-full bg-secondary ring-1 ring-border-strong" />
+                )}
+                <span className="text-muted-foreground">
+                  {t.tiktokSettings.postingAsPrefix}{" "}
+                  <span className="font-medium text-foreground">
+                    {tiktokInfo.creatorNickname ?? tiktokInfo.creatorUsername ?? "—"}
+                  </span>
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t.tiktokSettings.postModeLabel}</Label>
+                <div className="flex flex-col gap-1.5">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="tiktok-post-mode"
+                      checked={tiktokPostMode === "direct"}
+                      onChange={() => setTiktokPostMode("direct")}
+                    />
+                    {t.tiktokSettings.postModeDirect}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="tiktok-post-mode"
+                      checked={tiktokPostMode === "draft"}
+                      onChange={() => setTiktokPostMode("draft")}
+                    />
+                    {t.tiktokSettings.postModeDraft}
+                  </label>
+                  {tiktokPostMode === "draft" ? (
+                    <p className="text-xs text-subtle">{t.tiktokSettings.postModeDraftHint}</p>
+                  ) : null}
+                </div>
+              </div>
+
+              {tiktokPostMode === "direct" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pub-tiktok-privacy">{t.tiktokSettings.privacyLevelLabel}</Label>
+                    <select
+                      id="pub-tiktok-privacy"
+                      value={tiktokPrivacyLevel}
+                      onChange={(e) => setTiktokPrivacyLevel(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-border bg-background px-3 text-base md:text-sm"
+                    >
+                      {tiktokInfo.privacyLevelOptions.map((level) => (
+                        <option key={level} value={level}>
+                          {t.tiktokSettings.privacyLevelLabelFor(level)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>{t.tiktokSettings.disclosureLabel}</Label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={tiktokBrandedContent}
+                        onChange={(e) => setTiktokBrandedContent(e.target.checked)}
+                      />
+                      {t.tiktokSettings.brandedContentLabel}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={tiktokBrandOrganic}
+                        onChange={(e) => setTiktokBrandOrganic(e.target.checked)}
+                      />
+                      {t.tiktokSettings.brandOrganicLabel}
+                    </label>
+                    {tiktokBrandedBlocked ? (
+                      <p className="text-xs text-warning">
+                        {!publicAllowed.tiktok
+                          ? t.tiktokSettings.brandedNeedsAuditWarning
+                          : t.tiktokSettings.brandedPrivacyWarning}
+                      </p>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+
+              <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={tiktokConfirmed}
+                  onChange={(e) => setTiktokConfirmed(e.target.checked)}
+                />
+                <span>
+                  {t.tiktokSettings.confirmBefore}
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    {t.tiktokSettings.musicUsageLink}
+                  </a>
+                  {t.tiktokSettings.confirmMiddle}
+                  <a
+                    href="https://www.tiktok.com/legal/page/global/terms-of-service/en"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline hover:text-foreground"
+                  >
+                    {t.tiktokSettings.termsOfServiceLink}
+                  </a>
+                  {t.tiktokSettings.confirmAfter}
+                </span>
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Per-platform captions */}
       <div className="space-y-3 rounded-xl border border-border bg-background p-4">

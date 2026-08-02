@@ -516,6 +516,7 @@ create table publish_jobs (
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   caption text,
+  platform_options jsonb,                  -- TikTok-only compliance-panel choices (T4); null elsewhere
   unique (post_id, connection_id)          -- idempotency: never double-post a target
 );
 alter table publish_jobs enable row level security;

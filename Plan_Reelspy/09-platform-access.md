@@ -308,7 +308,7 @@ env.
 Unaudited apps: every post is forced `SELF_ONLY`, and only **5 accounts may authorise the
 app per 24 hours**. Plan the beta cohort around that number — it is much tighter than Meta's.
 
-### T4 [AGENT] Make the UX audit-compliant — **code**
+### T4 [AGENT] Make the UX audit-compliant — **code — shipped**
 TikTok rejects on UX compliance more than on anything else. Audit
 `components/publishing/PublishComposer.tsx` against TikTok's current UX guidelines and fix:
 
@@ -318,6 +318,36 @@ TikTok rejects on UX compliance more than on anything else. Audit
 - **commercial-content / branded-content disclosure** toggles must be present,
 - TikTok's **Terms & Music Usage Confirmation** must be shown and linked,
 - the creator's **nickname/avatar** must be displayed so they know which account they post to.
+
+Shipped:
+
+- New `GET /api/publishing/tiktok/creator-info` calls
+  `/v2/post/publish/creator_info/query/` live (never cached beyond the request) and returns
+  the creator's avatar/nickname/username, real `privacy_level_options`, and
+  comment/duet/stitch-disabled flags. Shares the same OAuth-refresh path as the dispatcher via
+  a new `lib/publishing/oauth-token.ts` (`resolveOAuthAccessToken`, extracted so the two
+  callers can't drift).
+- `PublishComposer` fetches this once TikTok is selected + connected and renders a "TikTok
+  settings" panel: creator avatar + nickname, a **draft vs direct** radio (draft routes to
+  `/v2/post/publish/inbox/video/init/` — TikTok imports the video and the creator finishes
+  composing inside the app, so privacy/disclosure fields don't apply there), a **privacy-level
+  select built from the live `privacyLevelOptions`** (never hardcoded), **branded-content /
+  own-promotional-content disclosure checkboxes**, and a required **Music Usage Confirmation +
+  Terms of Service** confirmation checkbox linking to TikTok's actual policy pages.
+- New `publish_jobs.platform_options jsonb` column (migration
+  `20260802140000_publish_jobs_platform_options.sql`, TikTok-only for now, per CLAUDE.md
+  non-negotiable #3 — not a new platform, just correctness for one already shipped) carries
+  the creator's exact choices from composer → `createPublishPost` → `dispatchPost` → the
+  adapter.
+- `lib/publishing/adapters/tiktok.ts`: branches to the inbox/draft endpoint for `postMode:
+  "draft"`; sends `brand_content_toggle`/`brand_organic_toggle`; still forces `SELF_ONLY`
+  pre-audit regardless of the requested level (unchanged safety posture); rejects
+  branded-content + `SELF_ONLY` (TikTok's own rule — that combination can't post) both
+  client-side (composer gate) and server-side (the action + the adapter itself, so a bad
+  request can never reach TikTok unexplained).
+- Comment/duet/stitch disable toggles were **not** added — 1a's bullet list doesn't ask for
+  them, and the existing hardcoded `disable_comment/duet/stitch: false` behavior is unrelated
+  to audit compliance; scope kept to the five bullets above.
 
 ### T5 [FOUNDER] Submit the audit
 Demo video + the same URLs as Meta. **~1–2 weeks** for a clean first pass.

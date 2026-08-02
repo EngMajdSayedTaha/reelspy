@@ -116,6 +116,48 @@ const en = {
     onlyScheduledEditable: "Only scheduled posts can be edited.",
     onlyScheduledReschedulable: "Only scheduled posts can be rescheduled.",
     jobNotFound: "Job not found.",
+    tiktokBrandedPrivacyConflict:
+      "TikTok doesn't allow branded content to post as private. Pick a public privacy level for TikTok, or turn off the branded-content disclosure.",
+
+    // TikTok compliance panel (T4) — shown once TikTok is selected + connected.
+    tiktokSettings: {
+      heading: "TikTok settings",
+      loading: "Loading your TikTok account…",
+      loadFailed: (error: string) => `Couldn't load your TikTok account: ${error}`,
+      postingAsPrefix: "Posting as",
+      postModeLabel: "How should this post?",
+      postModeDirect: "Post directly to my profile",
+      postModeDraft: "Save as a draft in my TikTok inbox",
+      postModeDraftHint:
+        "TikTok imports the video into your inbox — you finish the caption, privacy, and disclosure inside the TikTok app.",
+      privacyLevelLabel: "Privacy level",
+      privacyLevelLabelFor: (level: string) => {
+        switch (level) {
+          case "PUBLIC_TO_EVERYONE":
+            return "Everyone";
+          case "MUTUAL_FOLLOW_FRIENDS":
+            return "Friends (mutual follows)";
+          case "FOLLOWER_OF_CREATOR":
+            return "Followers";
+          case "SELF_ONLY":
+            return "Only me (private)";
+          default:
+            return level;
+        }
+      },
+      disclosureLabel: "Content disclosure",
+      brandedContentLabel: "Branded content (paid partnership)",
+      brandOrganicLabel: "My own promotional content",
+      brandedPrivacyWarning: "Branded content can't post as private — choose a public privacy level above.",
+      brandedNeedsAuditWarning:
+        "Branded content needs a public audience, but TikTok posts stay private here until the app audit passes — so this isn't usable yet.",
+      confirmBefore: "I confirm I have the rights to any music used and agree to TikTok's ",
+      musicUsageLink: "Music Usage Confirmation",
+      confirmMiddle: " and ",
+      termsOfServiceLink: "Terms of Service",
+      confirmAfter: ".",
+      confirmRequiredError: "Confirm TikTok's Music Usage & Terms checkbox before posting.",
+    },
 
     pageTour: {
       steps: {
@@ -256,6 +298,47 @@ export const publishingAr: PublishingDict = {
     onlyScheduledEditable: "يمكن تعديل المنشورات المجدولة فقط.",
     onlyScheduledReschedulable: "يمكن إعادة جدولة المنشورات المجدولة فقط.",
     jobNotFound: "المهمة غير موجودة.",
+    tiktokBrandedPrivacyConflict:
+      "لا يسمح تيك توك بنشر المحتوى الدعائي (Branded content) بشكل خاص. اختر مستوى خصوصية عامًا لتيك توك، أو أوقف تفعيل إفصاح المحتوى الدعائي.",
+
+    tiktokSettings: {
+      heading: "إعدادات تيك توك",
+      loading: "جارٍ تحميل بيانات حساب تيك توك…",
+      loadFailed: (error: string) => `تعذّر تحميل بيانات حساب تيك توك: ${error}`,
+      postingAsPrefix: "النشر باسم",
+      postModeLabel: "كيف تريد نشر هذا المقطع؟",
+      postModeDirect: "انشر مباشرةً على ملفي الشخصي",
+      postModeDraft: "احفظه كمسودة في صندوق وارد تيك توك",
+      postModeDraftHint:
+        "يستورد تيك توك الفيديو إلى صندوق الوارد الخاص بك — وتكمل الوصف والخصوصية والإفصاح داخل تطبيق تيك توك.",
+      privacyLevelLabel: "مستوى الخصوصية",
+      privacyLevelLabelFor: (level: string) => {
+        switch (level) {
+          case "PUBLIC_TO_EVERYONE":
+            return "الجميع";
+          case "MUTUAL_FOLLOW_FRIENDS":
+            return "الأصدقاء (متابعة متبادلة)";
+          case "FOLLOWER_OF_CREATOR":
+            return "المتابعون";
+          case "SELF_ONLY":
+            return "أنا فقط (خاص)";
+          default:
+            return level;
+        }
+      },
+      disclosureLabel: "إفصاح المحتوى",
+      brandedContentLabel: "محتوى دعائي (شراكة مدفوعة)",
+      brandOrganicLabel: "محتوى ترويجي خاص بي",
+      brandedPrivacyWarning: "لا يمكن نشر المحتوى الدعائي بشكل خاص — اختر مستوى خصوصية عامًا أعلاه.",
+      brandedNeedsAuditWarning:
+        "يحتاج المحتوى الدعائي إلى جمهور عام، لكن منشورات تيك توك تبقى خاصة هنا حتى تجتاز مراجعة التطبيق — فهذا الخيار غير متاح بعد.",
+      confirmBefore: "أُقرّ بأن لدي حقوق استخدام أي موسيقى مستخدمة وأوافق على ",
+      musicUsageLink: "تأكيد استخدام الموسيقى",
+      confirmMiddle: " و",
+      termsOfServiceLink: "شروط الخدمة",
+      confirmAfter: " الخاصة بتيك توك.",
+      confirmRequiredError: "أكّد مربع تأكيد استخدام الموسيقى وشروط الخدمة الخاص بتيك توك قبل النشر.",
+    },
 
     pageTour: {
       steps: {
