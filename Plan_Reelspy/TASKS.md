@@ -34,7 +34,7 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 **Phase 1 — Meta Advanced Access without a trade licence**
 - [x] **P1.1** [AGENT] **Code:** Meta Deauthorize + Data Deletion callbacks, `fb_user_id` capture, status page, tests
 - [ ] **P1.2** [FOUNDER] Point the App Dashboard at the new callback URLs
-- [ ] **P1.3** [AGENT] Privacy policy names each Meta permission and its purpose
+- [x] **P1.3** [AGENT] Privacy policy names each Meta permission and its purpose
 - [ ] **P1.4** [AGENT] Seed a reviewer demo account with a connected IG account you control
 - [ ] **P1.5** [FOUNDER] Screencast + submit App Review for the **P0 scope set only**
 - [ ] **P1.R** [FOUNDER] Business Verification ladder: unregistered → freelance permit → US LLC (§1b — **decision point, ask the founder**)

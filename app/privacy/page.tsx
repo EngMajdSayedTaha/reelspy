@@ -64,6 +64,33 @@ export default async function PrivacyPage() {
 
       <LegalSection heading={t.sections.instagramPlatform.heading}>
         <p>{t.sections.instagramPlatform.body}</p>
+        <p>{t.sections.instagramPlatform.permissionsIntro}</p>
+        <ul className="list-disc space-y-1.5 ps-5">
+          <li>
+            <span className="font-medium text-foreground">
+              {t.sections.instagramPlatform.permissions.businessDiscovery.label}
+            </span>{" "}
+            — {t.sections.instagramPlatform.permissions.businessDiscovery.body}
+          </li>
+          <li>
+            <span className="font-medium text-foreground">
+              {t.sections.instagramPlatform.permissions.insights.label}
+            </span>{" "}
+            — {t.sections.instagramPlatform.permissions.insights.body}
+          </li>
+          <li>
+            <span className="font-medium text-foreground">
+              {t.sections.instagramPlatform.permissions.publishing.label}
+            </span>{" "}
+            — {t.sections.instagramPlatform.permissions.publishing.body}
+          </li>
+          <li>
+            <span className="font-medium text-foreground">
+              {t.sections.instagramPlatform.permissions.autoReply.label}
+            </span>{" "}
+            — {t.sections.instagramPlatform.permissions.autoReply.body}
+          </li>
+        </ul>
       </LegalSection>
 
       <LegalSection heading={t.sections.subprocessors.heading}>

@@ -75,6 +75,26 @@ const en = {
         instagramPlatform: {
           heading: "3. Instagram & Meta Platform Data",
           body: "ReelSpy uses Meta’s Graph API. Access tokens are stored securely and used only to perform the actions you request. We do not sell your Instagram data. You can disconnect your Instagram account at any time from Settings, which removes the stored token.",
+          permissionsIntro: "The specific Meta permissions we request, and why:",
+          permissions: {
+            businessDiscovery: {
+              label: "instagram_basic, pages_show_list, pages_read_engagement, business_management",
+              body: "Business Discovery — read public profile and media data for the Instagram/Facebook accounts you choose to research, and identify the Facebook Page and Instagram Business account you connect. This is the core research feature.",
+            },
+            insights: {
+              label: "instagram_manage_insights",
+              body: "Read performance insights (reach, engagement) on your own connected account's posts, to power the out-performance scoring shown in your feed.",
+            },
+            publishing: {
+              label: "instagram_content_publish, pages_manage_posts",
+              body: "Publish Reels and posts to your Instagram account and Facebook Page when you use the Publishing feature.",
+            },
+            autoReply: {
+              label:
+                "instagram_manage_comments, instagram_manage_messages, pages_manage_metadata, pages_messaging",
+              body: "Read comments on your Reels and send automated Instagram Direct Messages, to power the comment-to-DM auto-reply feature.",
+            },
+          },
         },
         subprocessors: {
           heading: "4. Service Providers (Sub-processors)",
@@ -324,6 +344,26 @@ export const legalAr: LegalDict = {
         instagramPlatform: {
           heading: "3. بيانات إنستغرام ومنصة ميتا",
           body: "تستخدم ReelSpy واجهة Graph API الخاصة بميتا. تُخزَّن رموز الوصول بشكل آمن وتُستخدم فقط لتنفيذ الإجراءات التي تطلبها. لا نبيع بيانات إنستغرام الخاصة بك. يمكنك فصل حساب إنستغرام في أي وقت من الإعدادات، مما يؤدي إلى إزالة الرمز المخزَّن.",
+          permissionsIntro: "الأذونات (permissions) المحدَّدة التي نطلبها من ميتا، وسبب كل منها:",
+          permissions: {
+            businessDiscovery: {
+              label: "instagram_basic وpages_show_list وpages_read_engagement وbusiness_management",
+              body: "لاكتشاف الأعمال (Business Discovery) — قراءة بيانات الملف الشخصي والمنشورات العامة لحسابات إنستغرام/فيسبوك التي تختار البحث عنها، وتحديد صفحة فيسبوك وحساب إنستغرام التجاري اللذين تربطهما. هذه هي ميزة البحث الأساسية.",
+            },
+            insights: {
+              label: "instagram_manage_insights",
+              body: "لقراءة إحصاءات الأداء (الوصول والتفاعل) لمنشورات حسابك المتصل، لتشغيل تقييم الأداء المقارن الظاهر في صفحة المحتوى الخاصة بك.",
+            },
+            publishing: {
+              label: "instagram_content_publish وpages_manage_posts",
+              body: "لنشر الريلز والمنشورات إلى حساب إنستغرام وصفحة فيسبوك الخاصين بك عند استخدام ميزة النشر.",
+            },
+            autoReply: {
+              label:
+                "instagram_manage_comments وinstagram_manage_messages وpages_manage_metadata وpages_messaging",
+              body: "لقراءة التعليقات على ريلزك وإرسال رسائل مباشرة تلقائية على إنستغرام، لتشغيل ميزة الرد التلقائي من التعليق إلى الرسالة المباشرة.",
+            },
+          },
         },
         subprocessors: {
           heading: "4. مزوّدو الخدمة (الجهات المعالِجة الفرعية)",
