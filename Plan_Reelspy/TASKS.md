@@ -27,7 +27,7 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 
 **Phase 0 — go live inside Standard access (this week)**
 - [ ] **P0.1** [FOUNDER] Invite beta users as Meta app **Testers** + send them the accept-invite steps
-- [ ] **P0.2** [AGENT] **Code:** `META_BETA_MODE` gate on `/dashboard/connections` + honest provider-error copy (en/ar)
+- [x] **P0.2** [AGENT] **Code:** `META_BETA_MODE` gate on `/dashboard/connections` + honest provider-error copy (en/ar)
 - [x] **P0.3** [AGENT] `npm run check:meta` preflight — exists, run after every domain/env/console change
 - [ ] **P0.4** [FOUNDER] Stripe, `ig_connections` migration, mailboxes, API keys — see `GO-LIVE-CHECKLIST.md`
 

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ConnectionCard } from "@/components/publishing/ConnectionCard";
 import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
+import { BetaTesterGate } from "@/components/connections/BetaTesterGate";
 import { listIgConnections } from "@/lib/instagram/connections";
 import { getMetaRedirectUri } from "@/lib/instagram/graph-api";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
@@ -36,6 +37,10 @@ function errorMap(dict: Dict["connections"]): Record<string, string> {
     profile_update_failed: dict.profileUpdateFailed,
     account_link_failed: dict.accountLinkFailed,
     no_ig_business_account: dict.noIgBusinessAccount,
+    // Facebook's own code when the user hits Cancel on the consent dialog —
+    // passed straight through by the callback (app/api/ig/callback/route.ts),
+    // so the raw provider string is the key here, not one we invented.
+    access_denied: dict.connectionCancelled,
   };
 }
 
@@ -132,6 +137,12 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   // user already has more than one connected.
   const showWorkspaces = igConnections.length > 0 && (connectionCap > 1 || igConnections.length > 1);
 
+  // Phase 0 (Plan_Reelspy/09-platform-access.md): the Meta app is still in
+  // Development mode, so Connect only works for Tester/Developer/Admin roles
+  // who accepted the invite. Only worth showing to someone who still needs to
+  // connect — a user already connected got past this already.
+  const showBetaGate = process.env.META_BETA_MODE === "true" && !igConnected;
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -178,6 +189,8 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
       ) : null}
 
       <div className="grid gap-4">
+        {showBetaGate ? <BetaTesterGate dict={dict.betaGate} /> : null}
+
         {/* Instagram + Facebook share the Meta OAuth flow. */}
         <div data-tour="ig-connection">
         <ConnectionCard

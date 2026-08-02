@@ -82,28 +82,35 @@ enter their **Facebook** account. Then tell them, in these exact words:
 > Apps and Websites) and **accept the ReelSpy tester invitation**. Then come back and press
 > Connect Instagram.
 
-#### P0.2 [AGENT] Ship the invite-gated onboarding path — **code**
+#### P0.2 [AGENT] Ship the invite-gated onboarding path — **code — shipped**
 
-Right now a non-tester's connect attempt fails at Facebook with a raw provider error
-(`app_not_live` / a bare error code lands in `/dashboard/connections?error=...`). During
-Phase 0 that is *the most common outcome*, and it currently reads as "the product is
-broken."
+A non-tester's connect attempt doesn't fail at Facebook with an error we can catch — Meta's
+own "App Not Active" interstitial never redirects back to `/api/ig/callback` at all, so
+there is nothing here to detect after the fact. The fix has to run *before* the click.
 
-Build:
+Shipped:
 
-- A **beta gate** on `/dashboard/connections`: when `META_BETA_MODE=true`, the Connect
-  button is preceded by a short "you need a tester invite" card with the exact Facebook
-  path from P0.1 and a "Request access" mailto/form action.
-- Map the provider errors the callback already logs
-  (`app/api/ig/callback/route.ts` → `callback:provider-error`) to honest copy, in English
-  and Arabic (`lib/i18n/dictionaries/`), for at least: not-a-tester, Personal-account,
-  no-linked-Page, cancelled.
+- `components/connections/BetaTesterGate.tsx` — static explanation card, rendered above the
+  Instagram `ConnectionCard` on `/dashboard/connections` whenever `META_BETA_MODE=true` and
+  the user isn't connected yet. States the exact desktop/mobile path to accept a tester
+  invite (from P0.1) and a `mailto:` "Request access" action to `SUPPORT_EMAIL`.
+- Provider-error copy in `lib/i18n/dictionaries/connections.ts` (en/ar): `connectionCancelled`
+  now maps Facebook's real `access_denied` code (Cancel on the consent dialog) instead of
+  falling through to the generic error; `noIgBusinessAccount` was rewritten as an honest
+  two-cause checklist (Personal account vs. Business/Creator not linked to a Page) — the
+  Graph API response can't actually distinguish those two causes, so two fake separate
+  messages would have been dishonest, not more helpful.
+- "not-a-tester" itself has no error-code path by design (see above) — it's covered by the
+  beta gate being shown *before* the attempt, not by a mapped error after one.
 - The **starter-pack path already exists** (`app/dashboard/onboarding/actions.ts`) and needs
-  no Meta connection at all — make sure the gate routes users to it rather than dead-ending.
+  no Meta connection at all — unaffected by this change, still the fallback for anyone who'd
+  rather skip the gate entirely.
 
-**Verification gate:** a second Facebook account that is *not* a tester reaches the
-explanation card, never a Facebook error page; a tester account completes connect → sync →
-first script.
+**Verification gate (do this before flipping `META_BETA_MODE=true` in production):** a
+second Facebook account that is *not* a tester sees the beta card and, if it proceeds
+anyway, lands on Facebook's own dead-end page (expected — nothing server-side can prevent
+that click, only warn ahead of it); a tester account completes connect → sync → first
+script with the card no longer showing once connected.
 
 #### P0.3 [AGENT] Preflight the handshake before any user touches it — **code exists, run it**
 
