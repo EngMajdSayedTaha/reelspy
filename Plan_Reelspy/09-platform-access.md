@@ -233,8 +233,18 @@ These are hard requirements Meta checks, and the repo does not have all of them 
   already discloses processors and PDPL. Verify it states *which* Meta permissions are used
   and *why*, in reviewer-legible language. Reviewers read this page.
 - **P1.4 — A reviewer test account.** Meta reviewers need working credentials that reach the
-  full flow. Seed a demo user (`scripts/seed-accounts.mjs` exists) whose connected IG account
-  is one **you** control, and hand over email + password in the submission notes.
+  full flow. *Correction to this plan: `scripts/seed-accounts.mjs` is the niche-research seed
+  loader (populates `seed_accounts`/`ig_account_snapshots` for the Trend Radar) — unrelated to
+  a reviewer login. Fixed here per rule 2 below.* The actual login is created by the new
+  **[AGENT]** `scripts/seed-reviewer-account.mjs` (service-role `auth.admin.createUser`,
+  idempotent — re-run to rotate the password). It can only create the login itself; connecting
+  a real Instagram Business account is a live Meta OAuth consent click, which is **[FOUNDER]**
+  by nature (no credentials exist for an agent to complete it with). Shipped: the login
+  `meta-reviewer@reelspy.dev` exists; credentials were printed once to the founder's terminal
+  and are not stored in this repo. **Still needed [FOUNDER]:** log in as that account, press
+  Connect Instagram with an IG Business/Creator account you control (linked to a Facebook
+  Page), then sync + generate one script so the reviewer sees a populated flow, not an empty
+  feed — only then is P1.4 actually done.
 - **P1.5 — The screencast.** This is where submissions die. Record **one unbroken take**:
   log in → press Connect Instagram → **the Facebook consent dialog with every requested
   permission visible** → back in ReelSpy → competitor accounts listed → the Feed showing

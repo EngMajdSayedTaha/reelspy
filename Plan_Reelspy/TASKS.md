@@ -35,7 +35,8 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 - [x] **P1.1** [AGENT] **Code:** Meta Deauthorize + Data Deletion callbacks, `fb_user_id` capture, status page, tests
 - [ ] **P1.2** [FOUNDER] Point the App Dashboard at the new callback URLs
 - [x] **P1.3** [AGENT] Privacy policy names each Meta permission and its purpose
-- [ ] **P1.4** [AGENT] Seed a reviewer demo account with a connected IG account you control
+- [x] **P1.4** [AGENT] **Code:** create the reviewer login (`scripts/seed-reviewer-account.mjs`, `meta-reviewer@reelspy.dev`) — credentials handed off
+- [ ] **P1.4b** [FOUNDER] Log in as that account and connect a real Instagram Business account you control, then sync + generate one script
 - [ ] **P1.5** [FOUNDER] Screencast + submit App Review for the **P0 scope set only**
 - [ ] **P1.R** [FOUNDER] Business Verification ladder: unregistered → freelance permit → US LLC (§1b — **decision point, ask the founder**)
 
