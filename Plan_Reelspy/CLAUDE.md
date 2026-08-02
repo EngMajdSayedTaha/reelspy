@@ -38,6 +38,11 @@ These are swappable but treat them as the default unless told otherwise.
 - `plan/06-hardening-debt.md` — H1–H6, job queue, platform abstraction, tests, PDPL.
 - `plan/07-future-roadmap.md` — V1.1 and V2 items, explicitly deprioritized items.
 - `plan/08-verification-and-unknowns.md` — known unknowns to verify, verification/test plan.
+- `09-platform-access.md` — **how strangers actually get to connect an account.** Meta
+  Advanced Access without a trade licence (Phase 1), then TikTok (Phase 2), then
+  YouTube/Google (Phase 3), plus Phase 0: launching inside Standard access *now*. Every step
+  is tagged [AGENT] or [FOUNDER] — **never do a [FOUNDER] step yourself** (no ID uploads, no
+  review submissions, no company filings, no payment details).
 
 ## How to execute (do this, don't freelance a different process)
 1. Open `ROADMAP.md`, find the next `[ ]` item in Launch order.

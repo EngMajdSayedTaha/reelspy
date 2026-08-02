@@ -21,6 +21,23 @@ const en = {
       privacyPolicy: "Privacy Policy",
       cookiePolicy: "Cookie Policy",
     },
+    // Status page for Meta's Data Deletion Request Callback. Meta requires the
+    // callback to answer with a URL a user can open to check that deletion —
+    // this is that page. See app/api/meta/data-deletion/route.ts.
+    dataDeletion: {
+      title: "Meta Data Deletion",
+      metaDescription: "Status of a data deletion request received from Meta.",
+      completedHeading: "Deletion completed",
+      completedBody: (date: string) =>
+        `The data ReelSpy obtained from Meta for your account was deleted on ${date}. This covered your Instagram and Facebook access tokens, your connected publishing accounts, and every account and reel we had researched through Meta on your behalf.`,
+      retainedHeading: "What was kept",
+      retainedBody:
+        "Your ReelSpy account itself, and the work you created in it — scripts, brand voice, and billing records — were not part of this request. To delete those as well, sign in and use the delete option in Settings.",
+      unknownHeading: "We couldn't verify this request",
+      unknownBody:
+        "This confirmation code is missing, expired, or not one we issued. If you reached this page from Meta, request deletion again from your Facebook settings, or contact us and we will handle it directly.",
+      contact: "support@reelspy.dev",
+    },
     privacy: {
       title: "Privacy Policy",
       metaDescription: "How ReelSpy collects, uses, and protects your data.",
@@ -255,6 +272,20 @@ export const legalAr: LegalDict = {
       termsOfService: "شروط الخدمة",
       privacyPolicy: "سياسة الخصوصية",
       cookiePolicy: "سياسة ملفات تعريف الارتباط",
+    },
+    dataDeletion: {
+      title: "حذف بيانات ميتا",
+      metaDescription: "حالة طلب حذف البيانات الوارد من ميتا.",
+      completedHeading: "تم الحذف",
+      completedBody: (date: string) =>
+        `تم في ${date} حذف البيانات التي حصلت عليها ReelSpy من ميتا والمرتبطة بحسابك. يشمل ذلك رموز الوصول الخاصة بإنستغرام وفيسبوك، وحسابات النشر المرتبطة، وكل حساب ومقطع ريلز تم بحثه عبر ميتا نيابةً عنك.`,
+      retainedHeading: "ما الذي بقي",
+      retainedBody:
+        "حساب ReelSpy نفسه وما أنشأته داخله — النصوص ونبرة العلامة وسجلات الفوترة — ليست جزءًا من هذا الطلب. لحذفها أيضًا، سجّل الدخول واستخدم خيار حذف الحساب في الإعدادات.",
+      unknownHeading: "تعذّر التحقق من هذا الطلب",
+      unknownBody:
+        "رمز التأكيد هذا مفقود أو منتهي الصلاحية أو ليس صادرًا عنّا. إذا وصلت إلى هذه الصفحة من ميتا، فأعد طلب الحذف من إعدادات فيسبوك، أو تواصل معنا وسنتولى الأمر مباشرة.",
+      contact: "support@reelspy.dev",
     },
     privacy: {
       title: "سياسة الخصوصية",
