@@ -82,28 +82,35 @@ enter their **Facebook** account. Then tell them, in these exact words:
 > Apps and Websites) and **accept the ReelSpy tester invitation**. Then come back and press
 > Connect Instagram.
 
-#### P0.2 [AGENT] Ship the invite-gated onboarding path — **code**
+#### P0.2 [AGENT] Ship the invite-gated onboarding path — **code — shipped**
 
-Right now a non-tester's connect attempt fails at Facebook with a raw provider error
-(`app_not_live` / a bare error code lands in `/dashboard/connections?error=...`). During
-Phase 0 that is *the most common outcome*, and it currently reads as "the product is
-broken."
+A non-tester's connect attempt doesn't fail at Facebook with an error we can catch — Meta's
+own "App Not Active" interstitial never redirects back to `/api/ig/callback` at all, so
+there is nothing here to detect after the fact. The fix has to run *before* the click.
 
-Build:
+Shipped:
 
-- A **beta gate** on `/dashboard/connections`: when `META_BETA_MODE=true`, the Connect
-  button is preceded by a short "you need a tester invite" card with the exact Facebook
-  path from P0.1 and a "Request access" mailto/form action.
-- Map the provider errors the callback already logs
-  (`app/api/ig/callback/route.ts` → `callback:provider-error`) to honest copy, in English
-  and Arabic (`lib/i18n/dictionaries/`), for at least: not-a-tester, Personal-account,
-  no-linked-Page, cancelled.
+- `components/connections/BetaTesterGate.tsx` — static explanation card, rendered above the
+  Instagram `ConnectionCard` on `/dashboard/connections` whenever `META_BETA_MODE=true` and
+  the user isn't connected yet. States the exact desktop/mobile path to accept a tester
+  invite (from P0.1) and a `mailto:` "Request access" action to `SUPPORT_EMAIL`.
+- Provider-error copy in `lib/i18n/dictionaries/connections.ts` (en/ar): `connectionCancelled`
+  now maps Facebook's real `access_denied` code (Cancel on the consent dialog) instead of
+  falling through to the generic error; `noIgBusinessAccount` was rewritten as an honest
+  two-cause checklist (Personal account vs. Business/Creator not linked to a Page) — the
+  Graph API response can't actually distinguish those two causes, so two fake separate
+  messages would have been dishonest, not more helpful.
+- "not-a-tester" itself has no error-code path by design (see above) — it's covered by the
+  beta gate being shown *before* the attempt, not by a mapped error after one.
 - The **starter-pack path already exists** (`app/dashboard/onboarding/actions.ts`) and needs
-  no Meta connection at all — make sure the gate routes users to it rather than dead-ending.
+  no Meta connection at all — unaffected by this change, still the fallback for anyone who'd
+  rather skip the gate entirely.
 
-**Verification gate:** a second Facebook account that is *not* a tester reaches the
-explanation card, never a Facebook error page; a tester account completes connect → sync →
-first script.
+**Verification gate (do this before flipping `META_BETA_MODE=true` in production):** a
+second Facebook account that is *not* a tester sees the beta card and, if it proceeds
+anyway, lands on Facebook's own dead-end page (expected — nothing server-side can prevent
+that click, only warn ahead of it); a tester account completes connect → sync → first
+script with the card no longer showing once connected.
 
 #### P0.3 [AGENT] Preflight the handshake before any user touches it — **code exists, run it**
 
@@ -226,8 +233,18 @@ These are hard requirements Meta checks, and the repo does not have all of them 
   already discloses processors and PDPL. Verify it states *which* Meta permissions are used
   and *why*, in reviewer-legible language. Reviewers read this page.
 - **P1.4 — A reviewer test account.** Meta reviewers need working credentials that reach the
-  full flow. Seed a demo user (`scripts/seed-accounts.mjs` exists) whose connected IG account
-  is one **you** control, and hand over email + password in the submission notes.
+  full flow. *Correction to this plan: `scripts/seed-accounts.mjs` is the niche-research seed
+  loader (populates `seed_accounts`/`ig_account_snapshots` for the Trend Radar) — unrelated to
+  a reviewer login. Fixed here per rule 2 below.* The actual login is created by the new
+  **[AGENT]** `scripts/seed-reviewer-account.mjs` (service-role `auth.admin.createUser`,
+  idempotent — re-run to rotate the password). It can only create the login itself; connecting
+  a real Instagram Business account is a live Meta OAuth consent click, which is **[FOUNDER]**
+  by nature (no credentials exist for an agent to complete it with). Shipped: the login
+  `meta-reviewer@reelspy.dev` exists; credentials were printed once to the founder's terminal
+  and are not stored in this repo. **Still needed [FOUNDER]:** log in as that account, press
+  Connect Instagram with an IG Business/Creator account you control (linked to a Facebook
+  Page), then sync + generate one script so the reviewer sees a populated flow, not an empty
+  feed — only then is P1.4 actually done.
 - **P1.5 — The screencast.** This is where submissions die. Record **one unbroken take**:
   log in → press Connect Instagram → **the Facebook consent dialog with every requested
   permission visible** → back in ReelSpy → competitor accounts listed → the Feed showing
@@ -291,7 +308,7 @@ env.
 Unaudited apps: every post is forced `SELF_ONLY`, and only **5 accounts may authorise the
 app per 24 hours**. Plan the beta cohort around that number — it is much tighter than Meta's.
 
-### T4 [AGENT] Make the UX audit-compliant — **code**
+### T4 [AGENT] Make the UX audit-compliant — **code — shipped**
 TikTok rejects on UX compliance more than on anything else. Audit
 `components/publishing/PublishComposer.tsx` against TikTok's current UX guidelines and fix:
 
@@ -301,6 +318,36 @@ TikTok rejects on UX compliance more than on anything else. Audit
 - **commercial-content / branded-content disclosure** toggles must be present,
 - TikTok's **Terms & Music Usage Confirmation** must be shown and linked,
 - the creator's **nickname/avatar** must be displayed so they know which account they post to.
+
+Shipped:
+
+- New `GET /api/publishing/tiktok/creator-info` calls
+  `/v2/post/publish/creator_info/query/` live (never cached beyond the request) and returns
+  the creator's avatar/nickname/username, real `privacy_level_options`, and
+  comment/duet/stitch-disabled flags. Shares the same OAuth-refresh path as the dispatcher via
+  a new `lib/publishing/oauth-token.ts` (`resolveOAuthAccessToken`, extracted so the two
+  callers can't drift).
+- `PublishComposer` fetches this once TikTok is selected + connected and renders a "TikTok
+  settings" panel: creator avatar + nickname, a **draft vs direct** radio (draft routes to
+  `/v2/post/publish/inbox/video/init/` — TikTok imports the video and the creator finishes
+  composing inside the app, so privacy/disclosure fields don't apply there), a **privacy-level
+  select built from the live `privacyLevelOptions`** (never hardcoded), **branded-content /
+  own-promotional-content disclosure checkboxes**, and a required **Music Usage Confirmation +
+  Terms of Service** confirmation checkbox linking to TikTok's actual policy pages.
+- New `publish_jobs.platform_options jsonb` column (migration
+  `20260802140000_publish_jobs_platform_options.sql`, TikTok-only for now, per CLAUDE.md
+  non-negotiable #3 — not a new platform, just correctness for one already shipped) carries
+  the creator's exact choices from composer → `createPublishPost` → `dispatchPost` → the
+  adapter.
+- `lib/publishing/adapters/tiktok.ts`: branches to the inbox/draft endpoint for `postMode:
+  "draft"`; sends `brand_content_toggle`/`brand_organic_toggle`; still forces `SELF_ONLY`
+  pre-audit regardless of the requested level (unchanged safety posture); rejects
+  branded-content + `SELF_ONLY` (TikTok's own rule — that combination can't post) both
+  client-side (composer gate) and server-side (the action + the adapter itself, so a bad
+  request can never reach TikTok unexplained).
+- Comment/duet/stitch disable toggles were **not** added — 1a's bullet list doesn't ask for
+  them, and the existing hardcoded `disable_comment/duet/stitch: false` behavior is unrelated
+  to audit compliance; scope kept to the five bullets above.
 
 ### T5 [FOUNDER] Submit the audit
 Demo video + the same URLs as Meta. **~1–2 weeks** for a clean first pass.
@@ -333,11 +380,26 @@ already forces `private` unless `YOUTUBE_ALLOW_PUBLIC=true`.
 `support@reelspy.dev`, homepage `https://reelspy.dev`, privacy `https://app.reelspy.dev/privacy`,
 terms `https://app.reelspy.dev/terms`.
 
-### Y2 [AGENT] Request the narrowest scope that works
+### Y2 [AGENT] Request the narrowest scope that works — **code — shipped**
 Use **`https://www.googleapis.com/auth/youtube.upload`** alone. Do **not** add the broad
 `.../auth/youtube` or `youtube.force-ssl` unless a feature genuinely needs them — narrower
 scopes verify faster and with less scrutiny. Audit the scope list in
 `lib/publishing/adapters/youtube.ts` and the connect route before submitting.
+
+**Audit result:** `youtube.force-ssl`/`youtube.readonly` aren't dead weight to strip — the
+comment auto-reply module (`lib/auto-reply/youtube-*.ts`) genuinely needs `force-ssl` to POST
+comment replies (upload/readonly alone can't write comments), and it's live today (frozen
+investment per `plan/07-future-roadmap.md`, but running). Deleting those scopes outright would
+break it for every new connection.
+
+Shipped instead: `app/api/social/[platform]/connect/route.ts` now reads an optional
+`YOUTUBE_SCOPES` env override (identical pattern to `META_IG_SCOPES`) — unset, it requests the
+same three scopes as before (zero behavior change, auto-reply keeps working); set to
+`https://www.googleapis.com/auth/youtube.upload` alone before recording the Gate-A
+verification demo, submit, then leave it unset again afterward. `.env.example` and
+`docs/publishing-setup.md` document the override and when to flip it. This mirrors the Meta
+P0/P1 split in §1a: submit the narrowest coherent scope set first, without breaking what
+already ships.
 
 ### Y3 [FOUNDER] Verify domain ownership
 `reelspy.dev` in Google Search Console, under the **same Google account** that owns the Cloud

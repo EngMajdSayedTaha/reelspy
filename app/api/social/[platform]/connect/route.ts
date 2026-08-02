@@ -88,12 +88,20 @@ export async function GET(
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("response_type", "code");
-    // youtube.force-ssl is required to POST comment replies (the upload/readonly
-    // scopes can't write comments) — see the YouTube comment auto-reply module.
-    url.searchParams.set(
-      "scope",
-      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl"
-    );
+    // Default keeps the full set the app actually uses today: youtube.upload
+    // (Publishing) + youtube.readonly/youtube.force-ssl (the comment
+    // auto-reply module — force-ssl is required to POST comment replies,
+    // upload/readonly alone can't write comments). Y2/09-platform-access.md:
+    // request the narrowest scope that verifies — override to just
+    // `.../auth/youtube.upload` for the initial Google OAuth verification
+    // submission (Gate A), then widen back (or leave unset) once approved,
+    // same override-without-a-deploy pattern as META_IG_SCOPES.
+    const scopes =
+      process.env.YOUTUBE_SCOPES?.trim() ||
+      "https://www.googleapis.com/auth/youtube.upload " +
+        "https://www.googleapis.com/auth/youtube.readonly " +
+        "https://www.googleapis.com/auth/youtube.force-ssl";
+    url.searchParams.set("scope", scopes);
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
     url.searchParams.set("state", state);

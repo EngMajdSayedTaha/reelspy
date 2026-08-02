@@ -21,7 +21,8 @@ const en = {
     profileUpdateFailed: "Connected, but we couldn't save your connection. Please retry.",
     accountLinkFailed: "Connected, but we couldn't link your account. Please retry.",
     noIgBusinessAccount:
-      "No Instagram Business account was found. Make sure your Instagram is a Business or Creator account linked to a Facebook Page, then reconnect.",
+      "No Instagram Business account was found on that Facebook login. This means one of two things: (1) your Instagram is a Personal account — switch it to Business or Creator in the Instagram app first, or (2) it's already Business/Creator but isn't linked to a Facebook Page yet — link one in Instagram's account settings. Either way, once fixed, reconnect.",
+    connectionCancelled: "You cancelled before finishing. Nothing was connected — tap Connect whenever you're ready.",
     genericError: "Something went wrong.",
 
     connectedSuccess: "Account connected successfully.",
@@ -34,6 +35,25 @@ const en = {
 
     igNote:
       "Powers reel syncing, insights, publishing & auto-reply. Requires an IG Business/Creator account linked to a Facebook Page.",
+
+    // Shown above the Instagram card while META_BETA_MODE=true (Meta app still
+    // in Development mode, pre-Advanced-Access). A non-tester who clicks
+    // Connect anyway doesn't get an error we can show — Facebook's own "App
+    // Not Active" page never redirects back to us — so this has to prevent the
+    // dead end, not react to it. See Plan_Reelspy/09-platform-access.md Phase 0.
+    betaGate: {
+      heading: "Instagram is in private beta right now",
+      body: "Before Connect works for you, you need to accept a one-time tester invitation on Facebook — otherwise Facebook will show a dead-end page instead of the sign-in screen.",
+      stepsHeading: "Accept your invite:",
+      steps: [
+        "On desktop: Facebook → Settings & Privacy → Settings → Apps and Websites → Business Integrations → Requests.",
+        "On mobile: Facebook app → Menu → Settings & Privacy → Settings → Apps and Websites.",
+        "Accept the ReelSpy tester invitation, then come back here and press Connect.",
+      ],
+      noInviteYet: "Haven't received an invite yet?",
+      requestAccess: "Request access",
+      requestAccessSubject: "ReelSpy beta access request",
+    },
     disconnectInstagramTitle: "Disconnect Instagram?",
     disconnectInstagramDescription:
       "ReelSpy will remove your saved Instagram connection. Your tracked reels stay, but syncing, publishing and auto-reply pause until you reconnect.",
@@ -107,7 +127,8 @@ export const connectionsAr: ConnectionsDict = {
     profileUpdateFailed: "تم الربط، لكن تعذّر حفظ الاتصال. يرجى إعادة المحاولة.",
     accountLinkFailed: "تم الربط، لكن تعذّر ربط حسابك. يرجى إعادة المحاولة.",
     noIgBusinessAccount:
-      "لم يتم العثور على حساب إنستغرام تجاري. تأكد أن حسابك تجاري أو لصانع محتوى ومرتبط بصفحة فيسبوك، ثم أعد الربط.",
+      "لم يتم العثور على حساب إنستغرام تجاري مرتبط بحساب فيسبوك هذا. هناك احتمالان: (1) حسابك على إنستغرام شخصي — حوّله إلى تجاري أو لصانع محتوى من تطبيق إنستغرام أولًا، أو (2) هو تجاري/لصانع محتوى بالفعل لكنه غير مرتبط بصفحة فيسبوك — اربط صفحة من إعدادات حساب إنستغرام. في الحالتين، أعد الربط بعد الإصلاح.",
+    connectionCancelled: "ألغيت العملية قبل إتمامها. لم يتم ربط أي شيء — اضغط «ربط» متى شئت.",
     genericError: "حدث خطأ ما.",
 
     connectedSuccess: "تم ربط الحساب بنجاح.",
@@ -120,6 +141,21 @@ export const connectionsAr: ConnectionsDict = {
 
     igNote:
       "يشغّل مزامنة الريلز والإحصاءات والنشر والرد الآلي. يتطلب حساب إنستغرام تجاري أو لصانع محتوى مرتبطًا بصفحة فيسبوك.",
+
+    betaGate: {
+      heading: "إنستغرام حاليًا في نسخة تجريبية مغلقة",
+      body: "قبل أن يعمل «ربط» لديك، تحتاج إلى قبول دعوة اختبار لمرة واحدة على فيسبوك — وإلا ستُظهر فيسبوك صفحة مسدودة بدلًا من شاشة تسجيل الدخول.",
+      stepsHeading: "لقبول الدعوة:",
+      steps: [
+        "على الحاسوب: فيسبوك ← الإعدادات والخصوصية ← الإعدادات ← التطبيقات والمواقع الإلكترونية ← تكاملات الأعمال ← الطلبات.",
+        "على الجوال: تطبيق فيسبوك ← القائمة ← الإعدادات والخصوصية ← الإعدادات ← التطبيقات والمواقع الإلكترونية.",
+        "اقبل دعوة اختبار ReelSpy، ثم عد إلى هنا واضغط «ربط».",
+      ],
+      noInviteYet: "لم تصلك دعوة بعد؟",
+      requestAccess: "طلب الوصول",
+      requestAccessSubject: "طلب الوصول لنسخة ReelSpy التجريبية",
+    },
+
     disconnectInstagramTitle: "قطع ربط إنستغرام؟",
     disconnectInstagramDescription:
       "ستُزيل ReelSpy ربط إنستغرام المحفوظ. تبقى الريلز المتابَعة كما هي، لكن المزامنة والنشر والرد الآلي تتوقف حتى تعيد الربط.",

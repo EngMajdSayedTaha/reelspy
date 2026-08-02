@@ -50,6 +50,26 @@ export type ResolvedCredentials = {
   pageToken?: string;
 };
 
+// TikTok's actual privacy vocabulary (Content Posting API), fetched live per
+// creator from /v2/post/publish/creator_info/query/ — never hardcoded, since
+// which options a creator sees depends on their TikTok account settings.
+export type TikTokPrivacyLevel =
+  | "PUBLIC_TO_EVERYONE"
+  | "MUTUAL_FOLLOW_FRIENDS"
+  | "FOLLOWER_OF_CREATOR"
+  | "SELF_ONLY";
+
+// Options the creator explicitly picks in the TikTok compliance panel
+// (T4, 09-platform-access.md). "draft" routes to the inbox/upload endpoint
+// (TikTok finishes the post inside its own app) instead of a fully
+// API-driven direct post.
+export type TikTokPostOptions = {
+  privacyLevel: TikTokPrivacyLevel;
+  postMode: "direct" | "draft";
+  brandedContent: boolean; // paid partnership / third-party brand deal
+  brandOrganic: boolean; // creator's own promotional content
+};
+
 export type PublishInput = {
   content: PublishContent;
   // Short-lived signed URL to the uploaded video in Storage.
@@ -58,6 +78,10 @@ export type PublishInput = {
   // "public" or "private" — adapters map this to each platform's vocabulary and
   // force the safe value when the app isn't audited yet.
   privacy: string;
+  // TikTok-only: the creator's explicit choices from the compliance panel.
+  // Absent for other platforms, and falls back to `privacy` if a TikTok job
+  // predates this field (e.g. mid-flight at deploy time).
+  tiktokOptions?: TikTokPostOptions;
 };
 
 export type PublishResult = {

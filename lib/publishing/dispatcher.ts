@@ -9,15 +9,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { presignGetUrl } from "@/lib/storage/r2";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
-import {
-  getConnection,
-  markConnectionInvalid,
-  updateConnectionTokens,
-} from "./token-store";
+import { resolveOAuthAccessToken } from "./oauth-token";
 import { instagramAdapter } from "./adapters/instagram";
 import { facebookAdapter } from "./adapters/facebook";
-import { tiktokAdapter, refreshTikTokToken } from "./adapters/tiktok";
-import { youtubeAdapter, refreshYouTubeToken } from "./adapters/youtube";
+import { tiktokAdapter } from "./adapters/tiktok";
+import { youtubeAdapter } from "./adapters/youtube";
 import { track } from "@/lib/analytics/track";
 import { notifyPublishFailure, type FailedTarget } from "@/lib/email/publish-failure";
 import type {
@@ -25,6 +21,7 @@ import type {
   Platform,
   PublishContent,
   ResolvedCredentials,
+  TikTokPostOptions,
 } from "./types";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 30; // 30 min — long enough for IG/TikTok transcode.
@@ -55,6 +52,9 @@ type JobRow = {
   attempts: number;
   // Per-platform caption override; null = use the shared post caption.
   caption: string | null;
+  // TikTok-only compliance panel choices (T4); null for every other platform
+  // and for TikTok jobs created before this column existed.
+  platform_options: TikTokPostOptions | null;
 };
 
 export type DispatchResult = {
@@ -90,43 +90,9 @@ async function resolveCredentials(
     }
     case "tiktok":
     case "youtube": {
-      const conn = await getConnection(admin, userId, job.platform);
-      if (!conn?.access_token) return { error: `${job.platform} is not connected.` };
-
-      let accessToken = conn.access_token;
-      const expired =
-        conn.token_expires_at != null &&
-        new Date(conn.token_expires_at).getTime() <= Date.now() + 60_000;
-
-      if (expired) {
-        if (!conn.refresh_token) {
-          await markConnectionInvalid(admin, conn.id);
-          return { error: `${job.platform} session expired — reconnect the account.` };
-        }
-        try {
-          if (job.platform === "tiktok") {
-            const r = await refreshTikTokToken(conn.refresh_token);
-            accessToken = r.accessToken;
-            await updateConnectionTokens(admin, conn.id, {
-              accessToken: r.accessToken,
-              refreshToken: r.refreshToken,
-              expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
-            });
-          } else {
-            const r = await refreshYouTubeToken(conn.refresh_token);
-            accessToken = r.accessToken;
-            await updateConnectionTokens(admin, conn.id, {
-              accessToken: r.accessToken,
-              expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
-            });
-          }
-        } catch {
-          await markConnectionInvalid(admin, conn.id);
-          return { error: `${job.platform} session expired — reconnect the account.` };
-        }
-      }
-
-      return { creds: { accessToken, accountId: conn.account_id } };
+      const resolved = await resolveOAuthAccessToken(admin, userId, job.platform);
+      if ("error" in resolved) return resolved;
+      return { creds: { accessToken: resolved.accessToken, accountId: resolved.connection.account_id } };
     }
   }
 }
@@ -147,7 +113,7 @@ export async function dispatchPost(
 
   const { data: jobs } = await admin
     .from("publish_jobs")
-    .select("id, platform, connection_id, privacy, status, attempts, caption")
+    .select("id, platform, connection_id, privacy, status, attempts, caption, platform_options")
     .eq("post_id", postId)
     .eq("status", "pending")
     .returns<JobRow[]>();
@@ -194,6 +160,7 @@ export async function dispatchPost(
         signedVideoUrl,
         creds: resolved.creds,
         privacy: job.privacy,
+        tiktokOptions: job.platform === "tiktok" ? job.platform_options ?? undefined : undefined,
       });
 
       await admin

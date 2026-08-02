@@ -179,6 +179,10 @@ handed to Meta as a short-lived signed URL, so uploads must finish processing
    Add the redirect URI: `https://<your-domain>/api/social/youtube/callback`.
 3. **OAuth consent screen:** User type **External**, add the scope
    `.../auth/youtube.upload`, and add your Google account under **Test users**.
+   The app itself requests `youtube.upload` + `youtube.readonly` +
+   `youtube.force-ssl` by default (the last two power comment auto-reply, see
+   `docs/auto-reply-setup.md`) — add all three scopes here too, or the consent
+   screen will reject a scope the connect flow actually asks for.
 4. Set env vars:
    ```
    YOUTUBE_CLIENT_ID=
@@ -193,9 +197,16 @@ handed to Meta as a short-lived signed URL, so uploads must finish processing
 
 ### Verification + audit (to allow public uploads)
 
-1. **OAuth verification:** in the OAuth consent screen, **Publish app** and
-   submit for verification of the sensitive `youtube.upload` scope. This removes
-   the "unverified app" warning **and** the weekly token expiry.
+1. **OAuth verification:** narrower scope lists verify faster and with less
+   scrutiny (Y2, `Plan_Reelspy/09-platform-access.md`). Set
+   `YOUTUBE_SCOPES="https://www.googleapis.com/auth/youtube.upload"` before
+   recording the demo video for this submission — it drops `youtube.readonly`
+   and `youtube.force-ssl` from what's requested without touching any code.
+   Leave `YOUTUBE_SCOPES` unset afterward (or once auto-reply needs the full
+   set again) to fall back to the default three-scope list. In the OAuth
+   consent screen, **Publish app** and submit for verification of the
+   sensitive `youtube.upload` scope. This removes the "unverified app" warning
+   **and** the weekly token expiry.
 2. **YouTube API compliance audit:** fill out the
    [YouTube API Services audit form](https://support.google.com/youtube/contact/yt_api_form).
    This lifts the private-only restriction and can raise your quota.

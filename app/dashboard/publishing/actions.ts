@@ -20,6 +20,18 @@ async function getDict() {
   return getDictionary(locale);
 }
 
+const tiktokOptionsSchema = z.object({
+  privacyLevel: z.enum([
+    "PUBLIC_TO_EVERYONE",
+    "MUTUAL_FOLLOW_FRIENDS",
+    "FOLLOWER_OF_CREATOR",
+    "SELF_ONLY",
+  ]),
+  postMode: z.enum(["direct", "draft"]),
+  brandedContent: z.boolean(),
+  brandOrganic: z.boolean(),
+});
+
 // Built per-call (not module scope) so the "pick at least one platform" message
 // reflects the caller's locale cookie.
 function createSchema(t: PublishingDict["publishing"]) {
@@ -36,6 +48,9 @@ function createSchema(t: PublishingDict["publishing"]) {
     privacy: z.enum(["public", "private"]).default("public"),
     // ISO datetime; absent/empty = publish now.
     scheduledAt: z.string().datetime().optional().nullable(),
+    // TikTok compliance-panel choices (T4) — required client-side whenever
+    // TikTok is a selected target; absent for every other platform.
+    tiktokOptions: tiktokOptionsSchema.optional(),
   });
 }
 
@@ -82,6 +97,17 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
     throw new Error(t.noPlatformsConnected);
   }
 
+  // TikTok rejects branded/paid-partnership content posted as SELF_ONLY — the
+  // disclosure has to reach an audience. Reject early with a clear message
+  // instead of letting the client-side gate be the only thing enforcing it.
+  if (
+    targets.includes("tiktok") &&
+    parsed.tiktokOptions?.brandedContent &&
+    parsed.tiktokOptions.privacyLevel === "SELF_ONLY"
+  ) {
+    throw new Error(t.tiktokBrandedPrivacyConflict);
+  }
+
   const immediate = !parsed.scheduledAt;
 
   const { data: post, error: postErr } = await admin
@@ -119,6 +145,7 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
       caption: override ? override : null,
       privacy: parsed.privacy,
       status: "pending",
+      platform_options: platform === "tiktok" ? parsed.tiktokOptions ?? null : null,
     });
   }
 
