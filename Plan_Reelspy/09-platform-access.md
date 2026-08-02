@@ -380,11 +380,26 @@ already forces `private` unless `YOUTUBE_ALLOW_PUBLIC=true`.
 `support@reelspy.dev`, homepage `https://reelspy.dev`, privacy `https://app.reelspy.dev/privacy`,
 terms `https://app.reelspy.dev/terms`.
 
-### Y2 [AGENT] Request the narrowest scope that works
+### Y2 [AGENT] Request the narrowest scope that works — **code — shipped**
 Use **`https://www.googleapis.com/auth/youtube.upload`** alone. Do **not** add the broad
 `.../auth/youtube` or `youtube.force-ssl` unless a feature genuinely needs them — narrower
 scopes verify faster and with less scrutiny. Audit the scope list in
 `lib/publishing/adapters/youtube.ts` and the connect route before submitting.
+
+**Audit result:** `youtube.force-ssl`/`youtube.readonly` aren't dead weight to strip — the
+comment auto-reply module (`lib/auto-reply/youtube-*.ts`) genuinely needs `force-ssl` to POST
+comment replies (upload/readonly alone can't write comments), and it's live today (frozen
+investment per `plan/07-future-roadmap.md`, but running). Deleting those scopes outright would
+break it for every new connection.
+
+Shipped instead: `app/api/social/[platform]/connect/route.ts` now reads an optional
+`YOUTUBE_SCOPES` env override (identical pattern to `META_IG_SCOPES`) — unset, it requests the
+same three scopes as before (zero behavior change, auto-reply keeps working); set to
+`https://www.googleapis.com/auth/youtube.upload` alone before recording the Gate-A
+verification demo, submit, then leave it unset again afterward. `.env.example` and
+`docs/publishing-setup.md` document the override and when to flip it. This mirrors the Meta
+P0/P1 split in §1a: submit the narrowest coherent scope set first, without breaking what
+already ships.
 
 ### Y3 [FOUNDER] Verify domain ownership
 `reelspy.dev` in Google Search Console, under the **same Google account** that owns the Cloud

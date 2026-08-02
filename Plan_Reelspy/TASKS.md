@@ -48,7 +48,7 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 
 **Phase 3 — YouTube/Google** (independent, no licence needed)
 - [ ] **Y1** [FOUNDER] Google Cloud project + OAuth consent screen (External, individual)
-- [ ] **Y2** [AGENT] Narrow the scope list to `youtube.upload` alone
+- [x] **Y2** [AGENT] **Code:** `YOUTUBE_SCOPES` override to narrow to `youtube.upload` alone for the OAuth verification submission
 - [ ] **Y3** [FOUNDER] Verify `reelspy.dev` in Search Console under the project's Google account
 - [ ] **Y4/Y5** [FOUNDER] OAuth verification (Gate A) + YouTube compliance audit (Gate B) → **Y6** [AGENT] `YOUTUBE_ALLOW_PUBLIC=true`
 
