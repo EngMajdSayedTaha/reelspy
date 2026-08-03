@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { AccountArchive } from "@/components/accounts/AccountArchive";
+import type { ArchiveStatus } from "@/lib/instagram/archive-status";
 import { getClientPrefs } from "@/lib/prefs";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
@@ -29,6 +31,8 @@ type Group = { id: string; name: string };
 type AccountCardProps = {
   account: Account;
   groups: Group[];
+  /** Full-history archive state for this account, server-rendered. */
+  archive: ArchiveStatus | null;
   removeAction: (formData: FormData) => Promise<void>;
   assignGroupAction: (formData: FormData) => Promise<void>;
   toggleActiveAction: (formData: FormData) => Promise<void>;
@@ -51,6 +55,7 @@ function formatFollowers(n: number | null): string {
 export function AccountCard({
   account,
   groups,
+  archive,
   removeAction,
   assignGroupAction,
   toggleActiveAction,
@@ -338,6 +343,14 @@ export function AccountCard({
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+
+      <AccountArchive
+        accountId={account.id}
+        username={account.ig_username}
+        initial={archive}
+        hasReels={Boolean(account.last_synced_at) || Boolean(archive?.requested)}
+        disabled={busy}
+      />
     </article>
   );
 }

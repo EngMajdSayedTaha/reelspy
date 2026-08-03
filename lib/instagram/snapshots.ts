@@ -253,32 +253,32 @@ export async function refreshAccountSnapshot(
   };
 }
 
-// Copy shared snapshot reels into one user's personal feed. Pure DB work: no
-// Graph calls, no rate-limit cost. Inserts new reels and refreshes public
-// metrics on existing ones, preserving per-user state (favorites, discards…).
-export async function materializeForUser(
-  admin: SupabaseClient,
+type SnapshotRow = {
+  ig_media_id: string;
+  permalink: string | null;
+  caption: string | null;
+  thumbnail_url: string | null;
+  view_count: number | null;
+  like_count: number | null;
+  comment_count: number | null;
+  posted_at: string | null;
+};
+
+// How many snapshot reels are reconciled per round-trip. A sync deals in 25s and
+// never notices; a full-history archive materializes thousands, where a single
+// `.in(...)` of every media id and one giant insert stop being reasonable things
+// to ask of PostgREST.
+const MATERIALIZE_CHUNK = 500;
+
+// Reconcile ONE batch of snapshot reels into a user's feed.
+async function materializeChunk(
   db: SupabaseClient,
   userId: string,
   accountId: string,
-  username: string,
-  limit?: number
+  rows: SnapshotRow[]
 ): Promise<{ inserted: number; updated: number }> {
-  const uname = normalize(username);
-
-  let query = admin
-    .from("ig_reel_snapshots")
-    .select("ig_media_id, permalink, caption, thumbnail_url, view_count, like_count, comment_count, posted_at")
-    .eq("ig_username", uname)
-    .order("posted_at", { ascending: false, nullsFirst: false });
-
-  if (limit && limit > 0) query = query.limit(limit);
-
-  const { data: snapReels } = await query;
-  const rows = snapReels ?? [];
-  if (rows.length === 0) return { inserted: 0, updated: 0 };
-
   const mediaIds = rows.map((r) => r.ig_media_id).filter(Boolean);
+  if (mediaIds.length === 0) return { inserted: 0, updated: 0 };
 
   // Dedup is scoped to THIS account, not the whole user. A collab reel is
   // returned by Business Discovery under every account that co-authored it
@@ -361,6 +361,58 @@ export async function materializeForUser(
     } else {
       updated = typeof bulkCount === "number" ? bulkCount : updates.length;
     }
+  }
+
+  return { inserted, updated };
+}
+
+// Copy shared snapshot reels into one user's personal feed. Pure DB work: no
+// Graph calls, no rate-limit cost. Inserts new reels and refreshes public
+// metrics on existing ones, preserving per-user state (favorites, discards…).
+//
+// `limit` omitted means the account's ENTIRE cached history — what an archive
+// materialize wants. Work is chunked either way.
+export async function materializeForUser(
+  admin: SupabaseClient,
+  db: SupabaseClient,
+  userId: string,
+  accountId: string,
+  username: string,
+  limit?: number
+): Promise<{ inserted: number; updated: number }> {
+  const uname = normalize(username);
+
+  let inserted = 0;
+  let updated = 0;
+
+  // Page the snapshot side too: reading an entire archive into memory to slice
+  // it up would defeat the point of chunking the writes.
+  for (let offset = 0; ; offset += MATERIALIZE_CHUNK) {
+    const remaining = limit && limit > 0 ? limit - offset : MATERIALIZE_CHUNK;
+    if (remaining <= 0) break;
+    const take = Math.min(MATERIALIZE_CHUNK, remaining);
+
+    const { data: snapReels } = await admin
+      .from("ig_reel_snapshots")
+      .select(
+        "ig_media_id, permalink, caption, thumbnail_url, view_count, like_count, comment_count, posted_at"
+      )
+      .eq("ig_username", uname)
+      .order("posted_at", { ascending: false, nullsFirst: false })
+      // Tie-break on a stable key: rows sharing a posted_at (or all sharing a
+      // null one) have no inherent order, so a paged read could return the same
+      // reel twice and skip another entirely.
+      .order("ig_media_id", { ascending: false })
+      .range(offset, offset + take - 1);
+
+    const rows = (snapReels ?? []) as SnapshotRow[];
+    if (rows.length === 0) break;
+
+    const result = await materializeChunk(db, userId, accountId, rows);
+    inserted += result.inserted;
+    updated += result.updated;
+
+    if (rows.length < take) break;
   }
 
   return { inserted, updated };
