@@ -120,6 +120,18 @@ Two paths through `POST /api/ig/sync`:
 - Per-account sync depth chosen in UI: 25 / 50 / 100 / 200 reels (Business Discovery pagination via cursors); snapshot store default 25 (`SNAPSHOT_MAX_REELS`).
 - Daily cron refreshes up to `SNAPSHOT_REFRESH_BATCH=50` stale accounts, then drains `SEED_ENRICH_BATCH=50` seed enrichments (§5).
 
+### 2d-bis. Full history archive — the deep, resumable walk
+`POST /api/ig/archive` (Accounts page → **Full history**) pulls an account's whole reel history, not just the recent window a sync covers. It is a **separate mechanism from sync**, and the difference is depth vs. freshness: sync keeps the newest reels current; the archive walks backwards once.
+
+- **Paid feature, daily allowance.** free 0 · creator 3 · pro 10 · studio 30 per rolling 24h (`ARCHIVE_DAILY_CAP` in the route, enforced through `consume_user_action` with a tier override). Admins bypass. A request that the shared cache **already covers costs nothing and consumes no allowance**.
+- **Range is the cost control**, not a reel count: 6m / 12m / 24m / all (`lib/instagram/archive-range.ts`). Business Discovery pages newest-first at 25 media/call, so only a date cutoff can decide how many calls a walk spends. Measured 2026-08-03: a high-frequency creator's first 25 media covered ~3.5 months, so "12 months" ≈ 4 calls.
+- **Resumable by construction.** `ig_account_archives` stores the cursor, `oldest_seen_at`, `exhausted`, and `pages_fetched`; the walk runs `ARCHIVE_PAGES_PER_RUN=8` pages per worker pass, then re-enqueues itself. This is what lets one archive survive a full 1-hour Meta cooldown and many serverless invocations. Safety backstop `ARCHIVE_MAX_REELS=2000` ⇒ status `partial` (reported as such, never dressed up as complete).
+- **`exhausted` ≠ "stopped".** It is set **only** when Meta runs out of cursors (the account's first post). A walk that stopped at its date cutoff leaves it false, so a later deeper request resumes from the saved cursor. Marking a dated stop as exhausted would make "everything" answer itself from cache forever.
+- **`.since()` is deliberately unused.** `scripts/probe-bd-since.mjs` confirmed Meta *does* honor it on the `business_discovery` media edge (undocumented). It still isn't used: the walk already stops at the target date, so it saves no calls — it would only make the boundary page return less, and would mint cursors under a filter a later deeper request doesn't share. Everything fetched is kept, so overshooting a cutoff is free coverage.
+- **Shared cache, private fan-out.** Reels land in `ig_reel_snapshots` (shared — the second customer to archive @nike pays nothing), but materialization into personal feeds is limited to users with a row in `ig_account_archive_requests`. Without that split, one paid user's archive would appear in every free user's feed for the same account.
+- **Deep history is not thumbnail-cached** (thousands of images per account); an existing self-hosted thumbnail is never overwritten with an expiring IG URL. Metrics, captions and permalinks are what the archive is for.
+- **Export:** `GET /api/ig/archive/export?account_id=&format=csv|json` streams the account's reels server-side in pages (UTF-8 BOM so Excel reads Arabic captions), throttled by the existing `account_export` hourly limit.
+
 ### 2e. Throttle handling in the job queue — defer, don't fail
 A `refresh_snapshot` job that can't run because Meta is cooling down is **deferred, not failed** (`deferJob`, `lib/jobs/queue.ts`):
 - `run_at` is set to the circuit's reopen time (`readAppPausedUntil`, `lib/instagram/rate-limit.ts`) **+ jitter** (`REFRESH_DEFER_JITTER_MS=60000`) so a whole cooldown's worth of jobs don't wake in lockstep and instantly re-trip the breaker.
@@ -203,6 +215,8 @@ Final ordering: **followers desc** (biggest, most recognizable creators first �
 - IG CDN image URLs expire (~7 days), so avatars/thumbnails are downloaded once into a **public Supabase Storage media-cache bucket** and served from our permanent URLs (`lib/instagram/media-cache.ts`).
 - `pickHealthyToken()`: background jobs may use any connected user's valid token (BD reads public data), rotated least-recently-used.
 - Per-user state survives syncs: favorite / discarded / worked-on / transcripts are never overwritten by a re-sync.
+- **Paging is a reusable primitive**, not a private loop: `fetchAccountReelsPage()` takes a cursor and returns the next one, so a caller can stop, persist its position, and resume later (what the full-history archive is built on). `fetchAccountReels()` is the bounded convenience wrapper over it.
+- A 200 response with **no `business_discovery` field** means private / personal / gone. It raises `AccountUnavailableError` and is classified `not_found` — terminal, never retried, and never recorded as "ok with 0 reels".
 
 ---
 
@@ -247,7 +261,7 @@ Final ordering: **followers desc** (biggest, most recognizable creators first �
 
 ## 11. Background jobs & schedules
 
-Durable queue: `jobs` table + atomic `claim_jobs` RPC (`FOR UPDATE SKIP LOCKED`), exponential backoff for genuine faults, **attempt-neutral deferral for throttles** (§2e), stuck-job reclaim after 600s. Worker: `/api/cron/run-jobs`. Job kinds: `publish_post`, `transcribe_reel`, `send_digest`, `refresh_snapshot` (background account refresh for async "Sync All" — deduped by username, fans the fresh cache out to all trackers, retried on throttle / no-token). Enqueued jobs can nudge the worker immediately via an authenticated `/api/cron/run-jobs` call so they don't wait for the next tick.
+Durable queue: `jobs` table + atomic `claim_jobs` RPC (`FOR UPDATE SKIP LOCKED`), exponential backoff for genuine faults, **attempt-neutral deferral for throttles** (§2e), stuck-job reclaim after 600s. Worker: `/api/cron/run-jobs`. Job kinds: `publish_post`, `transcribe_reel`, `send_digest`, `refresh_snapshot` (background account refresh for async "Sync All" — deduped by username, fans the fresh cache out to all trackers, retried on throttle / no-token), `archive_account` (deep full-history walk — chunked and self-re-enqueuing, §2d-bis). Both Meta-bound kinds share the same pacing and circuit-breaker parking. Enqueued jobs can nudge the worker immediately via an authenticated `/api/cron/run-jobs` call so they don't wait for the next tick.
 
 | Schedule | Where | Job |
 |---|---|---|

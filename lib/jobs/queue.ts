@@ -9,7 +9,12 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numEnv } from "@/lib/utils/env";
 
-export type JobKind = "publish_post" | "transcribe_reel" | "send_digest" | "refresh_snapshot";
+export type JobKind =
+  | "publish_post"
+  | "transcribe_reel"
+  | "send_digest"
+  | "refresh_snapshot"
+  | "archive_account";
 
 export type Job = {
   id: string;

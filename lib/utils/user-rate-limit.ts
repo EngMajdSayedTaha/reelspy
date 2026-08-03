@@ -47,16 +47,31 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_ADMIN_MUTATION_PER_HOUR", 240),
     windowSeconds: 3600,
   },
+  // Full-history archive of a tracked account: dozens of Business Discovery
+  // calls out of an app-wide pool everyone shares, so the window is a DAY, not
+  // an hour. The limit here is only the floor — callers pass the tier's real
+  // allowance as an override (see ARCHIVE_DAILY_CAP).
+  archive_account: {
+    limit: numEnv("RL_ARCHIVE_PER_DAY", 3),
+    windowSeconds: 86_400,
+  },
 };
 
 export type UserActionResult = { allowed: boolean; retryAfterSeconds: number };
 
+// `limitOverride` exists for actions whose allowance depends on the caller's
+// plan rather than the action alone — the static table can't know a tier.
 export async function consumeUserAction(
   supabase: SupabaseClient,
   userId: string,
-  action: keyof typeof USER_ACTION_LIMITS
+  action: keyof typeof USER_ACTION_LIMITS,
+  limitOverride?: number
 ): Promise<UserActionResult> {
-  const { limit, windowSeconds } = USER_ACTION_LIMITS[action];
+  const { limit: defaultLimit, windowSeconds } = USER_ACTION_LIMITS[action];
+  const limit =
+    limitOverride != null && Number.isFinite(limitOverride) && limitOverride > 0
+      ? Math.floor(limitOverride)
+      : defaultLimit;
 
   const { data, error } = await supabase.rpc("consume_user_action", {
     p_user_id: userId,

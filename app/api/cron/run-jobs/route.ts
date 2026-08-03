@@ -18,6 +18,7 @@ import { dispatchPost } from "@/lib/publishing/dispatcher";
 import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-job";
 import { runSendDigest } from "@/lib/email/digest-job";
 import { runRefreshSnapshot, RETRYABLE_REFRESH_OUTCOMES } from "@/lib/jobs/refresh-snapshot-job";
+import { runArchiveAccount } from "@/lib/jobs/archive-account-job";
 
 // Durable job-queue worker (H1 / roadmap V4). Claims due `jobs` rows and runs
 // them by kind: scheduled publishing, post-sync auto-transcribe, and weekly
@@ -28,7 +29,17 @@ import { runRefreshSnapshot, RETRYABLE_REFRESH_OUTCOMES } from "@/lib/jobs/refre
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const KINDS: JobKind[] = ["publish_post", "transcribe_reel", "send_digest", "refresh_snapshot"];
+const KINDS: JobKind[] = [
+  "publish_post",
+  "transcribe_reel",
+  "send_digest",
+  "refresh_snapshot",
+  "archive_account",
+];
+
+// Both kinds spend Business Discovery calls, so both pace and both get parked
+// when the shared circuit is open.
+const META_KINDS: ReadonlySet<JobKind> = new Set(["refresh_snapshot", "archive_account"]);
 
 // Pause between consecutive jobs that actually call Meta. Without this the worker
 // fires Business Discovery back-to-back — a fresh 100-account "Sync All" becomes
@@ -132,6 +143,50 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
       // not_found / failed still consumed a Business Discovery call, so they pace.
       return { hitMeta: outcome !== "skipped", deferred: false };
     }
+    case "archive_account": {
+      const username = String(job.payload.ig_username ?? "");
+      if (!username) throw new Error("archive_account job missing ig_username");
+      const since = job.payload.since == null ? null : String(job.payload.since);
+      const outcome = await runArchiveAccount(admin, username, { since });
+
+      if (outcome === "throttled") {
+        const pausedUntil = await readAppPausedUntil(admin);
+        const resumeAt = new Date(
+          (pausedUntil ? new Date(pausedUntil).getTime() : Date.now() + 60_000) +
+            jitterMs(DEFER_JITTER_MS)
+        );
+        await deferJob(admin, job, resumeAt, `throttled — waiting until ${resumeAt.toISOString()}`);
+        return { hitMeta: true, deferred: true };
+      }
+
+      if (outcome === "no_token") {
+        await failJob(admin, job, new Error("archive outcome: no_token"));
+        return { hitMeta: false, deferred: false };
+      }
+
+      // The walk is chunked, so "continued" means this pass did its share and
+      // the next one picks up from the saved cursor. The follow-up job can only
+      // be enqueued AFTER this one is completed — they share a dedup key, and
+      // the partial unique index counts the in-flight job as the active holder.
+      await completeJob(admin, job.id);
+
+      if (outcome === "continued") {
+        await enqueueJob(admin, {
+          kind: "archive_account",
+          payload: { ig_username: username, since },
+          userId: job.user_id,
+          dedupKey: `archive:${username}`,
+          // A Meta cooldown can park a chunk for a full hour, and a deep archive
+          // is many chunks. Deferrals are attempt-neutral, but leave headroom.
+          maxAttempts: 10,
+        });
+      }
+
+      // A `completed` that was answered from the shared cache spent nothing, but
+      // one that finished a walk did. Pacing a cache hit costs 300ms; skipping a
+      // pace after a real call costs shared budget, so err toward pacing.
+      return { hitMeta: outcome !== "skipped", deferred: false };
+    }
   }
 }
 
@@ -165,7 +220,7 @@ export async function GET(request: Request) {
   // batch. If Instagram is cooling down, every refresh job is parked in one go
   // rather than each one waking, failing, and burning an attempt against a door
   // we already know is closed.
-  const pausedUntil = claimed.some((j) => j.kind === "refresh_snapshot")
+  const pausedUntil = claimed.some((j) => META_KINDS.has(j.kind))
     ? await readAppPausedUntil(admin)
     : null;
 
@@ -176,7 +231,7 @@ export async function GET(request: Request) {
     // left `running` past the lock timeout on a later pass.
     if (Date.now() - startedAt > budgetMs) break;
 
-    if (job.kind === "refresh_snapshot" && pausedUntil) {
+    if (META_KINDS.has(job.kind) && pausedUntil) {
       const resumeAt = new Date(new Date(pausedUntil).getTime() + jitterMs(DEFER_JITTER_MS));
       await deferJob(admin, job, resumeAt, `circuit open — waiting until ${resumeAt.toISOString()}`);
       deferred++;
@@ -185,7 +240,7 @@ export async function GET(request: Request) {
 
     // Pace only between jobs that actually reach Meta — cache hits and non-Meta
     // kinds need no throttle.
-    if (job.kind === "refresh_snapshot" && lastHitMeta && REFRESH_PACE_MS > 0) {
+    if (META_KINDS.has(job.kind) && lastHitMeta && REFRESH_PACE_MS > 0) {
       await sleep(REFRESH_PACE_MS);
     }
 

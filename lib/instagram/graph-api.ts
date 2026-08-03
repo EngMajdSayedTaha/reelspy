@@ -581,9 +581,154 @@ function isReel(item: JsonRecord): boolean {
   return type === "VIDEO" || product === "REELS";
 }
 
+const MEDIA_FIELDS =
+  "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
+
+// Instagram caps the media edge at 25 items per page.
+const PAGE_SIZE = 25;
+
+// Meta's cursors are opaque tokens. They get interpolated into the `fields`
+// expression, so only the alphabet Meta actually uses is ever accepted — a
+// cursor read back out of storage is still untrusted input.
+const CURSOR_RE = /^[\w=-]+$/;
+
+// The target isn't visible to Business Discovery at all — private, personal, or
+// gone. Terminal, not transient: retrying spends quota on an answer that will
+// not change. Typed so callers can act on it instead of pattern-matching prose.
+export class AccountUnavailableError extends Error {
+  readonly username: string;
+
+  constructor(username: string) {
+    super(`@${username} not found, private, or not a Business/Creator account.`);
+    this.name = "AccountUnavailableError";
+    this.username = username;
+  }
+}
+
+export type ReelsPageResult = {
+  /** Reels on this page, in Meta's newest-first order. */
+  reels: InstagramMedia[];
+  /** Media items on the page BEFORE the reel filter — 0 means the edge is dry. */
+  rawCount: number;
+  /**
+   * Oldest timestamp on this page across ALL media types, not just reels.
+   * A date cutoff has to advance on every item: a page of nothing but carousels
+   * still moves the archive backwards in time, and judging the boundary on reels
+   * alone would stall on any account that mixes formats.
+   */
+  oldestPostedAt?: string;
+  /** Cursor for the next page; undefined once the edge is exhausted. */
+  nextCursor?: string;
+  /** Scalar profile fields, which Meta repeats on every page (no extra quota). */
+  profile?: BusinessDiscoveryProfile;
+};
+
+export type ReelsPageOptions = {
+  /** Opaque cursor from a previous page's `nextCursor`. */
+  after?: string;
+  pageSize?: number;
+  /**
+   * Unix SECONDS. UNVERIFIED against business_discovery: `since` is documented
+   * on the IG User /media edge, not on the nested discovery edge, so nothing
+   * passes it until scripts/probe-bd-since.mjs confirms Meta honors it here.
+   * The client-side cutoff (`oldestPostedAt`) is the design either way — this is
+   * only a call-count optimization that skips fetching pages we'd discard.
+   */
+  since?: number;
+  limiter?: MetaRateLimiter;
+};
+
+// ONE page of a target account's media, mapped to reels.
+//
+// This is the resumable primitive: it takes a cursor and hands back the next
+// one, so a caller can stop, persist the cursor, and continue in a later
+// invocation. A full-archive pull needs exactly that — the bounded loop in
+// fetchAccountReels below keeps its cursor on the stack, so the moment it
+// returns, the position in the account's history is gone.
+//
+// Throws on any Graph failure (including MetaRateLimitError from the shared
+// guard) rather than degrading. Callers own the keep-what-we-got decision;
+// fetchAccountReels preserves that contract for its own callers.
+export async function fetchAccountReelsPage(
+  myIgUserId: string,
+  token: string,
+  targetUsername: string,
+  opts?: ReelsPageOptions
+): Promise<ReelsPageResult> {
+  if (!isValidIgUsername(targetUsername)) {
+    throw new Error(`Invalid Instagram username: ${targetUsername}`);
+  }
+  if (opts?.after && !CURSOR_RE.test(opts.after)) {
+    throw new Error("Invalid media cursor.");
+  }
+
+  const pageSize = Math.min(50, Math.max(1, Math.floor(opts?.pageSize ?? PAGE_SIZE)));
+  const since =
+    opts?.since != null && Number.isFinite(opts.since)
+      ? Math.max(0, Math.floor(opts.since))
+      : undefined;
+
+  const mediaArgs =
+    `media.limit(${pageSize})` +
+    (opts?.after ? `.after(${opts.after})` : "") +
+    (since != null ? `.since(${since})` : "");
+
+  const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
+    fields: `business_discovery.username(${targetUsername}){username,followers_count,profile_picture_url,${mediaArgs}{${MEDIA_FIELDS}}}`,
+    access_token: token,
+  });
+
+  const json = await fetchJson<JsonRecord>(url, undefined, opts?.limiter);
+  const discovery = json.business_discovery as JsonRecord | undefined;
+
+  // A 200 with no business_discovery field means Meta resolved the call but has
+  // nothing to show for this handle — private, personal, or gone. Reporting that
+  // as an empty-but-fine result would let the snapshot cache stamp the account
+  // "ok" with zero reels, which reads to the user as "this account posts
+  // nothing" rather than "we can't see this account".
+  if (!discovery) {
+    throw new AccountUnavailableError(targetUsername);
+  }
+
+  const profile: BusinessDiscoveryProfile = {
+    username: typeof discovery.username === "string" ? discovery.username : targetUsername,
+    followers_count:
+      typeof discovery.followers_count === "number" ? discovery.followers_count : undefined,
+    profile_picture_url:
+      typeof discovery.profile_picture_url === "string"
+        ? discovery.profile_picture_url
+        : undefined,
+  };
+
+  const media = discovery.media as JsonRecord | undefined;
+  const pageItems = (media?.data as JsonRecord[] | undefined) ?? [];
+
+  const reels: InstagramMedia[] = [];
+  let oldestPostedAt: string | undefined;
+
+  for (const item of pageItems) {
+    const timestamp = typeof item.timestamp === "string" ? item.timestamp : undefined;
+    if (timestamp && (!oldestPostedAt || timestamp < oldestPostedAt)) {
+      oldestPostedAt = timestamp;
+    }
+    if (!isReel(item)) continue;
+    const mapped = mapMediaItem(item);
+    if (mapped.id) reels.push(mapped);
+  }
+
+  const paging = media?.paging as JsonRecord | undefined;
+  const cursors = paging?.cursors as JsonRecord | undefined;
+  const rawAfter = typeof cursors?.after === "string" ? cursors.after : undefined;
+  // An empty page ends the walk even when Meta still offers a cursor.
+  const nextCursor =
+    rawAfter && CURSOR_RE.test(rawAfter) && pageItems.length > 0 ? rawAfter : undefined;
+
+  return { reels, rawCount: pageItems.length, oldestPostedAt, nextCursor, profile };
+}
+
 // Business Discovery — read a target account's recent reels (VIDEO media).
 // Pages through the media edge with cursors until `maxReels` reels are collected
-// or the account has no more media. Instagram caps each page at 25 items.
+// or the account has no more media.
 export async function fetchAccountReels(
   myIgUserId: string,
   token: string,
@@ -604,51 +749,28 @@ export async function fetchAccountReels(
     return { reels: [], error: "That doesn't look like a valid Instagram username." };
   }
 
-  const mediaFields =
-    "id,caption,permalink,timestamp,comments_count,like_count,view_count,media_type,media_product_type,thumbnail_url,media_url";
-
   const reels: InstagramMedia[] = [];
   let profile: BusinessDiscoveryProfile | undefined;
   const seen = new Set<string>();
   // Over-fetch raw media since non-reel posts get filtered out. Cap total pages
   // so a feed-heavy account can't loop forever.
-  const PAGE_SIZE = 25;
   const MAX_PAGES = Math.min(20, Math.ceil((maxReels * 3) / PAGE_SIZE) + 1);
 
   let after: string | undefined;
 
   try {
     for (let page = 0; page < MAX_PAGES; page++) {
-      const cursor = after ? `.after(${after})` : "";
-      const url = toUrl(`${GRAPH_BASE}/${myIgUserId}`, {
-        fields: `business_discovery.username(${targetUsername}){username,followers_count,profile_picture_url,media.limit(${PAGE_SIZE})${cursor}{${mediaFields}}}`,
-        access_token: token,
+      const result = await fetchAccountReelsPage(myIgUserId, token, targetUsername, {
+        after,
+        pageSize: PAGE_SIZE,
+        limiter,
       });
 
-      const json = await fetchJson<JsonRecord>(url, undefined, limiter);
-      const discovery = json.business_discovery as JsonRecord | undefined;
-
       // Capture the profile once (the scalar fields repeat on every page).
-      if (!profile && discovery) {
-        profile = {
-          username:
-            typeof discovery.username === "string" ? discovery.username : targetUsername,
-          followers_count:
-            typeof discovery.followers_count === "number" ? discovery.followers_count : undefined,
-          profile_picture_url:
-            typeof discovery.profile_picture_url === "string"
-              ? discovery.profile_picture_url
-              : undefined,
-        };
-      }
+      if (!profile) profile = result.profile;
 
-      const media = discovery?.media as JsonRecord | undefined;
-      const pageItems = (media?.data as JsonRecord[] | undefined) ?? [];
-
-      for (const item of pageItems) {
-        if (!isReel(item)) continue;
-        const mapped = mapMediaItem(item);
-        if (!mapped.id || seen.has(mapped.id)) continue;
+      for (const mapped of result.reels) {
+        if (seen.has(mapped.id)) continue;
         seen.add(mapped.id);
         reels.push(mapped);
         if (reels.length >= maxReels) {
@@ -656,14 +778,8 @@ export async function fetchAccountReels(
         }
       }
 
-      const paging = media?.paging as JsonRecord | undefined;
-      const cursors = paging?.cursors as JsonRecord | undefined;
-      const nextAfter = typeof cursors?.after === "string" ? cursors.after : undefined;
-      // Stop when there's no next cursor or the page came back empty. The cursor
-      // is interpolated into the fields expression, so only accept the opaque
-      // token alphabet Meta actually uses — never arbitrary characters.
-      if (!nextAfter || !/^[\w=-]+$/.test(nextAfter) || pageItems.length === 0) break;
-      after = nextAfter;
+      if (!result.nextCursor) break;
+      after = result.nextCursor;
       // Gentle pacing between pages to ease Graph API rate limits.
       await sleep(350);
     }
@@ -680,6 +796,14 @@ export async function fetchAccountReels(
         rateLimited: true,
         retryAfterSeconds: err.retryAfterSeconds,
       };
+    }
+
+    // A definite "we can't see this account" verdict. It's already user-facing,
+    // and it's the wording snapshots.ts classifies as `not_found` — flattening
+    // it into the generic message below would downgrade a settled answer into
+    // "something went wrong", which invites a pointless retry.
+    if (err instanceof AccountUnavailableError) {
+      return { reels, profile, error: reels.length > 0 ? undefined : err.message };
     }
 
     const message = err instanceof Error ? err.message : String(err);

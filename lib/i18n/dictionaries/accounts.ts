@@ -78,6 +78,39 @@ const en = {
       activeBadge: "Active",
       pausedBadge: "Paused",
     },
+    archive: {
+      button: "Full history",
+      buttonTitle:
+        "Pull this account's whole reel history, not just the latest posts. Runs in the background.",
+      starting: "Starting…",
+      rangeAria: "How far back to pull",
+      ranges: {
+        "6m": "6 months",
+        "12m": "12 months",
+        "24m": "2 years",
+        all: "Everything",
+      },
+      // Deliberately never says "instantly": Instagram hands back 25 posts per
+      // call, so a deep account is dozens of paced calls. Promising speed we
+      // can't deliver is how a working feature gets reported as broken.
+      queuedToast: (username: string) =>
+        `Pulling @${username}'s history in the background. This can take a few minutes — you can leave this page.`,
+      cachedToast: (username: string) => `@${username}'s history is already archived.`,
+      runningToast: (username: string) => `@${username} is already being archived.`,
+      failedToast: "Could not start the archive.",
+      working: (reels: number) => `Archiving… ${reels} reels so far`,
+      done: (reels: number) => `${reels} reels archived`,
+      backTo: (date: string) => `back to ${date}`,
+      fullHistory: "full history",
+      // `partial` means the safety ceiling stopped the walk — the archive is
+      // real but not complete, and saying so beats implying it's everything.
+      partial: (reels: number) => `${reels} reels archived (stopped at our limit)`,
+      failed: "Archive failed. Try again, or check the account is still public.",
+      exportAria: "Export this account's reels",
+      exportTitle: "Download this account's reels",
+      exportCsv: "Export CSV",
+      exportJson: "Export JSON",
+    },
     groups: {
       heading: "Groups",
       hint: "Organize accounts (e.g. Competitors, Inspiration)",
@@ -238,6 +271,34 @@ export const accountsAr: AccountsDict = {
       removeError: "تعذّرت إزالة الحساب.",
       activeBadge: "نشط",
       pausedBadge: "متوقف",
+    },
+    archive: {
+      button: "السجل الكامل",
+      buttonTitle:
+        "اسحب سجل الريلز الكامل لهذا الحساب، وليس أحدث المنشورات فقط. يعمل في الخلفية.",
+      starting: "جارٍ البدء…",
+      rangeAria: "إلى أي مدى زمني نعود",
+      ranges: {
+        "6m": "٦ أشهر",
+        "12m": "١٢ شهرًا",
+        "24m": "سنتان",
+        all: "كل شيء",
+      },
+      queuedToast: (username: string) =>
+        `جارٍ سحب سجل @${username} في الخلفية. قد يستغرق ذلك بضع دقائق — يمكنك مغادرة هذه الصفحة.`,
+      cachedToast: (username: string) => `سجل @${username} مؤرشف بالفعل.`,
+      runningToast: (username: string) => `تتم أرشفة @${username} بالفعل.`,
+      failedToast: "تعذّر بدء الأرشفة.",
+      working: (reels: number) => `جارٍ الأرشفة… ${reels} ريلز حتى الآن`,
+      done: (reels: number) => `تمت أرشفة ${reels} ريلز`,
+      backTo: (date: string) => `حتى ${date}`,
+      fullHistory: "السجل الكامل",
+      partial: (reels: number) => `تمت أرشفة ${reels} ريلز (توقفنا عند الحد الأقصى)`,
+      failed: "فشلت الأرشفة. حاول مرة أخرى، أو تأكد من أن الحساب ما زال عامًا.",
+      exportAria: "تصدير ريلز هذا الحساب",
+      exportTitle: "تنزيل ريلز هذا الحساب",
+      exportCsv: "تصدير CSV",
+      exportJson: "تصدير JSON",
     },
     groups: {
       heading: "المجموعات",

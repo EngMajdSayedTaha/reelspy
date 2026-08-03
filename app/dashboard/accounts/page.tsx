@@ -11,6 +11,8 @@ import { GroupsManager } from "@/components/accounts/GroupsManager";
 import { ImportFollowing } from "@/components/accounts/ImportFollowing";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { readArchiveStatuses, type ArchiveStatus } from "@/lib/instagram/archive-status";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { PageTourButton } from "@/components/tour/PageTourButton";
@@ -148,6 +150,26 @@ export default async function AccountsPage({
 
   const groups = (groupRows ?? []) as AccountGroup[];
 
+  // Full-history archive state for the accounts on THIS page. One query for the
+  // whole grid — the alternative is every card fetching its own on mount, which
+  // is a dozen requests to render a page that already knows the answer. The
+  // archive tables are RLS-locked global state, hence the admin client.
+  let archives: ArchiveStatus[] = [];
+  if (accounts.length > 0) {
+    try {
+      archives = await readArchiveStatuses(createAdminClient(), user.id, accounts);
+    } catch (archiveError) {
+      // Missing service key or unapplied migration. The cards still render and
+      // stay usable — they just start with no archive state, and the first poll
+      // after a click fills it in.
+      console.warn(
+        "[accounts] archive status unavailable:",
+        archiveError instanceof Error ? archiveError.message : archiveError
+      );
+    }
+  }
+  const archiveByAccount = new Map(archives.map((a) => [a.accountId, a]));
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -204,6 +226,7 @@ export default async function AccountsPage({
                   key={account.id}
                   account={account}
                   groups={groups}
+                  archive={archiveByAccount.get(account.id) ?? null}
                   removeAction={removeInspirationAccount}
                   assignGroupAction={assignAccountGroup}
                   toggleActiveAction={toggleAccountActive}
