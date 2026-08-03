@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AtSign, Check, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { switchActiveConnection } from "@/app/dashboard/connections/actions";
+import { Avatar } from "@/components/ui/avatar";
 import type { IgConnectionSummary } from "@/lib/instagram/connections";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
@@ -77,19 +78,11 @@ export function WorkspaceSwitcher({ connections, activeId, connectionCap }: Prop
                     : "border-border bg-surface-2 hover:border-border-strong"
                 }`}
               >
-                {c.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.avatarUrl}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
-                  />
-                ) : (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
-                    <AtSign className="h-4 w-4 text-muted-foreground" />
-                  </span>
-                )}
+                <Avatar
+                  src={c.avatarUrl}
+                  name={c.username ?? c.igUserId}
+                  className="h-9 w-9 shrink-0 text-xs ring-1"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground">
                     @{c.username ?? c.igUserId}

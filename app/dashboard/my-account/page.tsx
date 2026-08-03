@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { AtSign } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { GrowthNotes } from "@/components/instagram/GrowthNotes";
 import { MyReelsInsights } from "@/components/instagram/MyReelsInsights";
@@ -86,19 +86,11 @@ export default async function MyAccountPage() {
       {/* Account Overview */}
       <section data-tour="profile-snapshot" className="rounded-xl border border-border bg-card p-5 text-foreground">
         <div className="flex flex-wrap items-center gap-4">
-          {insights?.profile_picture_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={insights.profile_picture_url}
-              alt={`@${insights.username}`}
-              referrerPolicy="no-referrer"
-              className="h-16 w-16 rounded-full object-cover ring-2 ring-primary/40"
-            />
-          ) : (
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
-              <AtSign className="h-7 w-7 text-subtle" />
-            </span>
-          )}
+          <Avatar
+            src={insights?.profile_picture_url}
+            name={insights?.username ?? profile?.username}
+            className="h-16 w-16 text-xl"
+          />
 
           <div className="min-w-0 flex-1">
             <p className="text-lg font-semibold text-foreground">

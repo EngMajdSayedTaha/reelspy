@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "radix-ui";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -436,19 +437,11 @@ export function QuizModal({ nicheChips, initial, mode = "onboarding", onClose }:
                           onChange={() => toggleSelectedAccount(account.igUsername)}
                           className="h-4 w-4 shrink-0 rounded border-border-strong text-primary focus:ring-2 focus:ring-primary/40"
                         />
-                        {account.avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={account.avatarUrl}
-                            alt=""
-                            referrerPolicy="no-referrer"
-                            className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
-                          />
-                        ) : (
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
-                            {account.igUsername.slice(0, 1).toUpperCase()}
-                          </span>
-                        )}
+                        <Avatar
+                          src={account.avatarUrl}
+                          name={account.igUsername}
+                          className="h-9 w-9 shrink-0 text-xs ring-1"
+                        />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-foreground">
                             @{account.igUsername}
