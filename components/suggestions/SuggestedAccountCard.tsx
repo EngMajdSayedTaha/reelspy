@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { TrackAccountButton } from "@/components/trends/TrackAccountButton";
+import { Avatar } from "@/components/ui/avatar";
 import type { SuggestedAccount } from "@/lib/suggestions/accounts";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
@@ -52,19 +53,11 @@ export function SuggestedAccountCard({ account, niche, onHide }: Props) {
         <X className="h-3.5 w-3.5" />
       </button>
 
-      {account.avatarUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={account.avatarUrl}
-          alt=""
-          referrerPolicy="no-referrer"
-          className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
-        />
-      ) : (
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
-          {account.igUsername.slice(0, 1).toUpperCase()}
-        </span>
-      )}
+      <Avatar
+        src={account.avatarUrl}
+        name={account.igUsername}
+        className="h-11 w-11 shrink-0 text-sm ring-1"
+      />
 
       <div className="min-w-0 flex-1 pe-6">
         <p className="truncate text-sm font-semibold text-foreground">@{account.igUsername}</p>

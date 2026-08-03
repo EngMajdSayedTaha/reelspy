@@ -16,11 +16,11 @@ import {
   Plug,
   CreditCard,
   Settings,
-  AtSign,
   ShieldAlert,
   X,
   type LucideIcon,
 } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
 import { Logo } from "@/components/brand/Logo";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -179,19 +179,11 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
               onClick={onClose}
               className="flex items-center gap-3 rounded-lg p-2 transition hover:bg-secondary"
             >
-              {user.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.avatarUrl}
-                  alt={user.handle}
-                  referrerPolicy="no-referrer"
-                  className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-primary/40"
-                />
-              ) : (
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary ring-1 ring-border-strong">
-                  <AtSign className="h-4 w-4 text-muted-foreground" />
-                </span>
-              )}
+              <Avatar
+                src={user.avatarUrl}
+                name={user.handle}
+                className="h-9 w-9 shrink-0 text-xs"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium text-foreground">
                   {user.handle}
