@@ -278,6 +278,40 @@ export async function GET(request: Request) {
     });
   }
 
+  // GitHub Actions' `*/5 * * * *` is the CONFIGURED cadence, not the ACTUAL one —
+  // scheduled runs are best-effort and can land 45+ minutes apart under load
+  // (see docs/cron-cadence.md). A queued job's `run_at` says when it becomes
+  // ELIGIBLE, not when the next pass will actually happen, so it can't answer
+  // "when will this run" on its own. Recording every real invocation here —
+  // whether it came from GitHub, a manual admin trigger, or the leftover-drain
+  // self-call above — gives the ops panel something honest to show instead: how
+  // long it's actually been since the worker last looked, which the admin can
+  // read against the queued job's `run_at` themselves. Best-effort: a failed
+  // write here must never take an otherwise-successful pass down with it.
+  try {
+    await admin.from("app_settings").upsert(
+      {
+        key: "run_jobs_heartbeat",
+        value: {
+          at: new Date().toISOString(),
+          worker,
+          reconciled,
+          claimed: claimed.length,
+          processed,
+          done,
+          retried,
+          deferred,
+          failed,
+          throttled: Boolean(pausedUntil) || undefined,
+        },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key" }
+    );
+  } catch (err) {
+    console.warn("[run-jobs] heartbeat write failed:", err instanceof Error ? err.message : err);
+  }
+
   return NextResponse.json({
     ok: true,
     worker,
