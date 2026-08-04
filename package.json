@@ -13,6 +13,7 @@
     "check:auth-setup": "node scripts/check-auth-setup.mjs",
     "check:email": "node scripts/check-email-delivery.mjs",
     "check:meta": "node scripts/check-meta-oauth.mjs",
+    "check:schema": "node scripts/check-schema-drift.mjs",
     "stripe:forward": "node scripts/stripe-forward.mjs"
   },
   "dependencies": {

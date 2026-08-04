@@ -35,9 +35,19 @@ function matches(row: Row, filters: Filter[]): boolean {
   );
 }
 
-function fakeDb(tables: Record<string, Row[]>) {
+// `missing` names tables that don't exist in this database — every operation on
+// them resolves with a Postgres 42P01, exactly as PostgREST reports an
+// unapplied migration. This is the shape of the production incident: the code
+// read those errors as "no archive yet" and restarted the walk forever.
+function fakeDb(tables: Record<string, Row[]>, missing: string[] = []) {
   const store: Record<string, Row[]> = {};
   for (const [name, rows] of Object.entries(tables)) store[name] = rows.map((r) => ({ ...r }));
+
+  const absent = new Set(missing);
+  const relationError = (table: string) => ({
+    code: "42P01",
+    message: `relation "public.${table}" does not exist`,
+  });
 
   const rowsOf = (table: string) => (store[table] ??= []);
 
@@ -69,19 +79,27 @@ function fakeDb(tables: Record<string, Row[]>) {
       },
       not: () => api,
       returns: () => api,
-      maybeSingle: async () => ({
-        data: rowsOf(table).find((r) => matches(r, filters)) ?? null,
-        error: null,
-      }),
+      maybeSingle: async () =>
+        absent.has(table)
+          ? { data: null, error: relationError(table) }
+          : { data: rowsOf(table).find((r) => matches(r, filters)) ?? null, error: null },
       insert: (payload: Row | Row[]) => {
-        for (const row of Array.isArray(payload) ? payload : [payload]) {
-          rowsOf(table).push({ ...row });
+        if (!absent.has(table)) {
+          for (const row of Array.isArray(payload) ? payload : [payload]) {
+            rowsOf(table).push({ ...row });
+          }
         }
-        return { then: (resolve: (v: unknown) => void) => resolve({ data: null, error: null }) };
+        return {
+          then: (resolve: (v: unknown) => void) =>
+            resolve({ data: null, error: absent.has(table) ? relationError(table) : null }),
+        };
       },
       upsert: (payload: Row | Row[]) => {
-        upsertRows(table, payload);
-        return { then: (resolve: (v: unknown) => void) => resolve({ data: null, error: null }) };
+        if (!absent.has(table)) upsertRows(table, payload);
+        return {
+          then: (resolve: (v: unknown) => void) =>
+            resolve({ data: null, error: absent.has(table) ? relationError(table) : null }),
+        };
       },
       update: (payload: Row) => {
         pendingUpdate = payload;
@@ -89,7 +107,12 @@ function fakeDb(tables: Record<string, Row[]>) {
       },
       // `.update(x).eq(...)` only resolves when awaited, which is where the
       // filters are finally known.
-      then(resolve: (value: { data: Row[]; count: number; error: null }) => void) {
+      then(resolve: (value: { data: Row[] | null; count: number; error: unknown }) => void) {
+        if (absent.has(table)) {
+          pendingUpdate = null;
+          resolve({ data: null, count: 0, error: relationError(table) });
+          return;
+        }
         const hits = rowsOf(table).filter((r) => matches(r, filters));
         if (pendingUpdate) {
           for (const row of hits) {
@@ -445,5 +468,78 @@ describe("runArchiveAccount", () => {
     const { runArchiveAccount } = await loadJob();
     const db = fakeDb(BASE_TABLES);
     expect(await runArchiveAccount(db.client, "  ", { since: null })).toBe("skipped");
+  });
+
+  it("refuses to walk when its own progress table is unreachable", async () => {
+    // The production incident: ig_account_archives was never migrated, the read
+    // error was taken for "no archive yet", and every pass restarted from page 1
+    // — re-fetching the same history hourly, out of a shared Meta budget, while
+    // reporting success. Failing loudly is what makes that a one-run bug.
+    const { runArchiveAccount } = await loadJob();
+    const callCount = stubGraphPages([{ ids: ["r1"], timestamp: "2026-01-01T00:00:00Z" }]);
+    const db = fakeDb(BASE_TABLES, ["ig_account_archives"]);
+
+    await expect(runArchiveAccount(db.client, "acme", { since: null })).rejects.toThrow(
+      /archive state unreadable/i
+    );
+    // And it gave up BEFORE spending anything on Meta.
+    expect(callCount()).toBe(0);
+  });
+
+  it("stops instead of re-enqueueing when the cursor stops advancing", async () => {
+    // Meta handing back the position we already had means the next pass would
+    // fetch byte-identical pages. Continuing turns one archive into an unbounded
+    // hourly drain on the budget every customer shares.
+    const { runArchiveAccount } = await loadJob({ ARCHIVE_PAGES_PER_RUN: "3" });
+    stubGraphPages([{ ids: ["r1"], timestamp: "2026-07-01T00:00:00Z", after: "STUCK" }]);
+    const db = fakeDb({
+      ...BASE_TABLES,
+      ig_account_archives: [
+        {
+          ig_username: "acme",
+          status: "running",
+          cursor: "STUCK",
+          exhausted: false,
+          oldest_seen_at: "2026-07-01T00:00:00Z",
+          target_since: null,
+          reels_found: 5,
+          pages_fetched: 3,
+        },
+      ],
+    });
+
+    const outcome = await runArchiveAccount(db.client, "acme", { since: null });
+
+    // `completed` is what stops the worker re-enqueueing; `partial` is the row
+    // staying honest that the history is not actually finished.
+    expect(outcome).toBe("completed");
+    expect(db.store.ig_account_archives[0].status).toBe("partial");
+    expect(db.store.ig_account_archives[0].exhausted).toBe(false);
+  });
+
+  it("delivers each chunk to the feed instead of holding it until the walk ends", async () => {
+    // A deep archive is many chunks over many hours. Fanning out only at the end
+    // means the user is told "fetching in background" and then watches a feed
+    // that never changes — the reels are already cached and cost nothing to hand
+    // over, so every chunk should land.
+    const { runArchiveAccount } = await loadJob({ ARCHIVE_PAGES_PER_RUN: "2" });
+    stubGraphPages((call) => ({
+      ids: [`r${call}`],
+      timestamp: "2026-07-01T00:00:00Z",
+      after: `C${call + 1}`,
+    }));
+    const db = fakeDb({
+      ...BASE_TABLES,
+      inspiration_accounts: [{ id: "acct-1", user_id: "user-1", ig_username: "acme" }],
+      ig_account_archive_requests: [{ ig_username: "acme", user_id: "user-1", since: null }],
+      tracked_reels: [],
+    });
+
+    const outcome = await runArchiveAccount(db.client, "acme", { since: null });
+
+    expect(outcome).toBe("continued");
+    // Mid-walk, and the reels this chunk recovered are already in the feed.
+    expect(db.store.tracked_reels.length).toBeGreaterThan(0);
+    expect(db.store.ig_account_archive_requests[0].materialized_at).toBeTruthy();
   });
 });

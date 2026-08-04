@@ -107,27 +107,42 @@ export function archiveCovers(
   return oldest != null && target != null && oldest <= target;
 }
 
+// Errors here are NOT "no archive yet". Reading a failure as an absent row is
+// how a walk silently restarts from page 1 on every pass: it re-fetches the same
+// history forever, never advances a cursor it can't see, and never reaches the
+// completion that triggers fan-out — all while spending Business Discovery calls
+// and reporting `done` on every job. That is precisely what a missing
+// ig_account_archives table did in production for fourteen hours. The state this
+// walk resumes from is load-bearing, so a read that didn't happen must throw.
 async function loadArchive(
   admin: SupabaseClient,
   uname: string
 ): Promise<ArchiveRow | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from("ig_account_archives")
     .select(
       "ig_username, status, cursor, exhausted, oldest_seen_at, target_since, reels_found, pages_fetched"
     )
     .eq("ig_username", uname)
     .maybeSingle();
+  if (error) throw new Error(`archive state unreadable for @${uname}: ${error.message}`);
   return (data as ArchiveRow | null) ?? null;
 }
 
 // Copy a finished archive into the feed of every user who asked for one. Pure DB
 // work — the Meta cost was paid once, by the walk.
 async function fanOutToRequesters(admin: SupabaseClient, uname: string): Promise<number> {
-  const { data: requests } = await admin
+  // An unreadable request list is indistinguishable from "nobody asked", and
+  // both hand back zero — but one of them means a finished archive silently
+  // reaches no feed at all, which is the single failure the user actually sees.
+  const { data: requests, error: requestsError } = await admin
     .from("ig_account_archive_requests")
     .select("user_id")
     .eq("ig_username", uname);
+
+  if (requestsError) {
+    throw new Error(`archive fan-out list unreadable for @${uname}: ${requestsError.message}`);
+  }
 
   let served = 0;
 
@@ -219,15 +234,22 @@ export async function runArchiveAccount(
   const caller = await pickHealthyToken(admin);
   if (!caller) return "no_token";
 
+  // Claim the walk before spending a single Meta call. If this row can't be
+  // written there is nowhere to persist a cursor, so the pages we're about to
+  // fetch would be re-fetched on every future pass — pay for the walk only once
+  // we know we can remember where it got to.
   if (!existing) {
-    await admin.from("ig_account_archives").insert({
+    const { error: claimError } = await admin.from("ig_account_archives").insert({
       ig_username: uname,
       status: "running",
       target_since: targetSince,
       started_at: new Date().toISOString(),
     });
+    if (claimError) {
+      throw new Error(`archive not startable for @${uname}: ${claimError.message}`);
+    }
   } else {
-    await admin
+    const { error: claimError } = await admin
       .from("ig_account_archives")
       .update({
         status: "running",
@@ -236,6 +258,9 @@ export async function runArchiveAccount(
         updated_at: new Date().toISOString(),
       })
       .eq("ig_username", uname);
+    if (claimError) {
+      throw new Error(`archive not resumable for @${uname}: ${claimError.message}`);
+    }
   }
 
   // System limiter: takes only the worker's share of the app budget, leaving
@@ -248,6 +273,10 @@ export async function runArchiveAccount(
   );
 
   let cursor: string | undefined = existing?.cursor ?? undefined;
+  // Where this pass began. A pass that walks its whole page budget and lands on
+  // the cursor it started from is not making progress, and re-enqueueing it just
+  // repeats the same calls on the next tick.
+  const startCursor = cursor;
   let reelsFound = existing?.reels_found ?? 0;
   let pagesFetched = existing?.pages_fetched ?? 0;
   let oldestSeenMs = toMs(existing?.oldest_seen_at);
@@ -257,9 +286,13 @@ export async function runArchiveAccount(
   let reachedTarget = false;
   let hitCeiling = false;
 
+  // The cursor write IS the resume point. A silent failure here doesn't lose a
+  // status field, it loses the walk's position — so the next pass starts over
+  // and the chain never terminates. Throw instead: the worker's backoff retries,
+  // and the job dies visibly at max_attempts rather than looping forever.
   const saveProgress = async (status: ArchiveProgress["status"], error?: string) => {
     const finished = status === "done" || status === "partial" || status === "failed";
-    await admin
+    const { error: saveError } = await admin
       .from("ig_account_archives")
       .update({
         status,
@@ -273,6 +306,9 @@ export async function runArchiveAccount(
         updated_at: new Date().toISOString(),
       })
       .eq("ig_username", uname);
+    if (saveError) {
+      throw new Error(`archive progress not saved for @${uname}: ${saveError.message}`);
+    }
   };
 
   // One chunk = one logical refresh for quota accounting, however many pages it
@@ -387,7 +423,16 @@ export async function runArchiveAccount(
     }
 
     // Unclassified: keep the progress, then let the worker's backoff retry.
-    await saveProgress("running", err instanceof Error ? err.message : String(err));
+    // Both paths end in failJob, so if the save itself fails the ORIGINAL fault
+    // is the more useful one to report — it's what a reader needs to diagnose.
+    try {
+      await saveProgress("running", err instanceof Error ? err.message : String(err));
+    } catch (saveErr) {
+      console.warn(
+        `[archive-account-job] progress save failed for @${uname}:`,
+        saveErr instanceof Error ? saveErr.message : saveErr
+      );
+    }
     throw err;
   } finally {
     limiter.endOperation();
@@ -395,8 +440,27 @@ export async function runArchiveAccount(
 
   const finished = exhausted || reachedTarget || hitCeiling;
 
+  // Meta handed back the same cursor for an entire page budget: the walk is
+  // standing still. Continuing would re-fetch identical pages on every tick,
+  // forever, out of a quota every customer shares — so stop and keep what we
+  // have. `partial` is honest about the history being incomplete, and fan-out
+  // still runs so the reels already paid for reach the people who asked.
+  if (!finished && cursor === startCursor) {
+    await saveProgress("partial", "walk stopped advancing — Instagram returned no newer position");
+    await fanOutToRequesters(admin, uname);
+    return "completed";
+  }
+
   if (!finished) {
     await saveProgress("running");
+    // Hand over what this chunk recovered instead of holding it back until the
+    // whole walk ends. A deep archive is many chunks spread over hours (a Meta
+    // cooldown alone can park one for a full hour), and fanning out only at the
+    // end means the user clicks "full history", is told it's running, and then
+    // watches an unchanged feed for the rest of the day — which reads as broken.
+    // It's pure DB work against reels already paid for, and materializeForUser
+    // is idempotent, so the feed simply fills in as the walk goes deeper.
+    await fanOutToRequesters(admin, uname);
     return "continued";
   }
 
