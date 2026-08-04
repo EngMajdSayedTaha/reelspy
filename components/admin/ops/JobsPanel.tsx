@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { RotateCcw, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { RotateCcw, XCircle, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +23,31 @@ type Job = {
   created_at: string;
 };
 
+// Written by /api/cron/run-jobs on every real invocation — GitHub's schedule,
+// a manual trigger, and the leftover-drain self-call all update it. There is
+// no reliable "next run" to show (GitHub's `*/5` is best-effort and routinely
+// lands 45+ minutes apart under load — see docs/cron-cadence.md), so this is
+// deliberately a LAST-checked signal, not a promised next-run time.
+type Heartbeat = {
+  at: string;
+  claimed: number;
+  processed: number;
+  done: number;
+  deferred: number;
+  failed: number;
+  throttled?: boolean;
+};
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return "just now";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}m ago`;
+}
+
 const STATUSES = ["", "queued", "running", "failed", "done"];
 
 function statusVariant(s: string): "default" | "secondary" | "destructive" | "outline" {
@@ -38,6 +63,8 @@ export function JobsPanel() {
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState<string | null>(null);
+  const [heartbeat, setHeartbeat] = useState<Heartbeat | null>(null);
+  const [runningWorker, setRunningWorker] = useState(false);
 
   const load = useCallback(
     async (signal: { cancelled: boolean }) => {
@@ -56,6 +83,20 @@ export function JobsPanel() {
     [status, page]
   );
 
+  const loadHeartbeat = useCallback(async (signal: { cancelled: boolean }) => {
+    try {
+      // Generic app_settings reader — no dedicated endpoint needed for one key.
+      const res = await requestJson<{ settings: { key: string; value: unknown }[] }>(
+        "/api/admin/ops/settings"
+      );
+      if (signal.cancelled) return;
+      const row = res.settings.find((s) => s.key === "run_jobs_heartbeat");
+      setHeartbeat((row?.value as Heartbeat | undefined) ?? null);
+    } catch {
+      // Non-critical: the job table itself still loads and works without this.
+    }
+  }, []);
+
   useEffect(() => {
     const signal = { cancelled: false };
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -64,6 +105,15 @@ export function JobsPanel() {
       signal.cancelled = true;
     };
   }, [load]);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadHeartbeat(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [loadHeartbeat]);
 
   const act = async (id: string, action: "retry" | "cancel") => {
     setBusy(id);
@@ -82,10 +132,52 @@ export function JobsPanel() {
     }
   };
 
+  // Same endpoint the Cron tab's "run-jobs" button calls — this is a shortcut to
+  // it, not a second implementation. Refreshes the list + heartbeat afterward so
+  // the effect of the click is visible immediately instead of on the next poll.
+  const runWorkerNow = async () => {
+    setRunningWorker(true);
+    try {
+      const res = await requestJson<{ ok: boolean; status: number }>("/api/admin/ops/cron", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "run-jobs" }),
+        timeoutMs: 300_000,
+      });
+      if (res.ok) toast.success("Worker ran a pass now.");
+      else toast.error(`Worker pass returned HTTP ${res.status}.`);
+      await Promise.all([load({ cancelled: false }), loadHeartbeat({ cancelled: false })]);
+    } catch (err) {
+      notifyError(err);
+    } finally {
+      setRunningWorker(false);
+    }
+  };
+
   const totalPages = data?.totalPages ?? 1;
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
+        <span>
+          {heartbeat ? (
+            <>
+              Worker last checked <span className="text-foreground">{timeAgo(heartbeat.at)}</span> — claimed{" "}
+              {heartbeat.claimed}, done {heartbeat.done}, deferred {heartbeat.deferred}, failed {heartbeat.failed}
+              {heartbeat.throttled ? " (Meta circuit was open)" : ""}
+            </>
+          ) : (
+            "Worker heartbeat not recorded yet."
+          )}{" "}
+          · GitHub&apos;s automatic schedule is best-effort and can lag well past 5 minutes — a queued
+          job&apos;s &quot;Run at&quot; is when it becomes eligible, not a promise of when it fires.
+        </span>
+        <Button variant="secondary" size="sm" disabled={runningWorker} onClick={runWorkerNow}>
+          <Play className="h-3.5 w-3.5" />
+          {runningWorker ? "Running…" : "Run worker now"}
+        </Button>
+      </div>
+
       <div className="flex items-center gap-2">
         <select
           value={status}
