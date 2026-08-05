@@ -234,13 +234,22 @@ export async function refreshAccountSnapshot(
     })
     .eq("ig_username", uname);
 
-  // Same problem as reel thumbnails, one level up: push the fresh avatar to
+  // Same problem as reel thumbnails, one level up: push the fresh profile to
   // EVERY user tracking this account, not just the one whose sync (or the
-  // daily cron) happened to fetch it.
-  if (snapshotProfile?.avatar_url) {
+  // daily cron) happened to fetch it. Avatar URLs expire; followers_count is
+  // just as stale for anyone tracked via a path that skips Business Discovery
+  // (e.g. trackNicheAccount seeding from a cache row that didn't have it yet,
+  // or the async "Sync All"/cron background refresh, which never touched the
+  // per-user row before this fix — only the inline single-account/force sync
+  // did, in app/api/ig/sync/route.ts).
+  if (snapshotProfile) {
     await admin
       .from("inspiration_accounts")
-      .update({ avatar_url: snapshotProfile.avatar_url })
+      .update({
+        display_name: snapshotProfile.display_name,
+        followers_count: snapshotProfile.followers_count,
+        avatar_url: snapshotProfile.avatar_url,
+      })
       .eq("ig_username", uname);
   }
 
