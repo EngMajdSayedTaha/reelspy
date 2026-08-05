@@ -5,13 +5,23 @@ import { LogoMark } from "@/components/brand/Logo";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
+// Open-redirect guard: only same-origin relative paths — never a
+// protocol-relative `//evil.com` or an absolute `https://…`. Mirrors the
+// sanitizeNext() pattern in app/auth/callback and app/auth/confirm.
+function sanitizeBackHref(backHref: string | undefined): string {
+  if (backHref && backHref.startsWith("/") && !backHref.startsWith("//")) return backHref;
+  return "/login";
+}
+
 export async function LegalLayout({
   title,
   updated,
+  backHref,
   children,
 }: {
   title: string;
   updated: string;
+  backHref?: string;
   children: React.ReactNode;
 }) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
@@ -29,7 +39,7 @@ export async function LegalLayout({
             </span>
           </Link>
           <Link
-            href="/login"
+            href={sanitizeBackHref(backHref)}
             className="flex items-center gap-1.5 text-sm text-muted-foreground transition hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4 rtl:rotate-180" />

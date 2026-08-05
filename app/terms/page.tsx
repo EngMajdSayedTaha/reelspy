@@ -15,7 +15,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function TermsPage() {
+export default async function TermsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale);
   const t = dict.legal.terms;
@@ -25,9 +29,10 @@ export default async function TermsPage() {
     day: "numeric",
     year: "numeric",
   });
+  const { redirect } = await searchParams;
 
   return (
-    <LegalLayout title={t.title} updated={updated}>
+    <LegalLayout title={t.title} updated={updated} backHref={redirect}>
       <p>{t.intro}</p>
 
       <LegalSection heading={t.sections.service.heading}>

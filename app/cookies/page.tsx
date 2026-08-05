@@ -15,7 +15,11 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function CookiesPage() {
+export default async function CookiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale);
   const t = dict.legal.cookies;
@@ -25,9 +29,10 @@ export default async function CookiesPage() {
     day: "numeric",
     year: "numeric",
   });
+  const { redirect } = await searchParams;
 
   return (
-    <LegalLayout title={t.title} updated={updated}>
+    <LegalLayout title={t.title} updated={updated} backHref={redirect}>
       <p>{t.intro}</p>
 
       <LegalSection heading={t.sections.whatAreCookies.heading}>
