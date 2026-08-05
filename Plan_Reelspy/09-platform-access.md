@@ -15,7 +15,7 @@
 > is therefore ~80% external approvals and ~20% code. The code parts are listed as P-items
 > and tracked in `TASKS.md`.
 >
-> Last updated: 2026-08-02
+> Last updated: 2026-08-05
 
 ---
 
@@ -167,6 +167,50 @@ easy to screencast, and messaging permissions attract far heavier scrutiny — b
 risks sinking the wedge with them. Add P1 in a second submission once P0 is approved.
 `META_IG_SCOPES` already exists as an env override, so the requested scope list can be
 narrowed to the approved set **without a code change**.
+
+#### 1a.1 — App Dashboard cleanup — **done, 2026-08-05**
+
+The Meta app (`2368302653646041`) had accumulated ~49 unused permissions and features —
+none referenced anywhere in the repo and all showing zero (or, for a handful, a shared
+artifact) API calls on Meta's own dashboard. Audited the codebase against the live
+**Permissions and Features** page (`App Review → Permissions and Features`) and removed
+every item with no code path and no App-Review request attached. Two rounds of verification
+against Meta's live "API calls" counter per permission — not just the code grep — caught a
+handful of rapid-batch clicks that silently didn't register the first time.
+
+Kept (16), matching the P0/P1 table above plus a few dashboard-only items with real traffic
+that aren't literal scope strings in code:
+- The 5 pending-App-Review P0 permissions (`instagram_basic`, `pages_show_list`,
+  `pages_read_engagement`, `business_management`, `instagram_manage_insights`)
+- The 4 live Auto-Reply P1 permissions (`pages_manage_metadata`, `pages_messaging`,
+  `instagram_manage_comments`, `instagram_manage_messages`)
+- The 2 Publishing-module P1 permissions (`instagram_content_publish`, `pages_manage_posts`)
+  — kept despite showing **0 live calls**: they're wired into
+  `lib/publishing/adapters/instagram.ts` / `facebook.ts`, just not yet exercised by a real
+  publish
+- `instagram_business_basic` (33 live calls) — not a literal scope in
+  `app/api/ig/connect/route.ts`, but almost certainly Meta's renamed `instagram_basic` under
+  its 2024 taxonomy update; real traffic, too risky to touch
+- Page Public Metadata Access (64 calls) and Business Asset User Profile Access (2 calls) —
+  features tied to the Business Discovery / Page-lookup machinery, not directly requested in
+  code but carrying real traffic
+- `public_profile` (Meta auto-grants this to every app) and `email` (has Advanced access
+  granted; left alone per founder instruction regardless of its 0 live calls)
+
+Removed (49): everything else — commerce/shopping, Marketing API, ads, branded-content,
+Live Video, Threads, Instant Articles, and every `*_business_manage_*` / `*_business_content_*`
+duplicate-naming permission that belongs to the Instagram-Login flow this app doesn't use
+(see the `graph-api.ts` header comment — ReelSpy is Facebook-Login-only). Two of these
+(`ads_read`/`ads_management` at 3.208K calls, and three creator-marketplace/branded-content
+permissions at 3.071K calls) showed nonzero "Active" counts despite zero code references —
+almost certainly a shared aggregate-counter artifact on Meta's dashboard for that permission
+block, not genuine ReelSpy traffic; confirmed safe to remove since they dropped to
+`Inactive` at the same count rather than erroring.
+
+All removals are Standard-access-level and reversible without a new App Review — Meta's own
+confirmation dialog states access is "auto-granted" again at the same level on request. This
+does **not** touch the P0/P1 submission plan below; it only clears dashboard clutter that
+made the real requested-permission list harder for a reviewer (or a future session) to read.
 
 ### 1b. The ladder — climb in order, stop when one works
 
