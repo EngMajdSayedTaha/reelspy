@@ -1,4 +1,5 @@
 import { OpsPanel } from "@/components/admin/ops/OpsPanel";
+import { BuildInfoCard } from "@/components/admin/ops/BuildInfoCard";
 
 export const metadata = { title: "Operations · Admin" };
 
@@ -11,6 +12,7 @@ export default function AdminOpsPage() {
           Jobs, cron triggers, IG cookies, rate limits, and app settings.
         </p>
       </div>
+      <BuildInfoCard />
       <OpsPanel />
     </div>
   );

@@ -34,6 +34,7 @@ const en = {
     connections: "Connections",
     billing: "Billing",
     settings: "Settings",
+    whatsNew: "What's new",
   },
   shell: {
     plan: "Plan",
@@ -96,6 +97,7 @@ export const shellAr: ShellDict = {
     connections: "الربط",
     billing: "الاشتراك",
     settings: "الإعدادات",
+    whatsNew: "ما الجديد",
   },
   shell: {
     plan: "الباقة",

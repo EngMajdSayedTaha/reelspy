@@ -35,7 +35,8 @@ create table profiles (
   color_theme text not null default 'volt', -- preset color theme (lib/color-theme.ts)
   quiz_completed_at timestamptz,        -- onboarding quiz done/dismissed marker (one-shot, like onboarded_at)
   tour_completed_at timestamptz,        -- product tour done/dismissed marker
-  niche_slug text                       -- resolved Niche Radar taxonomy key (lib/trends/niche.ts)
+  niche_slug text,                      -- resolved Niche Radar taxonomy key (lib/trends/niche.ts)
+  last_seen_version text                -- last product version acknowledged in "What's new" (lib/release/)
 );
 
 alter table profiles enable row level security;
@@ -49,11 +50,11 @@ grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
               ig_token_refreshed_at, fb_page_id, fb_page_name,
               webhook_subscribed_at, created_at, brand_voice, onboarded_at,
               digest_opt_out, is_admin, color_theme,
-              quiz_completed_at, tour_completed_at, niche_slug)
+              quiz_completed_at, tour_completed_at, niche_slug, last_seen_version)
   on profiles to authenticated;
 grant insert (id, username) on profiles to authenticated;
 grant update (id, username, brand_voice, onboarded_at, digest_opt_out, color_theme,
-              quiz_completed_at, tour_completed_at, niche_slug)
+              quiz_completed_at, tour_completed_at, niche_slug, last_seen_version)
   on profiles to authenticated;
 
 -- Auto-create a profile row when a new auth user signs up.

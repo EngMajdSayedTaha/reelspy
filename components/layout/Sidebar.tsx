@@ -74,9 +74,13 @@ type SidebarProps = {
   open: boolean;
   onClose: () => void;
   user: SidebarUser | null;
+  /** Product version the user is running (lib/release/). */
+  version: string;
+  /** There's a release they haven't caught up on — shows the dot. */
+  hasUnseenRelease: boolean;
 };
 
-export function Sidebar({ open, onClose, user }: SidebarProps) {
+export function Sidebar({ open, onClose, user, version, hasUnseenRelease }: SidebarProps) {
   const pathname = usePathname();
   const dict = useDict();
 
@@ -200,6 +204,28 @@ export function Sidebar({ open, onClose, user }: SidebarProps) {
           ) : null}
 
           <SignOutButton />
+
+          {/* Version pill — the one place in the product that answers "what am
+              I running?", and the way into the release history. The dot is the
+              only nag: it appears once per release and clears on first visit. */}
+          <Link
+            href="/dashboard/whats-new"
+            onClick={onClose}
+            aria-label={dict.release.versionLabel(version)}
+            className={`flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 font-mono text-[0.7rem] transition hover:bg-secondary ${
+              pathname === "/dashboard/whats-new"
+                ? "text-accent-brand"
+                : "text-subtle hover:text-muted-foreground"
+            }`}
+          >
+            {dict.release.versionShort(version)}
+            {hasUnseenRelease ? (
+              <span
+                title={dict.release.unseenBadge}
+                className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent-brand"
+              />
+            ) : null}
+          </Link>
         </div>
       </aside>
     </>

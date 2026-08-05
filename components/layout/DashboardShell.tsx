@@ -8,7 +8,9 @@ import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { QuizModal } from "@/components/onboarding/QuizModal";
 import { TourProvider } from "@/components/tour/AppTour";
 import { TourInviteToast } from "@/components/tour/TourInviteToast";
+import { WhatsNewDialog } from "@/components/release/WhatsNewDialog";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
+import type { Release } from "@/lib/release/types";
 
 export function DashboardShell({
   children,
@@ -16,12 +18,19 @@ export function DashboardShell({
   showQuiz,
   quizNicheChips,
   tourCompleted,
+  version,
+  hasUnseenRelease,
+  spotlightRelease,
 }: {
   children: ReactNode;
   user: SidebarUser | null;
   showQuiz: boolean;
   quizNicheChips: string[];
   tourCompleted: boolean;
+  version: string;
+  hasUnseenRelease: boolean;
+  /** Non-null only when an unseen release is worth interrupting for. */
+  spotlightRelease: Release | null;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -33,7 +42,13 @@ export function DashboardShell({
         onCloseSidebar={() => setSidebarOpen(false)}
       >
         <div className="min-h-screen bg-background text-foreground">
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} user={user} />
+          <Sidebar
+            open={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            user={user}
+            version={version}
+            hasUnseenRelease={hasUnseenRelease}
+          />
           {/* logical margin so the RTL sidebar sits on the correct side */}
           <main className="min-h-screen lg:ms-[240px]">
             <TopBar onMenu={() => setSidebarOpen(true)} />
@@ -51,8 +66,13 @@ export function DashboardShell({
           </main>
         </div>
 
+        {/* One interruption at a time, in order of how much the user needs it:
+            the onboarding quiz outranks release news, and release news outranks
+            the tour invite (which is only a toast, but two things asking for
+            attention at once is how both get ignored). */}
         {showQuiz ? <QuizModal nicheChips={quizNicheChips} /> : null}
-        {!showQuiz && !tourCompleted ? <TourInviteToast /> : null}
+        {!showQuiz && spotlightRelease ? <WhatsNewDialog release={spotlightRelease} /> : null}
+        {!showQuiz && !spotlightRelease && !tourCompleted ? <TourInviteToast /> : null}
       </TourProvider>
     </ConfirmProvider>
   );

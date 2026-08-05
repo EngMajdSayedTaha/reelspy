@@ -37,6 +37,7 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 | [`ig-cookies-runbook.md`](./ig-cookies-runbook.md) | Transcript pipeline cookies: rotation + health check |
 | [`cron-cadence.md`](./cron-cadence.md) | Vercel Hobby vs Pro cron layout, GitHub Actions workers |
 | [`domain-migration.md`](./domain-migration.md) | Domain history + the app.reelspy.dev subdomain split (founder actions) |
+| [`RELEASING.md`](./RELEASING.md) | Versioning scheme, how to ship a release, and how to write user-facing release notes |
 
 ## Live infrastructure (quick reference)
 
@@ -66,6 +67,7 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 
 ## Keeping this folder honest
 
+- Ship anything a **user can see** → add a release entry to `lib/release/releases.ts` and bump `package.json` **in the same PR**. CI fails if the two disagree. See [`RELEASING.md`](./RELEASING.md) for the version scheme and how to write the note.
 - Ship a user-visible behavior change, a new limit, a price change, or a schema change → update `BUSINESS-LOGIC.md` (and the technical doc if architecture moved) **in the same PR**.
 - New external setup steps → new or updated runbook in this folder.
 - Migrations: add under `supabase/migrations/` with a real UTC timestamp **and mirror into `supabase/schema.sql`** (see `supabase/migrations/README.md`).

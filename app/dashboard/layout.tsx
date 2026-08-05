@@ -7,6 +7,9 @@ import type { BrandVoice } from "@/lib/ai/brand-voice";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { ColorThemeSync } from "@/components/theme/ColorThemeSync";
 import { getSidebarUser } from "@/lib/user/sidebar-user";
+import { getUnseenState } from "@/lib/release/seen";
+import { CURRENT_VERSION } from "@/lib/release/version";
+import type { Release } from "@/lib/release/types";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -17,6 +20,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   let quizNicheChips: string[] = [];
   let tourCompleted = true;
   let colorTheme: string | null = null;
+  let hasUnseenRelease = false;
+  let spotlightRelease: Release | null = null;
 
   if (authUser) {
     const { data: profile } = await supabase
@@ -24,6 +29,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       .select("quiz_completed_at, tour_completed_at, onboarded_at, brand_voice, color_theme")
       .eq("id", authUser.id)
       .maybeSingle();
+
+    // Fail-open: a missing last_seen_version column resolves to "caught up", so
+    // an unapplied migration costs the dot and the popup, never the dashboard.
+    const unseen = await getUnseenState(supabase, authUser.id);
+    hasUnseenRelease = unseen.hasUnseen;
+    spotlightRelease = unseen.shouldSpotlight ? unseen.release : null;
 
     colorTheme = (profile?.color_theme as string | null) ?? null;
 
@@ -45,6 +56,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       showQuiz={showQuiz}
       quizNicheChips={quizNicheChips}
       tourCompleted={tourCompleted}
+      version={CURRENT_VERSION}
+      hasUnseenRelease={hasUnseenRelease}
+      spotlightRelease={spotlightRelease}
     >
       <ColorThemeSync dbTheme={colorTheme} />
       {children}

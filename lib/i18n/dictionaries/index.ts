@@ -25,6 +25,7 @@ import { myAccountEn, myAccountAr } from "./myAccount";
 import { onboardingEn, onboardingAr } from "./onboarding";
 import { publishingEn, publishingAr } from "./publishing";
 import { quizEn, quizAr } from "./quiz";
+import { releaseEn, releaseAr } from "./release";
 import { scriptsEn, scriptsAr } from "./scripts";
 import { settingsEn, settingsAr } from "./settings";
 import { suggestionsEn, suggestionsAr } from "./suggestions";
@@ -50,6 +51,7 @@ const en = {
   ...onboardingEn,
   ...publishingEn,
   ...quizEn,
+  ...releaseEn,
   ...scriptsEn,
   ...settingsEn,
   ...suggestionsEn,
@@ -78,6 +80,7 @@ const ar: Dict = {
   ...onboardingAr,
   ...publishingAr,
   ...quizAr,
+  ...releaseAr,
   ...scriptsAr,
   ...settingsAr,
   ...suggestionsAr,

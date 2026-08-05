@@ -23,6 +23,7 @@ const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
   { match: (p) => p.startsWith("/dashboard/connections"), key: "connections" },
   { match: (p) => p.startsWith("/dashboard/billing"), key: "billing" },
   { match: (p) => p.startsWith("/dashboard/settings"), key: "settings" },
+  { match: (p) => p.startsWith("/dashboard/whats-new"), key: "whatsNew" },
 ];
 
 type TopBarProps = {
