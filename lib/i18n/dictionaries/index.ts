@@ -32,6 +32,7 @@ import { suggestionsEn, suggestionsAr } from "./suggestions";
 import { themeEn, themeAr } from "./theme";
 import { tourEn, tourAr } from "./tour";
 import { trendsEn, trendsAr } from "./trends";
+import { waitlistEn, waitlistAr } from "./waitlist";
 
 const en = {
   ...shellEn,
@@ -58,6 +59,7 @@ const en = {
   ...themeEn,
   ...tourEn,
   ...trendsEn,
+  ...waitlistEn,
 };
 
 export type Dict = typeof en;
@@ -87,6 +89,7 @@ const ar: Dict = {
   ...themeAr,
   ...tourAr,
   ...trendsAr,
+  ...waitlistAr,
 };
 
 const DICTIONARIES: Record<Locale, Dict> = { en, ar };

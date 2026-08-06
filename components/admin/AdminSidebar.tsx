@@ -11,6 +11,7 @@ import {
   BarChart3,
   ScrollText,
   ArrowLeft,
+  ClipboardList,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ type NavLink = {
 const links: NavLink[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/waitlist", label: "Waiting list", icon: ClipboardList },
   { href: "/admin/billing", label: "Billing", icon: CreditCard },
   { href: "/admin/content", label: "Content", icon: FolderOpen },
   { href: "/admin/ops", label: "Operations", icon: Wrench },

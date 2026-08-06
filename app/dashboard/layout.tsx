@@ -10,11 +10,19 @@ import { getSidebarUser } from "@/lib/user/sidebar-user";
 import { getUnseenState } from "@/lib/release/seen";
 import { CURRENT_VERSION } from "@/lib/release/version";
 import type { Release } from "@/lib/release/types";
+import { guardDashboardAccess } from "@/lib/waitlist/guard";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
   const [user, authResult] = await Promise.all([getSidebarUser(), supabase.auth.getUser()]);
   const authUser = authResult.data.user;
+
+  // Closed-beta gate. A no-op (one tiny lookup) when the waiting list is off,
+  // which is the normal state; when it's on, anyone not approved — and not an
+  // admin, and not grandfathered in from before the switch was flipped — is
+  // redirected to /waitlist instead of seeing the product. Runs before any of
+  // the onboarding queries below so a held visitor costs almost nothing.
+  await guardDashboardAccess(authUser);
 
   let showQuiz = false;
   let quizNicheChips: string[] = [];

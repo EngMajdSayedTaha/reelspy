@@ -286,6 +286,7 @@ Hobby plan caps Vercel at 2 daily crons — hence the GitHub Actions split; on P
 | Users | Directory (auth data via GoTrue admin API), ban/unban, notes, **view-as-user** (read-only impersonation view) |
 | Billing | Subscription management |
 | Content | Cross-user resource browser (accounts, reels, scripts) |
+| Waiting list | The closed-beta switch + the review queue (§17) — approve/shortlist/reject/bulk, add by hand, CSV export |
 | Operations | Trigger allowlisted crons (incl. `enrich-seeds`), inspect jobs queue, rate-limit state, app settings (incl. IG cookie rotation) |
 | Analytics | Instrumentation views (WLC, funnel, retention, publish success, AI cost) |
 | Audit | Every admin mutation is written to `admin_audit_log` (with IP + user agent) |
@@ -329,3 +330,32 @@ Admins resolve to the top tier for entitlements (§1).
 4. **Never store what you can't afford to leak**: raw tokens are service-role-only with column grants revoked from browser roles; error bodies truncated before persistence.
 5. **The user's data is theirs**: RLS `auth.uid() = user_id` on every user table; cross-user aggregation only ever anonymized (§4); PDPL export/delete honored.
 6. **Meta quota is the shared, scarcest resource** — everything routes through the shared cache + limiter. The app budget **scales with connected users** (§2a) and on-demand "Sync All" is **cache-first + background-refresh** (§2d), so cost tracks *distinct accounts*, not *users × syncs*, and one user's sync never blocks another's. Tracked accounts outrank seeds; users with a set niche outrank the backlog.
+
+---
+
+## 17. Waiting list (closed beta)
+
+One switch — `app_settings` row `flag:waitlist` — flipped from **Admin → Waiting list**. No redeploy, no env var. An **absent row means OFF**, so applying the migration changes nothing. Full runbook: [`waitlist.md`](./waitlist.md).
+
+**The gate is on the DASHBOARD, not on account creation.** Sign-up runs client-side against Supabase Auth (and for Google, inside the provider), so the app never sits in the middle of it — an app-level "signups closed" check would be decoration. The join form on `/signup` is a *funnel* decision; the enforceable gate is `lib/waitlist/guard.ts` in the dashboard layout. Someone who works around the form still lands on "you're #47 in line".
+
+Access is granted when **any** of these holds (`lib/waitlist/access.ts`):
+
+| # | Rule | Why |
+|---|---|---|
+| 1 | The switch is off | the normal state |
+| 2 | `profiles.is_admin` | never lock the founder out |
+| 3 | Account created **before** `flag:waitlist → enabledSince` | **grandfathering** — flipping the switch must never lock out an existing, possibly paying, customer. Stamped on every OFF→ON transition; never client-settable |
+| 4 | Their entry is `approved` | the actual approval path |
+
+Statuses: `pending` → `invited` (shortlisted; **does not grant access**) → `approved` (the only state that opens the gate, and the only one that emails) / `rejected` (kept, not deleted, so the address can't rejoin at the top of the queue). Transitions are idempotent — re-approving sends no second email, which is what makes bulk-approve safe to repeat.
+
+Modes: **auto-approve** (pure lead capture — you keep the list and the attribution, nobody is held) and **send emails** (confirmation + approval; fail-open when Resend is unprovisioned).
+
+Data: `waitlist_entries`, RLS on with **no policies** (service-role only, same as `app_settings`/`app_events`). Unique on `lower(email)` — one applicant, one row — so a landing-page entry and a later signup with the same address converge, and a re-submit updates rather than duplicating. `queue_number` is a stable identity ticket; the "N ahead of you" figure is *computed* from pending entries with a lower ticket, so it shrinks as batches go in. Anonymous joins are throttled by salted-IP hash (§2b table's anon sibling, `consume_anon_action`, 8/hr) and screened by a honeypot; the raw IP is never stored.
+
+Fail-open throughout: a missing service-role key, an unapplied migration or a DB error resolves to "waiting list off". Guessing *on* during an outage would lock out the whole customer base; guessing *off* costs a marketing gate for a few minutes.
+
+Marketing side (`reelspy-landing`): `lib/waitlist.ts` fetches `DASHBOARD_URL/api/waitlist` at render (60s revalidate, fails to off); `components/ui/CTALink.tsx` turns **every** `/signup` CTA into a "Join the waiting list" button that opens the dialog — intercepted once, centrally, so sections added later are covered automatically. `/login` is never intercepted.
+
+---
