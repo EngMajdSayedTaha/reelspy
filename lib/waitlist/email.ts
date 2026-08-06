@@ -90,12 +90,19 @@ export async function sendWaitlistApproval(params: {
     },
   ];
 
+  // The !hasAccount case carries the address as a query param: while the
+  // waiting list is on, /signup shows the join form to every visitor by
+  // default (it has no other way to know who's asking) — the param is what
+  // lets it verify THIS address server-side and swap in the real account
+  // form instead. See isEmailApproved() and app/signup/page.tsx.
+  const signupHref = `${site}/signup?email=${encodeURIComponent(to)}`;
+
   const { html, text } = buildEmail({
     eyebrow: "Waiting list",
     preheader: "Your ReelSpy access is open.",
     title: name?.trim() ? `${name.trim()}, you're in.` : "You're in.",
     blocks,
-    cta: { href: hasAccount ? `${site}/login` : `${site}/signup`, label: hasAccount ? "Sign in" : "Create your account" },
+    cta: { href: hasAccount ? `${site}/login` : signupHref, label: hasAccount ? "Sign in" : "Create your account" },
     reason: "You were on the ReelSpy waiting list.",
   });
 

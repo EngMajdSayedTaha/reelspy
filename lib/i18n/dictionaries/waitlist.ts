@@ -34,6 +34,8 @@ const en = {
     alreadyHeading: "You're already on the list.",
     alreadyBody: (n: number) => `You're #${n} — no need to sign up again. We'll email you when access opens.`,
     checkEmail: "Check your inbox for a confirmation — if it isn't there in a few minutes, look in spam.",
+    approvedHeading: "You're approved.",
+    approvedBody: "Your access is already open — create your account with this address and you'll go straight in.",
 
     // Signed-in pending screen
     pendingHeading: "You're on the list.",
@@ -57,6 +59,7 @@ const en = {
     closedHeading: "Good news — signups are open.",
     closedBody: "The waiting list has been lifted. You can create your account right now.",
     goToSignup: "Create your account",
+    approvedEmailLocked: "This is the address that's approved for the waiting list — sign up with it to go straight in.",
   },
 };
 
@@ -90,6 +93,8 @@ export const waitlistAr: WaitlistDict = {
     alreadyHeading: "أنت على القائمة بالفعل.",
     alreadyBody: (n: number) => `ترتيبك #${n} — لا داعي للتسجيل مرة أخرى. سنراسلك عند فتح الوصول.`,
     checkEmail: "تحقق من بريدك الوارد لرسالة التأكيد — وإن لم تصل خلال دقائق، راجع مجلد الرسائل غير المرغوبة.",
+    approvedHeading: "تمت الموافقة عليك.",
+    approvedBody: "وصولك مفتوح بالفعل — أنشئ حسابك بهذا العنوان وستدخل مباشرة.",
 
     pendingHeading: "أنت على القائمة.",
     pendingSub: "حسابك جاهز. نفتح الوصول على دفعات لنضمن حصول الجميع على بيانات وسكربتات سريعة من اليوم الأول.",
@@ -111,5 +116,6 @@ export const waitlistAr: WaitlistDict = {
     closedHeading: "خبر جيد — التسجيل مفتوح.",
     closedBody: "تم رفع قائمة الانتظار. يمكنك إنشاء حسابك الآن.",
     goToSignup: "أنشئ حسابك",
+    approvedEmailLocked: "هذا هو العنوان الموافق عليه في قائمة الانتظار — سجّل به لتدخل مباشرة.",
   },
 };

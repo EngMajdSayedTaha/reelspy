@@ -208,3 +208,31 @@ export async function countWaitlist(admin: SupabaseClient): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * Is this exact email address currently approved?
+ *
+ * Exists for one purpose: someone who joined the list WITHOUT ever creating an
+ * account (the common case — they only ever filled in the landing-page form)
+ * has no session, so the dashboard gate (which checks by user_id/email on an
+ * authenticated request) never gets a chance to run for them. The approval
+ * email's "Create your account" link carries `?email=`, and /signup uses this
+ * check to decide whether to show the real account form instead of the join
+ * form for that one verified address. See app/signup/page.tsx.
+ *
+ * Fails CLOSED (false) on any error: this check only ever WIDENS access past
+ * the join form, so erring toward "not approved" just re-shows the join form
+ * — it never locks anyone out of access they already have.
+ */
+export async function isEmailApproved(admin: SupabaseClient, email: string): Promise<boolean> {
+  try {
+    const { data } = await admin
+      .from("waitlist_entries")
+      .select("status")
+      .eq("email", normalizeEmail(email))
+      .maybeSingle();
+    return (data as { status?: string } | null)?.status === "approved";
+  } catch {
+    return false;
+  }
+}

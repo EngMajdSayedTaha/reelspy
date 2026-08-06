@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { joinWaitlist, normalizeEmail, normalizeHandle, hashIp } from "@/lib/waitlist/entry";
+import { joinWaitlist, normalizeEmail, normalizeHandle, hashIp, isEmailApproved } from "@/lib/waitlist/entry";
 import { memoryDb } from "@/test/helpers/memory-table";
+import { throwingSupabase } from "@/test/helpers/fake-supabase";
 
 describe("normalizeEmail", () => {
   it("lowercases and trims, so the unique index sees one applicant", () => {
@@ -123,5 +124,39 @@ describe("joinWaitlist", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.entry.instagram_handle).toBe("ReelSpy");
+  });
+});
+
+describe("isEmailApproved", () => {
+  // This is what lets someone who joined ONLY via the landing form (no
+  // account, no session) reach the real signup form after being approved —
+  // /signup?email= trusts this check, never the query param on its own.
+  it("is true only for a status of exactly 'approved'", async () => {
+    const db = memoryDb({
+      waitlist_entries: [
+        { id: "e1", email: "approved@example.com", status: "approved", queue_number: 1 },
+        { id: "e2", email: "pending@example.com", status: "pending", queue_number: 2 },
+        { id: "e3", email: "rejected@example.com", status: "rejected", queue_number: 3 },
+      ],
+    });
+    expect(await isEmailApproved(db.client, "approved@example.com")).toBe(true);
+    expect(await isEmailApproved(db.client, "pending@example.com")).toBe(false);
+    expect(await isEmailApproved(db.client, "rejected@example.com")).toBe(false);
+  });
+
+  it("matches case- and whitespace-insensitively, like every other lookup here", async () => {
+    const db = memoryDb({
+      waitlist_entries: [{ id: "e1", email: "approved@example.com", status: "approved", queue_number: 1 }],
+    });
+    expect(await isEmailApproved(db.client, "  Approved@Example.COM ")).toBe(true);
+  });
+
+  it("is false for an address that was never on the list", async () => {
+    const db = memoryDb({ waitlist_entries: [] });
+    expect(await isEmailApproved(db.client, "nobody@example.com")).toBe(false);
+  });
+
+  it("fails CLOSED on a DB error — this check only ever widens access", async () => {
+    expect(await isEmailApproved(throwingSupabase(), "approved@example.com")).toBe(false);
   });
 });

@@ -22,6 +22,7 @@ type JoinResponse = {
   ok?: boolean;
   alreadyOnList?: boolean;
   queueNumber?: number | null;
+  status?: string;
   total?: number;
   reason?: string;
   error?: string;
@@ -53,7 +54,12 @@ export function WaitlistForm({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ already: boolean; queueNumber: number | null } | null>(null);
+  const [done, setDone] = useState<{
+    already: boolean;
+    queueNumber: number | null;
+    approved: boolean;
+    email: string;
+  } | null>(null);
   const [signupsOpen, setSignupsOpen] = useState(false);
 
   const submit = async (event: FormEvent) => {
@@ -95,7 +101,12 @@ export function WaitlistForm({
         return;
       }
 
-      setDone({ already: body.alreadyOnList === true, queueNumber: body.queueNumber ?? null });
+      setDone({
+        already: body.alreadyOnList === true,
+        queueNumber: body.queueNumber ?? null,
+        approved: body.status === "approved",
+        email,
+      });
     } catch {
       setError(t.errorGeneric);
     } finally {
@@ -109,6 +120,28 @@ export function WaitlistForm({
         <h2 className="text-lg font-semibold text-foreground">{t.closedHeading}</h2>
         <p className="text-sm text-subtle">{t.closedBody}</p>
         <Button className="w-full" onClick={() => window.location.assign("/signup")}>
+          {t.goToSignup}
+        </Button>
+      </div>
+    );
+  }
+
+  if (done?.approved) {
+    // Already approved — most often someone re-submitting the form after
+    // getting the "you're in" email, or opening the join form directly
+    // instead of clicking through it. Give them an actual way forward rather
+    // than static "you're on the list" text with nothing to click: /signup
+    // re-verifies this address server-side and swaps in the real account
+    // form for it (see app/signup/page.tsx, isEmailApproved).
+    return (
+      <div className="space-y-4 text-center">
+        <CheckCircle2 className="mx-auto h-10 w-10 text-brand" aria-hidden />
+        <h2 className="text-lg font-semibold text-foreground">{t.approvedHeading}</h2>
+        <p className="text-sm text-subtle">{t.approvedBody}</p>
+        <Button
+          className="w-full"
+          onClick={() => window.location.assign(`/signup?email=${encodeURIComponent(done.email)}`)}
+        >
           {t.goToSignup}
         </Button>
       </div>

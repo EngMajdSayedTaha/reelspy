@@ -16,23 +16,34 @@ const MIN_PASSWORD_LENGTH = 8;
 // Extracted from app/signup/page.tsx so that page can become a server
 // component and read the waiting-list flag before deciding what to render.
 // The markup and behaviour are unchanged.
-export function SignupForm() {
+//
+// `defaultEmail` is set only when app/signup/page.tsx has already verified
+// (server-side, against waitlist_entries) that this exact address is
+// approved — see isEmailApproved(). The field is locked rather than merely
+// prefilled: editing it to some other address would create the account under
+// an email the waitlist gate has never approved, landing them right back on
+// /waitlist confused about why "approved" didn't work. The approval email's
+// own copy already tells people to use this exact address, so the lock just
+// enforces what they were already told.
+export function SignupForm({ defaultEmail }: { defaultEmail?: string } = {}) {
   return (
     <Suspense fallback={null}>
-      <SignupFormInner />
+      <SignupFormInner defaultEmail={defaultEmail} />
     </Suspense>
   );
 }
 
-function SignupFormInner() {
+function SignupFormInner({ defaultEmail }: { defaultEmail?: string }) {
   const router = useRouter();
   const dict = useDict();
   const auth = dict.auth;
+  const waitlist = dict.waitlist;
   const isSupabaseConfigured =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  const emailLocked = Boolean(defaultEmail);
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(defaultEmail ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -183,7 +194,12 @@ function SignupFormInner() {
           placeholder={auth.emailPlaceholder}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
+          readOnly={emailLocked}
+          className={emailLocked ? "cursor-not-allowed opacity-80" : undefined}
         />
+        {emailLocked ? (
+          <p className="text-xs text-subtle">{waitlist.approvedEmailLocked}</p>
+        ) : null}
       </div>
 
       <div className="space-y-2">
