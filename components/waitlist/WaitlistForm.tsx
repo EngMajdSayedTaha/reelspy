@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CheckCircle2, ChevronDown } from "lucide-react";
+import { CheckCircle2, ChevronDown, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,7 @@ export function WaitlistForm({
     already: boolean;
     queueNumber: number | null;
     approved: boolean;
+    rejected: boolean;
     email: string;
   } | null>(null);
   const [signupsOpen, setSignupsOpen] = useState(false);
@@ -105,6 +106,7 @@ export function WaitlistForm({
         already: body.alreadyOnList === true,
         queueNumber: body.queueNumber ?? null,
         approved: body.status === "approved",
+        rejected: body.status === "rejected",
         email,
       });
     } catch {
@@ -144,6 +146,20 @@ export function WaitlistForm({
         >
           {t.goToSignup}
         </Button>
+      </div>
+    );
+  }
+
+  if (done?.rejected) {
+    // This used to fall through to the generic "you're already on the list —
+    // we'll email you when access opens" branch below, which is actively
+    // wrong for someone who was declined: it promises an email that will
+    // never come and implies they're still waiting.
+    return (
+      <div className="space-y-3 text-center">
+        <XCircle className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden />
+        <h2 className="text-lg font-semibold text-foreground">{t.rejectedHeading}</h2>
+        <p className="text-sm text-subtle">{t.rejectedBody}</p>
       </div>
     );
   }

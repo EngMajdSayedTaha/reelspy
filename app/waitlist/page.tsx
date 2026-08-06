@@ -53,6 +53,7 @@ export default async function WaitlistPage() {
       <AuthShell>
         <WaitlistPending
           email={user.email ?? null}
+          status={gate.entry?.status ?? "pending"}
           queueNumber={gate.entry?.queue_number ?? null}
           ahead={gate.ahead}
           total={gate.total}

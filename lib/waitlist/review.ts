@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ENTRY_COLUMNS, type WaitlistEntry, type WaitlistStatus } from "@/lib/waitlist/entry";
-import { sendWaitlistApproval } from "@/lib/waitlist/email";
+import { sendWaitlistApproval, sendWaitlistRejection } from "@/lib/waitlist/email";
 
 // Status transitions, in one place, because both the row actions and the bulk
 // action need identical behaviour (including who gets an email).
@@ -14,16 +14,26 @@ import { sendWaitlistApproval } from "@/lib/waitlist/email";
 //             invite": the approval email IS the invite, so a second state for
 //             that would just be a way to disagree with reality.
 //   approved  Access granted. This is the ONLY state resolveWaitlistGate lets
-//             through, and the only one that sends an email.
+//             through.
 //   rejected  Declined. Kept rather than deleted so the same address doesn't
-//             quietly reappear at the top of the queue tomorrow.
+//             quietly reappear at the top of the queue tomorrow. A rejected
+//             entry is NOT re-queued by a public re-submit — see joinWaitlist.
+//
+// approved and rejected are the two states that send an email: silence on a
+// rejection reads as the applicant being ignored, not declined, and every
+// other surface in the product (the pending screen, the join-form re-submit)
+// needs to say the honest thing rather than keep showing "you're on the
+// list, waiting" forever.
 
 export const REVIEW_STATUSES = ["pending", "invited", "approved", "rejected"] as const;
 
 export type ReviewResult = {
   entry: WaitlistEntry;
-  /** True when this call is what flipped them to approved (so: email sent). */
+  /** True when this call is what flipped them to approved. */
   newlyApproved: boolean;
+  /** True when this call is what flipped them to rejected. */
+  newlyRejected: boolean;
+  /** True when a transition email (approval or rejection) was sent for this call. */
   emailSent: boolean;
 };
 
@@ -74,6 +84,7 @@ export async function reviewEntry(
   const entry = updated as WaitlistEntry;
 
   const newlyApproved = transitioned && status === "approved";
+  const newlyRejected = transitioned && status === "rejected";
   let emailSent = false;
   if (newlyApproved && opts.sendEmails) {
     emailSent = await sendWaitlistApproval({
@@ -81,9 +92,11 @@ export async function reviewEntry(
       name: entry.name,
       hasAccount: Boolean(entry.user_id),
     });
+  } else if (newlyRejected && opts.sendEmails) {
+    emailSent = await sendWaitlistRejection({ to: entry.email, name: entry.name });
   }
 
-  return { entry, newlyApproved, emailSent };
+  return { entry, newlyApproved, newlyRejected, emailSent };
 }
 
 /** CSV of the whole list, for the founder's own analysis / mail merge. */

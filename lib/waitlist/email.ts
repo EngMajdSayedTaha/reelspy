@@ -108,3 +108,33 @@ export async function sendWaitlistApproval(params: {
 
   return sendEmail({ to, subject: "Your ReelSpy access is open", html, text });
 }
+
+/** "Not this time" — sent when an admin declines the entry. */
+export async function sendWaitlistRejection(params: {
+  to: string;
+  name?: string | null;
+}): Promise<boolean> {
+  const { to, name } = params;
+
+  const blocks: EmailBlock[] = [
+    {
+      kind: "paragraph",
+      text: "We're keeping the beta small while we make sure every account gets fast, reliable Instagram data and AI scripts from day one — and we're not able to offer you access with this batch.",
+    },
+    {
+      kind: "paragraph",
+      text: "This isn't permanent. If your situation changes, just reply to this email and we'll take another look.",
+      muted: true,
+    },
+  ];
+
+  const { html, text } = buildEmail({
+    eyebrow: "Waiting list",
+    preheader: "An update on your ReelSpy waiting-list application.",
+    title: name?.trim() ? `${name.trim()}, an update on your application.` : "An update on your application.",
+    blocks,
+    reason: "You applied for the ReelSpy waiting list.",
+  });
+
+  return sendEmail({ to, subject: "An update on your ReelSpy waiting list application", html, text });
+}

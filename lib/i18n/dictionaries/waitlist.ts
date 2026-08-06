@@ -36,6 +36,8 @@ const en = {
     checkEmail: "Check your inbox for a confirmation — if it isn't there in a few minutes, look in spam.",
     approvedHeading: "You're approved.",
     approvedBody: "Your access is already open — create your account with this address and you'll go straight in.",
+    rejectedHeading: "Not able to offer you access right now.",
+    rejectedBody: "We're keeping the beta small while we get the fundamentals right. If your situation changes, reply to your confirmation email and we'll take another look.",
 
     // Signed-in pending screen
     pendingHeading: "You're on the list.",
@@ -95,6 +97,8 @@ export const waitlistAr: WaitlistDict = {
     checkEmail: "تحقق من بريدك الوارد لرسالة التأكيد — وإن لم تصل خلال دقائق، راجع مجلد الرسائل غير المرغوبة.",
     approvedHeading: "تمت الموافقة عليك.",
     approvedBody: "وصولك مفتوح بالفعل — أنشئ حسابك بهذا العنوان وستدخل مباشرة.",
+    rejectedHeading: "لا يمكننا منحك الوصول في الوقت الحالي.",
+    rejectedBody: "نحافظ على حجم صغير للنسخة التجريبية ريثما نُتقن الأساسيات. إذا تغيّر وضعك، رُدّ على رسالة التأكيد وسنعيد النظر.",
 
     pendingHeading: "أنت على القائمة.",
     pendingSub: "حسابك جاهز. نفتح الوصول على دفعات لنضمن حصول الجميع على بيانات وسكربتات سريعة من اليوم الأول.",
