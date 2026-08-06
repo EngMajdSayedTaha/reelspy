@@ -168,7 +168,7 @@ function renderBlockHtml(block: EmailBlock): string {
                   ? `<div class="t-muted" style="font-size:13px;line-height:1.5;color:${BRAND.muted};margin:3px 0 6px">${escapeHtml(item.subtitle)}</div>`
                   : ""
               }
-              <a href="${encodeURI(item.href)}" style="font-size:13px;color:#A16207;font-weight:600;text-decoration:none">${escapeHtml(item.linkLabel)} &rarr;</a>
+              <a href="${escapeHtml(item.href)}" style="font-size:13px;color:#A16207;font-weight:600;text-decoration:none">${escapeHtml(item.linkLabel)} &rarr;</a>
             </td>
           </tr>`
         )
@@ -216,7 +216,7 @@ function ctaHtml(cta: EmailButton): string {
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 0">
     <tr>
       <td align="center" style="background:${BRAND.accent};border-radius:10px;mso-padding-alt:14px 28px">
-        <a href="${encodeURI(cta.href)}" style="display:inline-block;padding:13px 28px;font-family:${FONT};font-size:15px;font-weight:700;line-height:1;color:${BRAND.ink};text-decoration:none;border-radius:10px">${escapeHtml(
+        <a href="${escapeHtml(cta.href)}" style="display:inline-block;padding:13px 28px;font-family:${FONT};font-size:15px;font-weight:700;line-height:1;color:${BRAND.ink};text-decoration:none;border-radius:10px">${escapeHtml(
           cta.label
         )}</a>
       </td>
@@ -232,7 +232,7 @@ export function buildEmail(content: EmailContent): { html: string; text: string 
   const actionsHtml = [
     content.cta ? ctaHtml(content.cta) : "",
     content.secondary
-      ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.5"><a href="${encodeURI(
+      ? `<p style="margin:14px 0 0;font-size:14px;line-height:1.5"><a href="${escapeHtml(
           content.secondary.href
         )}" class="t-muted" style="color:${BRAND.muted};text-decoration:underline">${escapeHtml(content.secondary.label)}</a></p>`
       : "",
@@ -324,7 +324,7 @@ export function buildEmail(content: EmailContent): { html: string; text: string 
             <p class="t-faint" style="margin:0;font-family:${FONT};font-size:11px;line-height:1.7;color:${BRAND.faint}">
               ${escapeHtml(content.reason ?? "You're receiving this because you have a ReelSpy account.")}${
                 content.unsubscribeUrl
-                  ? ` <a href="${encodeURI(content.unsubscribeUrl)}" style="color:${BRAND.faint};text-decoration:underline">Unsubscribe</a>.`
+                  ? ` <a href="${escapeHtml(content.unsubscribeUrl)}" style="color:${BRAND.faint};text-decoration:underline">Unsubscribe</a>.`
                   : ""
               }<br>
               &copy; ${year} ReelSpy · Dubai, United Arab Emirates

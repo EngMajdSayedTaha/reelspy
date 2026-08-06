@@ -93,6 +93,27 @@ describe("buildEmail", () => {
     expect(text).toContain("<b>bold</b> & risky");
   });
 
+  // Regression: cta.href is passed in already fully-formed and pre-encoded by
+  // the caller (e.g. `?email=${encodeURIComponent(addr)}`, turning "@" into
+  // "%40"). The template used to wrap it in encodeURI() before embedding it,
+  // which re-encodes the "%" itself into "%25" — "%40" became "%2540", so a
+  // percent-decode gave back the literal string "%40" instead of "@". The
+  // href must survive byte-for-byte; only HTML-attribute escaping is correct
+  // here (matching how cta.label is already escaped on the same line).
+  it("embeds an already-encoded href verbatim — never re-encodes it", () => {
+    const preEncoded = "https://app.reelspy.dev/signup?email=majd%40example.com";
+    const { html } = buildEmail({
+      eyebrow: "A",
+      preheader: "b",
+      title: "c",
+      blocks: [],
+      cta: { href: preEncoded, label: "Create your account" },
+      secondary: { href: preEncoded, label: "Also here" },
+    });
+    expect(html).toContain(`href="${preEncoded}"`);
+    expect(html).not.toContain("%2540");
+  });
+
   it("only shows an unsubscribe link when one is supplied", () => {
     const withOut = buildEmail({ eyebrow: "A", preheader: "b", title: "c", blocks: [] });
     expect(withOut.html).not.toContain("Unsubscribe");
