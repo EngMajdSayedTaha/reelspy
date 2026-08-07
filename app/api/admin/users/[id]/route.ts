@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [profileR, authR, subR, monthlyR, actionR, counts, eventsR, notesR, socialR, igR] =
     await Promise.all([
-      admin.from("profiles").select("id, username, created_at, is_admin, color_theme, onboarded_at, digest_opt_out, ig_user_id, ig_token_status, fb_page_id, fb_page_name").eq("id", id).maybeSingle(),
+      admin.from("profiles").select("id, username, created_at, is_admin, color_theme, onboarded_at, digest_opt_out, ig_user_id, ig_token_status, fb_page_id, fb_page_name, force_password_reset, force_password_reset_at, force_password_reset_reason").eq("id", id).maybeSingle(),
       admin.auth.admin.getUserById(id),
       admin.from("subscriptions").select("tier, status, stripe_customer_id, stripe_subscription_id, current_period_end, cancel_at_period_end, custom_entitlements, updated_at").eq("user_id", id).maybeSingle(),
       admin.from("user_monthly_usage").select("action, period_month, call_count").eq("user_id", id).order("period_month", { ascending: false }),

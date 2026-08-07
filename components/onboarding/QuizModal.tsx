@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ARABIC_DIALECTS, isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/brand-voice";
 import {
@@ -23,6 +23,11 @@ import {
 import { bulkAddInspirationAccounts } from "@/app/dashboard/accounts/actions";
 import { ChipGroup } from "@/components/onboarding/ChipGroup";
 import { useDict } from "@/lib/i18n/I18nProvider";
+
+// Radix Select forbids an Item value of "" (reserved for "no selection"), but
+// "off" is a real, meaningful choice for this field — sentinel at the Select
+// boundary, translate back to "" for the rest of the component.
+const DIALECT_OFF = "__off__";
 
 function compactFollowers(n: number | null): string {
   if (n == null) return "—";
@@ -364,18 +369,22 @@ export function QuizModal({ nicheChips, initial, mode = "onboarding", onClose }:
                 <div className="space-y-2">
                   <Label htmlFor="quiz-dialect">{t.arabicPresetLabel}</Label>
                   <Select
-                    id="quiz-dialect"
-                    aria-label={t.arabicPresetLabel}
-                    value={arabicDialect}
-                    onChange={(e) => setArabicDialect(e.target.value as ArabicDialect | "")}
-                    className="w-full px-3"
+                    value={arabicDialect || DIALECT_OFF}
+                    onValueChange={(value) =>
+                      setArabicDialect(value === DIALECT_OFF ? "" : (value as ArabicDialect))
+                    }
                   >
-                    <option value="">{t.arabicPresetOff}</option>
-                    {ARABIC_DIALECTS.map((d) => (
-                      <option key={d.value} value={d.value}>
-                        {d.labelEn} ({d.labelAr})
-                      </option>
-                    ))}
+                    <SelectTrigger id="quiz-dialect" aria-label={t.arabicPresetLabel} className="w-full px-3">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={DIALECT_OFF}>{t.arabicPresetOff}</SelectItem>
+                      {ARABIC_DIALECTS.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>
+                          {d.labelEn} ({d.labelAr})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
               ) : null}

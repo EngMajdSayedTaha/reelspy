@@ -6,13 +6,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ARABIC_DIALECTS, type BrandVoice } from "@/lib/ai/brand-voice";
 import type { OnboardingActionState } from "@/app/dashboard/onboarding/actions";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type SaveFn = (prev: OnboardingActionState, formData: FormData) => Promise<OnboardingActionState>;
+
+// Radix Select forbids an Item value of "" (reserved for "no selection"), but
+// "off" is a real, meaningful choice here — sentinel value submitted via the
+// select's native form participation; the server action's isArabicDialect()
+// check rejects it same as it always rejected "", so no server change needed.
+const DIALECT_OFF = "__off__";
 
 type Props = {
   action: SaveFn;
@@ -129,23 +135,25 @@ export function BrandVoiceForm({ action, initial, submitLabel, onSuccessHref }: 
         <Label htmlFor="arabicDialect">
           {o.arabicPresetLabel} <span className="text-muted-foreground">({dict.common.optional})</span>
         </Label>
-        <Select
-          id="arabicDialect"
-          name="arabicDialect"
-          aria-label={o.arabicPresetLabel}
-          defaultValue={initial?.arabicDialect ?? ""}
-          disabled={isPending}
-          className="w-full px-3 disabled:opacity-60"
-        >
-          <option value="">{o.arabicPresetOff}</option>
-          {/* Structured Arabic-dialect preset (X2) — labels intentionally show
-              both the English name and the Arabic script regardless of UI
-              locale, so a user can identify the dialect either way. */}
-          {ARABIC_DIALECTS.map((d) => (
-            <option key={d.value} value={d.value}>
-              {d.labelEn} ({d.labelAr})
-            </option>
-          ))}
+        <Select name="arabicDialect" defaultValue={initial?.arabicDialect || DIALECT_OFF} disabled={isPending}>
+          <SelectTrigger
+            id="arabicDialect"
+            aria-label={o.arabicPresetLabel}
+            className="w-full px-3 disabled:opacity-60"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={DIALECT_OFF}>{o.arabicPresetOff}</SelectItem>
+            {/* Structured Arabic-dialect preset (X2) — labels intentionally show
+                both the English name and the Arabic script regardless of UI
+                locale, so a user can identify the dialect either way. */}
+            {ARABIC_DIALECTS.map((d) => (
+              <SelectItem key={d.value} value={d.value}>
+                {d.labelEn} ({d.labelAr})
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
         <p className="text-xs text-subtle">{o.arabicPresetHint}</p>
       </div>

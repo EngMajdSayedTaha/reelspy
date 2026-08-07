@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { useDict } from "@/lib/i18n/I18nProvider";
 import { mapAuthError } from "@/lib/auth/errors";
-
-const MIN_PASSWORD_LENGTH = 8;
+import { validatePassword, describePasswordIssues } from "@/lib/auth/password";
 
 // Extracted from app/signup/page.tsx so that page can become a server
 // component and read the waiting-list flag before deciding what to render.
@@ -83,8 +82,9 @@ function SignupFormInner({ defaultEmail }: { defaultEmail?: string }) {
       setError(auth.errors.supabaseEnvMissing);
       return;
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(auth.validation.passwordTooShort);
+    const passwordCheck = validatePassword(password, { email });
+    if (!passwordCheck.valid) {
+      setError(describePasswordIssues(passwordCheck.issues, auth.validation).join(" "));
       return;
     }
     if (password !== confirmPassword) {
@@ -211,6 +211,7 @@ function SignupFormInner({ defaultEmail }: { defaultEmail?: string }) {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
+        <p className="text-xs text-subtle">{auth.validation.passwordRequirement}</p>
       </div>
 
       <div className="space-y-2">

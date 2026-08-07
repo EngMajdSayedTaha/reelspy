@@ -36,7 +36,10 @@ create table profiles (
   quiz_completed_at timestamptz,        -- onboarding quiz done/dismissed marker (one-shot, like onboarded_at)
   tour_completed_at timestamptz,        -- product tour done/dismissed marker
   niche_slug text,                      -- resolved Niche Radar taxonomy key (lib/trends/niche.ts)
-  last_seen_version text                -- last product version acknowledged in "What's new" (lib/release/)
+  last_seen_version text,               -- last product version acknowledged in "What's new" (lib/release/)
+  force_password_reset boolean not null default false, -- admin-forced reset gate; SQL/service-role only
+  force_password_reset_at timestamptz,
+  force_password_reset_reason text
 );
 
 alter table profiles enable row level security;
@@ -50,7 +53,8 @@ grant select (id, username, ig_user_id, ig_token_expires_at, ig_token_status,
               ig_token_refreshed_at, fb_page_id, fb_page_name,
               webhook_subscribed_at, created_at, brand_voice, onboarded_at,
               digest_opt_out, is_admin, color_theme,
-              quiz_completed_at, tour_completed_at, niche_slug, last_seen_version)
+              quiz_completed_at, tour_completed_at, niche_slug, last_seen_version,
+              force_password_reset, force_password_reset_at, force_password_reset_reason)
   on profiles to authenticated;
 grant insert (id, username) on profiles to authenticated;
 grant update (id, username, brand_voice, onboarded_at, digest_opt_out, color_theme,
@@ -75,6 +79,46 @@ $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function handle_new_user();
+
+-- Admin-forced session revocation. GoTrue exposes no admin API to revoke an
+-- arbitrary user's still-valid access token; the documented workaround is
+-- deleting their auth.sessions rows, which breaks refresh and forces a fresh
+-- sign-in. auth.sessions isn't in PostgREST's exposed schema list, so these
+-- SECURITY DEFINER functions bridge the gap for the service-role client.
+-- Execute is granted to service_role only.
+create or replace function public.admin_revoke_user_sessions(target_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = auth, public
+as $$
+begin
+  delete from auth.sessions where user_id = target_user;
+end;
+$$;
+
+revoke all on function public.admin_revoke_user_sessions(uuid) from public, anon, authenticated;
+grant execute on function public.admin_revoke_user_sessions(uuid) to service_role;
+
+-- Bulk variant for "reset all" — exclude_user_id lets the acting admin keep
+-- their own live session instead of being logged out mid-operation.
+create or replace function public.admin_revoke_all_sessions(exclude_user_id uuid default null)
+returns void
+language plpgsql
+security definer
+set search_path = auth, public
+as $$
+begin
+  if exclude_user_id is null then
+    delete from auth.sessions;
+  else
+    delete from auth.sessions where user_id <> exclude_user_id;
+  end if;
+end;
+$$;
+
+revoke all on function public.admin_revoke_all_sessions(uuid) from public, anon, authenticated;
+grant execute on function public.admin_revoke_all_sessions(uuid) to service_role;
 
 -- ── account_groups — user-defined folders for inspiration accounts ───────────
 create table account_groups (

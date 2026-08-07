@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ShieldAlert, Ban, Trash2, RotateCcw, ExternalLink, Eye } from "lucide-react";
+import { ShieldAlert, Ban, Trash2, RotateCcw, ExternalLink, Eye, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,9 @@ type Detail = {
     ig_user_id: string | null;
     ig_token_status: string | null;
     fb_page_name: string | null;
+    force_password_reset: boolean;
+    force_password_reset_at: string | null;
+    force_password_reset_reason: string | null;
   };
   auth: { email: string | null; lastSignInAt: string | null; bannedUntil: string | null } | null;
   subscription: {
@@ -85,6 +88,7 @@ export function UserDetail({ userId }: { userId: string }) {
   const [customEnt, setCustomEnt] = useState<Entitlements>(DEFAULT_CUSTOM);
   const [note, setNote] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [resetReason, setResetReason] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -176,13 +180,18 @@ export function UserDetail({ userId }: { userId: string }) {
           <Field label="Signed up">{fmt(data.profile.created_at)}</Field>
           <Field label="Last sign-in">{fmt(data.auth?.lastSignInAt ?? null)}</Field>
           <Field label="Status">
-            {banned ? (
-              <Badge variant="destructive">banned</Badge>
-            ) : data.profile.is_admin ? (
-              <Badge variant="secondary">admin</Badge>
-            ) : (
-              <span className="text-success">active</span>
-            )}
+            <div className="flex flex-wrap gap-1.5">
+              {banned ? (
+                <Badge variant="destructive">banned</Badge>
+              ) : data.profile.is_admin ? (
+                <Badge variant="secondary">admin</Badge>
+              ) : (
+                <span className="text-success">active</span>
+              )}
+              {data.profile.force_password_reset ? (
+                <Badge variant="outline">reset pending</Badge>
+              ) : null}
+            </div>
           </Field>
           <Field label="IG connected">{data.profile.ig_user_id ? `yes (${data.profile.ig_token_status})` : "no"}</Field>
           <Field label="FB page">{data.profile.fb_page_name ?? "—"}</Field>
@@ -404,6 +413,42 @@ export function UserDetail({ userId }: { userId: string }) {
 
       {/* ── Danger zone ─────────────────────────────────────────────────── */}
       <Section title="Danger zone">
+        <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-3">
+          {!data.profile.force_password_reset ? (
+            <Input
+              value={resetReason}
+              onChange={(e) => setResetReason(e.target.value)}
+              placeholder="Reason (optional, shown in audit log)…"
+              className="max-w-xs"
+            />
+          ) : null}
+          <Button
+            variant={data.profile.force_password_reset ? "outline" : "destructive"}
+            size="lg"
+            disabled={busy}
+            onClick={() =>
+              act(async () => {
+                await requestJson(`/api/admin/users/${userId}/force-reset`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    reset: !data.profile.force_password_reset,
+                    reason: resetReason.trim() || undefined,
+                  }),
+                });
+                setResetReason("");
+              }, data.profile.force_password_reset ? "Forced reset cancelled" : "Password reset required — sessions revoked")
+            }
+          >
+            <KeyRound className="h-4 w-4" />
+            {data.profile.force_password_reset ? "Cancel forced reset" : "Force password reset"}
+          </Button>
+          {data.profile.force_password_reset_reason ? (
+            <span className="text-xs text-muted-foreground">
+              Reason: {data.profile.force_password_reset_reason}
+            </span>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button
             variant={banned ? "outline" : "destructive"}

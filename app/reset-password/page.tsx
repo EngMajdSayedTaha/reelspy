@@ -10,7 +10,12 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 // what makes this link work in a different browser than the one that
 // requested it. No session (expired/already-used link, or a direct visit)
 // shows the same expired-link state middleware.ts also redirects to.
-export default async function ResetPasswordPage() {
+export default async function ResetPasswordPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ forced?: string }>;
+}) {
+  const { forced } = await searchParams;
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(locale);
   const auth = dict.auth;
@@ -48,7 +53,7 @@ export default async function ResetPasswordPage() {
 
   return (
     <AuthShell>
-      <ResetPasswordForm />
+      <ResetPasswordForm forced={forced === "1"} />
     </AuthShell>
   );
 }

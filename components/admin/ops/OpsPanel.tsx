@@ -7,6 +7,7 @@ import { CronPanel } from "@/components/admin/ops/CronPanel";
 import { CookiesPanel } from "@/components/admin/ops/CookiesPanel";
 import { LimitsPanel } from "@/components/admin/ops/LimitsPanel";
 import { SettingsPanel } from "@/components/admin/ops/SettingsPanel";
+import { SecurityPanel } from "@/components/admin/ops/SecurityPanel";
 
 const TABS = [
   { id: "jobs", label: "Jobs" },
@@ -14,6 +15,7 @@ const TABS = [
   { id: "cookies", label: "IG Cookies" },
   { id: "limits", label: "Limits" },
   { id: "settings", label: "Settings" },
+  { id: "security", label: "Security" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -46,6 +48,7 @@ export function OpsPanel() {
       {tab === "cookies" ? <CookiesPanel /> : null}
       {tab === "limits" ? <LimitsPanel /> : null}
       {tab === "settings" ? <SettingsPanel /> : null}
+      {tab === "security" ? <SecurityPanel /> : null}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getClientPrefs } from "@/lib/prefs";
 import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 import { formatCountdown } from "@/lib/utils/time";
@@ -349,17 +349,17 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
       <div className="flex items-center gap-2">
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="hidden sm:inline">{dict.perAccountLabel}</span>
-          <Select
-            value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-            disabled={isSyncing}
-            aria-label={dict.perAccountAria}
-          >
-            {LIMIT_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {dict.reelsOption(n)}
-              </option>
-            ))}
+          <Select value={String(limit)} onValueChange={(value) => setLimit(Number(value))} disabled={isSyncing}>
+            <SelectTrigger aria-label={dict.perAccountAria}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LIMIT_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {dict.reelsOption(n)}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </label>
 

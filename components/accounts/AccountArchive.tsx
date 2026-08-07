@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Download, History, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ARCHIVE_RANGES, DEFAULT_ARCHIVE_RANGE, type ArchiveRange } from "@/lib/instagram/archive-range";
 import type { ArchiveStatus } from "@/lib/instagram/archive-status";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
@@ -117,17 +117,20 @@ export function AccountArchive({
     <div className="space-y-2 border-t border-border pt-3">
       <div className="flex items-center gap-2">
         <Select
-          aria-label={t.rangeAria}
           value={range}
           disabled={busy || active}
-          onChange={(e) => setRange(e.target.value as ArchiveRange)}
-          className="shrink-0 px-1.5 disabled:opacity-60"
+          onValueChange={(value) => setRange(value as ArchiveRange)}
         >
-          {ARCHIVE_RANGES.map((value) => (
-            <option key={value} value={value}>
-              {t.ranges[value]}
-            </option>
-          ))}
+          <SelectTrigger aria-label={t.rangeAria} className="shrink-0 px-1.5 disabled:opacity-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ARCHIVE_RANGES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t.ranges[value]}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
 
         <Button

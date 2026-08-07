@@ -66,8 +66,26 @@ const en = {
     linkExpiredBody: "This link has expired or was already used. Request a new one.",
     requestNewLinkButton: "Request new link",
 
+    // Admin-forced reset (app/api/admin/users/[id]/force-reset,
+    // .../force-reset-all): shown on /reset-password when a signed-in user
+    // was redirected here by middleware because of profiles.force_password_reset.
+    forcedResetNotice:
+      "An administrator required you to set a new password before continuing. Please choose one below.",
+    forcedResetRetryNotice:
+      "Your password was updated, but we couldn't finish reactivating your account. Try again.",
+    forcedResetRetryButton: "Continue",
+
     validation: {
-      passwordTooShort: "Password must be at least 8 characters.",
+      passwordRequirement: "At least 10 characters, with uppercase, lowercase, a number, and a symbol.",
+      passwordIssues: {
+        length: "At least 10 characters.",
+        uppercase: "At least one uppercase letter.",
+        lowercase: "At least one lowercase letter.",
+        number: "At least one number.",
+        symbol: "At least one symbol (e.g. ! ? # %).",
+        common: "This password is too common — choose something less predictable.",
+        containsEmail: "Password can't contain your email address.",
+      },
       passwordsDontMatch: "Passwords don't match.",
     },
 
@@ -164,8 +182,23 @@ export const authAr: AuthDict = {
     linkExpiredBody: "انتهت صلاحية هذا الرابط أو تم استخدامه بالفعل. اطلب رابطًا جديدًا.",
     requestNewLinkButton: "طلب رابط جديد",
 
+    forcedResetNotice:
+      "طلب منك أحد المسؤولين تعيين كلمة مرور جديدة قبل المتابعة. يرجى اختيار واحدة أدناه.",
+    forcedResetRetryNotice:
+      "تم تحديث كلمة المرور، لكن تعذّر علينا إكمال إعادة تفعيل حسابك. حاول مرة أخرى.",
+    forcedResetRetryButton: "متابعة",
+
     validation: {
-      passwordTooShort: "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.",
+      passwordRequirement: "10 أحرف على الأقل، تتضمن حرفًا كبيرًا وحرفًا صغيرًا ورقمًا ورمزًا.",
+      passwordIssues: {
+        length: "10 أحرف على الأقل.",
+        uppercase: "حرف كبير واحد على الأقل.",
+        lowercase: "حرف صغير واحد على الأقل.",
+        number: "رقم واحد على الأقل.",
+        symbol: "رمز واحد على الأقل (مثل ! ? # %).",
+        common: "كلمة المرور هذه شائعة جدًا — اختر كلمة أصعب تخمينًا.",
+        containsEmail: "لا يمكن أن تحتوي كلمة المرور على بريدك الإلكتروني.",
+      },
       passwordsDontMatch: "كلمتا المرور غير متطابقتين.",
     },
 

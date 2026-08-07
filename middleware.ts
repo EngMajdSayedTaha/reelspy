@@ -101,6 +101,30 @@ export async function middleware(request: NextRequest) {
     return redirect("/login");
   }
 
+  // Admin-forced password reset gate: a flagged user must set a new password
+  // before touching the product surface, even with an otherwise-valid
+  // session — GoTrue exposes no way to revoke an arbitrary user's still-valid
+  // access token, so this DB check (not token expiry) is what actually
+  // enforces "reset before continuing" on their very next navigation. Scoped
+  // to /dashboard only (not /admin) so an admin who force-resets themselves
+  // — e.g. as part of "reset all" — isn't locked out of the admin panel they'd
+  // need to fix things. See app/api/admin/users/[id]/force-reset/route.ts.
+  if (user && request.nextUrl.pathname.startsWith("/dashboard")) {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("force_password_reset")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (data?.force_password_reset) {
+        return redirect("/reset-password?forced=1");
+      }
+    } catch {
+      // Fail open here — this is a UX nudge on top of the real security
+      // boundary (the session-revocation RPC), not the boundary itself.
+    }
+  }
+
   // A password-recovery link signs the user in (verifyOtp sets a session) so
   // they can set a new password — that IS a signed-in session, so /login and
   // /signup redirecting signed-in users away must not also apply here.

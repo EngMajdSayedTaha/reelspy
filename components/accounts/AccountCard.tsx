@@ -5,7 +5,7 @@ import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power, Zap
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { AccountArchive } from "@/components/accounts/AccountArchive";
 import type { ArchiveStatus } from "@/lib/instagram/archive-status";
@@ -27,6 +27,12 @@ type Account = {
 };
 
 type Group = { id: string; name: string };
+
+// Radix Select forbids an Item value of "" (it's reserved to mean "no
+// selection"), but "no group" is a real, meaningful choice here — swap in a
+// sentinel at the Select boundary and translate back to "" for the rest of
+// the component, which still treats "" as the group's actual empty state.
+const NO_GROUP = "__none__";
 
 type AccountCardProps = {
   account: Account;
@@ -261,34 +267,40 @@ export function AccountCard({
           {t.groupLabel}
         </label>
         <Select
-          value={groupId}
+          value={groupId || NO_GROUP}
           disabled={busy}
-          aria-label={t.groupSelectAria}
-          onChange={(e) => onGroupChange(e.target.value)}
-          className="flex-1 disabled:opacity-60"
+          onValueChange={(value) => onGroupChange(value === NO_GROUP ? "" : value)}
         >
-          <option value="">{dict.accounts.noGroupOption}</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
+          <SelectTrigger aria-label={t.groupSelectAria} className="flex-1 disabled:opacity-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_GROUP}>{dict.accounts.noGroupOption}</SelectItem>
+            {groups.map((group) => (
+              <SelectItem key={group.id} value={group.id}>
+                {group.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       </div>
 
       <div className="flex items-center gap-2">
         <Select
-          aria-label={t.syncSelectAria}
-          value={syncLimit}
+          value={String(syncLimit)}
           disabled={busy}
-          onChange={(e) => setSyncLimit(Number(e.target.value))}
-          className="shrink-0 px-1.5 disabled:opacity-60"
+          onValueChange={(value) => setSyncLimit(Number(value))}
         >
-          {[25, 50, 100].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
+          <SelectTrigger aria-label={t.syncSelectAria} className="shrink-0 px-1.5 disabled:opacity-60">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[25, 50, 100].map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
 
         <Button
