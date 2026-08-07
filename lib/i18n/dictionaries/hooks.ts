@@ -35,6 +35,11 @@ const en = {
       savedToast: "Saved to your library",
       saveError: "Could not save hook",
     },
+    pagination: {
+      showing: (from: number, to: number, total: number) => `Showing ${from}–${to} of ${total}`,
+      previousAria: "Previous page",
+      nextAria: "Next page",
+    },
     library: {
       searchPlaceholder: "Search saved hooks…",
       count: (count: number) => (count === 1 ? "1 hook" : `${count} hooks`),
@@ -102,6 +107,11 @@ export const hooksAr: HooksDict = {
       copyError: "تعذّر النسخ",
       savedToast: "تم الحفظ في مكتبتك",
       saveError: "تعذّر حفظ الجملة",
+    },
+    pagination: {
+      showing: (from: number, to: number, total: number) => `عرض ${from}–${to} من ${total}`,
+      previousAria: "الصفحة السابقة",
+      nextAria: "الصفحة التالية",
     },
     library: {
       searchPlaceholder: "ابحث في الجمل المحفوظة…",

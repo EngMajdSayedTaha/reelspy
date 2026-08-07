@@ -7,6 +7,9 @@ import { toast } from "sonner";
 import { saveHook } from "@/app/dashboard/hooks/actions";
 import type { HookItem } from "@/app/dashboard/hooks/page";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import { HooksPagination } from "@/components/hooks/HooksPagination";
+
+const PER_PAGE = 20;
 
 type HooksExplorerProps = {
   hooks: HookItem[];
@@ -102,6 +105,7 @@ function HookRow({ item, initiallySaved }: { item: HookItem; initiallySaved: boo
 export function HooksExplorer({ hooks, savedTexts }: HooksExplorerProps) {
   const dict = useDict().hooks.explorer;
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const savedSet = useMemo(() => new Set(savedTexts), [savedTexts]);
 
   const filtered = useMemo(() => {
@@ -112,6 +116,13 @@ export function HooksExplorer({ hooks, savedTexts }: HooksExplorerProps) {
     );
   }, [hooks, query]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE),
+    [filtered, currentPage]
+  );
+
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -119,7 +130,10 @@ export function HooksExplorer({ hooks, savedTexts }: HooksExplorerProps) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
           placeholder={dict.searchPlaceholder}
           className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
@@ -131,10 +145,18 @@ export function HooksExplorer({ hooks, savedTexts }: HooksExplorerProps) {
       </p>
 
       <div className="stagger grid gap-3">
-        {filtered.map((item) => (
+        {paged.map((item) => (
           <HookRow key={item.reelId} item={item} initiallySaved={savedSet.has(item.hook)} />
         ))}
       </div>
+
+      <HooksPagination
+        page={currentPage}
+        totalPages={totalPages}
+        total={filtered.length}
+        perPage={PER_PAGE}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

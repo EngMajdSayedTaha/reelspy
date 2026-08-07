@@ -6,6 +6,9 @@ import { Check, Copy, ExternalLink, Search, Sparkles, Tag, Trash2, X } from "luc
 import { toast } from "sonner";
 import { deleteHook, setHookTags } from "@/app/dashboard/hooks/actions";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import { HooksPagination } from "@/components/hooks/HooksPagination";
+
+const PER_PAGE = 20;
 
 export type SavedHook = {
   id: string;
@@ -178,6 +181,7 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
   const dict = useDict().hooks.library;
   const [query, setQuery] = useState("");
   const [activeTags, setActiveTags] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();
@@ -196,8 +200,17 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
     });
   }, [hooks, query, activeTags]);
 
-  const toggleTag = (t: string) =>
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE),
+    [filtered, currentPage]
+  );
+
+  const toggleTag = (t: string) => {
     setActiveTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+    setPage(1);
+  };
 
   if (hooks.length === 0) {
     return (
@@ -214,7 +227,10 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setPage(1);
+          }}
           placeholder={dict.searchPlaceholder}
           className="h-10 w-full rounded-lg border border-border-strong bg-surface-2 ps-9 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
         />
@@ -256,10 +272,18 @@ export function SavedHooksLibrary({ hooks }: { hooks: SavedHook[] }) {
       </p>
 
       <div className="grid gap-3">
-        {filtered.map((h) => (
+        {paged.map((h) => (
           <HookCard key={h.id} hook={h} />
         ))}
       </div>
+
+      <HooksPagination
+        page={currentPage}
+        totalPages={totalPages}
+        total={filtered.length}
+        perPage={PER_PAGE}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

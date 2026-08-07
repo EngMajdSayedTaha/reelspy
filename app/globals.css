@@ -18,6 +18,12 @@
    (`--success`/`--warning`/`--danger`/`--info`) so components never hardcode
    Tailwind palette shades. */
 :root {
+  /* Tells the browser which palette to use for UA-rendered chrome (native
+     <select> option popups, scrollbars, form controls) that Tailwind's
+     `dark:` variant can't reach — without this, native <select> dropdowns
+     render with the OS light popup even while .dark is active, showing
+     dark-mode (near-white) text on that light background. */
+  color-scheme: light;
   --background: #f7f7f8;
   --foreground: #18181b;
   --card: #ffffff;
@@ -74,6 +80,7 @@
    levels, with visible borders. Foreground is a soft off-white (not pure
    white) so the page reads calm instead of harsh high-contrast. */
 .dark {
+  color-scheme: dark;
   --background: #18181f;
   --foreground: #e7e7ea;
   --card: #1f1f27;

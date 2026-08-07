@@ -8,9 +8,20 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 // Open-redirect guard: only same-origin relative paths — never a
 // protocol-relative `//evil.com` or an absolute `https://…`. Mirrors the
 // sanitizeNext() pattern in app/auth/callback and app/auth/confirm.
+function isSafeBackHref(backHref: string | undefined): backHref is string {
+  return !!backHref && backHref.startsWith("/") && !backHref.startsWith("//");
+}
+
 function sanitizeBackHref(backHref: string | undefined): string {
-  if (backHref && backHref.startsWith("/") && !backHref.startsWith("//")) return backHref;
-  return "/login";
+  return isSafeBackHref(backHref) ? backHref : "/login";
+}
+
+// Carries the captured `redirect` origin (e.g. back to the landing page's
+// #pricing section) along when hopping between legal pages via the footer,
+// so the destination page's own Back link still knows where the visitor
+// actually came from instead of losing it and defaulting to /login.
+export function withRedirect(path: string, backHref: string | undefined): string {
+  return isSafeBackHref(backHref) ? `${path}?redirect=${encodeURIComponent(backHref)}` : path;
 }
 
 export async function LegalLayout({
@@ -57,13 +68,13 @@ export async function LegalLayout({
         </div>
 
         <footer className="mt-12 flex gap-4 border-t border-border pt-6 text-sm text-muted-foreground">
-          <Link href="/terms" className="hover:text-accent-brand">
+          <Link href={withRedirect("/terms", backHref)} className="hover:text-accent-brand">
             {t.termsOfService}
           </Link>
-          <Link href="/privacy" className="hover:text-accent-brand">
+          <Link href={withRedirect("/privacy", backHref)} className="hover:text-accent-brand">
             {t.privacyPolicy}
           </Link>
-          <Link href="/cookies" className="hover:text-accent-brand">
+          <Link href={withRedirect("/cookies", backHref)} className="hover:text-accent-brand">
             {t.cookiePolicy}
           </Link>
         </footer>

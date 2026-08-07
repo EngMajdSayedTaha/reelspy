@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { LegalLayout, LegalSection } from "@/components/legal/LegalLayout";
+import { LegalLayout, LegalSection, withRedirect } from "@/components/legal/LegalLayout";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
@@ -156,7 +156,7 @@ export default async function PrivacyPage({
       <LegalSection heading={t.sections.cookiesSection.heading}>
         <p>
           {t.sections.cookiesSection.before}
-          <Link href="/cookies" className="text-accent-brand hover:underline">
+          <Link href={withRedirect("/cookies", redirect)} className="text-accent-brand hover:underline">
             {common.cookiePolicy}
           </Link>
           {t.sections.cookiesSection.after}
