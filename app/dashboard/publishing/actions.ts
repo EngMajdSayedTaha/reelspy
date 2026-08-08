@@ -11,6 +11,7 @@ import { deleteR2Object } from "@/lib/storage/r2";
 import { getConnection } from "@/lib/publishing/token-store";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
 import { PLATFORMS, type Platform } from "@/lib/publishing/types";
+import { readPlatformsFlag } from "@/lib/publishing/platforms-flag";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { PublishingDict } from "@/lib/i18n/dictionaries/publishing";
@@ -88,10 +89,13 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
   const user = await requireUser(t);
   const admin = createAdminClient();
 
-  // Drop any platform the user hasn't connected.
+  // Authoritative platform gate: even a stale/cached client can't queue a job
+  // for a platform the founder turned off (flag:platforms) or the user hasn't
+  // actually connected.
+  const platformsFlag = await readPlatformsFlag(admin);
   const targets: Platform[] = [];
   for (const platform of parsed.platforms) {
-    if (await isConnected(admin, user.id, platform)) targets.push(platform);
+    if (platformsFlag[platform] && (await isConnected(admin, user.id, platform))) targets.push(platform);
   }
   if (targets.length === 0) {
     throw new Error(t.noPlatformsConnected);

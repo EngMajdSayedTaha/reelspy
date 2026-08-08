@@ -27,6 +27,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import type { DashboardPageId, PagesFlag } from "@/lib/dashboard/pages";
 
 type NavKey = keyof Dict["nav"];
 type NavLink = {
@@ -36,14 +37,16 @@ type NavLink = {
   matchPrefixes?: string[];
   /** data-tour hook for the product tour (components/tour/AppTour.tsx). */
   tourKey?: string;
+  /** Admin's flag:pages id (lib/dashboard/pages.ts). Absent = never hidden. */
+  pageId?: DashboardPageId;
 };
 
 const links: NavLink[] = [
   { href: "/dashboard", labelKey: "dashboard", icon: LayoutDashboard, tourKey: "nav-dashboard" },
-  { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch, tourKey: "nav-accounts" },
-  { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard, tourKey: "nav-feed" },
-  { href: "/dashboard/trends", labelKey: "trends", icon: Radar, tourKey: "nav-trends" },
-  { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark, tourKey: "nav-hooks" },
+  { href: "/dashboard/accounts", labelKey: "accounts", icon: UserSearch, tourKey: "nav-accounts", pageId: "accounts" },
+  { href: "/dashboard/feed", labelKey: "feed", icon: Clapperboard, tourKey: "nav-feed", pageId: "feed" },
+  { href: "/dashboard/trends", labelKey: "trends", icon: Radar, tourKey: "nav-trends", pageId: "trends" },
+  { href: "/dashboard/hooks", labelKey: "hooks", icon: Bookmark, tourKey: "nav-hooks", pageId: "hooks" },
   {
     href: "/dashboard/scripts",
     labelKey: "scripts",
@@ -52,14 +55,15 @@ const links: NavLink[] = [
     // part of the Scripts section even though it lives outside /dashboard/scripts.
     matchPrefixes: ["/dashboard/generate"],
     tourKey: "nav-scripts",
+    pageId: "scripts",
   },
-  { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera, tourKey: "nav-my-account" },
-  { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply, tourKey: "nav-automations" },
-  { href: "/dashboard/publishing", labelKey: "publishing", icon: Send, tourKey: "nav-publishing" },
-  { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar, tourKey: "nav-calendar" },
-  { href: "/dashboard/connections", labelKey: "connections", icon: Plug, tourKey: "nav-connections" },
-  { href: "/dashboard/billing", labelKey: "billing", icon: CreditCard, tourKey: "nav-billing" },
-  { href: "/dashboard/settings", labelKey: "settings", icon: Settings, tourKey: "nav-settings" },
+  { href: "/dashboard/my-account", labelKey: "myIg", icon: Camera, tourKey: "nav-my-account", pageId: "myIg" },
+  { href: "/dashboard/automations", labelKey: "autoReply", icon: MessageCircleReply, tourKey: "nav-automations", pageId: "autoReply" },
+  { href: "/dashboard/publishing", labelKey: "publishing", icon: Send, tourKey: "nav-publishing", pageId: "publishing" },
+  { href: "/dashboard/calendar", labelKey: "calendar", icon: Calendar, tourKey: "nav-calendar", pageId: "calendar" },
+  { href: "/dashboard/connections", labelKey: "connections", icon: Plug, tourKey: "nav-connections", pageId: "connections" },
+  { href: "/dashboard/billing", labelKey: "billing", icon: CreditCard, tourKey: "nav-billing", pageId: "billing" },
+  { href: "/dashboard/settings", labelKey: "settings", icon: Settings, tourKey: "nav-settings", pageId: "settings" },
 ];
 
 function isActive(pathname: string, link: NavLink): boolean {
@@ -78,11 +82,14 @@ type SidebarProps = {
   version: string;
   /** There's a release they haven't caught up on — shows the dot. */
   hasUnseenRelease: boolean;
+  /** Admin's flag:pages switch — which sections to show (lib/dashboard/pages-flag.ts). */
+  pagesFlag: PagesFlag;
 };
 
-export function Sidebar({ open, onClose, user, version, hasUnseenRelease }: SidebarProps) {
+export function Sidebar({ open, onClose, user, version, hasUnseenRelease, pagesFlag }: SidebarProps) {
   const pathname = usePathname();
   const dict = useDict();
+  const visibleLinks = links.filter((link) => !link.pageId || pagesFlag[link.pageId] !== false);
 
   return (
     <>
@@ -119,7 +126,7 @@ export function Sidebar({ open, onClose, user, version, hasUnseenRelease }: Side
         </div>
 
         <nav className="flex flex-col gap-1 overflow-y-auto">
-          {links.map((link) => {
+          {visibleLinks.map((link) => {
             const active = isActive(pathname, link);
             const Icon = link.icon;
             return (

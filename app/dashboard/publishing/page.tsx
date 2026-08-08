@@ -4,7 +4,9 @@ import { cookies } from "next/headers";
 import { Settings2, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
+import { readPlatformsFlag } from "@/lib/publishing/platforms-flag";
 import { PublishComposer } from "@/components/publishing/PublishComposer";
 import { LocalDateTime } from "@/components/publishing/LocalDateTime";
 import { RetryButton, DeletePostButton, EditPostButton } from "@/components/publishing/PostActions";
@@ -72,7 +74,7 @@ export default async function PublishingPage() {
 
   // Connection state: IG/FB live on the profile (browser-readable metadata),
   // TikTok/YouTube in social_connections.
-  const [{ data: profile }, { data: conns }, { data: posts }] = await Promise.all([
+  const [{ data: profile }, { data: conns }, { data: posts }, platformsFlag] = await Promise.all([
     supabase.from("profiles").select("ig_user_id, fb_page_id, username").eq("id", user.id).maybeSingle(),
     supabase
       .from("social_connections")
@@ -85,16 +87,20 @@ export default async function PublishingPage() {
       .order("created_at", { ascending: false })
       .limit(25)
       .returns<PostRow[]>(),
+    readPlatformsFlag(createAdminClient()),
   ]);
 
   const activeConn = (p: Platform) =>
     Boolean(conns?.some((c) => c.platform === p && c.is_active && c.token_status !== "invalid"));
 
+  // Admin's flag:platforms switch folds straight into "connected": a platform
+  // the founder turned off reads exactly like one the user never connected —
+  // same composer UI, same "not connected" state, no new copy needed.
   const connected: Record<Platform, boolean> = {
-    instagram: Boolean(profile?.ig_user_id),
-    facebook: Boolean(profile?.fb_page_id),
-    tiktok: activeConn("tiktok"),
-    youtube: activeConn("youtube"),
+    instagram: Boolean(profile?.ig_user_id) && platformsFlag.instagram,
+    facebook: Boolean(profile?.fb_page_id) && platformsFlag.facebook,
+    tiktok: activeConn("tiktok") && platformsFlag.tiktok,
+    youtube: activeConn("youtube") && platformsFlag.youtube,
   };
 
   const previewHandle = profile?.username || user.email?.split("@")[0] || "your_account";
