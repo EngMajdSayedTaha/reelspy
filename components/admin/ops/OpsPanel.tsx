@@ -8,12 +8,16 @@ import { CookiesPanel } from "@/components/admin/ops/CookiesPanel";
 import { LimitsPanel } from "@/components/admin/ops/LimitsPanel";
 import { SettingsPanel } from "@/components/admin/ops/SettingsPanel";
 import { SecurityPanel } from "@/components/admin/ops/SecurityPanel";
+import { PagesPanel } from "@/components/admin/ops/PagesPanel";
+import { PlatformsPanel } from "@/components/admin/ops/PlatformsPanel";
 
 const TABS = [
   { id: "jobs", label: "Jobs" },
   { id: "cron", label: "Cron" },
   { id: "cookies", label: "IG Cookies" },
   { id: "limits", label: "Limits" },
+  { id: "pages", label: "Pages" },
+  { id: "platforms", label: "Platforms" },
   { id: "settings", label: "Settings" },
   { id: "security", label: "Security" },
 ] as const;
@@ -47,6 +51,8 @@ export function OpsPanel() {
       {tab === "cron" ? <CronPanel /> : null}
       {tab === "cookies" ? <CookiesPanel /> : null}
       {tab === "limits" ? <LimitsPanel /> : null}
+      {tab === "pages" ? <PagesPanel /> : null}
+      {tab === "platforms" ? <PlatformsPanel /> : null}
       {tab === "settings" ? <SettingsPanel /> : null}
       {tab === "security" ? <SecurityPanel /> : null}
     </div>
