@@ -13,6 +13,7 @@ import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readArchiveStatuses, type ArchiveStatus } from "@/lib/instagram/archive-status";
+import { readActiveTranscribeAccounts } from "@/lib/media/transcribe-account-status";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { PageTourButton } from "@/components/tour/PageTourButton";
@@ -155,9 +156,16 @@ export default async function AccountsPage({
   // is a dozen requests to render a page that already knows the answer. The
   // archive tables are RLS-locked global state, hence the admin client.
   let archives: ArchiveStatus[] = [];
+  // Accounts whose bulk transcription is still running, so those cards resume
+  // polling after a reload instead of looking idle while work continues.
+  let transcribing = new Set<string>();
   if (accounts.length > 0) {
     try {
-      archives = await readArchiveStatuses(createAdminClient(), user.id, accounts);
+      const admin = createAdminClient();
+      [archives, transcribing] = await Promise.all([
+        readArchiveStatuses(admin, user.id, accounts),
+        readActiveTranscribeAccounts(admin, user.id),
+      ]);
     } catch (archiveError) {
       // Missing service key or unapplied migration. The cards still render and
       // stay usable — they just start with no archive state, and the first poll
@@ -227,6 +235,7 @@ export default async function AccountsPage({
                   account={account}
                   groups={groups}
                   archive={archiveByAccount.get(account.id) ?? null}
+                  transcribing={transcribing.has(account.id)}
                   removeAction={removeInspirationAccount}
                   assignGroupAction={assignAccountGroup}
                   toggleActiveAction={toggleAccountActive}

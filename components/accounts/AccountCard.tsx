@@ -39,6 +39,8 @@ type AccountCardProps = {
   groups: Group[];
   /** Full-history archive state for this account, server-rendered. */
   archive: ArchiveStatus | null;
+  /** Whether a bulk transcription run is already in flight for this account. */
+  transcribing?: boolean;
   removeAction: (formData: FormData) => Promise<void>;
   assignGroupAction: (formData: FormData) => Promise<void>;
   toggleActiveAction: (formData: FormData) => Promise<void>;
@@ -62,6 +64,7 @@ export function AccountCard({
   account,
   groups,
   archive,
+  transcribing,
   removeAction,
   assignGroupAction,
   toggleActiveAction,
@@ -360,6 +363,7 @@ export function AccountCard({
         accountId={account.id}
         username={account.ig_username}
         initial={archive}
+        transcribing={Boolean(transcribing)}
         hasReels={Boolean(account.last_synced_at) || Boolean(archive?.requested)}
         disabled={busy}
       />

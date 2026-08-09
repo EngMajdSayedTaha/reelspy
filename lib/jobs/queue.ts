@@ -12,6 +12,7 @@ import { numEnv } from "@/lib/utils/env";
 export type JobKind =
   | "publish_post"
   | "transcribe_reel"
+  | "transcribe_account"
   | "send_digest"
   | "refresh_snapshot"
   | "archive_account"

@@ -110,6 +110,34 @@ const en = {
       exportTitle: "Download this account's reels",
       exportCsv: "Export CSV",
       exportJson: "Export JSON",
+      exportTxt: "Export transcripts as text",
+      exportModeAria: "What to include in the export",
+      exportModes: {
+        metadata: "Metrics only",
+        transcripts: "With transcripts",
+      },
+      transcribe: {
+        button: "Transcribe all",
+        // Sets the expectation the feature can actually meet: transcription is
+        // paced per hour and capped per month, so a big account is a job that
+        // runs for days. Saying so up front is cheaper than a support ticket.
+        buttonTitle:
+          "Transcribe every reel of this account that doesn't have a transcript yet. Runs in the background over hours or days, within your plan's monthly transcript limit.",
+        starting: "Starting…",
+        queuedToast: (username: string) =>
+          `Transcribing @${username}'s reels in the background. This runs for a while — you can leave this page.`,
+        runningToast: (username: string) => `@${username}'s reels are already being transcribed.`,
+        nothingToast: (username: string) => `Every reel of @${username} is already transcribed.`,
+        failedToast: "Could not start transcribing.",
+        progress: (ready: number, total: number) => `${ready} of ${total} reels transcribed`,
+        working: (ready: number, total: number) => `Transcribing… ${ready} of ${total} reels`,
+        // "Paused" rather than "stopped": the job resumes on its own when the
+        // limit clears, and the user has nothing to do.
+        paused: (remaining: number) =>
+          `Paused — ${remaining} reels left. Resumes automatically when your limit resets.`,
+        failed: "Transcribing stopped. Try starting it again.",
+        skipped: (failed: number) => `${failed} skipped`,
+      },
     },
     groups: {
       heading: "Groups",
@@ -299,6 +327,29 @@ export const accountsAr: AccountsDict = {
       exportTitle: "تنزيل ريلز هذا الحساب",
       exportCsv: "تصدير CSV",
       exportJson: "تصدير JSON",
+      exportTxt: "تصدير النصوص كملف نصي",
+      exportModeAria: "ما الذي يتضمنه التصدير",
+      exportModes: {
+        metadata: "الأرقام فقط",
+        transcripts: "مع النصوص",
+      },
+      transcribe: {
+        button: "تفريغ الكل",
+        buttonTitle:
+          "فرّغ نص كل ريل في هذا الحساب لا يملك نصًا بعد. يعمل في الخلفية على مدى ساعات أو أيام، ضمن حد التفريغ الشهري في باقتك.",
+        starting: "جارٍ البدء…",
+        queuedToast: (username: string) =>
+          `جارٍ تفريغ نصوص ريلز @${username} في الخلفية. تستغرق العملية وقتًا — يمكنك مغادرة هذه الصفحة.`,
+        runningToast: (username: string) => `يجري بالفعل تفريغ نصوص ريلز @${username}.`,
+        nothingToast: (username: string) => `كل ريلز @${username} مفرّغة بالفعل.`,
+        failedToast: "تعذّر بدء التفريغ.",
+        progress: (ready: number, total: number) => `تم تفريغ ${ready} من ${total} ريلز`,
+        working: (ready: number, total: number) => `جارٍ التفريغ… ${ready} من ${total} ريلز`,
+        paused: (remaining: number) =>
+          `متوقف مؤقتًا — بقي ${remaining} ريلز. سيُستأنف تلقائيًا عند تجدد حدّك.`,
+        failed: "توقف التفريغ. حاول بدءه مرة أخرى.",
+        skipped: (failed: number) => `${failed} متخطاة`,
+      },
     },
     groups: {
       heading: "المجموعات",

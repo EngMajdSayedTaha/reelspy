@@ -1,3 +1,4 @@
+import { YtDlpExtractionError } from "@/lib/media/ytdlp-errors";
 import { getReelMetadata, YtDlpUnavailableError, type ReelMetadata } from "@/lib/media/ytdlp";
 import { transcribeReel } from "@/lib/transcription";
 
@@ -14,6 +15,10 @@ export type ReelTranscriptionResult =
       status: "unavailable";
       reason: string;
       metadata: ReelMetadata | null;
+      // Throttled rather than defeated: the reel is fine, we asked too fast.
+      // Callers must reschedule instead of marking it permanently failed.
+      retryable?: boolean;
+      retryAfterSeconds?: number | null;
     };
 
 // End-to-end: extract reel metadata + direct media URL with yt-dlp (no binary
@@ -30,7 +35,11 @@ export async function processReel(permalink: string): Promise<ReelTranscriptionR
         : error instanceof Error
           ? error.message
           : "Failed to read reel metadata.";
-    return { status: "unavailable", reason, metadata: null };
+    // Instagram throttling the extractor is the same class of problem as a
+    // Whisper 429 — the reel is available, our IP is just being paced.
+    const retryable =
+      error instanceof YtDlpExtractionError && error.kind === "rateLimited";
+    return { status: "unavailable", reason, metadata: null, retryable };
   }
 
   if (!metadata.mediaUrl) {
@@ -43,7 +52,13 @@ export async function processReel(permalink: string): Promise<ReelTranscriptionR
 
   const result = await transcribeReel({ permalink, mediaUrl: metadata.mediaUrl });
   if (result.status !== "ready") {
-    return { status: "unavailable", reason: result.reason, metadata };
+    return {
+      status: "unavailable",
+      reason: result.reason,
+      metadata,
+      retryable: result.retryable ?? false,
+      retryAfterSeconds: result.retryAfterSeconds ?? null,
+    };
   }
 
   return {

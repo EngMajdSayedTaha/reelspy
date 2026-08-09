@@ -87,12 +87,24 @@ export async function runTranscribeReel(
     const result = await withDeadline(processReel(permalink), deadline);
 
     if (result.status !== "ready") {
+      // Throttled by Whisper or by Instagram's extractor. Nothing about this
+      // reel is wrong, so release the claim rather than burning it as `failed`
+      // — `failed` is terminal and no producer ever re-queues it. A bulk run
+      // across an account's history is exactly what trips a provider's daily
+      // ceiling, and without this branch the first 429 would strand every reel
+      // after it.
+      //
+      // The monthly quota slot consumed above is NOT refunded: consume_user_-
+      // action_monthly has no decrement, and the manual transcribe route spends
+      // it the same way. Rare in practice (the hourly throttle paces us well
+      // under the provider's limits), but it is a known cost of a throttle.
+      const retryable = result.retryable === true;
       await admin
         .from("tracked_reels")
-        .update({ transcript_status: "failed" })
+        .update({ transcript_status: retryable ? "none" : "failed" })
         .eq("id", reelId)
         .eq("user_id", userId);
-      return "failed";
+      return retryable ? "throttled" : "failed";
     }
 
     await admin
