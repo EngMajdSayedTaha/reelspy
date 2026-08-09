@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EntitlementsEditor } from "@/components/admin/users/EntitlementsEditor";
+import { PricingSection } from "@/components/admin/plans/PricingSection";
 import { requestJson, notifyError, ApiError } from "@/lib/utils/api";
 import { DEFAULT_CUSTOM_ENTITLEMENTS, type Entitlements } from "@/lib/billing/entitlements";
 import type { AdminPlanRow, AdminPlanCopy } from "@/lib/admin/plans";
@@ -278,6 +279,21 @@ export function PlanEditor({ planId }: { planId: string }) {
           })}
         </CardContent>
       </Card>
+
+      {/* ── Pricing ── */}
+      {plan.kind === "fixed" ? (
+        <PricingSection plan={plan} onChanged={() => load()} />
+      ) : plan.kind === "custom" ? (
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Pricing</CardTitle>
+            <CardDescription>
+              This plan prices each configuration itself from the build-your-own rate card, so it has no
+              fixed price to set here.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       {/* ── Presentation & trial ── */}
       <Card>

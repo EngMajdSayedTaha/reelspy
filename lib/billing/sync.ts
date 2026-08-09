@@ -185,6 +185,19 @@ export async function syncSubscription(
     custom_entitlements: customEntitlements,
     updated_at: new Date().toISOString(),
   };
+
+  // The EXACT price this subscription bills, plus the two dimensions Stripe
+  // locks for its lifetime. Recording the price (not just the tier) is what
+  // makes grandfathering answerable — "who is still on the old price?" becomes
+  // one indexed query — and the currency is what every quote we show this
+  // subscriber must be denominated in, since it can never change.
+  const item = sub.items?.data?.[0]?.price;
+  const billingColumns = {
+    stripe_price_id: item?.id ?? null,
+    billing_currency: item?.currency ?? null,
+    billing_interval: item?.recurring?.interval ?? null,
+    trial_ends_at: sub.trial_end ? new Date(sub.trial_end * 1000).toISOString() : null,
+  };
   // Columns that arrived in migrations after the original billing one. Each is
   // optional, and each is DROPPABLE on a database that predates it — losing a
   // cache is survivable, losing the tier write is not. Ordered oldest-first;
@@ -204,6 +217,10 @@ export async function syncSubscription(
               pending_custom_entitlements: pending?.entitlements ?? null,
             }
           : {},
+    },
+    {
+      name: "billing dimensions (20260809080100_subscription_billing_dimensions.sql)",
+      columns: billingColumns,
     },
   ];
 
@@ -237,7 +254,7 @@ async function upsertWithOptionalColumns(
   base: Record<string, unknown>,
   groups: OptionalColumnGroup[]
 ): Promise<void> {
-  const remaining = groups.filter((g) => Object.keys(g.columns).length > 0);
+  let remaining = groups.filter((g) => Object.keys(g.columns).length > 0);
 
   for (;;) {
     const row = remaining.reduce((acc, g) => ({ ...acc, ...g.columns }), { ...base });
@@ -246,13 +263,35 @@ async function upsertWithOptionalColumns(
     if (!isUnknownColumn(error) || remaining.length === 0) {
       throw new Error(error.message);
     }
-    const dropped = remaining.pop();
-    console.warn(`[billing/sync] columns missing — dropping ${dropped?.name} and retrying`);
+
+    // Drop the group that actually owns the missing column, not just the newest
+    // one — otherwise a database missing only an OLD migration would also lose
+    // the newer columns it does have. Fall back to dropping the newest when the
+    // error doesn't name a column we recognise.
+    const missing = unknownColumnName(error);
+    const culprit = missing ? remaining.findIndex((g) => missing in g.columns) : -1;
+    const index = culprit >= 0 ? culprit : remaining.length - 1;
+    const [dropped] = remaining.splice(index, 1);
+    remaining = [...remaining];
+    console.warn(
+      `[billing/sync] ${missing ? `column "${missing}" missing` : "columns missing"} — dropping ${dropped?.name} and retrying`
+    );
   }
 }
 
 // Postgres 42703 (undefined_column) / PostgREST PGRST204 (column not in schema
 // cache) — i.e. "this database predates the migration", not "this write is bad".
+// The column Postgres/PostgREST says it doesn't have, so the retry can drop
+// exactly the group that owns it. Null when the message doesn't name one.
+function unknownColumnName(error: { message?: string }): string | null {
+  const match = /column\s+"?([a-z0-9_]+)"?\s+(?:of relation\s+"?[a-z0-9_]+"?\s+)?does not exist/i.exec(
+    error.message ?? ""
+  );
+  if (match) return match[1];
+  const cache = /could not find the '([a-z0-9_]+)' column/i.exec(error.message ?? "");
+  return cache ? cache[1] : null;
+}
+
 function isUnknownColumn(error: { code?: string; message?: string }): boolean {
   if (error.code === "42703" || error.code === "PGRST204") return true;
   return /column .* does not exist|could not find the .* column/i.test(error.message ?? "");

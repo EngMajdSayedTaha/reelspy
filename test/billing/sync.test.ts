@@ -115,6 +115,26 @@ describe("syncSubscription", () => {
     expect(writes).toHaveLength(2);
     expect(writes[1]).toMatchObject({ tier: "pro", status: "active" });
     expect(writes[1]).not.toHaveProperty("pending_tier");
+    // Only the group that owned the missing column is dropped: a database behind
+    // on ONE migration must not lose the columns it does have.
+    expect(writes[1]).toHaveProperty("stripe_price_id");
+  });
+
+  it("drops only the billing-dimension columns when those are what's missing", async () => {
+    vi.stubEnv("STRIPE_PRICE_PRO", "price_pro");
+    const { admin, writes } = fakeAdmin({
+      onUpsert: (payload) =>
+        "billing_currency" in payload
+          ? { error: { code: "42703", message: 'column "billing_currency" does not exist' } }
+          : { error: null },
+    });
+
+    const result = await syncSubscription(admin, subscription(), noopStripe);
+
+    expect(result?.tier).toBe("pro");
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).not.toHaveProperty("billing_currency");
+    expect(writes[1]).toHaveProperty("pending_tier");
   });
 
   it("still throws on a real write failure so Stripe retries the event", async () => {
