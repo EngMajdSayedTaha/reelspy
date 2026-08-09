@@ -116,6 +116,9 @@ export function PlansTable() {
           <Button variant="outline" size="sm" onClick={() => load()}>
             <RefreshCw className="h-4 w-4" /> Refresh
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/admin/plans/promotions">Promo codes</Link>
+          </Button>
           <Button size="sm" onClick={() => setCreating((v) => !v)}>
             <Plus className="h-4 w-4" /> New plan
           </Button>
