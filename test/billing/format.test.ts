@@ -35,6 +35,18 @@ describe("planChangeDirection", () => {
     expect(planChangeDirection("pro", "custom")).toBe("change");
     expect(planChangeDirection("custom", "creator")).toBe("change");
   });
+
+  // Once plans are admin-managed the ordering is data, not a module constant, so
+  // callers that know the live ordering pass it in. This ladder deliberately
+  // reorders and omits tiers to prove the argument — not PLANS — is what decides.
+  it("ranks against a caller-supplied ladder", () => {
+    const ladder = ["free", "studio", "creator"] as const;
+    expect(planChangeDirection("studio", "creator", ladder)).toBe("upgrade");
+    expect(planChangeDirection("creator", "free", ladder)).toBe("downgrade");
+    expect(planChangeDirection("creator", "creator", ladder)).toBe("change");
+    // "pro" isn't on this ladder at all — unrankable, so neutral.
+    expect(planChangeDirection("pro", "creator", ladder)).toBe("change");
+  });
 });
 
 describe("planPriceLabel", () => {

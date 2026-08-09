@@ -1,7 +1,7 @@
 import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { tierForStripePrice } from "@/lib/billing/plans";
+import { tierForStripePrice, type PriceTierResolver } from "@/lib/billing/plans";
 import { isMissingResource } from "@/lib/billing/stripe";
 import { ACTIVE_STATUSES } from "@/lib/billing/subscription";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
@@ -42,17 +42,34 @@ export async function resolveUserId(
   return data?.user_id ?? null;
 }
 
+export type { PriceTierResolver };
+
 // Derive the tier a subscription grants: the priced plan wins (so a mid-cycle
 // plan change is honoured), falling back to the tier stamped in metadata. A
 // custom-plan subscription's ad-hoc price never matches a known Stripe Price id,
 // so this naturally falls through to the "custom" tier stamped in metadata.
-export function tierOfSubscription(sub: Stripe.Subscription): AiTier {
-  const priceId = sub.items.data[0]?.price?.id;
-  const fromPrice = priceId ? tierForStripePrice(priceId) : null;
-  if (fromPrice) return fromPrice;
+//
+// `resolved: false` means NEITHER source recognised this subscription — which is
+// very different from "this subscription grants nothing". Callers that are about
+// to write a row must not treat an unrecognised price as free (see
+// syncSubscription); callers that only need a label can use the `free` default.
+export function resolveSubscriptionTier(
+  sub: Stripe.Subscription,
+  resolve: PriceTierResolver = tierForStripePrice
+): { tier: AiTier; resolved: boolean } {
+  const priceId = sub.items?.data?.[0]?.price?.id;
+  const fromPrice = priceId ? resolve(priceId) : null;
+  if (fromPrice) return { tier: fromPrice, resolved: true };
   const metaTier = sub.metadata?.tier;
-  if (isAiTier(metaTier)) return metaTier;
-  return "free";
+  if (isAiTier(metaTier)) return { tier: metaTier, resolved: true };
+  return { tier: "free", resolved: false };
+}
+
+export function tierOfSubscription(
+  sub: Stripe.Subscription,
+  resolve: PriceTierResolver = tierForStripePrice
+): AiTier {
+  return resolveSubscriptionTier(sub, resolve).tier;
 }
 
 // Parse the custom-plan config stamped into metadata at checkout (B4). Returns
@@ -99,7 +116,8 @@ export type SyncResult = {
 export async function syncSubscription(
   admin: SupabaseClient,
   sub: Stripe.Subscription,
-  stripe?: Stripe
+  stripe?: Stripe,
+  resolve: PriceTierResolver = tierForStripePrice
 ): Promise<SyncResult | null> {
   const customerId = customerIdOf(sub);
   const userId = await resolveUserId(admin, sub.metadata?.user_id, customerId);
@@ -111,7 +129,30 @@ export async function syncSubscription(
   const previous = await previousState(admin, userId);
 
   const inactive = !grantsAccess(sub.status);
-  const tier: AiTier = inactive ? "free" : tierOfSubscription(sub);
+
+  // An ACTIVE subscription whose price we don't recognise must never be written
+  // as `free`: that silently strips a paying customer of everything they bought,
+  // and it can't self-heal because the next sync makes the same mistake. Prices
+  // legitimately go unrecognised — a price created outside the app, a test↔live
+  // key switch, or (once prices are admin-managed) an older generation this
+  // deployment hasn't loaded — so hold the tier the row already has and shout
+  // about it instead. Only a genuinely inactive subscription drops to free.
+  const resolvedTier = resolveSubscriptionTier(sub, resolve);
+  let tier: AiTier = inactive ? "free" : resolvedTier.tier;
+  if (!inactive && !resolvedTier.resolved) {
+    const priceId = sub.items?.data?.[0]?.price?.id ?? "none";
+    if (previous && previous.tier !== "free") {
+      tier = previous.tier;
+      console.error(
+        `[billing/sync] unresolved price ${priceId} on active subscription ${sub.id} — keeping tier '${previous.tier}'`
+      );
+    } else {
+      console.error(
+        `[billing/sync] unresolved price ${priceId} on active subscription ${sub.id} — no previous tier to keep`
+      );
+    }
+  }
+
   const customEntitlements = !inactive && tier === "custom" ? customEntitlementsOf(sub) : null;
   const periodEnd = sub.current_period_end
     ? new Date(sub.current_period_end * 1000).toISOString()
@@ -122,7 +163,7 @@ export async function syncSubscription(
   let pending: PendingPlanChange | null | undefined;
   if (stripe) {
     try {
-      pending = await readPendingChange(stripe, sub);
+      pending = await readPendingChange(stripe, sub, resolve);
     } catch (err) {
       console.warn(
         "[billing/sync] pending change lookup failed:",
@@ -144,36 +185,29 @@ export async function syncSubscription(
     custom_entitlements: customEntitlements,
     updated_at: new Date().toISOString(),
   };
-  const pendingColumns =
-    pending !== undefined
-      ? {
-          stripe_schedule_id: pending?.scheduleId ?? null,
-          pending_tier: pending?.tier ?? null,
-          pending_effective_at: pending?.effectiveAt ?? null,
-          pending_price_aed: pending?.priceAed ?? null,
-          pending_custom_entitlements: pending?.entitlements ?? null,
-        }
-      : {};
+  // Columns that arrived in migrations after the original billing one. Each is
+  // optional, and each is DROPPABLE on a database that predates it — losing a
+  // cache is survivable, losing the tier write is not. Ordered oldest-first;
+  // upsertWithOptionalColumns drops from the end (newest first) until the write
+  // lands, so a database missing only the newest migration keeps everything else.
+  const optionalGroups: OptionalColumnGroup[] = [
+    {
+      name: "scheduled-change (20260729120000_scheduled_plan_changes.sql)",
+      // undefined = "couldn't determine", so don't write the group at all.
+      columns:
+        pending !== undefined
+          ? {
+              stripe_schedule_id: pending?.scheduleId ?? null,
+              pending_tier: pending?.tier ?? null,
+              pending_effective_at: pending?.effectiveAt ?? null,
+              pending_price_aed: pending?.priceAed ?? null,
+              pending_custom_entitlements: pending?.entitlements ?? null,
+            }
+          : {},
+    },
+  ];
 
-  const { error } = await admin
-    .from("subscriptions")
-    .upsert({ ...base, ...pendingColumns }, { onConflict: "user_id" });
-
-  if (error) {
-    // The pending_* columns arrived in a later migration. On a database that
-    // hasn't had it applied, writing them fails — and a failed sync means the
-    // webhook 500s and the user's tier never updates. Losing the scheduled-change
-    // CACHE is survivable (the Stripe schedule is the source of truth); losing
-    // the tier write is not. So drop those columns and write the rest.
-    if (!isUnknownColumn(error) || Object.keys(pendingColumns).length === 0) {
-      throw new Error(error.message);
-    }
-    console.warn(
-      "[billing/sync] scheduled-change columns missing — apply 20260729120000_scheduled_plan_changes.sql"
-    );
-    const retry = await admin.from("subscriptions").upsert(base, { onConflict: "user_id" });
-    if (retry.error) throw new Error(retry.error.message);
-  }
+  await upsertWithOptionalColumns(admin, base, optionalGroups);
   return {
     userId,
     tier,
@@ -183,6 +217,38 @@ export async function syncSubscription(
     pending,
     previous,
   };
+}
+
+// One migration's worth of optional columns on the subscriptions row.
+export type OptionalColumnGroup = {
+  /** Human name (+ migration file) for the log line when the group is dropped. */
+  name: string;
+  columns: Record<string, unknown>;
+};
+
+// Write `base` plus as many optional column groups as the database actually has.
+// On an unknown-column error we drop the NEWEST remaining group and retry, so a
+// database that is one migration behind still gets every earlier column — and a
+// database that is several behind degrades one step at a time instead of falling
+// straight back to the bare row. Any other error is a real failure and throws
+// (the webhook turns that into a 500 so Stripe retries).
+async function upsertWithOptionalColumns(
+  admin: SupabaseClient,
+  base: Record<string, unknown>,
+  groups: OptionalColumnGroup[]
+): Promise<void> {
+  const remaining = groups.filter((g) => Object.keys(g.columns).length > 0);
+
+  for (;;) {
+    const row = remaining.reduce((acc, g) => ({ ...acc, ...g.columns }), { ...base });
+    const { error } = await admin.from("subscriptions").upsert(row, { onConflict: "user_id" });
+    if (!error) return;
+    if (!isUnknownColumn(error) || remaining.length === 0) {
+      throw new Error(error.message);
+    }
+    const dropped = remaining.pop();
+    console.warn(`[billing/sync] columns missing — dropping ${dropped?.name} and retrying`);
+  }
 }
 
 // Postgres 42703 (undefined_column) / PostgREST PGRST204 (column not in schema
@@ -252,7 +318,8 @@ export async function usableCustomerId(
 export async function syncSubscriptionForUser(
   admin: SupabaseClient,
   stripe: Stripe,
-  userId: string
+  userId: string,
+  resolve: PriceTierResolver = tierForStripePrice
 ): Promise<{ ok: boolean; reason?: string; tier?: AiTier; status?: string }> {
   const { data: row } = await admin
     .from("subscriptions")
@@ -291,7 +358,7 @@ export async function syncSubscriptionForUser(
   if (!sub.metadata?.user_id) {
     sub.metadata = { ...sub.metadata, user_id: userId };
   }
-  const result = await syncSubscription(admin, sub, stripe);
+  const result = await syncSubscription(admin, sub, stripe, resolve);
   if (!result) return { ok: false, reason: "Could not resolve the user for this subscription." };
   return { ok: true, tier: result.tier, status: result.status };
 }

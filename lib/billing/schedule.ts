@@ -23,7 +23,7 @@ import "server-only";
 import type Stripe from "stripe";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
 import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
-import { planFor, tierForStripePrice } from "@/lib/billing/plans";
+import { planFor, tierForStripePrice, type PriceTierResolver } from "@/lib/billing/plans";
 
 // A plan change that is scheduled but hasn't started yet.
 export type PendingPlanChange = {
@@ -85,7 +85,8 @@ export function currentPhaseOf(
 // which is what clears the cached pending_* columns.
 export function pendingFromSchedule(
   schedule: Stripe.SubscriptionSchedule,
-  nowSec: number = Math.floor(Date.now() / 1000)
+  nowSec: number = Math.floor(Date.now() / 1000),
+  resolve: PriceTierResolver = tierForStripePrice
 ): PendingPlanChange | null {
   if (!LIVE_SCHEDULE_STATUSES.has(schedule.status)) return null;
   const next = (schedule.phases ?? []).find((p) => p.start_date > nowSec);
@@ -94,8 +95,8 @@ export function pendingFromSchedule(
   const priceId = priceIdOf(next.items?.[0]?.price);
   // The tier a phase grants is resolved exactly like a live subscription's:
   // the Stripe Price wins, and an ad-hoc custom price (which matches no
-  // STRIPE_PRICE_* id) falls through to the tier stamped on the phase metadata.
-  const fromPrice = priceId ? tierForStripePrice(priceId) : null;
+  // configured price id) falls through to the tier stamped on the phase metadata.
+  const fromPrice = priceId ? resolve(priceId) : null;
   const metaTier = next.metadata?.tier;
   const tier: AiTier | null = fromPrice ?? (isAiTier(metaTier) ? metaTier : null);
   if (!tier) return null;
@@ -197,12 +198,13 @@ export async function customPlanPriceId(stripe: Stripe, priceAed: number): Promi
 // returns null when there is provably nothing scheduled.
 export async function readPendingChange(
   stripe: Stripe,
-  sub: Stripe.Subscription
+  sub: Stripe.Subscription,
+  resolve: PriceTierResolver = tierForStripePrice
 ): Promise<PendingPlanChange | null> {
   const scheduleId = scheduleIdOf(sub);
   if (!scheduleId) return null;
   const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-  return pendingFromSchedule(schedule);
+  return pendingFromSchedule(schedule, Math.floor(Date.now() / 1000), resolve);
 }
 
 // Schedule `target` to take over when the current period ends. Idempotent in

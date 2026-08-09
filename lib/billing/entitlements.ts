@@ -48,6 +48,13 @@ export const ENTITLEMENTS: Record<AiTier, Entitlements> = {
   custom: { accounts: 30, scripts_mo: 60, transcripts_mo: 30, automations: 15, publish_targets: 1, ig_connections: 1, model: "sonnet" },
 };
 
+// The starting point when someone is composing a custom entitlement set by hand
+// (the admin comp-grant editor). Deliberately the same shape and the same
+// Creator-level numbers as ENTITLEMENTS.custom, and defined here rather than in
+// the editor component so there is exactly ONE place that answers "what does a
+// blank custom plan look like".
+export const DEFAULT_CUSTOM_ENTITLEMENTS: Entitlements = { ...ENTITLEMENTS.custom };
+
 export type EntitlementKey = keyof Omit<Entitlements, "model">;
 
 export function entitlementsFor(tier: AiTier): Entitlements {

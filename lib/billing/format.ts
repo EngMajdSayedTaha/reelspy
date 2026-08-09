@@ -7,13 +7,27 @@ import type { AiTier } from "@/lib/ai/tier";
 
 export type PlanChangeDirection = "upgrade" | "downgrade" | "change";
 
+// The default ordering of tiers, cheapest first. Only a fallback: callers that
+// can resolve the live plan ordering should pass their own ladder, because once
+// plans are admin-managed the hardcoded PLANS array is no longer the truth.
+export const FALLBACK_PLAN_LADDER: AiTier[] = PLANS.map((p) => p.tier);
+
 // Whether moving between two tiers reads as an upgrade or a downgrade — used for
-// button labels and email wording only, never for pricing. "custom" isn't on the
-// ladder (its price depends on the configuration), so any move involving it is
-// described neutrally as a change.
-export function planChangeDirection(from: AiTier, to: AiTier): PlanChangeDirection {
-  const a = PLANS.findIndex((p) => p.tier === from);
-  const b = PLANS.findIndex((p) => p.tier === to);
+// button labels and email wording only, never for pricing. A tier that isn't on
+// the ladder (notably "custom", whose price depends on the configuration) makes
+// the move unrankable, and is described neutrally as a change.
+//
+// The ladder is a parameter rather than a module import so this file stays pure
+// and client-safe: it's imported by the confirmation dialogs in
+// components/billing/BillingActions.tsx, which can never reach the database.
+// The server resolves the real ordering and passes it down.
+export function planChangeDirection(
+  from: AiTier,
+  to: AiTier,
+  ladder: readonly AiTier[] = FALLBACK_PLAN_LADDER
+): PlanChangeDirection {
+  const a = ladder.indexOf(from);
+  const b = ladder.indexOf(to);
   if (a === -1 || b === -1 || a === b) return "change";
   return b > a ? "upgrade" : "downgrade";
 }

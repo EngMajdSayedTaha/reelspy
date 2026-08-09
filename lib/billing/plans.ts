@@ -76,9 +76,16 @@ export function stripePriceIdForTier(tier: AiTier): string | null {
   return process.env[meta.priceEnv]?.trim() || null;
 }
 
+// How a Stripe Price id becomes one of our tiers. Callers that resolve a tier
+// take this as a parameter (defaulting to tierForStripePrice below) rather than
+// importing the lookup directly, so the source of truth can move from env vars
+// to the admin-managed plan catalog without touching them — and so the pure
+// resolvers stay unit-testable without stubbing env or a database.
+export type PriceTierResolver = (priceId: string) => AiTier | null;
+
 // Reverse lookup used by the webhook: which tier does this Stripe Price id sell?
-// Returns null for an unknown price (e.g. a legacy/removed plan) so the webhook
-// can log and skip rather than mis-assign a tier.
+// Returns null for an unknown price (e.g. a legacy/removed plan) so the caller
+// can decide what to do rather than being handed a wrong tier.
 export function tierForStripePrice(priceId: string): PaidTier | null {
   for (const tier of PAID_TIERS) {
     if (stripePriceIdForTier(tier) === priceId) return tier;

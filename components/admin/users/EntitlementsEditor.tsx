@@ -16,16 +16,6 @@ const NUM_FIELDS: { key: keyof Omit<Entitlements, "model">; label: string }[] = 
   { key: "ig_connections", label: "IG connections" },
 ];
 
-export const DEFAULT_CUSTOM: Entitlements = {
-  accounts: 30,
-  scripts_mo: 60,
-  transcripts_mo: 30,
-  automations: 15,
-  publish_targets: 1,
-  ig_connections: 1,
-  model: "sonnet",
-};
-
 export function EntitlementsEditor({
   value,
   onChange,

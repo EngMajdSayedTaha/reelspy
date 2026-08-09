@@ -113,6 +113,23 @@ describe("pendingFromSchedule", () => {
     expect(pendingFromSchedule(schedule({ phases: [phase(), next] }), NOW)).toBeNull();
   });
 
+  // Once prices are admin-managed, "which plan does this price sell" stops being
+  // an env lookup. The resolver is injected so a phase priced from an older
+  // (archived) generation still resolves instead of reading as nothing pending.
+  it("resolves the phase's tier through an injected resolver", () => {
+    const next = phase({
+      start_date: PERIOD_END,
+      items: [{ price: "price_archived_generation", quantity: 1 }] as never,
+      metadata: {} as never,
+    });
+    const pending = pendingFromSchedule(
+      schedule({ phases: [phase(), next] }),
+      NOW,
+      (priceId) => (priceId === "price_archived_generation" ? "studio" : null)
+    );
+    expect(pending?.tier).toBe("studio");
+  });
+
   it("survives unparsable custom_entitlements without dropping the change", () => {
     const next = phase({
       start_date: PERIOD_END,

@@ -14,12 +14,12 @@ import {
 } from "@/lib/billing/plan-change";
 import { scheduleIdOf } from "@/lib/billing/schedule";
 import {
-  CUSTOM_PLAN_RANGE,
   clampCustomConfig,
   computeCustomEntitlements,
   computeCustomPriceAed,
   type CustomPlanConfig,
 } from "@/lib/billing/custom-pricing";
+import { planSelectionSchema, INVALID_PLAN_MESSAGE } from "@/lib/billing/checkout-schema";
 
 // Buy a plan (L6 / B1, B4). Three situations behind one endpoint:
 //
@@ -42,24 +42,6 @@ import {
 // The custom plan's price + entitlements are always recomputed server-side from
 // the submitted config (lib/billing/custom-pricing.ts) — the client's live
 // preview is UI-only and never trusted as the charged amount.
-
-const customConfigSchema = z.object({
-  accounts: z.number().int().min(CUSTOM_PLAN_RANGE.accounts.min).max(CUSTOM_PLAN_RANGE.accounts.max),
-  scriptsUnlimited: z.boolean(),
-  scripts: z.number().int().min(CUSTOM_PLAN_RANGE.scripts.min).max(CUSTOM_PLAN_RANGE.scripts.max),
-  automations: z.number().int().min(CUSTOM_PLAN_RANGE.automations.min).max(CUSTOM_PLAN_RANGE.automations.max),
-  publishTargets: z
-    .number()
-    .int()
-    .min(CUSTOM_PLAN_RANGE.publishTargets.min)
-    .max(CUSTOM_PLAN_RANGE.publishTargets.max),
-  model: z.enum(["sonnet", "opus"]),
-});
-
-const bodySchema = z.discriminatedUnion("tier", [
-  z.object({ tier: z.enum(["creator", "pro", "studio"]) }),
-  z.object({ tier: z.literal("custom"), config: customConfigSchema }),
-]);
 
 // A subscription id our row still points at but Stripe no longer has isn't an
 // error the user can act on — treat it as "not subscribed" and let them check
@@ -95,12 +77,12 @@ export async function POST(request: Request) {
   }
 
   const rawBody = await request.json().catch(() => ({}));
-  const parsed = bodySchema.safeParse(rawBody);
+  const parsed = planSelectionSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
+    return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
   if (!isPaidTier(parsed.data.tier)) {
-    return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
+    return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
 
   const admin = createAdminClient();

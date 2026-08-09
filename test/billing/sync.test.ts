@@ -1,7 +1,12 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { syncSubscription, grantsAccess, tierOfSubscription } from "@/lib/billing/sync";
+import {
+  syncSubscription,
+  grantsAccess,
+  tierOfSubscription,
+  resolveSubscriptionTier,
+} from "@/lib/billing/sync";
 
 // syncSubscription is the only writer of the subscriptions row, so these cover
 // the two things that must never go wrong: the tier it writes, and the fact that
@@ -127,6 +132,54 @@ describe("syncSubscription", () => {
     expect(await syncSubscription(admin, orphan, noopStripe)).toBeNull();
     expect(writes).toHaveLength(0);
   });
+
+  // The worst failure this writer can produce: an ACTIVE subscription whose
+  // price we don't recognise being written as `free`, silently stripping a
+  // paying customer of everything they bought — and re-stripping them on every
+  // subsequent sync, so it can never self-heal.
+  it("keeps the previous tier when an ACTIVE subscription's price is unrecognised", async () => {
+    const { admin, writes } = fakeAdmin({
+      previous: { tier: "studio", status: "active", cancel_at_period_end: false },
+    });
+
+    const result = await syncSubscription(
+      admin,
+      subscription({ items: { data: [{ price: { id: "price_from_another_deploy" } }] } }),
+      noopStripe
+    );
+
+    expect(result?.tier).toBe("studio");
+    expect(writes[0]).toMatchObject({ tier: "studio", status: "active" });
+  });
+
+  it("still drops to free when an unrecognised price is on an INACTIVE subscription", async () => {
+    const { admin, writes } = fakeAdmin({
+      previous: { tier: "studio", status: "active", cancel_at_period_end: false },
+    });
+
+    const result = await syncSubscription(
+      admin,
+      subscription({ status: "canceled", items: { data: [{ price: { id: "price_unknown" } }] } }),
+      noopStripe
+    );
+
+    expect(result?.tier).toBe("free");
+    expect(writes[0]).toMatchObject({ tier: "free" });
+  });
+
+  it("resolves the tier through an injected resolver, not only the env price ids", async () => {
+    const { admin, writes } = fakeAdmin({});
+
+    const result = await syncSubscription(
+      admin,
+      subscription({ items: { data: [{ price: { id: "price_archived_generation" } }] } }),
+      noopStripe,
+      (priceId) => (priceId === "price_archived_generation" ? "pro" : null)
+    );
+
+    expect(result?.tier).toBe("pro");
+    expect(writes[0]).toMatchObject({ tier: "pro" });
+  });
 });
 
 describe("tier + access derivation", () => {
@@ -149,5 +202,24 @@ describe("tier + access derivation", () => {
       )
     ).toBe("custom");
     expect(tierOfSubscription(subscription({ items: { data: [] }, metadata: {} }))).toBe("free");
+  });
+
+  // "free" is an answer two very different questions share: "this grants
+  // nothing" and "we have no idea what this is". Callers about to write a row
+  // need to tell them apart.
+  it("reports whether the tier was actually resolved or merely defaulted", () => {
+    vi.stubEnv("STRIPE_PRICE_STUDIO", "price_studio");
+    expect(resolveSubscriptionTier(subscription({ items: { data: [{ price: { id: "price_studio" } }] } })))
+      .toEqual({ tier: "studio", resolved: true });
+    expect(
+      resolveSubscriptionTier(
+        subscription({ items: { data: [{ price: { id: "price_adhoc" } }] }, metadata: { tier: "custom" } })
+      )
+    ).toEqual({ tier: "custom", resolved: true });
+    expect(
+      resolveSubscriptionTier(
+        subscription({ items: { data: [{ price: { id: "price_who_knows" } }] }, metadata: {} })
+      )
+    ).toEqual({ tier: "free", resolved: false });
   });
 });

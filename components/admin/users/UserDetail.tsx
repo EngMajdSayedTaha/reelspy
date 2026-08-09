@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JsonViewer } from "@/components/admin/JsonViewer";
 import { TypeToConfirm } from "@/components/admin/TypeToConfirm";
-import { EntitlementsEditor, DEFAULT_CUSTOM } from "@/components/admin/users/EntitlementsEditor";
+import { EntitlementsEditor } from "@/components/admin/users/EntitlementsEditor";
 import { requestJson, notifyError } from "@/lib/utils/api";
-import type { Entitlements } from "@/lib/billing/entitlements";
+import { DEFAULT_CUSTOM_ENTITLEMENTS, type Entitlements } from "@/lib/billing/entitlements";
 
 type Detail = {
   profile: {
@@ -85,7 +85,7 @@ export function UserDetail({ userId }: { userId: string }) {
 
   // Local edit state for the tier override.
   const [tier, setTier] = useState<string>("free");
-  const [customEnt, setCustomEnt] = useState<Entitlements>(DEFAULT_CUSTOM);
+  const [customEnt, setCustomEnt] = useState<Entitlements>(DEFAULT_CUSTOM_ENTITLEMENTS);
   const [note, setNote] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resetReason, setResetReason] = useState("");
@@ -95,7 +95,7 @@ export function UserDetail({ userId }: { userId: string }) {
       const res = await requestJson<Detail>(`/api/admin/users/${userId}`);
       setData(res);
       setTier(res.subscription?.tier ?? "free");
-      setCustomEnt(res.subscription?.custom_entitlements ?? DEFAULT_CUSTOM);
+      setCustomEnt(res.subscription?.custom_entitlements ?? DEFAULT_CUSTOM_ENTITLEMENTS);
     } catch (err) {
       notifyError(err, "Failed to load user.");
     } finally {
