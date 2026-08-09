@@ -113,6 +113,23 @@ describe("pendingFromSchedule", () => {
     expect(pendingFromSchedule(schedule({ phases: [phase(), next] }), NOW)).toBeNull();
   });
 
+  // Once prices are admin-managed, "which plan does this price sell" stops being
+  // an env lookup. The resolver is injected so a phase priced from an older
+  // (archived) generation still resolves instead of reading as nothing pending.
+  it("resolves the phase's tier through an injected resolver", () => {
+    const next = phase({
+      start_date: PERIOD_END,
+      items: [{ price: "price_archived_generation", quantity: 1 }] as never,
+      metadata: {} as never,
+    });
+    const pending = pendingFromSchedule(
+      schedule({ phases: [phase(), next] }),
+      NOW,
+      (priceId) => (priceId === "price_archived_generation" ? "studio" : null)
+    );
+    expect(pending?.tier).toBe("studio");
+  });
+
   it("survives unparsable custom_entitlements without dropping the change", () => {
     const next = phase({
       start_date: PERIOD_END,
@@ -140,6 +157,20 @@ describe("buildPhases", () => {
     expect(current.end_date).toBe(PERIOD_END);
     expect(current.items).toEqual([{ price: "price_creator", quantity: 1 }]);
     expect(current.proration_behavior).toBe("none");
+  });
+
+  // Rebuilding phase 0 without trial_end is a phase Stripe bills immediately.
+  // A trialing customer who merely SCHEDULED a downgrade would lose their trial
+  // and be charged on the spot — the opposite of "nothing changes today".
+  it("carries a live trial into the rebuilt current phase", () => {
+    const trialing = phase({ trial_end: PERIOD_END } as never);
+    const [current] = buildPhases(trialing, target);
+    expect(current.trial_end).toBe(PERIOD_END);
+  });
+
+  it("omits trial_end entirely when there is no trial", () => {
+    const [current] = buildPhases(phase(), target);
+    expect(current).not.toHaveProperty("trial_end");
   });
 
   it("appends the new plan as the next phase, unprorated", () => {

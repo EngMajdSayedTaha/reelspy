@@ -23,15 +23,21 @@ import "server-only";
 import type Stripe from "stripe";
 import { isAiTier, type AiTier } from "@/lib/ai/tier";
 import { coerceEntitlements, type Entitlements } from "@/lib/billing/entitlements";
-import { planFor, tierForStripePrice } from "@/lib/billing/plans";
+import { planFor, tierForStripePrice, type PriceTierResolver } from "@/lib/billing/plans";
 
 // A plan change that is scheduled but hasn't started yet.
 export type PendingPlanChange = {
   tier: AiTier;
   /** ISO timestamp when the new plan takes over = current period end. */
   effectiveAt: string;
-  /** Indicative monthly AED price of the pending plan (display only). */
+  /** Indicative monthly AED price of the pending plan (display only). @deprecated superseded by amountMinor/currency */
   priceAed: number | null;
+  /** The Stripe Price the pending phase bills. */
+  priceId: string | null;
+  /** What the pending plan bills, in MINOR units of its own currency. */
+  amountMinor: number | null;
+  currency: string | null;
+  interval: "month" | "year" | null;
   /** Custom-plan limits the pending phase will grant; null for fixed tiers. */
   entitlements: Entitlements | null;
   scheduleId: string;
@@ -44,6 +50,10 @@ export type PlanChangeTarget = {
   /** Stripe Price the next phase bills. */
   priceId: string;
   priceAed: number | null;
+  /** MINOR units + currency + period, so a non-AED or annual plan reads back correctly. */
+  amountMinor?: number | null;
+  currency?: string | null;
+  interval?: "month" | "year" | null;
   /** Custom-plan limits, carried on the phase metadata; null for fixed tiers. */
   entitlements: Entitlements | null;
 };
@@ -85,7 +95,8 @@ export function currentPhaseOf(
 // which is what clears the cached pending_* columns.
 export function pendingFromSchedule(
   schedule: Stripe.SubscriptionSchedule,
-  nowSec: number = Math.floor(Date.now() / 1000)
+  nowSec: number = Math.floor(Date.now() / 1000),
+  resolve: PriceTierResolver = tierForStripePrice
 ): PendingPlanChange | null {
   if (!LIVE_SCHEDULE_STATUSES.has(schedule.status)) return null;
   const next = (schedule.phases ?? []).find((p) => p.start_date > nowSec);
@@ -94,14 +105,23 @@ export function pendingFromSchedule(
   const priceId = priceIdOf(next.items?.[0]?.price);
   // The tier a phase grants is resolved exactly like a live subscription's:
   // the Stripe Price wins, and an ad-hoc custom price (which matches no
-  // STRIPE_PRICE_* id) falls through to the tier stamped on the phase metadata.
-  const fromPrice = priceId ? tierForStripePrice(priceId) : null;
+  // configured price id) falls through to the tier stamped on the phase metadata.
+  const fromPrice = priceId ? resolve(priceId) : null;
   const metaTier = next.metadata?.tier;
   const tier: AiTier | null = fromPrice ?? (isAiTier(metaTier) ? metaTier : null);
   if (!tier) return null;
 
   const rawPrice = Number(next.metadata?.price_aed);
   const priceAed = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : planFor(tier).priceAed || null;
+
+  // A schedule created before these fields existed carries only price_aed, so
+  // derive the amount from it rather than showing the customer nothing.
+  const rawMinor = Number(next.metadata?.amount_minor);
+  const amountMinor =
+    Number.isFinite(rawMinor) && rawMinor > 0 ? rawMinor : priceAed != null ? priceAed * 100 : null;
+  const currency = next.metadata?.currency || (amountMinor != null ? "aed" : null);
+  const rawInterval = next.metadata?.interval;
+  const interval = rawInterval === "year" || rawInterval === "month" ? rawInterval : "month";
 
   let entitlements: Entitlements | null = null;
   const rawEnt = next.metadata?.custom_entitlements;
@@ -117,6 +137,10 @@ export function pendingFromSchedule(
     tier,
     effectiveAt: new Date(next.start_date * 1000).toISOString(),
     priceAed,
+    priceId,
+    amountMinor,
+    currency,
+    interval,
     entitlements,
     scheduleId: schedule.id,
   };
@@ -140,7 +164,12 @@ export function buildPhases(
     user_id: target.userId,
     tier: target.tier,
   };
+  // price_aed is kept alongside the richer fields: schedules created before
+  // those existed carry only it, and pendingFromSchedule still reads it.
   if (target.priceAed != null) nextMetadata.price_aed = String(target.priceAed);
+  if (target.amountMinor != null) nextMetadata.amount_minor = String(target.amountMinor);
+  if (target.currency) nextMetadata.currency = target.currency;
+  if (target.interval) nextMetadata.interval = target.interval;
   if (target.entitlements) nextMetadata.custom_entitlements = JSON.stringify(target.entitlements);
 
   return [
@@ -151,6 +180,11 @@ export function buildPhases(
       start_date: currentPhase.start_date,
       end_date: currentPhase.end_date ?? undefined,
       proration_behavior: "none",
+      // A phase rebuilt WITHOUT trial_end is a phase Stripe will bill straight
+      // away. Omitting it here would mean a trialing customer who merely
+      // scheduled a downgrade lost their trial and was charged on the spot —
+      // the exact opposite of "nothing changes today".
+      ...(currentPhase.trial_end ? { trial_end: currentPhase.trial_end } : {}),
       ...(currentPhase.metadata ? { metadata: currentPhase.metadata } : {}),
     },
     {
@@ -197,12 +231,13 @@ export async function customPlanPriceId(stripe: Stripe, priceAed: number): Promi
 // returns null when there is provably nothing scheduled.
 export async function readPendingChange(
   stripe: Stripe,
-  sub: Stripe.Subscription
+  sub: Stripe.Subscription,
+  resolve: PriceTierResolver = tierForStripePrice
 ): Promise<PendingPlanChange | null> {
   const scheduleId = scheduleIdOf(sub);
   if (!scheduleId) return null;
   const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
-  return pendingFromSchedule(schedule);
+  return pendingFromSchedule(schedule, Math.floor(Date.now() / 1000), resolve);
 }
 
 // Schedule `target` to take over when the current period ends. Idempotent in

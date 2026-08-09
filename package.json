@@ -14,6 +14,7 @@
     "check:email": "node scripts/check-email-delivery.mjs",
     "check:meta": "node scripts/check-meta-oauth.mjs",
     "check:schema": "node scripts/check-schema-drift.mjs",
+    "seed:plans": "node scripts/seed-plan-catalog.mjs",
     "stripe:forward": "node scripts/stripe-forward.mjs"
   },
   "dependencies": {

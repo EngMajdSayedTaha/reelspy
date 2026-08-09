@@ -11,6 +11,7 @@ import { limitOf, withinLimitOf } from "@/lib/billing/entitlements";
 import { ALL_NICHES, slugifyNiche } from "@/lib/trends/shared";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 
 export type TrackAccountState = { ok?: boolean; tracked?: boolean; error?: string };
 
@@ -52,7 +53,7 @@ export async function trackNicheAccount(
     .eq("user_id", user.id);
   if (!withinLimitOf(entitlements, "accounts", count ?? 0)) {
     return {
-      error: dict.planLimit(limitOf(entitlements, "accounts"), fullDict.billing.plans[tier].name),
+      error: dict.planLimit(limitOf(entitlements, "accounts"), fallbackPlanName(fullDict, tier)),
     };
   }
 

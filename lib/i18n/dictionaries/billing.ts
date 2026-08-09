@@ -26,6 +26,20 @@ const en = {
       autoReplies: "Auto-replies",
     },
     perMonthSuffix: "/mo",
+    perYearSuffix: "/yr",
+    sale: {
+      save: (pct: number) => `Save ${pct}%`,
+      endsOn: (date: string) => `ends ${date}`,
+    },
+    trial: {
+      badge: (days: number) => `${days}-day free trial`,
+      endsOn: (date: string) => `Free trial — ends ${date}, then billing starts.`,
+    },
+    interval: {
+      monthly: "Monthly",
+      yearly: "Yearly",
+      save: (pct: number) => `Save up to ${pct}%`,
+    },
     upgrade: "Upgrade",
     switchPlan: "Switch plan",
     manageBilling: "Manage billing",
@@ -141,6 +155,10 @@ const en = {
         },
       },
     },
+    currency: {
+      locked: (code: string) =>
+        `Billed in ${code}. A subscription's currency is fixed for its lifetime — contact support if you need to change it.`,
+    },
     plans: {
       free: {
         name: "Free",
@@ -199,6 +217,7 @@ const en = {
       modelSonnetHint: "Fast, high-quality scripts",
       modelOpusHint: "Anthropic's most capable model",
       estimatedPrice: "Estimated price",
+      billedInAed: "This plan is billed in AED.",
       subscribeCustom: "Subscribe to this plan",
     },
   },
@@ -231,6 +250,20 @@ export const billingAr: BillingDict = {
       autoReplies: "الردود الآلية",
     },
     perMonthSuffix: "/شهريًا",
+    perYearSuffix: "/سنويًا",
+    sale: {
+      save: (pct: number) => `وفّر ${pct}%`,
+      endsOn: (date: string) => `ينتهي في ${date}`,
+    },
+    trial: {
+      badge: (days: number) => `تجربة مجانية ${days} أيام`,
+      endsOn: (date: string) => `تجربة مجانية — تنتهي في ${date}، ثم تبدأ الفوترة.`,
+    },
+    interval: {
+      monthly: "شهريًا",
+      yearly: "سنويًا",
+      save: (pct: number) => `وفّر حتى ${pct}%`,
+    },
     upgrade: "ترقية",
     switchPlan: "تبديل الباقة",
     manageBilling: "إدارة الفوترة",
@@ -343,6 +376,10 @@ export const billingAr: BillingDict = {
         },
       },
     },
+    currency: {
+      locked: (code: string) =>
+        `الفوترة بعملة ${code}. عملة الاشتراك ثابتة طوال مدته — تواصل مع الدعم إذا احتجت إلى تغييرها.`,
+    },
     plans: {
       free: {
         name: "مجانية",
@@ -401,6 +438,7 @@ export const billingAr: BillingDict = {
       modelSonnetHint: "نصوص سريعة وعالية الجودة",
       modelOpusHint: "أقوى نماذج Anthropic",
       estimatedPrice: "السعر التقديري",
+      billedInAed: "تُحتسب فاتورة هذه الباقة بالدرهم الإماراتي.",
       subscribeCustom: "اشترك في هذه الباقة",
     },
   },

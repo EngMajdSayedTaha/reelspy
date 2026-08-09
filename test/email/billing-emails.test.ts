@@ -8,6 +8,7 @@ import {
   sendPaymentReceipt,
   sendSubscriptionWelcome,
 } from "@/lib/email/billing";
+import { ENTITLEMENTS } from "@/lib/billing/entitlements";
 
 // These assert the PROMISES the billing emails make, not their prose. The
 // billing policy only holds up if the customer's written record says the same
@@ -198,11 +199,14 @@ describe("helpers", () => {
     expect(formatMoney(null, "usd")).toBe("USD 0.00");
   });
 
+  // planHighlights now takes already-resolved entitlements rather than a tier:
+  // where they come from (the plan catalog, or a custom subscriber's own row) is
+  // the caller's problem, so the email copy can't disagree with what's enforced.
   it("derives plan highlights from the enforced entitlements, not from copy", () => {
-    expect(planHighlights("studio")).toContain("Unlimited AI scripts per month");
-    expect(planHighlights("free")).not.toContain("Publishing to 0 connected channels");
+    expect(planHighlights(ENTITLEMENTS.studio)).toContain("Unlimited AI scripts per month");
+    expect(planHighlights(ENTITLEMENTS.free)).not.toContain("Publishing to 0 connected channels");
     expect(
-      planHighlights("custom", {
+      planHighlights({
         accounts: 42,
         scripts_mo: 99,
         transcripts_mo: 50,

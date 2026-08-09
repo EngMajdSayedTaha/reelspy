@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin/auth";
-import { PLANS, type PaidTier } from "@/lib/billing/plans";
+import { type PaidTier } from "@/lib/billing/plans";
+import { loadCatalog, currentPrice, type Catalog } from "@/lib/billing/catalog";
 
 export const runtime = "nodejs";
 
@@ -12,10 +13,22 @@ export const runtime = "nodejs";
 
 const ACTIVE_SUB_STATUSES = ["active", "trialing", "past_due"];
 
-// Monthly price (indicative AED) per paid tier, from the plans catalog.
-function priceForTier(tier: string): number {
-  const plan = PLANS.find((p) => p.tier === tier);
-  return plan?.priceAed ?? 0;
+// What one subscriber on this exact Stripe Price contributes to MRR, in MAJOR
+// units of their own currency. Reading the price the subscriber is ACTUALLY on
+// (rather than their tier's current list price) is what keeps the estimate
+// honest once prices are admin-managed: a grandfathered subscriber still counts
+// at the price they pay, not the one new customers see.
+function monthlyRevenueOf(
+  catalog: Catalog,
+  row: { tier: string; stripe_price_id?: string | null }
+): number {
+  const indexed = row.stripe_price_id ? catalog.priceIndex.get(row.stripe_price_id) : undefined;
+  const price = indexed ?? currentPrice(catalog, row.tier);
+  if (!price) return 0;
+  const minor = "unitAmount" in price ? price.unitAmount : 0;
+  // Annual plans are amortised so MRR stays a monthly figure.
+  const months = price.interval === "year" ? 12 : 1;
+  return minor / 100 / months;
 }
 
 async function countSince(
@@ -54,7 +67,7 @@ export async function GET(request: Request) {
   // ── Subscriptions (active, by tier) ──────────────────────────────────────
   const subsP = admin
     .from("subscriptions")
-    .select("tier, status")
+    .select("tier, status, stripe_price_id")
     .in("status", ACTIVE_SUB_STATUSES);
 
   // ── Jobs health ──────────────────────────────────────────────────────────
@@ -101,12 +114,14 @@ export async function GET(request: Request) {
     ]);
 
   // Aggregate subscriptions by tier + estimate MRR.
+  const catalog = await loadCatalog();
   const subsByTier: Record<string, number> = {};
   let mrrAed = 0;
-  for (const row of (subs.data ?? []) as { tier: string }[]) {
+  for (const row of (subs.data ?? []) as { tier: string; stripe_price_id: string | null }[]) {
     subsByTier[row.tier] = (subsByTier[row.tier] ?? 0) + 1;
-    mrrAed += priceForTier(row.tier);
+    mrrAed += monthlyRevenueOf(catalog, row);
   }
+  mrrAed = Math.round(mrrAed);
   const activePaidCount = Object.entries(subsByTier)
     .filter(([tier]) => tier !== "free")
     .reduce((sum, [, n]) => sum + n, 0);

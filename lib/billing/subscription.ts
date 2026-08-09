@@ -29,6 +29,18 @@ export type Subscription = {
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  /**
+   * The currency and interval this subscription bills in. Stripe locks both for
+   * a subscription's lifetime, so every price quoted to this subscriber must be
+   * resolved in THIS currency — never the one their IP suggests.
+   */
+  billingCurrency: string | null;
+  billingInterval: string | null;
+  /** The exact Stripe Price they're on, which may be an older generation. */
+  stripePriceId: string | null;
+  /** When the current trial ends, and whether this customer has ever had one. */
+  trialEndsAt: string | null;
+  trialUsedAt: string | null;
   // The per-user limits + model for a "custom" (dynamic plan card) subscriber
   // (B4). null for every fixed tier, and for a custom subscriber whose webhook
   // sync hasn't landed yet — callers fall back to ENTITLEMENTS.custom.
@@ -51,6 +63,12 @@ export async function getSubscription(
 
     if (error || !data) return null;
 
+    // Read separately, for the same reason getPendingPlanChange is separate: the
+    // billing-dimension columns arrived in a later migration, and folding them
+    // into the select above would make EVERY tier lookup fail on a database that
+    // hasn't applied it — dropping every user to the env default tier.
+    const billing = await getBillingDimensions(supabase, userId);
+
     const tier: AiTier = isAiTier(data.tier) ? (data.tier as AiTier) : "free";
     const status = typeof data.status === "string" ? data.status : "inactive";
     return {
@@ -61,8 +79,41 @@ export async function getSubscription(
       stripeSubscriptionId: data.stripe_subscription_id ?? null,
       currentPeriodEnd: data.current_period_end ?? null,
       cancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
+      billingCurrency: billing?.billing_currency ?? null,
+      billingInterval: billing?.billing_interval ?? null,
+      stripePriceId: billing?.stripe_price_id ?? null,
+      trialEndsAt: billing?.trial_ends_at ?? null,
+      trialUsedAt: billing?.trial_used_at ?? null,
       customEntitlements: coerceEntitlements(data.custom_entitlements),
     };
+  } catch {
+    return null;
+  }
+}
+
+type BillingDimensions = {
+  billing_currency: string | null;
+  billing_interval: string | null;
+  stripe_price_id: string | null;
+  trial_ends_at: string | null;
+  trial_used_at: string | null;
+};
+
+// Fail-open companion read for the columns added with the plan catalog. Null on
+// an un-migrated database, which simply means "we don't know" — callers then
+// behave as they did before multi-currency existed.
+async function getBillingDimensions(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<BillingDimensions | null> {
+  try {
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("billing_currency, billing_interval, stripe_price_id, trial_ends_at, trial_used_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as BillingDimensions;
   } catch {
     return null;
   }

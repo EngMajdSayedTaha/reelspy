@@ -14,7 +14,26 @@
 
 ## 1. Plans, pricing & entitlements
 
-Source of truth: `lib/billing/entitlements.ts` (limits) · `lib/billing/plans.ts` (prices/display) · `lib/billing/custom-pricing.ts` (build-your-own).
+**Source of truth: the database, edited at Admin → Plans & pricing.** Plans,
+prices, limits, trials and customer-facing copy live in `plans` / `plan_copy` /
+`plan_prices` and are served by `lib/billing/catalog.ts`. The constants in
+`lib/billing/entitlements.ts`, `lib/billing/plans.ts` and
+`lib/billing/custom-pricing.ts` are the **fail-open fallback** — what the app
+uses when the catalog can't be read, and what a fresh install seeds from. If you
+need the live numbers, look in the admin console, not here.
+
+**Two rules that cut opposite ways, and are the most misunderstood thing in
+billing:**
+
+- **Prices are grandfathered.** Changing a plan's price mints a new Stripe Price
+  for new customers and touches nobody already subscribed. Moving them is a
+  separate, explicit, audited action that applies at each subscriber's own next
+  renewal after 30 days' notice — never immediately.
+- **Limits are not.** Entitlements resolve live from the catalog, so lowering one
+  reaches existing subscribers on their next page load. The admin console refuses
+  a reduction once and names who it affects before applying it.
+
+The fallback numbers this build ships with:
 
 | | **Free** | **Creator** | **Pro** | **Studio** | **Custom** |
 |---|---|---|---|---|---|
@@ -61,14 +80,18 @@ Lookup **fails open**: a missing table or DB blip degrades to the env default; i
 | `charge.dispute.created` | — | Founder alert (`BILLING_ALERT_EMAIL`) |
 
 **Switch / cancel / refund policy:**
-- **Switch plans** — an active subscriber clicking another fixed tier on the billing page switches **in place**: the existing subscription's line item is repriced with `proration_behavior: create_prorations` (one subscription, one row, no second checkout), the row is synced immediately, and the page toasts "Plan updated". Only a first purchase, or a switch to the custom plan (ad-hoc price), goes through Checkout. Switching also clears a pending cancellation.
+- **Switch plans** — decided from the real Stripe amounts, not the order of the cards (`decidePlanChangeMode`, `lib/billing/plan-change.ts`). A plan that costs **more** per month applies **immediately** with only the prorated difference invoiced; one that costs the **same or less** is **scheduled** for the end of the period already paid for, via a Stripe Subscription Schedule whose first phase reproduces that period verbatim. Only a first purchase goes through Checkout. Picking the plan you're already on means "keep it", clearing a scheduled change or a pending cancellation.
+  - Across **billing periods**, amounts are compared on a monthly-equivalent basis by cross-multiplication. On a tie, lengthening the period (monthly → yearly) is an upgrade applied now; shortening it defers to the renewal.
+  - Across **currencies**, the target is always priced in the currency the subscription is locked to — Stripe cannot change a subscription's currency.
 - **Cancel / update card** — self-served in the Stripe Billing Portal. A cancel sets `cancel_at_period_end` (billing page shows "Cancels on …") and access continues until period end, then `subscription.deleted` drops the tier to free.
 - **Returning from Checkout** — `/dashboard/billing?checkout=success` reconciles the subscription directly from Stripe before rendering, so the new plan is visible on that first load instead of waiting on the webhook. The webhook remains the durable source of truth and re-writes the same row idempotently.
 - **Refunds** — admin-issued (**Admin → Billing → Refund**, `POST /api/admin/billing/subscriptions/[userId]/refund`, `lib/billing/refund.ts`) or via the Stripe dashboard; both behave identically. **Full refund cancels immediately → Free; partial refund leaves access intact.** All effects route through the `charge.refunded` webhook (one policy, one path); the admin action is audited (`admin_audit_log`, `action: billing.refund`).
 - **Status → access** is defined once, by the allow-list `ACTIVE_STATUSES` in `lib/billing/subscription.ts`: `active`, `trialing`, `past_due` (dunning keeps access). Everything else — `canceled`, `unpaid`, `incomplete` (first payment never cleared), `incomplete_expired`, `paused` — grants nothing, and the webhook's writer derives "inactive" as the complement of that same set so a stored tier can never outrank what the read path honours.
 - **Stale Stripe ids self-heal.** A cached `stripe_customer_id`/`stripe_subscription_id` that no longer exists (customer deleted in the dashboard, or a test↔live key switch) is detected and cleared instead of dead-ending checkout — see `usableCustomerId` (`lib/billing/sync.ts`) and §10 of `docs/billing-setup.md`.
 
-**Where limits are enforced** (the four chokepoints):
+**Where limits are enforced.** Every chokepoint resolves through
+`resolveUserEntitlements` (`lib/billing/resolve.ts`), which is the only place
+that knows about the catalog — the chokepoints themselves are unchanged:
 | Limit | Enforced at |
 |---|---|
 | accounts | `app/dashboard/accounts/actions.ts` (add / bulk add) |

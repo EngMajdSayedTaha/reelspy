@@ -27,7 +27,15 @@ import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
+import { normalizeCurrency, type Currency } from "@/lib/billing/currency";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
+import {
+  loadCatalog,
+  currentPrice,
+  planDisplayName,
+  customRatesFrom,
+  type BillingInterval,
+} from "@/lib/billing/catalog";
 import { syncSubscription } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser, subscriptionAmountLabel } from "@/lib/billing/notify";
 import { dayLabel, dayLabelFromUnix, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
@@ -101,6 +109,7 @@ export type PlanChangePreview = {
 type ResolvedTarget = PlanChangeTarget & {
   unitAmount: number | null;
   currency: string | null;
+  interval: BillingInterval;
 };
 
 // Resolve what the new plan bills: a fixed tier's configured Stripe Price, or an
@@ -109,12 +118,17 @@ async function resolveTarget(
   stripe: Stripe,
   userId: string,
   tier: AiTier,
-  config?: CustomPlanConfig
+  config?: CustomPlanConfig,
+  // The currency this subscription is LOCKED to. Stripe can't change a
+  // subscription's currency, so a target priced in anything else is one we could
+  // never actually charge — and decidePlanChangeMode would refuse to compare it
+  // and defer the change instead of applying it.
+  billingCurrency?: Currency
 ): Promise<ResolvedTarget | ActionFailure> {
   if (tier === "custom") {
     if (!config) return { ok: false, status: 400, error: "Pick your custom plan options first." };
     const clamped = clampCustomConfig(config);
-    const priceAed = computeCustomPriceAed(clamped);
+    const priceAed = computeCustomPriceAed(clamped, customRatesFrom(await loadCatalog()));
     const entitlements = computeCustomEntitlements(clamped);
     const priceId = await customPlanPriceId(stripe, priceAed);
     return {
@@ -124,22 +138,43 @@ async function resolveTarget(
       priceAed,
       entitlements,
       unitAmount: priceAed * 100,
+      amountMinor: priceAed * 100,
       currency: "aed",
+      // The build-your-own rate card prices a month at a time.
+      interval: "month",
     };
   }
 
-  const priceId = stripePriceIdForTier(tier);
+  const catalog = await loadCatalog();
+  const catalogPrice = currentPrice(catalog, tier, { currency: billingCurrency });
+  if (billingCurrency && catalogPrice && catalogPrice.currency !== billingCurrency) {
+    // This plan isn't priced in the currency they're billed in. Saying so beats
+    // quoting a price we can't charge, or silently deferring the change.
+    return {
+      ok: false,
+      status: 409,
+      error: `That plan isn't available in ${billingCurrency.toUpperCase()}. Contact support and we'll move you across.`,
+    };
+  }
+  // The catalog is authoritative for WHICH price a plan sells; env price ids are
+  // the fallback for a deployment whose catalog hasn't been seeded yet.
+  const priceId = catalogPrice?.stripePriceId ?? stripePriceIdForTier(tier);
   if (!priceId) {
     return { ok: false, status: 503, error: "That plan isn't available for purchase yet." };
   }
-  // The Price object is the authority on what this tier costs; planFor().priceAed
-  // is only the number we print on the card.
+  // Stripe's own Price object stays the authority on what this tier COSTS — the
+  // catalog amount is what we print, and the two could differ if a price was
+  // edited in the Stripe dashboard. The money decision must follow the money.
   let unitAmount: number | null = null;
   let currency: string | null = null;
+  let interval: BillingInterval = catalogPrice?.interval ?? "month";
   try {
     const price = await stripe.prices.retrieve(priceId);
     unitAmount = price.unit_amount ?? null;
     currency = price.currency ?? null;
+    if (price.recurring?.interval === "year" || price.recurring?.interval === "month") {
+      interval = price.recurring.interval;
+    }
   } catch (err) {
     console.warn(
       "[billing/plan-change] price lookup failed, falling back to the plan ladder:",
@@ -150,10 +185,12 @@ async function resolveTarget(
     userId,
     tier,
     priceId,
-    priceAed: planFor(tier).priceAed || null,
+    priceAed: catalogPrice ? Math.round(catalogPrice.unitAmount / 100) : planFor(tier).priceAed || null,
     entitlements: null,
     unitAmount,
+    amountMinor: unitAmount,
     currency,
+    interval,
   };
 }
 
@@ -161,10 +198,42 @@ function isFailure<T>(value: T | ActionFailure): value is ActionFailure {
   return typeof value === "object" && value !== null && "ok" in value && value.ok === false;
 }
 
-// The recurring amount the subscription bills today.
-function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; currency: string | null } {
+// The currency this subscription is locked to, if we can read it.
+function currencyOf(sub: Stripe.Subscription): Currency | undefined {
+  return normalizeCurrency(sub.items?.data?.[0]?.price?.currency) ?? undefined;
+}
+
+// The recurring amount the subscription bills today, and over what period.
+function currentAmountOf(sub: Stripe.Subscription): {
+  amount: number | null;
+  currency: string | null;
+  interval: BillingInterval;
+} {
   const price = sub.items?.data?.[0]?.price;
-  return { amount: price?.unit_amount ?? null, currency: price?.currency ?? null };
+  return {
+    amount: price?.unit_amount ?? null,
+    currency: price?.currency ?? null,
+    interval: price?.recurring?.interval === "year" ? "year" : "month",
+  };
+}
+
+const MONTHS_IN: Record<BillingInterval, number> = { month: 1, year: 12 };
+
+// Compare two recurring prices on a like-for-like basis when their billing
+// periods differ. A yearly price is a bigger NUMBER than a monthly one without
+// being a bigger commitment per month — Creator at 490/year would otherwise read
+// as an upgrade from Studio at 349/month.
+//
+// Cross-MULTIPLIED rather than divided: integer division would round two
+// genuinely different prices into looking equal, and this decides whether
+// somebody is charged today.
+function compareMonthlyEquivalent(
+  a: { amount: number; interval: BillingInterval },
+  b: { amount: number; interval: BillingInterval }
+): number {
+  const left = a.amount * MONTHS_IN[b.interval];
+  const right = b.amount * MONTHS_IN[a.interval];
+  return left === right ? 0 : left > right ? 1 : -1;
 }
 
 // Upgrade or not? Decided on money: a plan that costs more per month is an
@@ -177,7 +246,13 @@ function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; cur
 export function decidePlanChangeMode(
   sub: Stripe.Subscription,
   currentTier: AiTier,
-  target: { tier: AiTier; unitAmount: number | null; currency: string | null }
+  target: {
+    tier: AiTier;
+    unitAmount: number | null;
+    currency: string | null;
+    interval?: BillingInterval;
+  },
+  ladder?: readonly AiTier[]
 ): { immediate: boolean; direction: PlanChangeDirection } {
   const current = currentAmountOf(sub);
   const comparable =
@@ -188,13 +263,37 @@ export function decidePlanChangeMode(
     current.currency === target.currency;
 
   if (comparable) {
-    const up = (target.unitAmount as number) > (current.amount as number);
-    const down = (target.unitAmount as number) < (current.amount as number);
-    return { immediate: up, direction: up ? "upgrade" : down ? "downgrade" : "change" };
+    const targetInterval: BillingInterval = target.interval ?? "month";
+    const cmp = compareMonthlyEquivalent(
+      { amount: target.unitAmount as number, interval: targetInterval },
+      { amount: current.amount as number, interval: current.interval }
+    );
+
+    if (cmp !== 0) {
+      const up = cmp > 0;
+      return { immediate: up, direction: up ? "upgrade" : "downgrade" };
+    }
+
+    // Same money per month, different commitment. Lengthening the period is an
+    // upgrade — the customer pre-pays for longer, so they're charged now, and
+    // Stripe prorates the difference. Shortening it is a downgrade and waits for
+    // the renewal, which for an annual subscriber can be up to a year out. That
+    // is correct: they paid for the year.
+    if (targetInterval !== current.interval) {
+      const lengthening = MONTHS_IN[targetInterval] > MONTHS_IN[current.interval];
+      return { immediate: lengthening, direction: lengthening ? "upgrade" : "downgrade" };
+    }
+
+    return { immediate: false, direction: "change" };
   }
 
-  const direction = planChangeDirection(currentTier, target.tier);
+  const direction = planChangeDirection(currentTier, target.tier, ladder);
   return { immediate: direction === "upgrade", direction };
+}
+
+// The ladder as the catalog currently orders it, for the fallback path above.
+async function catalogLadder(): Promise<AiTier[]> {
+  return (await loadCatalog()).ladder as AiTier[];
 }
 
 // THE entry point for "the user picked a different plan". Works out whether that
@@ -211,9 +310,8 @@ export async function changePlanForUser(params: {
 }): Promise<ImmediateChange | ScheduledChange | ActionFailure> {
   const { admin, stripe, userId, subscriptionId, currentTier, tier, config } = params;
 
-  const target = await resolveTarget(stripe, userId, tier, config);
-  if (isFailure(target)) return target;
-
+  // Retrieved BEFORE the target is resolved: the subscription's currency is
+  // locked for its lifetime, and it's what the new plan has to be priced in.
   let sub: Stripe.Subscription;
   try {
     sub = await stripe.subscriptions.retrieve(subscriptionId);
@@ -222,7 +320,10 @@ export async function changePlanForUser(params: {
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
 
-  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  const target = await resolveTarget(stripe, userId, tier, config, currencyOf(sub));
+  if (isFailure(target)) return target;
+
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   return immediate
     ? applyPlanChangeNow({ admin, stripe, sub, userId, currentTier, target, direction })
     : schedulePlanChangeAtPeriodEnd({ admin, stripe, sub, userId, currentTier, target, direction });
@@ -240,9 +341,6 @@ export async function previewPlanChangeForUser(params: {
 }): Promise<PlanChangePreview | ActionFailure> {
   const { stripe, userId, subscriptionId, currentTier, tier, config } = params;
 
-  const target = await resolveTarget(stripe, userId, tier, config);
-  if (isFailure(target)) return target;
-
   let sub: Stripe.Subscription;
   try {
     sub = await stripe.subscriptions.retrieve(subscriptionId);
@@ -251,7 +349,10 @@ export async function previewPlanChangeForUser(params: {
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
 
-  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  const target = await resolveTarget(stripe, userId, tier, config, currencyOf(sub));
+  if (isFailure(target)) return target;
+
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   const renewsOnLabel = dayLabelFromUnix(sub.current_period_end);
   const priceLabel =
     target.unitAmount !== null
@@ -265,7 +366,7 @@ export async function previewPlanChangeForUser(params: {
     mode: immediate ? "immediate" : "scheduled",
     direction,
     tier,
-    tierName: planFor(tier).name,
+    tierName: await planDisplayName(tier),
     priceLabel,
     chargeTodayLabel: immediate ? await previewProration(stripe, sub, target.priceId) : null,
     effectiveOnLabel: immediate ? dayLabel(new Date()) : renewsOnLabel,
@@ -387,9 +488,9 @@ async function applyPlanChangeNow(params: {
   if (to) {
     await sendPlanChangeApplied({
       to,
-      previousTierName: planFor(currentTier).name,
+      previousTierName: await planDisplayName(currentTier),
       tier: target.tier,
-      tierName: planFor(target.tier).name,
+      tierName: await planDisplayName(target.tier),
       entitlements: target.entitlements,
       amountLabel: subscriptionAmountLabel(updated),
       renewsOnLabel,
@@ -403,7 +504,7 @@ async function applyPlanChangeNow(params: {
     ok: true,
     mode: "immediate",
     tier: target.tier,
-    tierName: planFor(target.tier).name,
+    tierName: await planDisplayName(target.tier),
     direction,
     priceAed: target.priceAed,
     chargedLabel,
@@ -457,9 +558,9 @@ async function schedulePlanChangeAtPeriodEnd(params: {
   if (to && effectiveOnLabel) {
     await sendPlanChangeScheduled({
       to,
-      currentTierName: planFor(currentTier).name,
+      currentTierName: await planDisplayName(currentTier),
       nextTier: target.tier,
-      nextTierName: planFor(target.tier).name,
+      nextTierName: await planDisplayName(target.tier),
       effectiveOnLabel,
       nextPriceLabel: pending.priceAed ? `AED ${pending.priceAed}` : null,
       nextEntitlements: pending.entitlements,
@@ -471,7 +572,7 @@ async function schedulePlanChangeAtPeriodEnd(params: {
     ok: true,
     mode: "scheduled",
     tier: target.tier,
-    tierName: planFor(target.tier).name,
+    tierName: await planDisplayName(target.tier),
     effectiveAt: pending.effectiveAt,
     effectiveOnLabel,
     priceAed: pending.priceAed,
@@ -510,7 +611,7 @@ export async function cancelScheduledChangeForUser(params: {
       .select("pending_tier")
       .eq("user_id", userId)
       .maybeSingle();
-    if (data?.pending_tier) cancelledTierName = planFor(data.pending_tier as AiTier).name;
+    if (data?.pending_tier) cancelledTierName = await planDisplayName(data.pending_tier as string);
   } catch {
     // Cosmetic only — the release below is what matters.
   }
@@ -523,10 +624,10 @@ export async function cancelScheduledChangeForUser(params: {
   }
 
   const fresh = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
-  let tierName = planFor("free").name;
+  let tierName = await planDisplayName("free");
   if (fresh) {
     const result = await syncSubscription(admin, fresh, stripe).catch(() => null);
-    if (result) tierName = planFor(result.tier).name;
+    if (result) tierName = await planDisplayName(result.tier);
   }
 
   const to = await emailForUser(admin, userId);

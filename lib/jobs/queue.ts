@@ -14,7 +14,8 @@ export type JobKind =
   | "transcribe_reel"
   | "send_digest"
   | "refresh_snapshot"
-  | "archive_account";
+  | "archive_account"
+  | "migrate_plan_price";
 
 export type Job = {
   id: string;

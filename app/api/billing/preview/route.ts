@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
-import { isPaidTier } from "@/lib/billing/plans";
 import { previewPlanChangeForUser, requireActiveSubscription } from "@/lib/billing/plan-change";
-import { CUSTOM_PLAN_RANGE, clampCustomConfig } from "@/lib/billing/custom-pricing";
+import { clampCustomConfig } from "@/lib/billing/custom-pricing";
+import { planSelectionSchema, INVALID_PLAN_MESSAGE } from "@/lib/billing/checkout-schema";
+import { loadCatalog, isSellablePlan } from "@/lib/billing/catalog";
 
 // What would happen if I confirmed? Read-only companion to /api/billing/checkout
 // for a subscriber who is changing plans: it runs the SAME decision the write
@@ -17,24 +17,6 @@ import { CUSTOM_PLAN_RANGE, clampCustomConfig } from "@/lib/billing/custom-prici
 // Nothing here writes: worst case it fails and the dialog falls back to generic
 // wording, which is why every failure returns a plain message rather than
 // blocking the change.
-
-const customConfigSchema = z.object({
-  accounts: z.number().int().min(CUSTOM_PLAN_RANGE.accounts.min).max(CUSTOM_PLAN_RANGE.accounts.max),
-  scriptsUnlimited: z.boolean(),
-  scripts: z.number().int().min(CUSTOM_PLAN_RANGE.scripts.min).max(CUSTOM_PLAN_RANGE.scripts.max),
-  automations: z.number().int().min(CUSTOM_PLAN_RANGE.automations.min).max(CUSTOM_PLAN_RANGE.automations.max),
-  publishTargets: z
-    .number()
-    .int()
-    .min(CUSTOM_PLAN_RANGE.publishTargets.min)
-    .max(CUSTOM_PLAN_RANGE.publishTargets.max),
-  model: z.enum(["sonnet", "opus"]),
-});
-
-const bodySchema = z.discriminatedUnion("tier", [
-  z.object({ tier: z.enum(["creator", "pro", "studio"]) }),
-  z.object({ tier: z.literal("custom"), config: customConfigSchema }),
-]);
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -51,9 +33,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Billing isn't available yet." }, { status: 503 });
   }
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
-  if (!parsed.success || !isPaidTier(parsed.data.tier)) {
-    return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
+  const parsed = planSelectionSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success || !isSellablePlan(await loadCatalog(), parsed.data.tier)) {
+    return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -69,7 +51,10 @@ export async function POST(request: Request) {
     subscriptionId: guard.subscriptionId,
     currentTier: sub?.tier ?? "free",
     tier: parsed.data.tier,
-    config: parsed.data.tier === "custom" ? clampCustomConfig(parsed.data.config) : undefined,
+    config:
+      parsed.data.tier === "custom" && parsed.data.config
+        ? clampCustomConfig(parsed.data.config)
+        : undefined,
   });
   if (!preview.ok) {
     return NextResponse.json({ error: preview.error }, { status: preview.status });

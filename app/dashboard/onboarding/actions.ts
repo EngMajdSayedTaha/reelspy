@@ -11,6 +11,7 @@ import { isArabicDialect, type ArabicDialect, type BrandVoice } from "@/lib/ai/b
 import { resolveUserNicheSlug, getSuggestionsForUser } from "@/lib/suggestions/accounts";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 
 export type OnboardingActionState = { error?: string; ok?: boolean };
 
@@ -107,7 +108,7 @@ export async function seedStarterPack(): Promise<StarterPackState> {
     // instead of a generic "limit reached" — the wizard UI should stop
     // offering this button once atCap, but keep the message actionable as a
     // fallback (e.g. a stale page from another tab).
-    return { error: dict.accounts.actions.accountLimit(dict.billing.plans[tier].name, cap) };
+    return { error: dict.accounts.actions.accountLimit(fallbackPlanName(dict, tier), cap) };
   }
 
   // ig_account_snapshots is RLS-locked with no policies (service-role only —
@@ -296,7 +297,7 @@ export async function getQuizSuggestions(): Promise<QuizSuggestionsState> {
     return {
       accounts: [],
       remainingSlots: 0,
-      capMessage: dict.accounts.actions.accountLimit(dict.billing.plans[tier].name, cap),
+      capMessage: dict.accounts.actions.accountLimit(fallbackPlanName(dict, tier), cap),
     };
   }
 

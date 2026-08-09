@@ -16,6 +16,7 @@ import {
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary, type Dict } from "@/lib/i18n/dictionaries";
 import { saveBrandVoice } from "./actions";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -176,7 +177,7 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
               </div>
               {state.accountsAtCap ? (
                 <p className="text-xs text-muted-foreground">
-                  {fullDict.accounts.actions.accountLimit(fullDict.billing.plans[state.tier].name, state.accountsCap)}{" "}
+                  {fullDict.accounts.actions.accountLimit(fallbackPlanName(fullDict, state.tier), state.accountsCap)}{" "}
                   <Link href="/dashboard/billing" className="underline underline-offset-4 hover:text-foreground">
                     {fullDict.billing.upgrade}
                   </Link>
@@ -217,7 +218,7 @@ export default async function OnboardingPage({ searchParams }: PageProps) {
           <div className="space-y-4">
             {state.accountsAtCap ? (
               <p className="text-sm text-muted-foreground">
-                {fullDict.accounts.actions.accountLimit(fullDict.billing.plans[state.tier].name, state.accountsCap)}{" "}
+                {fullDict.accounts.actions.accountLimit(fallbackPlanName(fullDict, state.tier), state.accountsCap)}{" "}
                 <Link href="/dashboard/billing" className="underline underline-offset-4 hover:text-foreground">
                   {fullDict.billing.upgrade}
                 </Link>

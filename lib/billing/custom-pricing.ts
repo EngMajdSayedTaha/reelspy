@@ -40,15 +40,61 @@ export const DEFAULT_CUSTOM_CONFIG: CustomPlanConfig = {
   model: "sonnet",
 };
 
-const BASE_AED = 9;
-const RATE_PER_ACCOUNT = 0.4;
-const RATE_PER_SCRIPT = 0.15;
-const RATE_PER_AUTOMATION = 0.6;
-const RATE_PER_PUBLISH_TARGET = 6;
-const OPUS_PREMIUM_AED = 35;
-const UNLIMITED_SCRIPTS_FEE_AED = 180;
-const BUILD_YOUR_OWN_PREMIUM = 1.08;
-const MIN_PRICE_AED = 19;
+// The rate card. Editable by an admin (stored on the custom plan's row and
+// passed in), because it is CALIBRATED to the fixed tiers' prices — the moment
+// someone changes what Creator costs without touching these, a custom plan at
+// Creator-equivalent settings drifts away from it, and can end up cheaper.
+export type CustomRates = {
+  base: number;
+  perAccount: number;
+  perScript: number;
+  perAutomation: number;
+  perPublishTarget: number;
+  opusPremium: number;
+  unlimitedScriptsFee: number;
+  /** So a bespoke config is never a cheaper route to the same specs. */
+  buildYourOwnMultiplier: number;
+  minPrice: number;
+};
+
+// What this build shipped with — the fail-open default whenever the catalog has
+// nothing to say, and the numbers the calibration tests assert against.
+export const DEFAULT_CUSTOM_RATES: CustomRates = {
+  base: 9,
+  perAccount: 0.4,
+  perScript: 0.15,
+  perAutomation: 0.6,
+  perPublishTarget: 6,
+  opusPremium: 35,
+  unlimitedScriptsFee: 180,
+  buildYourOwnMultiplier: 1.08,
+  minPrice: 19,
+};
+
+// Narrow an admin-edited jsonb blob to a usable rate card. Any missing or
+// non-finite field falls back to the shipped default rather than poisoning the
+// price with a NaN — a broken rate card must never produce a broken charge.
+export function coerceCustomRates(value: unknown): CustomRates {
+  if (!value || typeof value !== "object") return DEFAULT_CUSTOM_RATES;
+  const v = value as Record<string, unknown>;
+  const num = (key: keyof CustomRates): number => {
+    const raw = v[key];
+    return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_CUSTOM_RATES[key];
+  };
+  return {
+    base: num("base"),
+    perAccount: num("perAccount"),
+    perScript: num("perScript"),
+    perAutomation: num("perAutomation"),
+    perPublishTarget: num("perPublishTarget"),
+    opusPremium: num("opusPremium"),
+    unlimitedScriptsFee: num("unlimitedScriptsFee"),
+    // A multiplier below 1 would make bespoke configs CHEAPER than the fixed
+    // tiers, which is the one thing the premium exists to prevent.
+    buildYourOwnMultiplier: Math.max(1, num("buildYourOwnMultiplier")),
+    minPrice: num("minPrice"),
+  };
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
@@ -68,18 +114,21 @@ export function clampCustomConfig(config: CustomPlanConfig): CustomPlanConfig {
   };
 }
 
-export function computeCustomPriceAed(config: CustomPlanConfig): number {
+export function computeCustomPriceAed(
+  config: CustomPlanConfig,
+  rates: CustomRates = DEFAULT_CUSTOM_RATES
+): number {
   const scriptsCost = config.scriptsUnlimited
-    ? UNLIMITED_SCRIPTS_FEE_AED
-    : config.scripts * RATE_PER_SCRIPT;
+    ? rates.unlimitedScriptsFee
+    : config.scripts * rates.perScript;
   const subtotal =
-    BASE_AED +
-    config.accounts * RATE_PER_ACCOUNT +
+    rates.base +
+    config.accounts * rates.perAccount +
     scriptsCost +
-    config.automations * RATE_PER_AUTOMATION +
-    config.publishTargets * RATE_PER_PUBLISH_TARGET +
-    (config.model === "opus" ? OPUS_PREMIUM_AED : 0);
-  return Math.max(MIN_PRICE_AED, Math.round(subtotal * BUILD_YOUR_OWN_PREMIUM));
+    config.automations * rates.perAutomation +
+    config.publishTargets * rates.perPublishTarget +
+    (config.model === "opus" ? rates.opusPremium : 0);
+  return Math.max(rates.minPrice, Math.round(subtotal * rates.buildYourOwnMultiplier));
 }
 
 // transcripts_mo and ig_connections aren't sliders — they're derived so the

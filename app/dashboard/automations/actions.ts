@@ -16,6 +16,7 @@ import {
 import type { MatchMode } from "@/lib/auto-reply/types";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 
 async function getAutomationsDict() {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
@@ -24,7 +25,7 @@ async function getAutomationsDict() {
 
 async function planName(tier: AiTier): Promise<string> {
   const { locale } = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
-  return getDictionary(locale).billing.plans[tier].name;
+  return fallbackPlanName(getDictionary(locale), tier);
 }
 
 type ActionState = { error?: string };

@@ -41,8 +41,22 @@ describe("getSubscription", () => {
     }
   });
 
-  it("coerces an invalid tier to free", async () => {
-    const sub = await getSubscription(fakeSupabase({ maybeSingle: { data: row({ tier: "bogus" }), error: null } }), USER);
+  // A slug this build doesn't know is not an error — an admin can create plans,
+  // and deployments roll out one at a time. Reading it back as `free` would
+  // revoke a paying customer's plan; only a MALFORMED value falls back.
+  it("keeps a well-formed tier slug it has never heard of", async () => {
+    const sub = await getSubscription(
+      fakeSupabase({ maybeSingle: { data: row({ tier: "agency" }), error: null } }),
+      USER
+    );
+    expect(sub?.tier).toBe("agency");
+  });
+
+  it("coerces a malformed tier to free", async () => {
+    const sub = await getSubscription(
+      fakeSupabase({ maybeSingle: { data: row({ tier: "not a slug" }), error: null } }),
+      USER
+    );
     expect(sub?.tier).toBe("free");
   });
 
@@ -158,8 +172,8 @@ describe("getPendingPlanChange", () => {
     expect(pending?.entitlements).toMatchObject({ accounts: 40, model: "opus" });
   });
 
-  it("reads 'nothing scheduled' for an empty or invalid pending tier", async () => {
-    for (const pending_tier of [null, "mystery"]) {
+  it("reads 'nothing scheduled' for an empty or malformed pending tier", async () => {
+    for (const pending_tier of [null, "", "not a slug"]) {
       const pending = await getPendingPlanChange(
         fakeSupabase({ maybeSingle: { data: pendingRow({ pending_tier }), error: null } }),
         USER

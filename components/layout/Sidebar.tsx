@@ -27,6 +27,7 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Dict } from "@/lib/i18n/dictionaries";
 import { useDict } from "@/lib/i18n/I18nProvider";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 import type { DashboardPageId, PagesFlag } from "@/lib/dashboard/pages";
 
 type NavKey = keyof Dict["nav"];
@@ -177,7 +178,7 @@ export function Sidebar({ open, onClose, user, version, hasUnseenRelease, pagesF
                   user.tier === "free" ? "text-foreground" : "text-brand"
                 }`}
               >
-                {dict.billing.plans[user.tier].name}
+                {fallbackPlanName(dict, user.tier)}
               </span>
             </Link>
           ) : null}

@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { middlewareRedirect } from "@/lib/http/redirect";
+import { CURRENCY_COOKIE, currencyForCountry } from "@/lib/billing/currency";
 
 // A present-but-malformed NEXT_PUBLIC_SUPABASE_URL (missing scheme, stray
 // whitespace/quote, placeholder) passes a truthiness check but makes the
@@ -156,6 +157,30 @@ export async function middleware(request: NextRequest) {
     }
     if (!isAdmin) {
       return NextResponse.rewrite(new URL("/404", request.url));
+    }
+  }
+
+  // Stamp the visitor's currency once, from Vercel's edge geo header, so the
+  // billing page can render prices server-side without a per-request lookup and
+  // the switcher has something to override. Written as its own cookie rather
+  // than folded into reelspy_prefs, which the preferences form rewrites wholesale
+  // from the client — sharing one cookie would let the two clobber each other.
+  //
+  // Only ever set when absent: a visitor who picked a currency, or who is
+  // already subscribed, must not have it silently changed by travelling.
+  //
+  // Runs BEFORE the /dashboard pathname-forwarding block below so that block's
+  // "copy every cookie on supabaseResponse" step picks up this one too.
+  if (!request.cookies.get(CURRENCY_COOKIE)) {
+    const country = request.headers.get("x-vercel-ip-country");
+    if (country) {
+      supabaseResponse.cookies.set(CURRENCY_COOKIE, currencyForCountry(country), {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+        sameSite: "lax",
+        // Readable by the switcher, and not sensitive.
+        httpOnly: false,
+      });
     }
   }
 

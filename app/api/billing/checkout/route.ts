@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
 import { usableCustomerId } from "@/lib/billing/sync";
-import { stripePriceIdForTier, isPaidTier, planFor } from "@/lib/billing/plans";
+import { stripePriceIdForTier } from "@/lib/billing/plans";
+import {
+  loadCatalog,
+  currentPrice,
+  planDisplayName,
+  isSellablePlan,
+  customRatesFrom,
+} from "@/lib/billing/catalog";
 import {
   cancelScheduledChangeForUser,
   changePlanForUser,
@@ -14,12 +20,12 @@ import {
 } from "@/lib/billing/plan-change";
 import { scheduleIdOf } from "@/lib/billing/schedule";
 import {
-  CUSTOM_PLAN_RANGE,
   clampCustomConfig,
   computeCustomEntitlements,
   computeCustomPriceAed,
   type CustomPlanConfig,
 } from "@/lib/billing/custom-pricing";
+import { planSelectionSchema, INVALID_PLAN_MESSAGE } from "@/lib/billing/checkout-schema";
 
 // Buy a plan (L6 / B1, B4). Three situations behind one endpoint:
 //
@@ -42,24 +48,6 @@ import {
 // The custom plan's price + entitlements are always recomputed server-side from
 // the submitted config (lib/billing/custom-pricing.ts) — the client's live
 // preview is UI-only and never trusted as the charged amount.
-
-const customConfigSchema = z.object({
-  accounts: z.number().int().min(CUSTOM_PLAN_RANGE.accounts.min).max(CUSTOM_PLAN_RANGE.accounts.max),
-  scriptsUnlimited: z.boolean(),
-  scripts: z.number().int().min(CUSTOM_PLAN_RANGE.scripts.min).max(CUSTOM_PLAN_RANGE.scripts.max),
-  automations: z.number().int().min(CUSTOM_PLAN_RANGE.automations.min).max(CUSTOM_PLAN_RANGE.automations.max),
-  publishTargets: z
-    .number()
-    .int()
-    .min(CUSTOM_PLAN_RANGE.publishTargets.min)
-    .max(CUSTOM_PLAN_RANGE.publishTargets.max),
-  model: z.enum(["sonnet", "opus"]),
-});
-
-const bodySchema = z.discriminatedUnion("tier", [
-  z.object({ tier: z.enum(["creator", "pro", "studio"]) }),
-  z.object({ tier: z.literal("custom"), config: customConfigSchema }),
-]);
 
 // A subscription id our row still points at but Stripe no longer has isn't an
 // error the user can act on — treat it as "not subscribed" and let them check
@@ -95,19 +83,24 @@ export async function POST(request: Request) {
   }
 
   const rawBody = await request.json().catch(() => ({}));
-  const parsed = bodySchema.safeParse(rawBody);
+  const parsed = planSelectionSchema.safeParse(rawBody);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
+    return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
-  if (!isPaidTier(parsed.data.tier)) {
-    return NextResponse.json({ error: "Pick a valid plan." }, { status: 400 });
+  // Shape alone proves nothing: confirm against the catalog that this is a real,
+  // published, purchasable plan before we take anyone's money for it.
+  const catalog = await loadCatalog();
+  if (!isSellablePlan(catalog, parsed.data.tier)) {
+    return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const existing = await getSubscription(admin, user.id);
   const tier = parsed.data.tier;
   const config: CustomPlanConfig | undefined =
-    parsed.data.tier === "custom" ? clampCustomConfig(parsed.data.config) : undefined;
+    parsed.data.tier === "custom" && parsed.data.config
+      ? clampCustomConfig(parsed.data.config)
+      : undefined;
 
   // ── Existing subscriber: schedule the change for the next renewal ──────────
   if (existing?.active && existing.stripeSubscriptionId) {
@@ -128,7 +121,7 @@ export async function POST(request: Request) {
         if (scheduleIdOf(live)) {
           const kept = await cancelScheduledChangeForUser({ admin, stripe, userId: user.id, subscriptionId });
           if (!kept.ok) return NextResponse.json({ error: kept.error }, { status: kept.status });
-          return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
+          return NextResponse.json({ kept: true, tier, tierName: await planDisplayName(tier) });
         }
         if (live.cancel_at_period_end) {
           const resumed = await setSubscriptionCancellation({
@@ -139,9 +132,9 @@ export async function POST(request: Request) {
             cancel: false,
           });
           if (!resumed.ok) return NextResponse.json({ error: resumed.error }, { status: resumed.status });
-          return NextResponse.json({ resumed: true, tier, tierName: planFor(tier).name });
+          return NextResponse.json({ resumed: true, tier, tierName: await planDisplayName(tier) });
         }
-        return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
+        return NextResponse.json({ kept: true, tier, tierName: await planDisplayName(tier) });
       }
 
       const changed = await changePlanForUser({
@@ -185,7 +178,9 @@ export async function POST(request: Request) {
   let metadata: Record<string, string>;
 
   if (config) {
-    const priceAed = computeCustomPriceAed(config);
+    // Always recomputed server-side from the admin's rate card; the client
+    // preview is UI only and its number is never trusted.
+    const priceAed = computeCustomPriceAed(config, customRatesFrom(catalog));
     const entitlements = computeCustomEntitlements(config);
     lineItem = {
       price_data: {
@@ -198,7 +193,10 @@ export async function POST(request: Request) {
     };
     metadata = { user_id: user.id, tier: "custom", custom_entitlements: JSON.stringify(entitlements) };
   } else {
-    const priceId = stripePriceIdForTier(tier);
+    // The catalog decides which Stripe Price a plan sells; the env var is the
+    // fallback for a deployment whose catalog hasn't been seeded yet.
+    const priceId =
+      currentPrice(catalog, tier)?.stripePriceId ?? stripePriceIdForTier(tier);
     if (!priceId) {
       return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
     }
@@ -226,6 +224,15 @@ export async function POST(request: Request) {
         .upsert({ user_id: user.id, stripe_customer_id: customerId }, { onConflict: "user_id" });
     }
 
+    // Trials are once per customer, enforced by us: Stripe has no per-customer
+    // trial lock for Checkout, so without this a customer could take a fresh
+    // trial on every plan, forever. trial_used_at is stamped optimistically here
+    // (before they even finish checkout) so opening several sessions can't win a
+    // race, and confirmed when the webhook first sees status=trialing.
+    const plan = catalog.bySlug.get(tier);
+    const trialDays = plan?.trialDays ?? 0;
+    const trialEligible = trialDays > 0 && !existing?.trialUsedAt;
+
     const origin = siteOrigin(request);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -235,7 +242,17 @@ export async function POST(request: Request) {
       // Redundant metadata so the webhook can recover the user from either the
       // session or the subscription object, whichever event fires.
       metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata,
+        ...(trialEligible
+          ? {
+              trial_period_days: trialDays,
+              // A trial that ends with no usable card should stop, not silently
+              // fail an invoice and drag the customer through dunning.
+              trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+            }
+          : {}),
+      },
       allow_promotion_codes: true,
       billing_address_collection: "auto",
       success_url: `${origin}/dashboard/billing?checkout=success`,
@@ -245,7 +262,20 @@ export async function POST(request: Request) {
     if (!session.url) {
       return NextResponse.json({ error: "Could not start checkout." }, { status: 502 });
     }
-    return NextResponse.json({ url: session.url });
+
+    if (trialEligible) {
+      await admin
+        .from("subscriptions")
+        .upsert(
+          { user_id: user.id, trial_used_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        )
+        // A database without the trial column simply doesn't offer trials yet;
+        // never fail a checkout over bookkeeping.
+        .then(undefined, () => undefined);
+    }
+
+    return NextResponse.json({ url: session.url, trialDays: trialEligible ? trialDays : 0 });
   } catch (err) {
     console.error("[billing/checkout] Stripe error:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });

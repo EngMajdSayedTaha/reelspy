@@ -26,7 +26,8 @@ import { sendEmail } from "./send";
 import { buildEmail, type EmailBlock } from "./layout";
 import { getSiteUrl } from "@/lib/site";
 import type { AiTier } from "@/lib/ai/tier";
-import { entitlementsFor, formatLimit, type Entitlements } from "@/lib/billing/entitlements";
+import { formatLimit, type Entitlements } from "@/lib/billing/entitlements";
+import { loadCatalog, entitlementsForSlug } from "@/lib/billing/catalog";
 
 // Format a Stripe minor-unit amount (e.g. 4900) + currency ("aed") as "AED 49.00".
 export function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined): string {
@@ -37,6 +38,17 @@ export function formatMoney(amountMinor: number | null | undefined, currency: st
 
 const billingUrl = () => `${getSiteUrl()}/dashboard/billing`;
 
+// The limits to quote for a plan in an email: a custom subscriber's own config
+// when we have it, otherwise whatever the plan currently grants. Reads the
+// catalog so an email never advertises limits an admin has since changed.
+async function emailEntitlements(
+  tier: AiTier,
+  custom?: Entitlements | null
+): Promise<Entitlements> {
+  if (custom) return custom;
+  return entitlementsForSlug(await loadCatalog(), tier);
+}
+
 const MODEL_LABELS: Record<Entitlements["model"], string> = {
   haiku: "Claude Haiku",
   sonnet: "Claude Sonnet",
@@ -45,9 +57,8 @@ const MODEL_LABELS: Record<Entitlements["model"], string> = {
 
 // What a plan actually gives you, spelled out. Used wherever an email tells the
 // customer what they're getting (or losing) so the numbers always come from the
-// same entitlements table the product enforces — never from hand-written copy.
-export function planHighlights(tier: AiTier, custom?: Entitlements | null): string[] {
-  const ent = custom ?? entitlementsFor(tier);
+// same entitlements the product enforces — never from hand-written copy.
+export function planHighlights(ent: Entitlements): string[] {
   return [
     `${formatLimit(ent.accounts)} tracked competitor accounts`,
     `${formatLimit(ent.scripts_mo)} AI scripts per month`,
@@ -95,7 +106,11 @@ export async function sendSubscriptionWelcome(params: {
   ];
 
   if (tier) {
-    blocks.push({ kind: "bullets", caption: "What's included", items: planHighlights(tier, entitlements) });
+    blocks.push({
+      kind: "bullets",
+      caption: "What's included",
+      items: planHighlights(await emailEntitlements(tier, entitlements)),
+    });
   }
 
   blocks.push({
@@ -116,6 +131,94 @@ export async function sendSubscriptionWelcome(params: {
   });
 
   return sendEmail({ to, subject: `Welcome to ReelSpy ${tierName} — your subscription is active`, html, text });
+}
+
+// ── Trial ending soon (customer.subscription.trial_will_end) ─────────────────
+// Stripe fires this three days out. The point is that nobody is surprised by the
+// first charge: it names the amount, the date, and how to stop it.
+export async function sendTrialEndingSoon(params: {
+  to: string;
+  tierName: string;
+  amountLabel?: string | null;
+  endsOnLabel?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, amountLabel, endsOnLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Trial",
+    preheader: `Your ReelSpy ${tierName} trial ends${endsOnLabel ? ` on ${endsOnLabel}` : " soon"}.`,
+    title: `Your ${tierName} trial ends${endsOnLabel ? ` on ${endsOnLabel}` : " soon"}`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `Your free trial of ReelSpy ${tierName} is nearly up. Nothing has been charged so far${
+          amountLabel ? `, and unless you cancel first we'll charge ${amountLabel} when it ends` : ""
+        }. Everything you've created stays yours either way.`,
+      },
+      {
+        kind: "rows",
+        caption: "Trial summary",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}`, emphasis: true },
+          ...(endsOnLabel ? [{ label: "Trial ends", value: endsOnLabel }] : []),
+          ...(amountLabel ? [{ label: "First charge", value: amountLabel }] : []),
+        ],
+      },
+      {
+        kind: "callout",
+        text: "Not ready to continue? Cancel from the billing page before the trial ends and you won't be charged at all.",
+      },
+    ],
+    cta: { href: billingUrl(), label: "Manage your plan" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} trial ends soon`, html, text });
+}
+
+// ── Price change notice ──────────────────────────────────────────────────────
+// Sent when a subscriber is being moved onto a new price at their next renewal.
+// States the old price, the new price and the date, and that they can leave
+// before then — advance notice of a price rise is both decent and what consumer
+// rules in most markets expect.
+export async function sendPriceChangeNotice(params: {
+  to: string;
+  tierName: string;
+  oldPriceLabel: string | null;
+  newPriceLabel: string;
+  effectiveOnLabel: string | null;
+}): Promise<boolean> {
+  const { to, tierName, oldPriceLabel, newPriceLabel, effectiveOnLabel } = params;
+  const when = effectiveOnLabel ?? "your next renewal";
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `Your ReelSpy ${tierName} price changes to ${newPriceLabel} on ${when}.`,
+    title: `Your ${tierName} price is changing`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We're updating the price of ReelSpy ${tierName}. Nothing changes today and nothing is being charged now — your current price stands until ${when}, and the new one applies from that renewal onwards.`,
+      },
+      {
+        kind: "rows",
+        caption: "What's changing",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}` },
+          ...(oldPriceLabel ? [{ label: "Price now", value: oldPriceLabel }] : []),
+          { label: `Price from ${when}`, value: newPriceLabel, emphasis: true },
+        ],
+      },
+      {
+        kind: "callout",
+        text: `If you'd rather not continue at the new price, you can cancel any time before ${when} and you won't be charged it. Your plan and limits are unchanged until then.`,
+      },
+    ],
+    cta: { href: billingUrl(), label: "Review your plan" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} price changes on ${when}`, html, text });
 }
 
 // ── Renewal receipt (subscription_cycle invoices) ────────────────────────────
@@ -346,7 +449,7 @@ export async function sendPlanChangeScheduled(params: {
       {
         kind: "bullets",
         caption: `What ${nextTierName} gives you from ${effectiveOnLabel}`,
-        items: planHighlights(nextTier, nextEntitlements),
+        items: planHighlights(await emailEntitlements(nextTier, nextEntitlements)),
       },
     ],
     cta: { href: billingUrl(), label: "View scheduled change" },
@@ -422,7 +525,11 @@ export async function sendPlanChangeApplied(params: {
           ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
         ],
       },
-      { kind: "bullets", caption: "What's included now", items: planHighlights(tier, entitlements) },
+      {
+        kind: "bullets",
+        caption: "What's included now",
+        items: planHighlights(await emailEntitlements(tier, entitlements)),
+      },
     ],
     cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
     secondary: invoiceUrl

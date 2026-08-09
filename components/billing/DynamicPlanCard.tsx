@@ -20,6 +20,7 @@ import {
   DEFAULT_CUSTOM_CONFIG,
   computeCustomPriceAed,
   type CustomPlanConfig,
+  type CustomRates,
 } from "@/lib/billing/custom-pricing";
 
 // The dynamic "build your own plan" card (B4): live-priced sliders that post
@@ -30,12 +31,26 @@ import {
 export function DynamicPlanCard({
   disabled,
   hasSubscription = false,
+  displayCurrency,
+  rates,
   currentPlanName,
   effectiveOnLabel,
 }: {
   disabled?: boolean;
   /** True when the user already pays for a plan — then this SCHEDULES a change. */
   hasSubscription?: boolean;
+  /**
+   * The currency the rest of the page is quoting. This card always prices in
+   * AED — the build-your-own rate card is AED-only — so it uses this purely to
+   * say so when the two differ, rather than letting the page imply otherwise.
+   */
+  displayCurrency?: string;
+  /**
+   * The admin's rate card. Passed in rather than imported so this preview and
+   * the authoritative server repricing use the SAME numbers — the server still
+   * recomputes from the submitted config and never trusts the number shown here.
+   */
+  rates?: CustomRates;
   currentPlanName?: string;
   /** Renewal date a scheduled change would take effect on. */
   effectiveOnLabel?: string | null;
@@ -48,7 +63,7 @@ export function DynamicPlanCard({
   const [config, setConfig] = useState<CustomPlanConfig>(DEFAULT_CUSTOM_CONFIG);
   const [loading, setLoading] = useState(false);
 
-  const price = useMemo(() => computeCustomPriceAed(config), [config]);
+  const price = useMemo(() => computeCustomPriceAed(config, rates), [config, rates]);
 
   function update<K extends keyof CustomPlanConfig>(key: K, value: CustomPlanConfig[K]) {
     setConfig((prev) => ({ ...prev, [key]: value }));
@@ -200,6 +215,12 @@ export function DynamicPlanCard({
                 {dict.billing.perMonthSuffix}
               </span>
             </p>
+            {/* The build-your-own plan is priced from a single AED rate card, so
+                say so rather than letting the page's chosen currency imply
+                otherwise — this is the one plan that isn't quoted locally. */}
+            {displayCurrency && displayCurrency !== "aed" ? (
+              <p className="text-xs text-muted-foreground">{t.billedInAed}</p>
+            ) : null}
           </div>
           <Button onClick={subscribe} disabled={disabled || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

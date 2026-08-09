@@ -1,6 +1,16 @@
 {
-    "crons": [
-          { "path": "/api/cron/refresh-snapshots", "schedule": "0 6 * * *" },
-          { "path": "/api/cron/refresh-tokens", "schedule": "30 3 * * *" }
-    ]
+  "crons": [
+    {
+      "path": "/api/cron/refresh-snapshots",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-tokens",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/billing-catalog",
+      "schedule": "15 4 * * *"
+    }
+  ]
 }

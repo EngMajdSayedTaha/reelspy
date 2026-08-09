@@ -12,7 +12,7 @@ import {
 } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser } from "@/lib/billing/notify";
 import { dayLabelFromUnix } from "@/lib/billing/format";
-import { planFor, tierForStripePrice } from "@/lib/billing/plans";
+import { loadCatalog, planName, resolverFor, slugForStripePrice } from "@/lib/billing/catalog";
 import type { AiTier } from "@/lib/ai/tier";
 import type { Entitlements } from "@/lib/billing/entitlements";
 import {
@@ -24,6 +24,7 @@ import {
   sendSubscriptionCancelled,
   sendRefundIssued,
   sendDisputeAlert,
+  sendTrialEndingSoon,
 } from "@/lib/email/billing";
 
 // Stripe webhook (L6 / B1, hardened) — the SOLE writer of the subscriptions table
@@ -54,10 +55,18 @@ export const runtime = "nodejs";
 // ── small helpers ────────────────────────────────────────────────────────────
 
 // Which plan a Stripe Price sells. A custom (build-your-own) subscription's
-// ad-hoc price matches no STRIPE_PRICE_* id, so it reads as the custom tier.
-function planFromPriceId(priceId: string | null | undefined): { tier: AiTier; name: string } {
-  const tier: AiTier = (priceId ? tierForStripePrice(priceId) : null) ?? "custom";
-  return { tier, name: planFor(tier).name };
+// ad-hoc price matches no catalog price, so it reads as the custom tier.
+// Resolves ARCHIVED prices too, which is what keeps a customer grandfathered on
+// an older price from being labelled with the wrong plan.
+async function planFromPriceId(priceId: string | null | undefined): Promise<{ tier: AiTier; name: string }> {
+  const catalog = await loadCatalog();
+  // Catalog slugs are plain strings — an admin can create a plan whose slug this
+  // build's AiTier union has never heard of. The union is widened separately;
+  // until then the cast is what lets a new plan resolve at all rather than being
+  // silently mislabelled as custom.
+  const slug = (priceId ? slugForStripePrice(catalog, priceId) : null) as AiTier | null;
+  const tier: AiTier = slug ?? "custom";
+  return { tier, name: planName(catalog, tier) };
 }
 
 function subscriptionIdOf(invoice: Stripe.Invoice): string | null {
@@ -111,7 +120,7 @@ async function syncAndNotify(
   stripe: Stripe,
   sub: Stripe.Subscription
 ): Promise<void> {
-  const result = await syncSubscription(admin, sub, stripe);
+  const result = await syncSubscription(admin, sub, stripe, resolverFor(await loadCatalog()));
   if (result) await notifySubscriptionChange(admin, sub, result);
 }
 
@@ -134,7 +143,7 @@ async function handleInvoicePaid(
   if (!to) return;
 
   const line = invoice.lines?.data?.[0];
-  const { tier, name: tierName } = planFromPriceId(line?.price?.id);
+  const { tier, name: tierName } = await planFromPriceId(line?.price?.id);
   const renewsOnLabel = dayLabelFromUnix(line?.period?.end ?? invoice.period_end);
 
   if (reason === "subscription_create") {
@@ -175,7 +184,7 @@ async function handleInvoiceFailed(
   const userId = await resolveUserId(admin, undefined, customerId);
   const to = invoice.customer_email ?? (await emailForUser(admin, userId));
   if (!to) return;
-  const { name: tierName } = planFromPriceId(invoice.lines?.data?.[0]?.price?.id);
+  const { name: tierName } = await planFromPriceId(invoice.lines?.data?.[0]?.price?.id);
   await sendPaymentFailed({
     to,
     tierName,
@@ -204,7 +213,7 @@ async function handleInvoiceUpcoming(
   // Name the pending plan too, if one is scheduled — this is the last email
   // before a deferred change takes effect, so it doubles as the final heads-up.
   let pendingTierName: string | null = null;
-  let currentTierName = planFromPriceId(invoice.lines?.data?.[0]?.price?.id).name;
+  let currentTierName = (await planFromPriceId(invoice.lines?.data?.[0]?.price?.id)).name;
   if (userId) {
     try {
       const { data } = await admin
@@ -212,8 +221,9 @@ async function handleInvoiceUpcoming(
         .select("tier, pending_tier")
         .eq("user_id", userId)
         .maybeSingle();
-      if (data?.tier) currentTierName = planFor(data.tier as AiTier).name;
-      if (data?.pending_tier) pendingTierName = planFor(data.pending_tier as AiTier).name;
+      const catalog = await loadCatalog();
+      if (data?.tier) currentTierName = planName(catalog, data.tier as string);
+      if (data?.pending_tier) pendingTierName = planName(catalog, data.pending_tier as string);
     } catch {
       // Pre-migration database — the reminder is still worth sending without it.
     }
@@ -234,8 +244,10 @@ async function handleSubscriptionDeleted(
   sub: Stripe.Subscription
 ): Promise<void> {
   // Sync first — drops the row's tier to free so entitlements revoke — then notify.
-  const tierName = planFor(tierOfSubscription(sub)).name;
-  await syncSubscription(admin, sub, stripe);
+  const catalog = await loadCatalog();
+  const resolve = resolverFor(catalog);
+  const tierName = planName(catalog, tierOfSubscription(sub, resolve));
+  await syncSubscription(admin, sub, stripe, resolve);
   const userId = await resolveUserId(admin, sub.metadata?.user_id, customerIdOf(sub));
   const to = await emailForUser(admin, userId);
   if (!to) return;
@@ -358,7 +370,7 @@ export async function POST(request: Request) {
           if (!sub.metadata?.user_id && session.metadata?.user_id) {
             sub.metadata = { ...sub.metadata, user_id: session.metadata.user_id };
           }
-          await syncSubscription(admin, sub, stripe);
+          await syncSubscription(admin, sub, stripe, resolverFor(await loadCatalog()));
         }
         break;
       }
@@ -368,6 +380,24 @@ export async function POST(request: Request) {
         // schedule phase at the renewal and the new price lands here.
         const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
         await syncAndNotify(admin, stripe, sub);
+        break;
+      }
+      case "customer.subscription.trial_will_end": {
+        // Stripe's three-day warning. The subscription itself doesn't change
+        // here, so this only notifies — the trial→active transition arrives
+        // later as customer.subscription.updated and syncs normally.
+        const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
+        const catalog = await loadCatalog();
+        const to = await emailForUser(admin, await resolveUserId(admin, sub.metadata?.user_id, customerIdOf(sub)));
+        if (to) {
+          const price = sub.items?.data?.[0]?.price;
+          await sendTrialEndingSoon({
+            to,
+            tierName: planName(catalog, tierOfSubscription(sub, resolverFor(catalog))),
+            amountLabel: price?.unit_amount != null ? formatMoney(price.unit_amount, price.currency) : null,
+            endsOnLabel: dayLabelFromUnix(sub.trial_end),
+          });
+        }
         break;
       }
       case "customer.subscription.deleted": {

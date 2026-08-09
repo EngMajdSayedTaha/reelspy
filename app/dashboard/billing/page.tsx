@@ -6,10 +6,22 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSubscription, getPendingPlanChange } from "@/lib/billing/subscription";
 import { syncSubscriptionForUser } from "@/lib/billing/sync";
 import { getStripe } from "@/lib/billing/stripe";
-import { formatLimit, isUnlimited, entitlementsFor, ENTITLEMENTS } from "@/lib/billing/entitlements";
+import { formatLimit, isUnlimited, ENTITLEMENTS } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
-import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
-import { planChangeDirection, planPriceLabel } from "@/lib/billing/format";
+import { isPaidTier, type PaidTier } from "@/lib/billing/plans";
+import {
+  loadCatalog,
+  entitlementsForSlug,
+  planCopyFor,
+  currentPrice,
+  customRatesFrom,
+} from "@/lib/billing/catalog";
+import { resolveDisplayCurrency } from "@/lib/billing/currency-server";
+import { formatPrice } from "@/lib/billing/currency";
+import { CurrencySwitcher } from "@/components/billing/CurrencySwitcher";
+import { IntervalToggle } from "@/components/billing/IntervalToggle";
+import type { BillingInterval } from "@/lib/billing/catalog";
+import { planChangeDirection } from "@/lib/billing/format";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +37,7 @@ import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
 import { PageTourButton } from "@/components/tour/PageTourButton";
+import { isAdminUser } from "@/lib/billing/admin";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -129,10 +142,28 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // sees "Free" here and can test the real checkout/switch flow, and a real
   // subscriber sees exactly the plan they pay for.
   const billingTier: AiTier = sub && sub.active ? sub.tier : "free";
+  // Plans, their limits, their prices and their copy all come from the
+  // admin-managed catalog now (falling back to the built-in constants when it
+  // has nothing to say), so changing any of them is a settings edit, not a deploy.
+  const catalog = await loadCatalog();
+  // An existing subscriber's currency is pinned by their subscription; everyone
+  // else gets their cookie, then their country, then AED.
+  const { currency, locked: currencyLocked } = await resolveDisplayCurrency(
+    sub?.active ? sub.billingCurrency : null
+  );
+  // A subscriber's own billing period is what they see by default — showing an
+  // annual subscriber monthly prices would misrepresent what they pay.
+  const requestedInterval = firstParam(params.interval);
+  const interval: BillingInterval =
+    requestedInterval === "year" || requestedInterval === "month"
+      ? requestedInterval
+      : sub?.active && sub.billingInterval === "year"
+        ? "year"
+        : "month";
   const ent =
     billingTier === "custom"
       ? sub?.customEntitlements ?? ENTITLEMENTS.custom
-      : entitlementsFor(billingTier);
+      : entitlementsForSlug(catalog, billingTier);
 
   const [accountsUsed, automationsUsed, scriptsUsed, transcriptsUsed] = await Promise.all([
     count(supabase, "inspiration_accounts", user.id),
@@ -157,11 +188,48 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // the schedule, the customer is on — and entitled to — the plan they paid for.
   const pending = sub?.active ? await getPendingPlanChange(supabase, user.id) : null;
   const pendingPlanName = pending
-    ? t.plans[pending.tier as "free" | "creator" | "pro" | "studio" | "custom"].name
+    ? planCopyFor(catalog, pending.tier, locale).name
     : null;
   const pendingEffectiveLabel = dateLabel(pending?.effectiveAt) ?? renewLabel;
-  const currentPlanName = t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name;
-  const currentPriceLabel = planPriceLabel(billingTier) ?? "";
+  const currentPlanName = planCopyFor(catalog, billingTier, locale).name;
+  // The comparison grid shows every published plan EXCEPT the build-your-own
+  // one, which has its own slider card below rather than a fixed price.
+  // "Preview as customer" from the plan editor: an admin can see a DRAFT plan in
+  // the real grid before publishing it. Gated on isAdminUser, and deliberately
+  // display-only — checkout still refuses an unpublished plan, so previewing one
+  // can never turn into buying one.
+  const previewSlug = firstParam(params.preview_plan);
+  const previewPlan =
+    previewSlug && (await isAdminUser(supabase, user.id).catch(() => false))
+      ? catalog.bySlug.get(previewSlug) ?? null
+      : null;
+
+  // Only offer the toggle when there is something to toggle to, and quote the
+  // biggest genuine saving rather than a marketing round number.
+  const anyYearlyPrice = catalog.plans.some((p) =>
+    p.prices.some((price) => price.interval === "year" && price.currency === currency)
+  );
+  const yearlySavingPct = catalog.plans.reduce((best, p) => {
+    const m = p.prices.find((x) => x.interval === "month" && x.currency === currency);
+    const y = p.prices.find((x) => x.interval === "year" && x.currency === currency);
+    if (!m || !y || m.unitAmount <= 0) return best;
+    const full = m.unitAmount * 12;
+    if (y.unitAmount >= full) return best;
+    return Math.max(best, Math.round(((full - y.unitAmount) / full) * 100));
+  }, 0);
+
+  const gridPlans = [
+    ...catalog.plans.filter((p) => p.kind !== "custom"),
+    ...(previewPlan && previewPlan.status !== "published" && previewPlan.kind !== "custom"
+      ? [previewPlan]
+      : []),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const ladder = catalog.ladder as AiTier[];
+  const currentCatalogPrice = currentPrice(catalog, billingTier, { currency, interval });
+  const currentPriceLabel =
+    billingTier === "custom" || !currentCatalogPrice
+      ? ""
+      : formatPrice(currentCatalogPrice.unitAmount, currentCatalogPrice.currency, intlLocale(locale));
   // Every in-app plan action needs a live Stripe subscription to schedule against.
   const canManagePlan = Boolean(sub?.active && sub.stripeSubscriptionId);
 
@@ -195,13 +263,15 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <Card data-tour="plan-usage">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
-            {t.planLabel(t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
+            {t.planLabel(currentPlanName)}
             <Badge variant={isPaidTier(billingTier) ? "default" : "secondary"}>
               {isPaidTier(billingTier) ? t.active : t.free}
             </Badge>
           </CardTitle>
           <CardDescription>
-            {sub?.active
+            {sub?.active && sub.status === "trialing" && sub.trialEndsAt
+              ? t.trial.endsOn(dateLabel(sub.trialEndsAt) ?? "")
+              : sub?.active
               ? sub.cancelAtPeriodEnd && renewLabel
                 ? t.cancelsOn(renewLabel)
                 : renewLabel
@@ -289,18 +359,56 @@ export default async function BillingPage({ searchParams }: PageProps) {
         </div>
       </div>
 
+      {previewPlan && previewPlan.status !== "published" ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+          Admin preview: <strong>{planCopyFor(catalog, previewPlan.slug, locale).name}</strong> is a{" "}
+          {previewPlan.status} plan. Only you can see it, and checkout will refuse it until it&apos;s
+          published.
+        </div>
+      ) : null}
+
+      {/* Currency: a choice for a prospect, a statement of fact for a subscriber. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {anyYearlyPrice ? (
+          <IntervalToggle
+            value={interval}
+            monthlyLabel={t.interval.monthly}
+            yearlyLabel={t.interval.yearly}
+            savingLabel={yearlySavingPct ? t.interval.save(yearlySavingPct) : null}
+          />
+        ) : (
+          <span />
+        )}
+        <CurrencySwitcher
+          value={currency}
+          locked={currencyLocked}
+          lockedLabel={t.currency.locked(currency.toUpperCase())}
+        />
+      </div>
+
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.tier === billingTier;
-          const isPendingPlan = pending?.tier === plan.tier;
-          const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);
-          const currentIndex = PLANS.findIndex((p) => p.tier === billingTier);
-          const isUpgrade = planIndex > currentIndex;
-          const planCopy = t.plans[plan.tier as "free" | "creator" | "pro" | "studio"];
+        {gridPlans.map((plan) => {
+          const isCurrent = plan.slug === billingTier;
+          const isPendingPlan = pending?.tier === plan.slug;
+          const isUpgrade = ladder.indexOf(plan.slug) > ladder.indexOf(billingTier);
+          const planCopy = planCopyFor(catalog, plan.slug, locale);
+          const price = currentPrice(catalog, plan.slug, { currency, interval });
+          const priceLabel = price ? formatPrice(price.unitAmount, price.currency, intlLocale(locale)) : null;
+          // compareAtAmount is already nulled by the catalog once the sale has
+          // run out, so an unrun expiry cron can never leave a stale "was" price
+          // on the page.
+          const wasLabel =
+            price?.compareAtAmount != null
+              ? formatPrice(price.compareAtAmount, price.currency, intlLocale(locale))
+              : null;
+          const savePct =
+            price?.compareAtAmount != null
+              ? Math.round(((price.compareAtAmount - price.unitAmount) / price.compareAtAmount) * 100)
+              : null;
           return (
             <Card
-              key={plan.tier}
+              key={plan.slug}
               className={
                 isCurrent ? "ring-2 ring-primary" : isPendingPlan ? "ring-2 ring-warning/60" : undefined
               }
@@ -315,14 +423,28 @@ export default async function BillingPage({ searchParams }: PageProps) {
                   ) : null}
                 </CardTitle>
                 <CardDescription>{planCopy.tagline}</CardDescription>
+                {/* Only offered to customers who haven't had one — the trial is
+                    once per customer, and promising a second would be a lie. */}
+                {savePct !== null && savePct > 0 ? (
+                  <p className="text-xs font-medium text-success">
+                    {t.sale.save(savePct)}
+                    {price?.saleEndsAt ? ` · ${t.sale.endsOn(dateLabel(price.saleEndsAt) ?? "")}` : ""}
+                  </p>
+                ) : null}
+                {plan.trialDays > 0 && !sub?.trialUsedAt && !isCurrent ? (
+                  <p className="text-xs font-medium text-success">{t.trial.badge(plan.trialDays)}</p>
+                ) : null}
                 <div className="pt-1 text-2xl font-semibold text-foreground">
-                  {plan.priceAed === 0 ? (
+                  {!priceLabel ? (
                     t.free
                   ) : (
                     <>
-                      AED {plan.priceAed}
+                      {wasLabel ? (
+                        <s className="me-2 text-lg font-normal text-muted-foreground">{wasLabel}</s>
+                      ) : null}
+                      {priceLabel}
                       <span className="text-sm font-normal text-muted-foreground">
-                        {t.perMonthSuffix}
+                        {interval === "year" ? t.perYearSuffix : t.perMonthSuffix}
                       </span>
                     </>
                   )}
@@ -342,22 +464,22 @@ export default async function BillingPage({ searchParams }: PageProps) {
                     <p className="text-center text-xs text-muted-foreground">
                       {t.scheduledChange.title(planCopy.name)} · {pendingEffectiveLabel}
                     </p>
-                  ) : isPaidTier(plan.tier) && !isCurrent ? (
+                  ) : isPaidTier(plan.slug) && !isCurrent ? (
                     <SubscribeButton
-                      tier={plan.tier as PaidTier}
+                      tier={plan.slug as PaidTier}
                       label={isUpgrade ? t.upgrade : t.switchPlan}
                       variant={isUpgrade ? "default" : "outline"}
                       disabled={!stripeConfigured()}
                       planName={planCopy.name}
-                      priceLabel={planPriceLabel(plan.tier) ?? ""}
+                      priceLabel={priceLabel ?? ""}
                       currentPlanName={currentPlanName}
                       effectiveOnLabel={renewLabel}
-                      direction={planChangeDirection(billingTier, plan.tier)}
+                      direction={planChangeDirection(billingTier, plan.slug, ladder)}
                       hasSubscription={canManagePlan}
                     />
                   ) : isCurrent ? (
                     <p className="text-center text-xs text-muted-foreground">{t.yourCurrentPlan}</p>
-                  ) : plan.tier === "free" && canManagePlan && !sub?.cancelAtPeriodEnd ? (
+                  ) : plan.slug === "free" && canManagePlan && !sub?.cancelAtPeriodEnd ? (
                     // Downgrading to Free means ending the subscription — same
                     // end-of-period promise, so it lives on the Free card.
                     <CancelSubscriptionButton
@@ -378,6 +500,8 @@ export default async function BillingPage({ searchParams }: PageProps) {
       {/* Dynamic "build your own plan" card (B4) */}
       <DynamicPlanCard
         disabled={!stripeConfigured()}
+        displayCurrency={currency}
+        rates={customRatesFrom(catalog)}
         hasSubscription={canManagePlan}
         currentPlanName={currentPlanName}
         effectiveOnLabel={renewLabel}

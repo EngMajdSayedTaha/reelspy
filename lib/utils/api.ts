@@ -15,11 +15,18 @@ function commonDict() {
 export class ApiError extends Error {
   status: number;
   retryAfterSeconds?: number;
-  constructor(message: string, status: number, retryAfterSeconds?: number) {
+  /**
+   * The parsed JSON body, when there was one. Endpoints that refuse an action
+   * pending confirmation, or that return the counts behind a refusal, put that
+   * detail here — `message` alone can't carry a decision the caller has to make.
+   */
+  body?: unknown;
+  constructor(message: string, status: number, retryAfterSeconds?: number, body?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.body = body;
   }
 }
 
@@ -98,7 +105,7 @@ export async function requestJson<T = unknown>(
       if (Number.isFinite(header) && header > 0) retryAfterSeconds = header;
     }
 
-    throw new ApiError(message, response.status, retryAfterSeconds);
+    throw new ApiError(message, response.status, retryAfterSeconds, body);
   }
 
   return body as T;

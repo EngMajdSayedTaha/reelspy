@@ -19,6 +19,12 @@ import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-jo
 import { runSendDigest } from "@/lib/email/digest-job";
 import { runRefreshSnapshot, RETRYABLE_REFRESH_OUTCOMES } from "@/lib/jobs/refresh-snapshot-job";
 import { runArchiveAccount } from "@/lib/jobs/archive-account-job";
+import { getStripe } from "@/lib/billing/stripe";
+import {
+  runPriceMigration,
+  recordTarget,
+  refreshMigrationCounts,
+} from "@/lib/billing/price-migration";
 
 // Durable job-queue worker (H1 / roadmap V4). Claims due `jobs` rows and runs
 // them by kind: scheduled publishing, post-sync auto-transcribe, and weekly
@@ -35,6 +41,7 @@ const KINDS: JobKind[] = [
   "send_digest",
   "refresh_snapshot",
   "archive_account",
+  "migrate_plan_price",
 ];
 
 // Both kinds spend Business Discovery calls, so both pace and both get parked
@@ -186,6 +193,44 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
       // one that finished a walk did. Pacing a cache hit costs 300ms; skipping a
       // pace after a real call costs shared budget, so err toward pacing.
       return { hitMeta: outcome !== "skipped", deferred: false };
+    }
+    case "migrate_plan_price": {
+      // Moving a subscriber onto a new price. This ALWAYS schedules for their
+      // next renewal and never charges — see lib/billing/price-migration.ts.
+      const migrationId = String(job.payload.migrationId ?? "");
+      const userId = String(job.payload.userId ?? "");
+      const subscriptionId = String(job.payload.subscriptionId ?? "");
+      if (!migrationId || !userId || !subscriptionId) {
+        throw new Error("migrate_plan_price job missing migrationId/userId/subscriptionId");
+      }
+
+      const stripe = getStripe();
+      if (!stripe) {
+        // Not a failure of this job — nothing can be migrated without Stripe.
+        await deferJob(admin, job, new Date(Date.now() + 60 * 60 * 1000), "Stripe not configured");
+        return { hitMeta: false, deferred: true };
+      }
+
+      try {
+        const outcome = await runPriceMigration(admin, stripe, {
+          migrationId,
+          userId,
+          subscriptionId,
+        });
+        if (outcome === "skipped") {
+          await recordTarget(admin, migrationId, userId, "skipped", null, null);
+        }
+        await completeJob(admin, job.id);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        // Record the per-user failure so the admin sees WHICH subscriber didn't
+        // move, then let the queue retry with backoff.
+        await recordTarget(admin, migrationId, userId, "failed", null, message);
+        await failJob(admin, job, err instanceof Error ? err : new Error(message));
+      }
+
+      await refreshMigrationCounts(admin, migrationId);
+      return { hitMeta: false, deferred: false };
     }
   }
 }
