@@ -24,6 +24,7 @@ import {
   sendSubscriptionCancelled,
   sendRefundIssued,
   sendDisputeAlert,
+  sendTrialEndingSoon,
 } from "@/lib/email/billing";
 
 // Stripe webhook (L6 / B1, hardened) — the SOLE writer of the subscriptions table
@@ -379,6 +380,24 @@ export async function POST(request: Request) {
         // schedule phase at the renewal and the new price lands here.
         const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
         await syncAndNotify(admin, stripe, sub);
+        break;
+      }
+      case "customer.subscription.trial_will_end": {
+        // Stripe's three-day warning. The subscription itself doesn't change
+        // here, so this only notifies — the trial→active transition arrives
+        // later as customer.subscription.updated and syncs normally.
+        const sub = await canonicalSub(stripe, event.data.object as Stripe.Subscription);
+        const catalog = await loadCatalog();
+        const to = await emailForUser(admin, await resolveUserId(admin, sub.metadata?.user_id, customerIdOf(sub)));
+        if (to) {
+          const price = sub.items?.data?.[0]?.price;
+          await sendTrialEndingSoon({
+            to,
+            tierName: planName(catalog, tierOfSubscription(sub, resolverFor(catalog))),
+            amountLabel: price?.unit_amount != null ? formatMoney(price.unit_amount, price.currency) : null,
+            endsOnLabel: dayLabelFromUnix(sub.trial_end),
+          });
+        }
         break;
       }
       case "customer.subscription.deleted": {

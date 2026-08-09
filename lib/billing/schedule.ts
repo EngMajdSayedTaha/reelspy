@@ -180,6 +180,11 @@ export function buildPhases(
       start_date: currentPhase.start_date,
       end_date: currentPhase.end_date ?? undefined,
       proration_behavior: "none",
+      // A phase rebuilt WITHOUT trial_end is a phase Stripe will bill straight
+      // away. Omitting it here would mean a trialing customer who merely
+      // scheduled a downgrade lost their trial and was charged on the spot —
+      // the exact opposite of "nothing changes today".
+      ...(currentPhase.trial_end ? { trial_end: currentPhase.trial_end } : {}),
       ...(currentPhase.metadata ? { metadata: currentPhase.metadata } : {}),
     },
     {

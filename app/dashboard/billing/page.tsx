@@ -263,7 +263,9 @@ export default async function BillingPage({ searchParams }: PageProps) {
             </Badge>
           </CardTitle>
           <CardDescription>
-            {sub?.active
+            {sub?.active && sub.status === "trialing" && sub.trialEndsAt
+              ? t.trial.endsOn(dateLabel(sub.trialEndsAt) ?? "")
+              : sub?.active
               ? sub.cancelAtPeriodEnd && renewLabel
                 ? t.cancelsOn(renewLabel)
                 : renewLabel
@@ -404,6 +406,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
                   ) : null}
                 </CardTitle>
                 <CardDescription>{planCopy.tagline}</CardDescription>
+                {/* Only offered to customers who haven't had one — the trial is
+                    once per customer, and promising a second would be a lie. */}
+                {plan.trialDays > 0 && !sub?.trialUsedAt && !isCurrent ? (
+                  <p className="text-xs font-medium text-success">{t.trial.badge(plan.trialDays)}</p>
+                ) : null}
                 <div className="pt-1 text-2xl font-semibold text-foreground">
                   {!priceLabel ? (
                     t.free

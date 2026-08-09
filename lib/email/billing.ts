@@ -133,6 +133,49 @@ export async function sendSubscriptionWelcome(params: {
   return sendEmail({ to, subject: `Welcome to ReelSpy ${tierName} — your subscription is active`, html, text });
 }
 
+// ── Trial ending soon (customer.subscription.trial_will_end) ─────────────────
+// Stripe fires this three days out. The point is that nobody is surprised by the
+// first charge: it names the amount, the date, and how to stop it.
+export async function sendTrialEndingSoon(params: {
+  to: string;
+  tierName: string;
+  amountLabel?: string | null;
+  endsOnLabel?: string | null;
+}): Promise<boolean> {
+  const { to, tierName, amountLabel, endsOnLabel } = params;
+
+  const { html, text } = buildEmail({
+    eyebrow: "Trial",
+    preheader: `Your ReelSpy ${tierName} trial ends${endsOnLabel ? ` on ${endsOnLabel}` : " soon"}.`,
+    title: `Your ${tierName} trial ends${endsOnLabel ? ` on ${endsOnLabel}` : " soon"}`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `Your free trial of ReelSpy ${tierName} is nearly up. Nothing has been charged so far${
+          amountLabel ? `, and unless you cancel first we'll charge ${amountLabel} when it ends` : ""
+        }. Everything you've created stays yours either way.`,
+      },
+      {
+        kind: "rows",
+        caption: "Trial summary",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}`, emphasis: true },
+          ...(endsOnLabel ? [{ label: "Trial ends", value: endsOnLabel }] : []),
+          ...(amountLabel ? [{ label: "First charge", value: amountLabel }] : []),
+        ],
+      },
+      {
+        kind: "callout",
+        text: "Not ready to continue? Cancel from the billing page before the trial ends and you won't be charged at all.",
+      },
+    ],
+    cta: { href: billingUrl(), label: "Manage your plan" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} trial ends soon`, html, text });
+}
+
 // ── Renewal receipt (subscription_cycle invoices) ────────────────────────────
 export async function sendPaymentReceipt(params: {
   to: string;

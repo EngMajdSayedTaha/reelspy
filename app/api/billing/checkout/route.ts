@@ -216,6 +216,15 @@ export async function POST(request: Request) {
         .upsert({ user_id: user.id, stripe_customer_id: customerId }, { onConflict: "user_id" });
     }
 
+    // Trials are once per customer, enforced by us: Stripe has no per-customer
+    // trial lock for Checkout, so without this a customer could take a fresh
+    // trial on every plan, forever. trial_used_at is stamped optimistically here
+    // (before they even finish checkout) so opening several sessions can't win a
+    // race, and confirmed when the webhook first sees status=trialing.
+    const plan = catalog.bySlug.get(tier);
+    const trialDays = plan?.trialDays ?? 0;
+    const trialEligible = trialDays > 0 && !existing?.trialUsedAt;
+
     const origin = siteOrigin(request);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -225,7 +234,17 @@ export async function POST(request: Request) {
       // Redundant metadata so the webhook can recover the user from either the
       // session or the subscription object, whichever event fires.
       metadata,
-      subscription_data: { metadata },
+      subscription_data: {
+        metadata,
+        ...(trialEligible
+          ? {
+              trial_period_days: trialDays,
+              // A trial that ends with no usable card should stop, not silently
+              // fail an invoice and drag the customer through dunning.
+              trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+            }
+          : {}),
+      },
       allow_promotion_codes: true,
       billing_address_collection: "auto",
       success_url: `${origin}/dashboard/billing?checkout=success`,
@@ -235,7 +254,20 @@ export async function POST(request: Request) {
     if (!session.url) {
       return NextResponse.json({ error: "Could not start checkout." }, { status: 502 });
     }
-    return NextResponse.json({ url: session.url });
+
+    if (trialEligible) {
+      await admin
+        .from("subscriptions")
+        .upsert(
+          { user_id: user.id, trial_used_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        )
+        // A database without the trial column simply doesn't offer trials yet;
+        // never fail a checkout over bookkeeping.
+        .then(undefined, () => undefined);
+    }
+
+    return NextResponse.json({ url: session.url, trialDays: trialEligible ? trialDays : 0 });
   } catch (err) {
     console.error("[billing/checkout] Stripe error:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Could not start checkout. Please try again." }, { status: 502 });

@@ -159,6 +159,20 @@ describe("buildPhases", () => {
     expect(current.proration_behavior).toBe("none");
   });
 
+  // Rebuilding phase 0 without trial_end is a phase Stripe bills immediately.
+  // A trialing customer who merely SCHEDULED a downgrade would lose their trial
+  // and be charged on the spot — the opposite of "nothing changes today".
+  it("carries a live trial into the rebuilt current phase", () => {
+    const trialing = phase({ trial_end: PERIOD_END } as never);
+    const [current] = buildPhases(trialing, target);
+    expect(current.trial_end).toBe(PERIOD_END);
+  });
+
+  it("omits trial_end entirely when there is no trial", () => {
+    const [current] = buildPhases(phase(), target);
+    expect(current).not.toHaveProperty("trial_end");
+  });
+
   it("appends the new plan as the next phase, unprorated", () => {
     const [, next] = buildPhases(phase(), target);
     expect(next.items).toEqual([{ price: "price_studio", quantity: 1 }]);
