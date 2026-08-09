@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin/auth";
 import { parseListQuery, listResponse } from "@/lib/admin/query";
 import { resolveEmails } from "@/lib/admin/users";
+import { loadCatalog } from "@/lib/billing/catalog";
 
 export const runtime = "nodejs";
 
@@ -91,5 +92,15 @@ export async function GET(request: Request) {
     stripeSubscriptionId: r.stripe_subscription_id,
   }));
 
-  return NextResponse.json({ ...listResponse(result, count, query), testMode: stripeTestMode() });
+  // The filter list comes from the catalog rather than a hardcoded array, so an
+  // admin-created plan is filterable the moment it exists. Archived plans are
+  // included: subscribers on a retired plan are exactly who you go looking for.
+  const catalog = await loadCatalog();
+  const tiers = [...new Set([...catalog.bySlug.keys(), ...rows.map((r) => r.tier)])].sort();
+
+  return NextResponse.json({
+    ...listResponse(result, count, query),
+    testMode: stripeTestMode(),
+    tiers,
+  });
 }

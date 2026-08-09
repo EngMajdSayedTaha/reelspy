@@ -32,10 +32,29 @@ export const customConfigSchema = z.object({
   model: z.enum(["sonnet", "opus"]),
 });
 
-export const planSelectionSchema = z.discriminatedUnion("tier", [
-  z.object({ tier: z.enum(["creator", "pro", "studio"]) }),
-  z.object({ tier: z.literal("custom"), config: customConfigSchema }),
-]);
+// Plan slugs are admin-created, so the tier can't be a fixed enum any more —
+// which also means this can't be a discriminated union (zod can't discriminate
+// on a non-literal). The shape check here is only the first gate: the routes
+// must additionally resolve the slug against the catalog and confirm the plan is
+// published and sellable, because "looks like a slug" is not "is a real plan".
+const SLUG_RE = /^[a-z][a-z0-9_-]{1,31}$/;
+
+export const planSelectionSchema = z
+  .object({
+    tier: z.string().regex(SLUG_RE),
+    config: customConfigSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    // The build-your-own plan is the one selection that carries a configuration,
+    // and it is meaningless without one.
+    if (value.tier === "custom" && !value.config) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["config"],
+        message: "The custom plan needs its configuration.",
+      });
+    }
+  });
 
 export type PlanSelection = z.infer<typeof planSelectionSchema>;
 

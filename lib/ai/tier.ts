@@ -64,7 +64,13 @@ export async function resolveUserTier(
   userId: string
 ): Promise<AiTier> {
   const { isAdminUser } = await import("@/lib/billing/admin");
-  if (await isAdminUser(supabase, userId)) return "studio";
+  if (await isAdminUser(supabase, userId)) {
+    // Which plan that is comes from the catalog (plans.admin_grant), not a
+    // hardcoded slug — otherwise renaming or archiving Studio would silently
+    // drop every admin to a mid plan, and to a cheaper AI model with it.
+    const { loadCatalog } = await import("@/lib/billing/catalog");
+    return (await loadCatalog()).adminSlug;
+  }
 
   const { activeTierFromSubscription } = await import("@/lib/billing/subscription");
   const subTier = await activeTierFromSubscription(supabase, userId);

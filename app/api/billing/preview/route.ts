@@ -3,10 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
-import { isPaidTier } from "@/lib/billing/plans";
 import { previewPlanChangeForUser, requireActiveSubscription } from "@/lib/billing/plan-change";
 import { clampCustomConfig } from "@/lib/billing/custom-pricing";
 import { planSelectionSchema, INVALID_PLAN_MESSAGE } from "@/lib/billing/checkout-schema";
+import { loadCatalog, isSellablePlan } from "@/lib/billing/catalog";
 
 // What would happen if I confirmed? Read-only companion to /api/billing/checkout
 // for a subscriber who is changing plans: it runs the SAME decision the write
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   }
 
   const parsed = planSelectionSchema.safeParse(await request.json().catch(() => ({})));
-  if (!parsed.success || !isPaidTier(parsed.data.tier)) {
+  if (!parsed.success || !isSellablePlan(await loadCatalog(), parsed.data.tier)) {
     return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
 
@@ -51,7 +51,10 @@ export async function POST(request: Request) {
     subscriptionId: guard.subscriptionId,
     currentTier: sub?.tier ?? "free",
     tier: parsed.data.tier,
-    config: parsed.data.tier === "custom" ? clampCustomConfig(parsed.data.config) : undefined,
+    config:
+      parsed.data.tier === "custom" && parsed.data.config
+        ? clampCustomConfig(parsed.data.config)
+        : undefined,
   });
   if (!preview.ok) {
     return NextResponse.json({ error: preview.error }, { status: preview.status });

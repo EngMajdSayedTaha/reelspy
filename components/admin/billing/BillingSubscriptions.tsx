@@ -13,9 +13,8 @@ import { requestJson, notifyError } from "@/lib/utils/api";
 import type { ListResponse } from "@/lib/admin/query";
 import type { AdminSubscriptionRow } from "@/app/api/admin/billing/subscriptions/route";
 
-type Response = ListResponse<AdminSubscriptionRow> & { testMode: boolean };
+type Response = ListResponse<AdminSubscriptionRow> & { testMode: boolean; tiers: string[] };
 
-const TIERS = ["", "free", "creator", "pro", "studio", "custom"];
 const STATUSES = ["", "active", "trialing", "past_due", "canceled", "unpaid", "incomplete_expired", "inactive"];
 
 function stripeBase(testMode: boolean): string {
@@ -120,7 +119,7 @@ export function BillingSubscriptions() {
           }}
           className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none dark:bg-input/30"
         >
-          {TIERS.map((t) => (
+          {["", ...(data?.tiers ?? [])].map((t) => (
             <option key={t} value={t}>
               {t ? `tier: ${t}` : "all tiers"}
             </option>

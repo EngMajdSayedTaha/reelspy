@@ -26,6 +26,7 @@ import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { intlLocale } from "@/lib/i18n/intl";
 import { PageTourButton } from "@/components/tour/PageTourButton";
+import { isAdminUser } from "@/lib/billing/admin";
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -168,7 +169,22 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const currentPlanName = planCopyFor(catalog, billingTier, locale).name;
   // The comparison grid shows every published plan EXCEPT the build-your-own
   // one, which has its own slider card below rather than a fixed price.
-  const gridPlans = catalog.plans.filter((p) => p.kind !== "custom");
+  // "Preview as customer" from the plan editor: an admin can see a DRAFT plan in
+  // the real grid before publishing it. Gated on isAdminUser, and deliberately
+  // display-only — checkout still refuses an unpublished plan, so previewing one
+  // can never turn into buying one.
+  const previewSlug = firstParam(params.preview_plan);
+  const previewPlan =
+    previewSlug && (await isAdminUser(supabase, user.id).catch(() => false))
+      ? catalog.bySlug.get(previewSlug) ?? null
+      : null;
+
+  const gridPlans = [
+    ...catalog.plans.filter((p) => p.kind !== "custom"),
+    ...(previewPlan && previewPlan.status !== "published" && previewPlan.kind !== "custom"
+      ? [previewPlan]
+      : []),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
   const ladder = catalog.ladder as AiTier[];
   const currentCatalogPrice = currentPrice(catalog, billingTier);
   const currentPriceLabel =
@@ -303,6 +319,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
           <p className="text-sm text-muted-foreground">{t.policy.body}</p>
         </div>
       </div>
+
+      {previewPlan && previewPlan.status !== "published" ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning">
+          Admin preview: <strong>{planCopyFor(catalog, previewPlan.slug, locale).name}</strong> is a{" "}
+          {previewPlan.status} plan. Only you can see it, and checkout will refuse it until it&apos;s
+          published.
+        </div>
+      ) : null}
 
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

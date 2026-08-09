@@ -523,6 +523,18 @@ export function currentPrice(
   );
 }
 
+// May a customer buy this plan right now? The write-path counterpart to
+// isAiTier's shape check, and deliberately fail-CLOSED: a draft plan, an
+// archived one, the free tier, or a slug nobody has ever created are all "no".
+//
+// A paid plan needs a price to be sellable — except the build-your-own one,
+// which prices each configuration ad hoc and so has no plan_prices row.
+export function isSellablePlan(catalog: Catalog, slug: string): boolean {
+  const plan = catalog.bySlug.get(slug);
+  if (!plan || plan.status !== "published" || plan.kind === "free") return false;
+  return plan.kind === "custom" || plan.prices.length > 0 || Boolean(stripePriceIdForTier(slug));
+}
+
 // Which plan does this Stripe Price sell? Resolves ARCHIVED prices too, which is
 // what keeps a grandfathered subscriber on the right plan.
 export function slugForStripePrice(catalog: Catalog, priceId: string): string | null {

@@ -5,8 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
 import { usableCustomerId } from "@/lib/billing/sync";
-import { stripePriceIdForTier, isPaidTier } from "@/lib/billing/plans";
-import { loadCatalog, currentPrice, planDisplayName } from "@/lib/billing/catalog";
+import { stripePriceIdForTier } from "@/lib/billing/plans";
+import { loadCatalog, currentPrice, planDisplayName, isSellablePlan } from "@/lib/billing/catalog";
 import {
   cancelScheduledChangeForUser,
   changePlanForUser,
@@ -81,7 +81,10 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
-  if (!isPaidTier(parsed.data.tier)) {
+  // Shape alone proves nothing: confirm against the catalog that this is a real,
+  // published, purchasable plan before we take anyone's money for it.
+  const catalog = await loadCatalog();
+  if (!isSellablePlan(catalog, parsed.data.tier)) {
     return NextResponse.json({ error: INVALID_PLAN_MESSAGE }, { status: 400 });
   }
 
@@ -89,7 +92,9 @@ export async function POST(request: Request) {
   const existing = await getSubscription(admin, user.id);
   const tier = parsed.data.tier;
   const config: CustomPlanConfig | undefined =
-    parsed.data.tier === "custom" ? clampCustomConfig(parsed.data.config) : undefined;
+    parsed.data.tier === "custom" && parsed.data.config
+      ? clampCustomConfig(parsed.data.config)
+      : undefined;
 
   // ── Existing subscriber: schedule the change for the next renewal ──────────
   if (existing?.active && existing.stripeSubscriptionId) {
@@ -183,7 +188,7 @@ export async function POST(request: Request) {
     // The catalog decides which Stripe Price a plan sells; the env var is the
     // fallback for a deployment whose catalog hasn't been seeded yet.
     const priceId =
-      currentPrice(await loadCatalog(), tier)?.stripePriceId ?? stripePriceIdForTier(tier);
+      currentPrice(catalog, tier)?.stripePriceId ?? stripePriceIdForTier(tier);
     if (!priceId) {
       return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
     }
