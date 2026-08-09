@@ -176,6 +176,51 @@ export async function sendTrialEndingSoon(params: {
   return sendEmail({ to, subject: `Your ReelSpy ${tierName} trial ends soon`, html, text });
 }
 
+// ── Price change notice ──────────────────────────────────────────────────────
+// Sent when a subscriber is being moved onto a new price at their next renewal.
+// States the old price, the new price and the date, and that they can leave
+// before then — advance notice of a price rise is both decent and what consumer
+// rules in most markets expect.
+export async function sendPriceChangeNotice(params: {
+  to: string;
+  tierName: string;
+  oldPriceLabel: string | null;
+  newPriceLabel: string;
+  effectiveOnLabel: string | null;
+}): Promise<boolean> {
+  const { to, tierName, oldPriceLabel, newPriceLabel, effectiveOnLabel } = params;
+  const when = effectiveOnLabel ?? "your next renewal";
+
+  const { html, text } = buildEmail({
+    eyebrow: "Billing",
+    preheader: `Your ReelSpy ${tierName} price changes to ${newPriceLabel} on ${when}.`,
+    title: `Your ${tierName} price is changing`,
+    blocks: [
+      {
+        kind: "paragraph",
+        text: `We're updating the price of ReelSpy ${tierName}. Nothing changes today and nothing is being charged now — your current price stands until ${when}, and the new one applies from that renewal onwards.`,
+      },
+      {
+        kind: "rows",
+        caption: "What's changing",
+        rows: [
+          { label: "Plan", value: `ReelSpy ${tierName}` },
+          ...(oldPriceLabel ? [{ label: "Price now", value: oldPriceLabel }] : []),
+          { label: `Price from ${when}`, value: newPriceLabel, emphasis: true },
+        ],
+      },
+      {
+        kind: "callout",
+        text: `If you'd rather not continue at the new price, you can cancel any time before ${when} and you won't be charged it. Your plan and limits are unchanged until then.`,
+      },
+    ],
+    cta: { href: billingUrl(), label: "Review your plan" },
+    reason: PLAN_REASON,
+  });
+
+  return sendEmail({ to, subject: `Your ReelSpy ${tierName} price changes on ${when}`, html, text });
+}
+
 // ── Renewal receipt (subscription_cycle invoices) ────────────────────────────
 export async function sendPaymentReceipt(params: {
   to: string;

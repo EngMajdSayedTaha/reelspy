@@ -29,7 +29,13 @@ function toMinor(major: string): number {
   return Math.round(Number(major) * 100);
 }
 
-function PriceHistory({ prices }: { prices: AdminPlanPrice[] }) {
+function PriceHistory({
+  prices,
+  onMigrate,
+}: {
+  prices: AdminPlanPrice[];
+  onMigrate: (price: AdminPlanPrice) => void;
+}) {
   const retired = prices.filter((p) => !p.isCurrent);
   if (retired.length === 0) return null;
   return (
@@ -44,6 +50,11 @@ function PriceHistory({ prices }: { prices: AdminPlanPrice[] }) {
           <Badge variant="secondary">
             {price.subscribers} subscriber{price.subscribers === 1 ? "" : "s"}
           </Badge>
+          {price.subscribers > 0 ? (
+            <Button variant="outline" size="sm" onClick={() => onMigrate(price)}>
+              Move them to the current price
+            </Button>
+          ) : null}
         </div>
       ))}
     </div>
@@ -92,6 +103,38 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
     interval === "year" && yearlyFull && typedMinor > 0 && typedMinor < yearlyFull
       ? Math.round(((yearlyFull - typedMinor) / yearlyFull) * 100)
       : null;
+
+  // Moving existing subscribers is deliberately its own action, and the copy is
+  // explicit that it applies at each subscriber's own renewal rather than now —
+  // an admin who thinks they're charging people today would be wrong.
+  const migrate = async (from: AdminPlanPrice) => {
+    if (!current) {
+      toast.error("Set a current price first — there's nothing to move them to.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Move ${from.subscribers} subscriber${from.subscribers === 1 ? "" : "s"} to ${currency.toUpperCase()} ${toMajor(current.unitAmount)}?`,
+      description: `They're on ${currency.toUpperCase()} ${toMajor(from.unitAmount)} today. Nobody is charged now: each one is emailed the old price, the new price and their date, and moves at their own next renewal at least 30 days away. Anyone renewing sooner keeps the old price for one more period.`,
+      confirmText: "Schedule the change",
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      const res = await requestJson<{ queued: number }>(`/api/admin/plans/${plan.id}/migrate-price`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromPriceId: from.id, toPriceId: current.id, noticeDays: 30 }),
+      });
+      toast.success(`Queued ${res.queued} — each moves at their own renewal.`);
+      onChanged();
+    } catch (err) {
+      notifyError(err, "Could not start the migration.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async () => {
     const minor = toMinor(amount);
@@ -267,6 +310,7 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
 
         <PriceHistory
           prices={plan.prices.filter((p) => p.currency === currency && p.interval === interval)}
+          onMigrate={migrate}
         />
       </CardContent>
     </Card>
