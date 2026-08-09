@@ -37,6 +37,7 @@ import { PLANS, stripePriceIdForTier } from "@/lib/billing/plans";
 import { billingEn, billingAr } from "@/lib/i18n/dictionaries/billing";
 import { DEFAULT_CURRENCY, isCurrency, type Currency } from "@/lib/billing/currency";
 import { numEnv } from "@/lib/utils/env";
+import { coerceCustomRates, type CustomRates } from "@/lib/billing/custom-pricing";
 
 // ── types ────────────────────────────────────────────────────────────────────
 
@@ -486,6 +487,14 @@ export function planBySlug(catalog: Catalog, slug: string): CatalogPlan | null {
 // had, so an unrecognised tier can't crash an enforcement chokepoint.
 export function entitlementsForSlug(catalog: Catalog, slug: string): Entitlements {
   return catalog.bySlug.get(slug)?.entitlements ?? ENTITLEMENTS[slug as AiTier] ?? ENTITLEMENTS.free;
+}
+
+// The build-your-own rate card, as the admin has it — falling back to what this
+// build shipped with. Kept here rather than read ad hoc so the client preview
+// and the authoritative server repricing can't diverge.
+export function customRatesFrom(catalog: Catalog): CustomRates {
+  const plan = catalog.plans.find((p) => p.kind === "custom") ?? catalog.bySlug.get("custom");
+  return coerceCustomRates(plan?.customPricing);
 }
 
 export function planCopyFor(catalog: Catalog, slug: string, locale: Locale): PlanCopy {

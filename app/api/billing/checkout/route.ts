@@ -6,7 +6,13 @@ import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
 import { usableCustomerId } from "@/lib/billing/sync";
 import { stripePriceIdForTier } from "@/lib/billing/plans";
-import { loadCatalog, currentPrice, planDisplayName, isSellablePlan } from "@/lib/billing/catalog";
+import {
+  loadCatalog,
+  currentPrice,
+  planDisplayName,
+  isSellablePlan,
+  customRatesFrom,
+} from "@/lib/billing/catalog";
 import {
   cancelScheduledChangeForUser,
   changePlanForUser,
@@ -172,7 +178,9 @@ export async function POST(request: Request) {
   let metadata: Record<string, string>;
 
   if (config) {
-    const priceAed = computeCustomPriceAed(config);
+    // Always recomputed server-side from the admin's rate card; the client
+    // preview is UI only and its number is never trusted.
+    const priceAed = computeCustomPriceAed(config, customRatesFrom(catalog));
     const entitlements = computeCustomEntitlements(config);
     lineItem = {
       price_data: {

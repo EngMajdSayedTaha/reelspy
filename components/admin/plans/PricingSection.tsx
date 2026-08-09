@@ -11,6 +11,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { requestJson, notifyError } from "@/lib/utils/api";
 import type { AdminPlanRow, AdminPlanPrice } from "@/lib/admin/plans";
 import { CURRENCIES, CURRENCY_LABELS, type Currency } from "@/lib/billing/currency";
+import { computeCustomPriceAed, DEFAULT_CUSTOM_RATES } from "@/lib/billing/custom-pricing";
 
 // Setting a price, and showing what setting it did NOT do.
 //
@@ -58,6 +59,43 @@ function PriceHistory({
         </div>
       ))}
     </div>
+  );
+}
+
+// The build-your-own formula is CALIBRATED to the fixed tiers. Changing what a
+// fixed plan costs without touching the rate card silently drifts them apart —
+// and if custom ends up cheaper, it becomes a back door to the same specs for
+// less. Rather than auto-recalibrating (which produces odd numbers and hides the
+// founder's pricing judgement), the editor just says so.
+function DriftWarning({ plan, currency }: { plan: AdminPlanRow; currency: Currency }) {
+  if (!plan.entitlements || plan.kind !== "fixed") return null;
+  const price = plan.prices.find(
+    (p) => p.isCurrent && p.interval === "month" && p.currency === currency
+  );
+  if (!price) return null;
+
+  const equivalent = computeCustomPriceAed(
+    {
+      accounts: plan.entitlements.accounts,
+      scriptsUnlimited: plan.entitlements.scripts_mo < 0,
+      scripts: Math.max(0, plan.entitlements.scripts_mo),
+      automations: plan.entitlements.automations,
+      publishTargets: plan.entitlements.publish_targets,
+      model: plan.entitlements.model === "opus" ? "opus" : "sonnet",
+    },
+    DEFAULT_CUSTOM_RATES
+  );
+  // The rate card is AED; comparing a USD price against it would be nonsense.
+  if (currency !== "aed") return null;
+  const fixedMajor = price.unitAmount / 100;
+  if (equivalent >= fixedMajor) return null;
+
+  return (
+    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+      A build-your-own plan at these same limits prices at AED {equivalent}, which is cheaper than this
+      plan&apos;s AED {fixedMajor}. Customers can get the same thing for less — raise the build-your-own
+      rates, or lower this price.
+    </p>
   );
 }
 
@@ -307,6 +345,8 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
             {(((yearlyFull - typedMinor) / yearlyFull) * 12).toFixed(1)} months free.
           </p>
         ) : null}
+
+        <DriftWarning plan={plan} currency={currency} />
 
         <PriceHistory
           prices={plan.prices.filter((p) => p.currency === currency && p.interval === interval)}

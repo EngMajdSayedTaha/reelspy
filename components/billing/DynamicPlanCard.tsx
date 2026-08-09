@@ -20,6 +20,7 @@ import {
   DEFAULT_CUSTOM_CONFIG,
   computeCustomPriceAed,
   type CustomPlanConfig,
+  type CustomRates,
 } from "@/lib/billing/custom-pricing";
 
 // The dynamic "build your own plan" card (B4): live-priced sliders that post
@@ -31,6 +32,7 @@ export function DynamicPlanCard({
   disabled,
   hasSubscription = false,
   displayCurrency,
+  rates,
   currentPlanName,
   effectiveOnLabel,
 }: {
@@ -43,6 +45,12 @@ export function DynamicPlanCard({
    * say so when the two differ, rather than letting the page imply otherwise.
    */
   displayCurrency?: string;
+  /**
+   * The admin's rate card. Passed in rather than imported so this preview and
+   * the authoritative server repricing use the SAME numbers — the server still
+   * recomputes from the submitted config and never trusts the number shown here.
+   */
+  rates?: CustomRates;
   currentPlanName?: string;
   /** Renewal date a scheduled change would take effect on. */
   effectiveOnLabel?: string | null;
@@ -55,7 +63,7 @@ export function DynamicPlanCard({
   const [config, setConfig] = useState<CustomPlanConfig>(DEFAULT_CUSTOM_CONFIG);
   const [loading, setLoading] = useState(false);
 
-  const price = useMemo(() => computeCustomPriceAed(config), [config]);
+  const price = useMemo(() => computeCustomPriceAed(config, rates), [config, rates]);
 
   function update<K extends keyof CustomPlanConfig>(key: K, value: CustomPlanConfig[K]) {
     setConfig((prev) => ({ ...prev, [key]: value }));

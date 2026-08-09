@@ -9,7 +9,13 @@ import { getStripe } from "@/lib/billing/stripe";
 import { formatLimit, isUnlimited, ENTITLEMENTS } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
 import { isPaidTier, type PaidTier } from "@/lib/billing/plans";
-import { loadCatalog, entitlementsForSlug, planCopyFor, currentPrice } from "@/lib/billing/catalog";
+import {
+  loadCatalog,
+  entitlementsForSlug,
+  planCopyFor,
+  currentPrice,
+  customRatesFrom,
+} from "@/lib/billing/catalog";
 import { resolveDisplayCurrency } from "@/lib/billing/currency-server";
 import { formatPrice } from "@/lib/billing/currency";
 import { CurrencySwitcher } from "@/components/billing/CurrencySwitcher";
@@ -495,6 +501,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <DynamicPlanCard
         disabled={!stripeConfigured()}
         displayCurrency={currency}
+        rates={customRatesFrom(catalog)}
         hasSubscription={canManagePlan}
         currentPlanName={currentPlanName}
         effectiveOnLabel={renewLabel}

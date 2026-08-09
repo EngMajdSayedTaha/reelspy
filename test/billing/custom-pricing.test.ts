@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   CUSTOM_PLAN_RANGE,
   DEFAULT_CUSTOM_CONFIG,
+  DEFAULT_CUSTOM_RATES,
+  coerceCustomRates,
   clampCustomConfig,
   computeCustomEntitlements,
   computeCustomPriceAed,
@@ -127,5 +129,44 @@ describe("clampCustomConfig — defense in depth against a tampered request", ()
   it("normalizes an invalid model to sonnet rather than erroring", () => {
     // @ts-expect-error deliberately passing a bogus model
     expect(clampCustomConfig({ ...DEFAULT_CUSTOM_CONFIG, model: "gpt-5" }).model).toBe("sonnet");
+  });
+});
+
+// The rate card is admin-editable now, so the maths has to work with injected
+// rates — and has to refuse a rate card that would undercut the fixed tiers.
+describe("admin-editable rate card", () => {
+  it("prices from injected rates rather than the shipped constants", () => {
+    const doubled = {
+      ...DEFAULT_CUSTOM_RATES,
+      perAccount: DEFAULT_CUSTOM_RATES.perAccount * 2,
+    };
+    expect(computeCustomPriceAed(DEFAULT_CUSTOM_CONFIG, doubled)).toBeGreaterThan(
+      computeCustomPriceAed(DEFAULT_CUSTOM_CONFIG, DEFAULT_CUSTOM_RATES)
+    );
+  });
+
+  it("falls back to the shipped rates when none are given", () => {
+    expect(computeCustomPriceAed(DEFAULT_CUSTOM_CONFIG)).toBe(
+      computeCustomPriceAed(DEFAULT_CUSTOM_CONFIG, DEFAULT_CUSTOM_RATES)
+    );
+  });
+
+  it("repairs a malformed rate card field by field instead of producing NaN", () => {
+    const rates = coerceCustomRates({ perAccount: "lots", base: 20, minPrice: null });
+    expect(rates.perAccount).toBe(DEFAULT_CUSTOM_RATES.perAccount);
+    expect(rates.base).toBe(20);
+    expect(rates.minPrice).toBe(DEFAULT_CUSTOM_RATES.minPrice);
+    expect(Number.isFinite(computeCustomPriceAed(DEFAULT_CUSTOM_CONFIG, rates))).toBe(true);
+  });
+
+  it("refuses a multiplier below 1, which would undercut the fixed tiers", () => {
+    // The premium exists so a bespoke config is never a cheaper route to the
+    // same specs; a sub-1 multiplier would invert exactly that.
+    expect(coerceCustomRates({ buildYourOwnMultiplier: 0.5 }).buildYourOwnMultiplier).toBe(1);
+  });
+
+  it("treats junk as an entirely default rate card", () => {
+    expect(coerceCustomRates(null)).toEqual(DEFAULT_CUSTOM_RATES);
+    expect(coerceCustomRates("nope")).toEqual(DEFAULT_CUSTOM_RATES);
   });
 });

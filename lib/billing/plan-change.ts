@@ -29,7 +29,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
 import { normalizeCurrency, type Currency } from "@/lib/billing/currency";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
-import { loadCatalog, currentPrice, planDisplayName, type BillingInterval } from "@/lib/billing/catalog";
+import {
+  loadCatalog,
+  currentPrice,
+  planDisplayName,
+  customRatesFrom,
+  type BillingInterval,
+} from "@/lib/billing/catalog";
 import { syncSubscription } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser, subscriptionAmountLabel } from "@/lib/billing/notify";
 import { dayLabel, dayLabelFromUnix, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
@@ -122,7 +128,7 @@ async function resolveTarget(
   if (tier === "custom") {
     if (!config) return { ok: false, status: 400, error: "Pick your custom plan options first." };
     const clamped = clampCustomConfig(config);
-    const priceAed = computeCustomPriceAed(clamped);
+    const priceAed = computeCustomPriceAed(clamped, customRatesFrom(await loadCatalog()));
     const entitlements = computeCustomEntitlements(clamped);
     const priceId = await customPlanPriceId(stripe, priceAed);
     return {
