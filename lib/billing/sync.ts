@@ -220,7 +220,17 @@ export async function syncSubscription(
     },
     {
       name: "billing dimensions (20260809080100_subscription_billing_dimensions.sql)",
-      columns: billingColumns,
+      columns: {
+        ...billingColumns,
+        ...(pending !== undefined
+          ? {
+              pending_price_id: pending?.priceId ?? null,
+              pending_amount_minor: pending?.amountMinor ?? null,
+              pending_currency: pending?.currency ?? null,
+              pending_interval: pending?.interval ?? null,
+            }
+          : {}),
+      },
     },
   ];
 

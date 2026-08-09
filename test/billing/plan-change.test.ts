@@ -11,15 +11,31 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function subAt(unitAmount: number | null, currency: string | null = "aed"): Stripe.Subscription {
+function subAt(
+  unitAmount: number | null,
+  currency: string | null = "aed",
+  interval: "month" | "year" = "month"
+): Stripe.Subscription {
   return {
     id: "sub_1",
-    items: { data: [{ id: "si_1", price: unitAmount === null ? {} : { unit_amount: unitAmount, currency } }] },
+    items: {
+      data: [
+        {
+          id: "si_1",
+          price:
+            unitAmount === null ? {} : { unit_amount: unitAmount, currency, recurring: { interval } },
+        },
+      ],
+    },
   } as unknown as Stripe.Subscription;
 }
 
-const target = (tier: string, unitAmount: number | null, currency: string | null = "aed") =>
-  ({ tier, unitAmount, currency }) as Parameters<typeof decidePlanChangeMode>[2];
+const target = (
+  tier: string,
+  unitAmount: number | null,
+  currency: string | null = "aed",
+  interval: "month" | "year" = "month"
+) => ({ tier, unitAmount, currency, interval }) as Parameters<typeof decidePlanChangeMode>[2];
 
 describe("decidePlanChangeMode", () => {
   it("applies a costlier plan immediately", () => {
@@ -78,5 +94,55 @@ describe("decidePlanChangeMode", () => {
       immediate: false,
       direction: "change",
     });
+  });
+});
+
+// Annual prices are bigger NUMBERS without being bigger commitments per month.
+// Comparing them raw would charge somebody for downgrading, so the comparison is
+// cross-multiplied to a monthly equivalent.
+describe("decidePlanChangeMode across billing intervals", () => {
+  it("does not mistake a cheap annual plan for an upgrade from a pricier monthly one", () => {
+    // Studio 349/mo → Creator 490/yr (40.83/mo). The raw numbers say "up".
+    expect(
+      decidePlanChangeMode(subAt(34900), "studio", target("creator", 49000, "aed", "year"))
+    ).toEqual({ immediate: false, direction: "downgrade" });
+  });
+
+  it("treats a pricier annual plan as an upgrade and applies it now", () => {
+    // Creator 49/mo → Pro 1490/yr (124.17/mo).
+    expect(decidePlanChangeMode(subAt(4900), "creator", target("pro", 149000, "aed", "year"))).toEqual({
+      immediate: true,
+      direction: "upgrade",
+    });
+  });
+
+  it("charges now for switching the same plan to annual — they pre-pay for longer", () => {
+    // Pro 149/mo → Pro 1788/yr, exactly 12x: same per month, longer commitment.
+    expect(decidePlanChangeMode(subAt(14900), "pro", target("pro", 178800, "aed", "year"))).toEqual({
+      immediate: true,
+      direction: "upgrade",
+    });
+  });
+
+  it("defers annual → monthly to the renewal, which can be a year out", () => {
+    // They paid for the year; nothing is taken away early.
+    expect(
+      decidePlanChangeMode(subAt(178800, "aed", "year"), "pro", target("pro", 14900, "aed", "month"))
+    ).toEqual({ immediate: false, direction: "downgrade" });
+  });
+
+  it("still defers a genuinely identical price on the same interval", () => {
+    expect(decidePlanChangeMode(subAt(14900), "pro", target("pro", 14900))).toEqual({
+      immediate: false,
+      direction: "change",
+    });
+  });
+
+  // Cross-multiplying rather than dividing: 14900/mo vs 178801/yr differ by one
+  // fils a year, and integer division would round them into looking equal.
+  it("does not round two nearly-equal prices into a tie", () => {
+    expect(
+      decidePlanChangeMode(subAt(14900), "pro", target("pro", 178801, "aed", "year")).direction
+    ).toBe("upgrade");
   });
 });

@@ -13,6 +13,8 @@ import { loadCatalog, entitlementsForSlug, planCopyFor, currentPrice } from "@/l
 import { resolveDisplayCurrency } from "@/lib/billing/currency-server";
 import { formatPrice } from "@/lib/billing/currency";
 import { CurrencySwitcher } from "@/components/billing/CurrencySwitcher";
+import { IntervalToggle } from "@/components/billing/IntervalToggle";
+import type { BillingInterval } from "@/lib/billing/catalog";
 import { planChangeDirection } from "@/lib/billing/format";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,6 +145,15 @@ export default async function BillingPage({ searchParams }: PageProps) {
   const { currency, locked: currencyLocked } = await resolveDisplayCurrency(
     sub?.active ? sub.billingCurrency : null
   );
+  // A subscriber's own billing period is what they see by default — showing an
+  // annual subscriber monthly prices would misrepresent what they pay.
+  const requestedInterval = firstParam(params.interval);
+  const interval: BillingInterval =
+    requestedInterval === "year" || requestedInterval === "month"
+      ? requestedInterval
+      : sub?.active && sub.billingInterval === "year"
+        ? "year"
+        : "month";
   const ent =
     billingTier === "custom"
       ? sub?.customEntitlements ?? ENTITLEMENTS.custom
@@ -187,6 +198,20 @@ export default async function BillingPage({ searchParams }: PageProps) {
       ? catalog.bySlug.get(previewSlug) ?? null
       : null;
 
+  // Only offer the toggle when there is something to toggle to, and quote the
+  // biggest genuine saving rather than a marketing round number.
+  const anyYearlyPrice = catalog.plans.some((p) =>
+    p.prices.some((price) => price.interval === "year" && price.currency === currency)
+  );
+  const yearlySavingPct = catalog.plans.reduce((best, p) => {
+    const m = p.prices.find((x) => x.interval === "month" && x.currency === currency);
+    const y = p.prices.find((x) => x.interval === "year" && x.currency === currency);
+    if (!m || !y || m.unitAmount <= 0) return best;
+    const full = m.unitAmount * 12;
+    if (y.unitAmount >= full) return best;
+    return Math.max(best, Math.round(((full - y.unitAmount) / full) * 100));
+  }, 0);
+
   const gridPlans = [
     ...catalog.plans.filter((p) => p.kind !== "custom"),
     ...(previewPlan && previewPlan.status !== "published" && previewPlan.kind !== "custom"
@@ -194,7 +219,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       : []),
   ].sort((a, b) => a.sortOrder - b.sortOrder);
   const ladder = catalog.ladder as AiTier[];
-  const currentCatalogPrice = currentPrice(catalog, billingTier, { currency });
+  const currentCatalogPrice = currentPrice(catalog, billingTier, { currency, interval });
   const currentPriceLabel =
     billingTier === "custom" || !currentCatalogPrice
       ? ""
@@ -335,7 +360,17 @@ export default async function BillingPage({ searchParams }: PageProps) {
       ) : null}
 
       {/* Currency: a choice for a prospect, a statement of fact for a subscriber. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {anyYearlyPrice ? (
+          <IntervalToggle
+            value={interval}
+            monthlyLabel={t.interval.monthly}
+            yearlyLabel={t.interval.yearly}
+            savingLabel={yearlySavingPct ? t.interval.save(yearlySavingPct) : null}
+          />
+        ) : (
+          <span />
+        )}
         <CurrencySwitcher
           value={currency}
           locked={currencyLocked}
@@ -350,7 +385,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
           const isPendingPlan = pending?.tier === plan.slug;
           const isUpgrade = ladder.indexOf(plan.slug) > ladder.indexOf(billingTier);
           const planCopy = planCopyFor(catalog, plan.slug, locale);
-          const price = currentPrice(catalog, plan.slug, { currency });
+          const price = currentPrice(catalog, plan.slug, { currency, interval });
           const priceLabel = price ? formatPrice(price.unitAmount, price.currency, intlLocale(locale)) : null;
           return (
             <Card
@@ -376,7 +411,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
                     <>
                       {priceLabel}
                       <span className="text-sm font-normal text-muted-foreground">
-                        {t.perMonthSuffix}
+                        {interval === "year" ? t.perYearSuffix : t.perMonthSuffix}
                       </span>
                     </>
                   )}

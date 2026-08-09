@@ -58,18 +58,32 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
   // local number rather than an exchange rate — AED and SAR are dollar-pegged,
   // so there is no rate to track.
   const [currency, setCurrency] = useState<Currency>(plan.defaultCurrency as Currency);
+  const [interval, setInterval] = useState<"month" | "year">("month");
   const current = plan.prices.find(
-    (p) => p.isCurrent && p.interval === "month" && p.currency === currency
+    (p) => p.isCurrent && p.interval === interval && p.currency === currency
   );
   const [amount, setAmount] = useState(current ? toMajor(current.unitAmount) : "");
 
-  const selectCurrency = (next: Currency) => {
-    setCurrency(next);
+  const reselect = (nextCurrency: Currency, nextInterval: "month" | "year") => {
+    setCurrency(nextCurrency);
+    setInterval(nextInterval);
     const existing = plan.prices.find(
-      (p) => p.isCurrent && p.interval === "month" && p.currency === next
+      (p) => p.isCurrent && p.interval === nextInterval && p.currency === nextCurrency
     );
     setAmount(existing ? toMajor(existing.unitAmount) : "");
   };
+
+  // What 12 months of the monthly price would cost, so the admin can see what
+  // discount a yearly figure actually represents rather than doing the sum.
+  const monthly = plan.prices.find(
+    (p) => p.isCurrent && p.interval === "month" && p.currency === currency
+  );
+  const yearlyFull = monthly ? monthly.unitAmount * 12 : null;
+  const typedMinor = toMinor(amount);
+  const savingPct =
+    interval === "year" && yearlyFull && typedMinor > 0 && typedMinor < yearlyFull
+      ? Math.round(((yearlyFull - typedMinor) / yearlyFull) * 100)
+      : null;
 
   const save = async () => {
     const minor = toMinor(amount);
@@ -102,7 +116,7 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
       const res = await requestJson<{ grandfathered: number }>(`/api/admin/plans/${plan.id}/prices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interval: "month", currency, unitAmount: minor }),
+        body: JSON.stringify({ interval, currency, unitAmount: minor }),
       });
       toast.success(
         res.grandfathered > 0
@@ -135,7 +149,7 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
             <Label className="text-xs text-muted-foreground">Currency</Label>
             <select
               value={currency}
-              onChange={(e) => selectCurrency(e.target.value as Currency)}
+              onChange={(e) => reselect(e.target.value as Currency, interval)}
               className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
             >
               {CURRENCIES.map((code) => (
@@ -146,8 +160,19 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
             </select>
           </div>
           <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Billing period</Label>
+            <select
+              value={interval}
+              onChange={(e) => reselect(currency, e.target.value as "month" | "year")}
+              className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              <option value="month">Monthly</option>
+              <option value="year">Yearly</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <Label className="text-xs text-muted-foreground">
-              Price per month ({currency.toUpperCase()})
+              Price per {interval === "year" ? "year" : "month"} ({currency.toUpperCase()})
             </Label>
             <Input
               type="number"
@@ -170,7 +195,8 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
             <span>
               Live:{" "}
               <span className="text-foreground">
-                {currency.toUpperCase()} {toMajor(current.unitAmount)}/mo
+                {currency.toUpperCase()} {toMajor(current.unitAmount)}/
+                {current.interval === "year" ? "yr" : "mo"}
               </span>
             </span>
             <span className="font-mono">{current.stripePriceId}</span>
@@ -180,12 +206,22 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No {currency.toUpperCase()} price yet. A plan needs a price in its default currency (
-            {plan.defaultCurrency.toUpperCase()}) before it can be published.
+            No {interval === "year" ? "yearly" : "monthly"} {currency.toUpperCase()} price yet. A plan
+            needs a monthly price in its default currency ({plan.defaultCurrency.toUpperCase()}) before it
+            can be published.
           </p>
         )}
 
-        <PriceHistory prices={plan.prices.filter((p) => p.currency === currency)} />
+        {savingPct !== null && yearlyFull ? (
+          <p className="text-xs text-muted-foreground">
+            {toMajor(yearlyFull)} at the monthly rate — this is {savingPct}% off, about{" "}
+            {(((yearlyFull - typedMinor) / yearlyFull) * 12).toFixed(1)} months free.
+          </p>
+        ) : null}
+
+        <PriceHistory
+          prices={plan.prices.filter((p) => p.currency === currency && p.interval === interval)}
+        />
       </CardContent>
     </Card>
   );

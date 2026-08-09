@@ -29,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
 import { normalizeCurrency, type Currency } from "@/lib/billing/currency";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
-import { loadCatalog, currentPrice, planDisplayName } from "@/lib/billing/catalog";
+import { loadCatalog, currentPrice, planDisplayName, type BillingInterval } from "@/lib/billing/catalog";
 import { syncSubscription } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser, subscriptionAmountLabel } from "@/lib/billing/notify";
 import { dayLabel, dayLabelFromUnix, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
@@ -103,6 +103,7 @@ export type PlanChangePreview = {
 type ResolvedTarget = PlanChangeTarget & {
   unitAmount: number | null;
   currency: string | null;
+  interval: BillingInterval;
 };
 
 // Resolve what the new plan bills: a fixed tier's configured Stripe Price, or an
@@ -131,7 +132,10 @@ async function resolveTarget(
       priceAed,
       entitlements,
       unitAmount: priceAed * 100,
+      amountMinor: priceAed * 100,
       currency: "aed",
+      // The build-your-own rate card prices a month at a time.
+      interval: "month",
     };
   }
 
@@ -157,10 +161,14 @@ async function resolveTarget(
   // edited in the Stripe dashboard. The money decision must follow the money.
   let unitAmount: number | null = null;
   let currency: string | null = null;
+  let interval: BillingInterval = catalogPrice?.interval ?? "month";
   try {
     const price = await stripe.prices.retrieve(priceId);
     unitAmount = price.unit_amount ?? null;
     currency = price.currency ?? null;
+    if (price.recurring?.interval === "year" || price.recurring?.interval === "month") {
+      interval = price.recurring.interval;
+    }
   } catch (err) {
     console.warn(
       "[billing/plan-change] price lookup failed, falling back to the plan ladder:",
@@ -174,7 +182,9 @@ async function resolveTarget(
     priceAed: catalogPrice ? Math.round(catalogPrice.unitAmount / 100) : planFor(tier).priceAed || null,
     entitlements: null,
     unitAmount,
+    amountMinor: unitAmount,
     currency,
+    interval,
   };
 }
 
@@ -187,10 +197,37 @@ function currencyOf(sub: Stripe.Subscription): Currency | undefined {
   return normalizeCurrency(sub.items?.data?.[0]?.price?.currency) ?? undefined;
 }
 
-// The recurring amount the subscription bills today.
-function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; currency: string | null } {
+// The recurring amount the subscription bills today, and over what period.
+function currentAmountOf(sub: Stripe.Subscription): {
+  amount: number | null;
+  currency: string | null;
+  interval: BillingInterval;
+} {
   const price = sub.items?.data?.[0]?.price;
-  return { amount: price?.unit_amount ?? null, currency: price?.currency ?? null };
+  return {
+    amount: price?.unit_amount ?? null,
+    currency: price?.currency ?? null,
+    interval: price?.recurring?.interval === "year" ? "year" : "month",
+  };
+}
+
+const MONTHS_IN: Record<BillingInterval, number> = { month: 1, year: 12 };
+
+// Compare two recurring prices on a like-for-like basis when their billing
+// periods differ. A yearly price is a bigger NUMBER than a monthly one without
+// being a bigger commitment per month — Creator at 490/year would otherwise read
+// as an upgrade from Studio at 349/month.
+//
+// Cross-MULTIPLIED rather than divided: integer division would round two
+// genuinely different prices into looking equal, and this decides whether
+// somebody is charged today.
+function compareMonthlyEquivalent(
+  a: { amount: number; interval: BillingInterval },
+  b: { amount: number; interval: BillingInterval }
+): number {
+  const left = a.amount * MONTHS_IN[b.interval];
+  const right = b.amount * MONTHS_IN[a.interval];
+  return left === right ? 0 : left > right ? 1 : -1;
 }
 
 // Upgrade or not? Decided on money: a plan that costs more per month is an
@@ -203,7 +240,12 @@ function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; cur
 export function decidePlanChangeMode(
   sub: Stripe.Subscription,
   currentTier: AiTier,
-  target: { tier: AiTier; unitAmount: number | null; currency: string | null },
+  target: {
+    tier: AiTier;
+    unitAmount: number | null;
+    currency: string | null;
+    interval?: BillingInterval;
+  },
   ladder?: readonly AiTier[]
 ): { immediate: boolean; direction: PlanChangeDirection } {
   const current = currentAmountOf(sub);
@@ -215,9 +257,28 @@ export function decidePlanChangeMode(
     current.currency === target.currency;
 
   if (comparable) {
-    const up = (target.unitAmount as number) > (current.amount as number);
-    const down = (target.unitAmount as number) < (current.amount as number);
-    return { immediate: up, direction: up ? "upgrade" : down ? "downgrade" : "change" };
+    const targetInterval: BillingInterval = target.interval ?? "month";
+    const cmp = compareMonthlyEquivalent(
+      { amount: target.unitAmount as number, interval: targetInterval },
+      { amount: current.amount as number, interval: current.interval }
+    );
+
+    if (cmp !== 0) {
+      const up = cmp > 0;
+      return { immediate: up, direction: up ? "upgrade" : "downgrade" };
+    }
+
+    // Same money per month, different commitment. Lengthening the period is an
+    // upgrade — the customer pre-pays for longer, so they're charged now, and
+    // Stripe prorates the difference. Shortening it is a downgrade and waits for
+    // the renewal, which for an annual subscriber can be up to a year out. That
+    // is correct: they paid for the year.
+    if (targetInterval !== current.interval) {
+      const lengthening = MONTHS_IN[targetInterval] > MONTHS_IN[current.interval];
+      return { immediate: lengthening, direction: lengthening ? "upgrade" : "downgrade" };
+    }
+
+    return { immediate: false, direction: "change" };
   }
 
   const direction = planChangeDirection(currentTier, target.tier, ladder);

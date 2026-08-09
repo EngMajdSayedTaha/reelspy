@@ -30,8 +30,14 @@ export type PendingPlanChange = {
   tier: AiTier;
   /** ISO timestamp when the new plan takes over = current period end. */
   effectiveAt: string;
-  /** Indicative monthly AED price of the pending plan (display only). */
+  /** Indicative monthly AED price of the pending plan (display only). @deprecated superseded by amountMinor/currency */
   priceAed: number | null;
+  /** The Stripe Price the pending phase bills. */
+  priceId: string | null;
+  /** What the pending plan bills, in MINOR units of its own currency. */
+  amountMinor: number | null;
+  currency: string | null;
+  interval: "month" | "year" | null;
   /** Custom-plan limits the pending phase will grant; null for fixed tiers. */
   entitlements: Entitlements | null;
   scheduleId: string;
@@ -44,6 +50,10 @@ export type PlanChangeTarget = {
   /** Stripe Price the next phase bills. */
   priceId: string;
   priceAed: number | null;
+  /** MINOR units + currency + period, so a non-AED or annual plan reads back correctly. */
+  amountMinor?: number | null;
+  currency?: string | null;
+  interval?: "month" | "year" | null;
   /** Custom-plan limits, carried on the phase metadata; null for fixed tiers. */
   entitlements: Entitlements | null;
 };
@@ -104,6 +114,15 @@ export function pendingFromSchedule(
   const rawPrice = Number(next.metadata?.price_aed);
   const priceAed = Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : planFor(tier).priceAed || null;
 
+  // A schedule created before these fields existed carries only price_aed, so
+  // derive the amount from it rather than showing the customer nothing.
+  const rawMinor = Number(next.metadata?.amount_minor);
+  const amountMinor =
+    Number.isFinite(rawMinor) && rawMinor > 0 ? rawMinor : priceAed != null ? priceAed * 100 : null;
+  const currency = next.metadata?.currency || (amountMinor != null ? "aed" : null);
+  const rawInterval = next.metadata?.interval;
+  const interval = rawInterval === "year" || rawInterval === "month" ? rawInterval : "month";
+
   let entitlements: Entitlements | null = null;
   const rawEnt = next.metadata?.custom_entitlements;
   if (rawEnt) {
@@ -118,6 +137,10 @@ export function pendingFromSchedule(
     tier,
     effectiveAt: new Date(next.start_date * 1000).toISOString(),
     priceAed,
+    priceId,
+    amountMinor,
+    currency,
+    interval,
     entitlements,
     scheduleId: schedule.id,
   };
@@ -141,7 +164,12 @@ export function buildPhases(
     user_id: target.userId,
     tier: target.tier,
   };
+  // price_aed is kept alongside the richer fields: schedules created before
+  // those existed carry only it, and pendingFromSchedule still reads it.
   if (target.priceAed != null) nextMetadata.price_aed = String(target.priceAed);
+  if (target.amountMinor != null) nextMetadata.amount_minor = String(target.amountMinor);
+  if (target.currency) nextMetadata.currency = target.currency;
+  if (target.interval) nextMetadata.interval = target.interval;
   if (target.entitlements) nextMetadata.custom_entitlements = JSON.stringify(target.entitlements);
 
   return [
