@@ -19,12 +19,27 @@ export const runtime = "nodejs";
 
 const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
 
+export type PublicPlanPrice = {
+  currency: string;
+  unitAmount: number;
+  interval: "month" | "year";
+  /**
+   * The struck-through "was" figure an admin sets alongside a sale price (see
+   * PricingSection.tsx). Already nulled by the catalog once sale_ends_at has
+   * passed, so a stale strikethrough can never survive an unrun expiry cron.
+   */
+  compareAtAmount: number | null;
+  saleEndsAt: string | null;
+};
+
 export type PublicPlan = {
   slug: string;
   kind: "free" | "fixed";
   sortOrder: number;
+  /** Days of free trial before billing starts. 0 = none. */
+  trialDays: number;
   copy: Record<Locale, PlanCopy>;
-  price: { currency: string; unitAmount: number; interval: "month" | "year" } | null;
+  price: PublicPlanPrice | null;
 };
 
 export type PublicPlansPayload = { plans: PublicPlan[]; generatedAt: string };
@@ -43,12 +58,19 @@ export async function GET() {
         slug: plan.slug,
         kind: plan.kind === "free" ? "free" : "fixed",
         sortOrder: plan.sortOrder,
+        trialDays: plan.trialDays,
         copy: Object.fromEntries(LOCALES.map((locale) => [locale, plan.copy[locale]])) as Record<
           Locale,
           PlanCopy
         >,
         price: price
-          ? { currency: price.currency, unitAmount: price.unitAmount, interval: price.interval }
+          ? {
+              currency: price.currency,
+              unitAmount: price.unitAmount,
+              interval: price.interval,
+              compareAtAmount: price.compareAtAmount,
+              saleEndsAt: price.saleEndsAt,
+            }
           : null,
       };
     });
