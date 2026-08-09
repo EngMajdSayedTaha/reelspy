@@ -389,6 +389,17 @@ export default async function BillingPage({ searchParams }: PageProps) {
           const planCopy = planCopyFor(catalog, plan.slug, locale);
           const price = currentPrice(catalog, plan.slug, { currency, interval });
           const priceLabel = price ? formatPrice(price.unitAmount, price.currency, intlLocale(locale)) : null;
+          // compareAtAmount is already nulled by the catalog once the sale has
+          // run out, so an unrun expiry cron can never leave a stale "was" price
+          // on the page.
+          const wasLabel =
+            price?.compareAtAmount != null
+              ? formatPrice(price.compareAtAmount, price.currency, intlLocale(locale))
+              : null;
+          const savePct =
+            price?.compareAtAmount != null
+              ? Math.round(((price.compareAtAmount - price.unitAmount) / price.compareAtAmount) * 100)
+              : null;
           return (
             <Card
               key={plan.slug}
@@ -408,6 +419,12 @@ export default async function BillingPage({ searchParams }: PageProps) {
                 <CardDescription>{planCopy.tagline}</CardDescription>
                 {/* Only offered to customers who haven't had one — the trial is
                     once per customer, and promising a second would be a lie. */}
+                {savePct !== null && savePct > 0 ? (
+                  <p className="text-xs font-medium text-success">
+                    {t.sale.save(savePct)}
+                    {price?.saleEndsAt ? ` · ${t.sale.endsOn(dateLabel(price.saleEndsAt) ?? "")}` : ""}
+                  </p>
+                ) : null}
                 {plan.trialDays > 0 && !sub?.trialUsedAt && !isCurrent ? (
                   <p className="text-xs font-medium text-success">{t.trial.badge(plan.trialDays)}</p>
                 ) : null}
@@ -416,6 +433,9 @@ export default async function BillingPage({ searchParams }: PageProps) {
                     t.free
                   ) : (
                     <>
+                      {wasLabel ? (
+                        <s className="me-2 text-lg font-normal text-muted-foreground">{wasLabel}</s>
+                      ) : null}
                       {priceLabel}
                       <span className="text-sm font-normal text-muted-foreground">
                         {interval === "year" ? t.perYearSuffix : t.perMonthSuffix}

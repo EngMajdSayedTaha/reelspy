@@ -27,6 +27,10 @@ const en = {
     },
     perMonthSuffix: "/mo",
     perYearSuffix: "/yr",
+    sale: {
+      save: (pct: number) => `Save ${pct}%`,
+      endsOn: (date: string) => `ends ${date}`,
+    },
     trial: {
       badge: (days: number) => `${days}-day free trial`,
       endsOn: (date: string) => `Free trial — ends ${date}, then billing starts.`,
@@ -247,6 +251,10 @@ export const billingAr: BillingDict = {
     },
     perMonthSuffix: "/شهريًا",
     perYearSuffix: "/سنويًا",
+    sale: {
+      save: (pct: number) => `وفّر ${pct}%`,
+      endsOn: (date: string) => `ينتهي في ${date}`,
+    },
     trial: {
       badge: (days: number) => `تجربة مجانية ${days} أيام`,
       endsOn: (date: string) => `تجربة مجانية — تنتهي في ${date}، ثم تبدأ الفوترة.`,

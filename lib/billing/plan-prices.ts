@@ -168,6 +168,11 @@ export async function mintPlanPrice(
       unit_amount: input.unitAmount,
       compare_at_amount: input.compareAtAmount ?? null,
       sale_ends_at: input.saleEndsAt ?? null,
+      // A sale with an end date needs somewhere to hand back to. The price it
+      // replaced is that: when the sale expires the cron promotes it again and
+      // new customers pay the old rate, while everyone who subscribed during
+      // the sale keeps the sale price like any other grandfathered subscriber.
+      reverts_to_price_id: input.saleEndsAt && previous ? previous.id : null,
       stripe_price_id: price.id,
       is_current: true,
     })

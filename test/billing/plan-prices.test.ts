@@ -118,6 +118,34 @@ describe("mintPlanPrice", () => {
     expect(result.replaced).toEqual({ id: "old-row", stripePriceId: "price_old", unitAmount: 14900 });
   });
 
+  // A sale has to know where to hand back to when it expires; the price it
+  // replaced is that. Without it the cron would have nothing to revert and the
+  // sale price would quietly become the permanent one.
+  it("points a time-limited sale back at the price it replaced", async () => {
+    const { admin, writes } = fakeAdmin({ id: "old-row", stripe_price_id: "price_old", unit_amount: 14900 });
+    const { stripe } = fakeStripe();
+
+    await mintPlanPrice(admin, stripe, {
+      ...INPUT,
+      unitAmount: 9900,
+      compareAtAmount: 14900,
+      saleEndsAt: "2026-12-31T23:59:59Z",
+    });
+
+    const insert = writes.find((w) => w.table === "plan_prices" && w.op === "insert");
+    expect(insert?.payload).toMatchObject({ reverts_to_price_id: "old-row", compare_at_amount: 14900 });
+  });
+
+  it("leaves an open-ended price with nothing to revert to", async () => {
+    const { admin, writes } = fakeAdmin({ id: "old-row", stripe_price_id: "price_old", unit_amount: 14900 });
+    const { stripe } = fakeStripe();
+
+    await mintPlanPrice(admin, stripe, INPUT);
+
+    const insert = writes.find((w) => w.table === "plan_prices" && w.op === "insert");
+    expect(insert?.payload).toMatchObject({ reverts_to_price_id: null });
+  });
+
   it("has nothing to replace for a plan's first price", async () => {
     const { admin, writes } = fakeAdmin(null);
     const { stripe } = fakeStripe();

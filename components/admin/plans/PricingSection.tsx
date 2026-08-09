@@ -63,6 +63,12 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
     (p) => p.isCurrent && p.interval === interval && p.currency === currency
   );
   const [amount, setAmount] = useState(current ? toMajor(current.unitAmount) : "");
+  // A sale is a real price with a "was" figure beside it, not a coupon. That
+  // keeps the struck-through number honest (it IS the list price), keeps promo
+  // codes usable at the same time, and means a sale subscriber is grandfathered
+  // on the sale price exactly like any other — no coupon to expire under them.
+  const [compareAt, setCompareAt] = useState(current?.compareAtAmount ? toMajor(current.compareAtAmount) : "");
+  const [saleEndsAt, setSaleEndsAt] = useState(current?.saleEndsAt?.slice(0, 10) ?? "");
 
   const reselect = (nextCurrency: Currency, nextInterval: "month" | "year") => {
     setCurrency(nextCurrency);
@@ -71,6 +77,8 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
       (p) => p.isCurrent && p.interval === nextInterval && p.currency === nextCurrency
     );
     setAmount(existing ? toMajor(existing.unitAmount) : "");
+    setCompareAt(existing?.compareAtAmount ? toMajor(existing.compareAtAmount) : "");
+    setSaleEndsAt(existing?.saleEndsAt?.slice(0, 10) ?? "");
   };
 
   // What 12 months of the monthly price would cost, so the admin can see what
@@ -116,7 +124,13 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
       const res = await requestJson<{ grandfathered: number }>(`/api/admin/plans/${plan.id}/prices`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interval, currency, unitAmount: minor }),
+        body: JSON.stringify({
+          interval,
+          currency,
+          unitAmount: minor,
+          compareAtAmount: compareAt.trim() ? toMinor(compareAt) : null,
+          saleEndsAt: saleEndsAt.trim() ? new Date(`${saleEndsAt}T23:59:59Z`).toISOString() : null,
+        }),
       });
       toast.success(
         res.grandfathered > 0
@@ -185,6 +199,28 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
               placeholder="149"
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">
+              &ldquo;Was&rdquo; price (optional)
+            </Label>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={compareAt}
+              onChange={(e) => setCompareAt(e.target.value)}
+              className="w-32"
+              placeholder="—"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Sale ends (optional)</Label>
+            <Input
+              type="date"
+              value={saleEndsAt}
+              onChange={(e) => setSaleEndsAt(e.target.value)}
+              className="w-44"
+            />
+          </div>
           <Button onClick={save} disabled={busy || !amount.trim()}>
             {busy ? "Saving…" : current ? "Change price" : "Set price"}
           </Button>
@@ -211,6 +247,16 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
             can be published.
           </p>
         )}
+
+        {compareAt.trim() ? (
+          <p className="text-xs text-muted-foreground">
+            Shown as <s>{toMajor(toMinor(compareAt))}</s> {toMajor(toMinor(amount) || 0)} on the pricing
+            page.{" "}
+            {saleEndsAt
+              ? `The strikethrough disappears after ${saleEndsAt}; anyone who subscribed at the sale price keeps it.`
+              : "With no end date the sale runs until you change the price."}
+          </p>
+        ) : null}
 
         {savingPct !== null && yearlyFull ? (
           <p className="text-xs text-muted-foreground">
