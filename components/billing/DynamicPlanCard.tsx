@@ -30,12 +30,19 @@ import {
 export function DynamicPlanCard({
   disabled,
   hasSubscription = false,
+  displayCurrency,
   currentPlanName,
   effectiveOnLabel,
 }: {
   disabled?: boolean;
   /** True when the user already pays for a plan — then this SCHEDULES a change. */
   hasSubscription?: boolean;
+  /**
+   * The currency the rest of the page is quoting. This card always prices in
+   * AED — the build-your-own rate card is AED-only — so it uses this purely to
+   * say so when the two differ, rather than letting the page imply otherwise.
+   */
+  displayCurrency?: string;
   currentPlanName?: string;
   /** Renewal date a scheduled change would take effect on. */
   effectiveOnLabel?: string | null;
@@ -200,6 +207,12 @@ export function DynamicPlanCard({
                 {dict.billing.perMonthSuffix}
               </span>
             </p>
+            {/* The build-your-own plan is priced from a single AED rate card, so
+                say so rather than letting the page's chosen currency imply
+                otherwise — this is the one plan that isn't quoted locally. */}
+            {displayCurrency && displayCurrency !== "aed" ? (
+              <p className="text-xs text-muted-foreground">{t.billedInAed}</p>
+            ) : null}
           </div>
           <Button onClick={subscribe} disabled={disabled || loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

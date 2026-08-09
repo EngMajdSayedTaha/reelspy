@@ -141,6 +141,10 @@ const en = {
         },
       },
     },
+    currency: {
+      locked: (code: string) =>
+        `Billed in ${code}. A subscription's currency is fixed for its lifetime — contact support if you need to change it.`,
+    },
     plans: {
       free: {
         name: "Free",
@@ -199,6 +203,7 @@ const en = {
       modelSonnetHint: "Fast, high-quality scripts",
       modelOpusHint: "Anthropic's most capable model",
       estimatedPrice: "Estimated price",
+      billedInAed: "This plan is billed in AED.",
       subscribeCustom: "Subscribe to this plan",
     },
   },
@@ -343,6 +348,10 @@ export const billingAr: BillingDict = {
         },
       },
     },
+    currency: {
+      locked: (code: string) =>
+        `الفوترة بعملة ${code}. عملة الاشتراك ثابتة طوال مدته — تواصل مع الدعم إذا احتجت إلى تغييرها.`,
+    },
     plans: {
       free: {
         name: "مجانية",
@@ -401,6 +410,7 @@ export const billingAr: BillingDict = {
       modelSonnetHint: "نصوص سريعة وعالية الجودة",
       modelOpusHint: "أقوى نماذج Anthropic",
       estimatedPrice: "السعر التقديري",
+      billedInAed: "تُحتسب فاتورة هذه الباقة بالدرهم الإماراتي.",
       subscribeCustom: "اشترك في هذه الباقة",
     },
   },

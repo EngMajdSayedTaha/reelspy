@@ -27,6 +27,7 @@ import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
+import { normalizeCurrency, type Currency } from "@/lib/billing/currency";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
 import { loadCatalog, currentPrice, planDisplayName } from "@/lib/billing/catalog";
 import { syncSubscription } from "@/lib/billing/sync";
@@ -110,7 +111,12 @@ async function resolveTarget(
   stripe: Stripe,
   userId: string,
   tier: AiTier,
-  config?: CustomPlanConfig
+  config?: CustomPlanConfig,
+  // The currency this subscription is LOCKED to. Stripe can't change a
+  // subscription's currency, so a target priced in anything else is one we could
+  // never actually charge — and decidePlanChangeMode would refuse to compare it
+  // and defer the change instead of applying it.
+  billingCurrency?: Currency
 ): Promise<ResolvedTarget | ActionFailure> {
   if (tier === "custom") {
     if (!config) return { ok: false, status: 400, error: "Pick your custom plan options first." };
@@ -130,7 +136,16 @@ async function resolveTarget(
   }
 
   const catalog = await loadCatalog();
-  const catalogPrice = currentPrice(catalog, tier);
+  const catalogPrice = currentPrice(catalog, tier, { currency: billingCurrency });
+  if (billingCurrency && catalogPrice && catalogPrice.currency !== billingCurrency) {
+    // This plan isn't priced in the currency they're billed in. Saying so beats
+    // quoting a price we can't charge, or silently deferring the change.
+    return {
+      ok: false,
+      status: 409,
+      error: `That plan isn't available in ${billingCurrency.toUpperCase()}. Contact support and we'll move you across.`,
+    };
+  }
   // The catalog is authoritative for WHICH price a plan sells; env price ids are
   // the fallback for a deployment whose catalog hasn't been seeded yet.
   const priceId = catalogPrice?.stripePriceId ?? stripePriceIdForTier(tier);
@@ -165,6 +180,11 @@ async function resolveTarget(
 
 function isFailure<T>(value: T | ActionFailure): value is ActionFailure {
   return typeof value === "object" && value !== null && "ok" in value && value.ok === false;
+}
+
+// The currency this subscription is locked to, if we can read it.
+function currencyOf(sub: Stripe.Subscription): Currency | undefined {
+  return normalizeCurrency(sub.items?.data?.[0]?.price?.currency) ?? undefined;
 }
 
 // The recurring amount the subscription bills today.
@@ -223,9 +243,8 @@ export async function changePlanForUser(params: {
 }): Promise<ImmediateChange | ScheduledChange | ActionFailure> {
   const { admin, stripe, userId, subscriptionId, currentTier, tier, config } = params;
 
-  const target = await resolveTarget(stripe, userId, tier, config);
-  if (isFailure(target)) return target;
-
+  // Retrieved BEFORE the target is resolved: the subscription's currency is
+  // locked for its lifetime, and it's what the new plan has to be priced in.
   let sub: Stripe.Subscription;
   try {
     sub = await stripe.subscriptions.retrieve(subscriptionId);
@@ -233,6 +252,9 @@ export async function changePlanForUser(params: {
     console.error("[billing/plan-change] retrieve failed:", err instanceof Error ? err.message : err);
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
+
+  const target = await resolveTarget(stripe, userId, tier, config, currencyOf(sub));
+  if (isFailure(target)) return target;
 
   const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   return immediate
@@ -252,9 +274,6 @@ export async function previewPlanChangeForUser(params: {
 }): Promise<PlanChangePreview | ActionFailure> {
   const { stripe, userId, subscriptionId, currentTier, tier, config } = params;
 
-  const target = await resolveTarget(stripe, userId, tier, config);
-  if (isFailure(target)) return target;
-
   let sub: Stripe.Subscription;
   try {
     sub = await stripe.subscriptions.retrieve(subscriptionId);
@@ -262,6 +281,9 @@ export async function previewPlanChangeForUser(params: {
     console.error("[billing/plan-change] preview retrieve failed:", err instanceof Error ? err.message : err);
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
+
+  const target = await resolveTarget(stripe, userId, tier, config, currencyOf(sub));
+  if (isFailure(target)) return target;
 
   const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   const renewsOnLabel = dayLabelFromUnix(sub.current_period_end);

@@ -10,6 +10,9 @@ import { formatLimit, isUnlimited, ENTITLEMENTS } from "@/lib/billing/entitlemen
 import type { AiTier } from "@/lib/ai/tier";
 import { isPaidTier, type PaidTier } from "@/lib/billing/plans";
 import { loadCatalog, entitlementsForSlug, planCopyFor, currentPrice } from "@/lib/billing/catalog";
+import { resolveDisplayCurrency } from "@/lib/billing/currency-server";
+import { formatPrice } from "@/lib/billing/currency";
+import { CurrencySwitcher } from "@/components/billing/CurrencySwitcher";
 import { planChangeDirection } from "@/lib/billing/format";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,6 +138,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // admin-managed catalog now (falling back to the built-in constants when it
   // has nothing to say), so changing any of them is a settings edit, not a deploy.
   const catalog = await loadCatalog();
+  // An existing subscriber's currency is pinned by their subscription; everyone
+  // else gets their cookie, then their country, then AED.
+  const { currency, locked: currencyLocked } = await resolveDisplayCurrency(
+    sub?.active ? sub.billingCurrency : null
+  );
   const ent =
     billingTier === "custom"
       ? sub?.customEntitlements ?? ENTITLEMENTS.custom
@@ -186,13 +194,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
       : []),
   ].sort((a, b) => a.sortOrder - b.sortOrder);
   const ladder = catalog.ladder as AiTier[];
-  const currentCatalogPrice = currentPrice(catalog, billingTier);
+  const currentCatalogPrice = currentPrice(catalog, billingTier, { currency });
   const currentPriceLabel =
-    billingTier === "custom"
+    billingTier === "custom" || !currentCatalogPrice
       ? ""
-      : currentCatalogPrice
-        ? `AED ${Math.round(currentCatalogPrice.unitAmount / 100)}`
-        : "";
+      : formatPrice(currentCatalogPrice.unitAmount, currentCatalogPrice.currency, intlLocale(locale));
   // Every in-app plan action needs a live Stripe subscription to schedule against.
   const canManagePlan = Boolean(sub?.active && sub.stripeSubscriptionId);
 
@@ -328,6 +334,15 @@ export default async function BillingPage({ searchParams }: PageProps) {
         </div>
       ) : null}
 
+      {/* Currency: a choice for a prospect, a statement of fact for a subscriber. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <CurrencySwitcher
+          value={currency}
+          locked={currencyLocked}
+          lockedLabel={t.currency.locked(currency.toUpperCase())}
+        />
+      </div>
+
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {gridPlans.map((plan) => {
@@ -335,8 +350,8 @@ export default async function BillingPage({ searchParams }: PageProps) {
           const isPendingPlan = pending?.tier === plan.slug;
           const isUpgrade = ladder.indexOf(plan.slug) > ladder.indexOf(billingTier);
           const planCopy = planCopyFor(catalog, plan.slug, locale);
-          const price = currentPrice(catalog, plan.slug);
-          const priceMajor = price ? Math.round(price.unitAmount / 100) : 0;
+          const price = currentPrice(catalog, plan.slug, { currency });
+          const priceLabel = price ? formatPrice(price.unitAmount, price.currency, intlLocale(locale)) : null;
           return (
             <Card
               key={plan.slug}
@@ -355,11 +370,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
                 </CardTitle>
                 <CardDescription>{planCopy.tagline}</CardDescription>
                 <div className="pt-1 text-2xl font-semibold text-foreground">
-                  {priceMajor === 0 ? (
+                  {!priceLabel ? (
                     t.free
                   ) : (
                     <>
-                      AED {priceMajor}
+                      {priceLabel}
                       <span className="text-sm font-normal text-muted-foreground">
                         {t.perMonthSuffix}
                       </span>
@@ -388,7 +403,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
                       variant={isUpgrade ? "default" : "outline"}
                       disabled={!stripeConfigured()}
                       planName={planCopy.name}
-                      priceLabel={priceMajor ? `AED ${priceMajor}` : ""}
+                      priceLabel={priceLabel ?? ""}
                       currentPlanName={currentPlanName}
                       effectiveOnLabel={renewLabel}
                       direction={planChangeDirection(billingTier, plan.slug, ladder)}
@@ -417,6 +432,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       {/* Dynamic "build your own plan" card (B4) */}
       <DynamicPlanCard
         disabled={!stripeConfigured()}
+        displayCurrency={currency}
         hasSubscription={canManagePlan}
         currentPlanName={currentPlanName}
         effectiveOnLabel={renewLabel}

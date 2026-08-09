@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { requestJson, notifyError } from "@/lib/utils/api";
 import type { AdminPlanRow, AdminPlanPrice } from "@/lib/admin/plans";
+import { CURRENCIES, CURRENCY_LABELS, type Currency } from "@/lib/billing/currency";
 
 // Setting a price, and showing what setting it did NOT do.
 //
@@ -52,11 +53,23 @@ function PriceHistory({ prices }: { prices: AdminPlanPrice[] }) {
 export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChanged: () => void }) {
   const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
-  const currency = plan.defaultCurrency;
+  // One price per currency, each its own Stripe Price, so each has its own
+  // lineage and can be grandfathered independently. The admin sets the actual
+  // local number rather than an exchange rate — AED and SAR are dollar-pegged,
+  // so there is no rate to track.
+  const [currency, setCurrency] = useState<Currency>(plan.defaultCurrency as Currency);
   const current = plan.prices.find(
     (p) => p.isCurrent && p.interval === "month" && p.currency === currency
   );
   const [amount, setAmount] = useState(current ? toMajor(current.unitAmount) : "");
+
+  const selectCurrency = (next: Currency) => {
+    setCurrency(next);
+    const existing = plan.prices.find(
+      (p) => p.isCurrent && p.interval === "month" && p.currency === next
+    );
+    setAmount(existing ? toMajor(existing.unitAmount) : "");
+  };
 
   const save = async () => {
     const minor = toMinor(amount);
@@ -119,6 +132,20 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
       <CardContent className="flex flex-col gap-4 pt-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
+            <Label className="text-xs text-muted-foreground">Currency</Label>
+            <select
+              value={currency}
+              onChange={(e) => selectCurrency(e.target.value as Currency)}
+              className="h-9 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            >
+              {CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {CURRENCY_LABELS[code]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
             <Label className="text-xs text-muted-foreground">
               Price per month ({currency.toUpperCase()})
             </Label>
@@ -153,11 +180,12 @@ export function PricingSection({ plan, onChanged }: { plan: AdminPlanRow; onChan
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            No price set yet — this plan can&apos;t be published until it has one.
+            No {currency.toUpperCase()} price yet. A plan needs a price in its default currency (
+            {plan.defaultCurrency.toUpperCase()}) before it can be published.
           </p>
         )}
 
-        <PriceHistory prices={plan.prices} />
+        <PriceHistory prices={plan.prices.filter((p) => p.currency === currency)} />
       </CardContent>
     </Card>
   );
