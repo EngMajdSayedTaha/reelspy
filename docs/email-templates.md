@@ -65,6 +65,8 @@ Rules that hold across every email:
 | Subscription ended | `customer.subscription.deleted` | `lib/email/billing.ts` |
 | Refund issued | `charge.refunded` | `lib/email/billing.ts` |
 | Dispute alert (internal) | `charge.dispute.created` | `lib/email/billing.ts` |
+| Trial ending soon | `customer.subscription.trial_will_end` | `lib/email/billing.ts` |
+| Price change notice | admin migrates subscribers onto a new price | `lib/email/billing.ts` |
 | Publish failure | ≥1 failed publish target | `lib/email/publish-failure.ts` |
 | Weekly digest | weekly cron (opt-in) | `lib/email/weekly-digest.ts` |
 | IG cookie health (internal) | daily watchdog failure | `app/api/cron/ig-cookie-health/route.ts` |

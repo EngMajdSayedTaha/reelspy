@@ -40,10 +40,35 @@ Until these run, tier resolution and quotas **fail open** (everyone resolves to
 `AI_DEFAULT_TIER`, monthly caps are not enforced, dedupe is skipped) — nothing
 breaks, but nobody is actually metered or upgraded.
 
+## 1b. Seed the plan catalog
+
+Plans, prices, limits and customer-facing copy live in the **database** now
+(`plans` / `plan_copy` / `plan_prices`), edited from **Admin → Plans & pricing**.
+The constants in `lib/billing/*.ts` survive only as the **fail-open fallback**:
+until the catalog is seeded — or any time it can't be read — the app behaves
+exactly as it did before, so this is safe to deploy ahead of the migration.
+
+```
+npm run seed:plans          # add --dry-run to see what it would write
+```
+
+That writes today's five plans, their EN **and** AR copy, and one price row per
+tier whose `STRIPE_PRICE_*` env var is set. It also records each Stripe Price's
+**Product** id on the plan, which is what later lets a promo code be restricted
+to specific plans. Re-running it is a no-op.
+
+After seeding, `/admin/plans` is where prices change — not this document, and not
+a deploy.
+
 ## 2. Create the products & prices in Stripe
 
-Create one **recurring** Price per paid tier (monthly). Tiers and indicative AED
-pricing (see `lib/billing/plans.ts` / `lib/billing/entitlements.ts`):
+> **This section describes the FIRST-TIME setup only.** Once the catalog is
+> seeded, setting a price in Admin → Plans creates the Stripe Price for you —
+> you never hand-create one again. The `STRIPE_PRICE_*` env vars stay as the
+> fallback for a deployment whose catalog hasn't been seeded.
+
+Create one **recurring** Price per paid tier (monthly). Tiers and the AED pricing
+this build ships with as its fallback:
 
 | Tier    | Price (AED/mo) | Accounts | Scripts/mo | Transcripts/mo | Auto-replies | Publish targets | Model  |
 |---------|----------------|----------|------------|----------------|---------------|------------------|--------|
@@ -80,6 +105,7 @@ Stripe Dashboard → Developers → Webhooks → add endpoint:
     a scheduled plan change takes effect)
   - `charge.refunded` — refund email; a **full** refund also cancels the sub
   - `charge.dispute.created` — founder alert to `BILLING_ALERT_EMAIL`
+  - `customer.subscription.trial_will_end` — the three-day trial warning (§16)
 
 Copy the signing secret (`whsec_…`).
 
@@ -104,6 +130,11 @@ BILLING_ALERT_EMAIL=you@your-domain      # dispute alerts; falls back to EMAIL_F
 # Optional: an existing Stripe Product to hang ad-hoc custom-plan prices off
 # (see §7a). Unset simply means one product per distinct custom price point.
 STRIPE_PRODUCT_CUSTOM=prod_...
+
+# Optional: how long a loaded plan catalog is cached, per instance (default 60s).
+# Staleness can only affect a DISPLAYED price — the amount charged is always
+# resolved server-side at checkout.
+BILLING_CATALOG_TTL_MS=60000
 ```
 
 A tier with no `STRIPE_PRICE_*` set is simply not offered for purchase. Redeploy
@@ -191,6 +222,8 @@ log and no-op). Sent by the webhook, keyed to Stripe events:
 | Subscription cancelled | `customer.subscription.deleted` | customer |
 | Refund issued | `charge.refunded` | customer |
 | Dispute alert | `charge.dispute.created` | `BILLING_ALERT_EMAIL` |
+| Trial ending soon | `customer.subscription.trial_will_end` | customer |
+| Price change notice | an admin migrates subscribers onto a new price (§18) | customer |
 
 All of them render through the shared branded template
 (`lib/email/layout.ts` — logo header, details table, CTA, support/legal footer,
@@ -405,3 +438,142 @@ caps** (`lib/billing/entitlements.ts`), enforced at four chokepoints:
 The webhook is the only writer of `subscriptions`; clients can read their own row
 but never write it, so a tier (or a custom entitlement set) can't be forged
 from the browser.
+
+
+---
+
+## 13. The plan catalog
+
+`plans`, `plan_copy` and `plan_prices` (migration `20260809080000_plan_catalog.sql`)
+are the source of truth for what a plan costs, grants and is called.
+`lib/billing/catalog.ts` loads them and serves every billing path. Three
+properties matter more than the rest:
+
+1. **It fails open.** Any error — missing migration, empty table, malformed
+   jsonb, DB blip — returns a fallback catalog built from the hardcoded
+   constants, with `source: "fallback"`. Billing must never hard-break the app.
+2. **`priceIndex` covers every price ever recorded**, current or not. Stripe
+   Prices are immutable in amount, so changing one mints a new Price and the old
+   lives on for everyone grandfathered on it. If the reverse lookup only knew
+   current prices, the webhook would fail to resolve those subscribers' plan on
+   their next renewal. This is the single most load-bearing detail in the system.
+3. **It is cached** (`BILLING_CATALOG_TTL_MS`, default 60s, per instance) and
+   admin writes invalidate it. A stale read can only show an out-of-date price
+   for under a minute; the amount charged is always resolved server-side at
+   checkout, so it can never charge the wrong number.
+
+All the catalog tables are **service-role only** — RLS on with no policies, the
+`app_settings` pattern. The customer surface is a Server Component, so the
+browser never reads them, and draft plans and historical prices must not leak.
+
+**Slugs are permanent.** A plan's slug is stored verbatim in
+`subscriptions.tier`, so it is frozen once any subscription references it, and
+there is no delete endpoint — retiring a plan means archiving it.
+
+**Prices are grandfathered; limits are NOT.** Entitlements resolve live from the
+catalog, so lowering one reaches existing subscribers on their next page load.
+The admin console refuses a reduction once, names the affected count, and only
+applies it when the admin confirms. Say this out loud in support conversations —
+it is the least intuitive rule in the whole system.
+
+## 14. Currencies
+
+AED for the UAE, SAR for Saudi, USD everywhere else. `middleware.ts` stamps
+`reelspy_currency` once from Vercel's `x-vercel-ip-country`; a switcher on the
+billing page overrides it.
+
+**An existing subscriber's currency never changes.** Stripe locks a
+subscription's currency for its lifetime and offers no way to move one, so
+`resolveDisplayCurrency` puts the subscription's recorded currency ahead of the
+cookie and the IP, the switcher renders disabled, and `resolveTarget` prices
+every plan change in that currency. A plan with no price in it says so rather
+than quoting something we could never charge.
+
+Each (plan, interval, currency) is its own Stripe Price — deliberately not one
+Price with `currency_options`. That keeps `plan_prices` 1:1 with a Stripe Price
+so each currency has its own grandfathering lineage, and keeps
+`decidePlanChangeMode` comparing like with like (a multi-currency Price's
+`unit_amount` is only its default currency's amount).
+
+Admins set the real local number. AED and SAR are dollar-pegged, so there is no
+exchange rate to track and nobody's price moves with a market.
+
+## 15. Annual plans
+
+A second `plan_prices` row per (plan, currency) with `interval = 'year'`, and a
+monthly/yearly toggle on the billing page.
+
+Ranking is the dangerous part, because `decidePlanChangeMode` decides whether
+somebody is charged today. Amounts are compared on a **monthly-equivalent** basis
+by **cross-multiplication** (never division — integer division would round two
+genuinely different prices into looking equal). When the monthly equivalents tie
+but the period differs, **lengthening** it is an upgrade applied now (they
+pre-pay for longer, Stripe prorates) and **shortening** it defers to the renewal,
+which for an annual subscriber can be up to a year out. That is correct: they
+paid for the year.
+
+## 16. Trials
+
+`plans.trial_days`, applied at checkout with
+`trial_settings.end_behavior.missing_payment_method: "cancel"` — a trial that
+ends without a usable card should stop, not fail an invoice and drag the customer
+through dunning.
+
+**Once per customer**, enforced by us via `subscriptions.trial_used_at`, because
+Stripe has no per-customer trial lock for Checkout: without it a customer could
+take a fresh trial on every plan forever. It is stamped optimistically at session
+creation so opening several sessions can't win a race.
+
+`trialing` already grants access (`ACTIVE_STATUSES`), so entitlements need no
+special case. **`buildPhases` carries `trial_end` into the rebuilt current
+phase** — without that, a trialing customer who merely *scheduled* a downgrade
+would lose their trial and be charged on the spot.
+
+## 17. Sales and promo codes
+
+A **sale** is a real Stripe Price with a `compare_at_amount` beside it, not an
+auto-applied coupon. A Checkout Session rejects `discounts` and
+`allow_promotion_codes` together, so a coupon-driven sale would switch promo
+codes off exactly when marketing wants both; and with a price-swap the compared
+amount *is* the charged amount, so a sale can't make a nominal upgrade bill less
+than the current plan and get deferred as a downgrade. Setting an end date points
+the sale back at the price it replaced, and `/api/cron/billing-catalog` (daily)
+promotes that price again when it expires. Subscribers who bought at the sale
+price keep it.
+
+**Promo codes** are managed at `/admin/plans/promotions`. Restriction is by
+Stripe **Product**, so a promo survives a price change. Percent-off is the
+default because Stripe amount-off coupons carry exactly one currency. Retiring a
+code deactivates it rather than deleting the coupon: new redemptions stop,
+everyone already discounted keeps it, and it is reversible.
+
+Promo codes work at first-purchase Checkout, plus an **admin-only** "apply to
+this subscriber" action for retention offers. There is deliberately no
+customer-facing promo box on the upgrade path — it would drag discounted amounts
+into `previewProration` and `decidePlanChangeMode`, which is the trap price-swap
+sales avoid.
+
+## 18. Price changes, grandfathering and migrations
+
+Editing a price **mints a new Stripe Price** and demotes the previous
+`plan_prices` row to `is_current = false` — *keeping* it, with `archived_at`
+still null, because subscribers are still billing on it.
+
+> 🔴 **Never deactivate an old Stripe Price.** Deactivating one doesn't affect
+> existing subscriptions, but it *does* stop Subscription Schedules using it —
+> and `buildPhases` reproduces a customer's current phase with their current
+> price id. Deactivating would leave every grandfathered subscriber unable to
+> schedule any plan change at all. Only deactivate when a plan is fully retired
+> with zero subscribers.
+
+Nobody is repriced by an edit. **Admin → Plans → Move them to the current price**
+is the separate action that does, and it **never charges anybody today**: each
+job calls `schedulePlanChange` directly and never `changePlanForUser`, which
+would decide "upgrade ⇒ immediate" and invoice the entire subscriber base at
+once. Every subscriber moves at their own next renewal at least 30 days out, is
+emailed the old price, the new price and the date beforehand, and anyone renewing
+sooner keeps the old price for one more period.
+
+One job per subscriber through the durable queue, so a failure is per-user and
+retryable; per-subscriber outcomes live in `plan_price_migration_targets` and the
+audit log gets one entry for the batch.
