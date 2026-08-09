@@ -9,7 +9,7 @@ export default function AdminOpsPage() {
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Operations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Jobs, cron triggers, IG cookies, rate limits, and app settings.
+          Jobs, cron triggers, IG cookies, rate limits, page/platform visibility, and app settings.
         </p>
       </div>
       <BuildInfoCard />

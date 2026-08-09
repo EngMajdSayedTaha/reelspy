@@ -11,6 +11,7 @@ import { TourInviteToast } from "@/components/tour/TourInviteToast";
 import { WhatsNewDialog } from "@/components/release/WhatsNewDialog";
 import type { SidebarUser } from "@/lib/user/sidebar-user";
 import type { Release } from "@/lib/release/types";
+import type { PagesFlag } from "@/lib/dashboard/pages";
 
 export function DashboardShell({
   children,
@@ -21,6 +22,7 @@ export function DashboardShell({
   version,
   hasUnseenRelease,
   spotlightRelease,
+  pagesFlag,
 }: {
   children: ReactNode;
   user: SidebarUser | null;
@@ -31,6 +33,8 @@ export function DashboardShell({
   hasUnseenRelease: boolean;
   /** Non-null only when an unseen release is worth interrupting for. */
   spotlightRelease: Release | null;
+  /** Admin's flag:pages switch — which sidebar sections to show. */
+  pagesFlag: PagesFlag;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -45,6 +49,7 @@ export function DashboardShell({
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
+            pagesFlag={pagesFlag}
             user={user}
             version={version}
             hasUnseenRelease={hasUnseenRelease}

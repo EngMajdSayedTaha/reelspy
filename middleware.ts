@@ -168,6 +168,9 @@ export async function middleware(request: NextRequest) {
   //
   // Only ever set when absent: a visitor who picked a currency, or who is
   // already subscribed, must not have it silently changed by travelling.
+  //
+  // Runs BEFORE the /dashboard pathname-forwarding block below so that block's
+  // "copy every cookie on supabaseResponse" step picks up this one too.
   if (!request.cookies.get(CURRENCY_COOKIE)) {
     const country = request.headers.get("x-vercel-ip-country");
     if (country) {
@@ -179,6 +182,19 @@ export async function middleware(request: NextRequest) {
         httpOnly: false,
       });
     }
+  }
+
+  // Forward the pathname to the dashboard layout (Server Component, no
+  // access to the URL otherwise) so it can enforce the admin's flag:pages
+  // switch — see lib/dashboard/pages-flag.ts. Scoped to /dashboard: it's the
+  // only tree that reads x-pathname, and rebuilding the response for every
+  // route would be pure overhead.
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-pathname", request.nextUrl.pathname);
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    return response;
   }
 
   return supabaseResponse;

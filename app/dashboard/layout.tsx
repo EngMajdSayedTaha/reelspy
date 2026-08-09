@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getQuizNicheChips } from "@/lib/onboarding/niche-chips";
@@ -11,6 +13,8 @@ import { getUnseenState } from "@/lib/release/seen";
 import { CURRENT_VERSION } from "@/lib/release/version";
 import type { Release } from "@/lib/release/types";
 import { guardDashboardAccess } from "@/lib/waitlist/guard";
+import { PAGES_FLAG_DEFAULT, readPagesFlag } from "@/lib/dashboard/pages-flag";
+import { matchDashboardPage, type PagesFlag } from "@/lib/dashboard/pages";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -30,13 +34,31 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   let colorTheme: string | null = null;
   let hasUnseenRelease = false;
   let spotlightRelease: Release | null = null;
+  let pagesFlag: PagesFlag = PAGES_FLAG_DEFAULT;
 
   if (authUser) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("quiz_completed_at, tour_completed_at, onboarded_at, brand_voice, color_theme")
-      .eq("id", authUser.id)
-      .maybeSingle();
+    const admin = createAdminClient();
+    const [{ data: profile }, flag] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("quiz_completed_at, tour_completed_at, onboarded_at, brand_voice, color_theme")
+        .eq("id", authUser.id)
+        .maybeSingle(),
+      readPagesFlag(admin),
+    ]);
+    pagesFlag = flag;
+
+    // Admin's flag:pages switch — hide-from-sidebar is the main ask, but a
+    // hidden page must not stay reachable by URL, so bounce direct navigation
+    // too. x-pathname is set by middleware.ts (Server Components have no
+    // other way to read the current URL). Fails open when the header is
+    // absent (e.g. a future route outside the middleware's /dashboard scope)
+    // by simply not matching any togglable page.
+    const pathname = (await headers()).get("x-pathname");
+    const page = pathname ? matchDashboardPage(pathname) : undefined;
+    if (page && pagesFlag[page.id] === false) {
+      redirect("/dashboard");
+    }
 
     // Fail-open: a missing last_seen_version column resolves to "caught up", so
     // an unapplied migration costs the dot and the popup, never the dashboard.
@@ -54,7 +76,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     tourCompleted = Boolean(profile?.tour_completed_at);
 
     if (showQuiz) {
-      quizNicheChips = await getQuizNicheChips(createAdminClient());
+      quizNicheChips = await getQuizNicheChips(admin);
     }
   }
 
@@ -67,6 +89,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       version={CURRENT_VERSION}
       hasUnseenRelease={hasUnseenRelease}
       spotlightRelease={spotlightRelease}
+      pagesFlag={pagesFlag}
     >
       <ColorThemeSync dbTheme={colorTheme} />
       {children}
