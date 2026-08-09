@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe, siteOrigin, isMissingResource } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
 import { usableCustomerId } from "@/lib/billing/sync";
-import { stripePriceIdForTier, isPaidTier, planFor } from "@/lib/billing/plans";
+import { stripePriceIdForTier, isPaidTier } from "@/lib/billing/plans";
+import { loadCatalog, currentPrice, planDisplayName } from "@/lib/billing/catalog";
 import {
   cancelScheduledChangeForUser,
   changePlanForUser,
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         if (scheduleIdOf(live)) {
           const kept = await cancelScheduledChangeForUser({ admin, stripe, userId: user.id, subscriptionId });
           if (!kept.ok) return NextResponse.json({ error: kept.error }, { status: kept.status });
-          return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
+          return NextResponse.json({ kept: true, tier, tierName: await planDisplayName(tier) });
         }
         if (live.cancel_at_period_end) {
           const resumed = await setSubscriptionCancellation({
@@ -121,9 +121,9 @@ export async function POST(request: Request) {
             cancel: false,
           });
           if (!resumed.ok) return NextResponse.json({ error: resumed.error }, { status: resumed.status });
-          return NextResponse.json({ resumed: true, tier, tierName: planFor(tier).name });
+          return NextResponse.json({ resumed: true, tier, tierName: await planDisplayName(tier) });
         }
-        return NextResponse.json({ kept: true, tier, tierName: planFor(tier).name });
+        return NextResponse.json({ kept: true, tier, tierName: await planDisplayName(tier) });
       }
 
       const changed = await changePlanForUser({
@@ -180,7 +180,10 @@ export async function POST(request: Request) {
     };
     metadata = { user_id: user.id, tier: "custom", custom_entitlements: JSON.stringify(entitlements) };
   } else {
-    const priceId = stripePriceIdForTier(tier);
+    // The catalog decides which Stripe Price a plan sells; the env var is the
+    // fallback for a deployment whose catalog hasn't been seeded yet.
+    const priceId =
+      currentPrice(await loadCatalog(), tier)?.stripePriceId ?? stripePriceIdForTier(tier);
     if (!priceId) {
       return NextResponse.json({ error: "That plan isn't available for purchase yet." }, { status: 503 });
     }

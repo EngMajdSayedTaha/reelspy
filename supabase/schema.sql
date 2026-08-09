@@ -1098,10 +1098,25 @@ create table subscriptions (
   stripe_schedule_id text,
   pending_tier text,
   pending_effective_at timestamptz,
-  pending_price_aed int,
-  pending_custom_entitlements jsonb
+  pending_price_aed int,               -- legacy: AED only, MAJOR units (superseded below)
+  pending_custom_entitlements jsonb,
+  -- Billing dimensions (20260809080100). stripe_price_id records the EXACT price
+  -- a subscriber is on, not just their tier — that is what makes grandfathering
+  -- answerable and what the price-migration job selects on. currency/interval are
+  -- locked by Stripe for a subscription's lifetime, so every price quoted to this
+  -- subscriber must be resolved in the currency recorded here.
+  stripe_price_id text,
+  billing_currency text,
+  billing_interval text,
+  trial_ends_at timestamptz,
+  trial_used_at timestamptz,           -- trials are once per customer, enforced by us
+  pending_price_id text,
+  pending_amount_minor int,
+  pending_currency text,
+  pending_interval text
 );
 create index subscriptions_stripe_customer_idx on subscriptions (stripe_customer_id);
+create index subscriptions_price_idx on subscriptions (stripe_price_id);
 
 alter table subscriptions enable row level security;
 create policy "Users can read own subscription"
@@ -1177,6 +1192,134 @@ create table billing_events (
 create index billing_events_received_idx on billing_events (received_at desc);
 alter table billing_events enable row level security;  -- no policies: webhook-only
 revoke all on table billing_events from anon, authenticated;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Plan catalog — admin-managed plans, prices, copy and promotions.          ║
+-- ║ See migration 20260809080000_plan_catalog.sql for the full notes.         ║
+-- ║ Source of truth for what a plan costs, grants and is called; the hardcoded ║
+-- ║ constants in lib/billing/ survive only as the fail-open fallback.          ║
+-- ║ Service-role only throughout: RLS on with NO policies (app_settings        ║
+-- ║ pattern) — draft plans and historical prices must never reach the browser. ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+create table plans (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,                 -- stored in subscriptions.tier
+  kind text not null default 'fixed' check (kind in ('free', 'fixed', 'custom')),
+  status text not null default 'draft' check (status in ('draft', 'published', 'archived')),
+  sort_order int not null default 100,       -- card order + fallback upgrade ladder
+  entitlements jsonb not null,               -- Entitlements shape (coerceEntitlements)
+  trial_days int not null default 0,
+  default_currency text not null default 'aed',
+  stripe_product_id text,                    -- for coupon applies_to.products
+  admin_grant boolean not null default false, -- the plan profiles.is_admin resolves to
+  custom_pricing jsonb,                      -- build-your-own rate card (kind='custom')
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index plans_visible_idx on plans (status, sort_order);
+create unique index plans_admin_grant_idx on plans (admin_grant) where admin_grant;
+
+create table plan_copy (
+  plan_id uuid not null references plans(id) on delete cascade,
+  locale text not null check (locale in ('en', 'ar')),
+  name text not null,
+  tagline text not null default '',
+  highlights jsonb not null default '[]'::jsonb,   -- string[]
+  badge text,
+  primary key (plan_id, locale)
+);
+
+-- One row = one Stripe Price. A price EDIT mints a new Price + row and demotes
+-- the old one (is_current=false, archived_at still null) — old rows are kept
+-- forever because they are how a grandfathered subscriber's price still resolves
+-- to their plan.
+create table plan_prices (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references plans(id) on delete cascade,
+  interval text not null default 'month' check (interval in ('month', 'year')),
+  currency text not null default 'aed' check (currency in ('aed', 'sar', 'usd')),
+  unit_amount int not null check (unit_amount >= 0),          -- MINOR units
+  compare_at_amount int check (compare_at_amount is null or compare_at_amount > unit_amount),
+  sale_ends_at timestamptz,
+  reverts_to_price_id uuid references plan_prices(id) on delete set null,
+  stripe_price_id text not null unique,
+  is_current boolean not null default true,
+  archived_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index plan_prices_current_idx
+  on plan_prices (plan_id, interval, currency) where is_current;
+create index plan_prices_lookup_idx on plan_prices (stripe_price_id);
+create index plan_prices_plan_idx on plan_prices (plan_id);
+
+-- Mirror of Stripe coupons + promotion codes; Stripe stays the source of truth
+-- for redemption.
+create table plan_promotions (
+  id uuid primary key default gen_random_uuid(),
+  stripe_coupon_id text not null,
+  stripe_promotion_code_id text,
+  code text,
+  percent_off numeric(5, 2),
+  amount_off int,
+  amount_off_currency text,
+  duration text not null default 'once' check (duration in ('once', 'repeating', 'forever')),
+  duration_in_months int,
+  max_redemptions int,
+  times_redeemed int not null default 0,
+  redeem_by timestamptz,
+  first_time_only boolean not null default false,
+  minimum_amount int,
+  minimum_amount_currency text,
+  applies_to_plan_ids uuid[] not null default '{}',   -- empty = every plan
+  active boolean not null default true,
+  last_synced_at timestamptz,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index plan_promotions_active_idx on plan_promotions (active, created_at desc);
+
+-- "Move the N subscribers still on the old price", applied at each subscriber's
+-- own next renewal after a notice period. One target row per subscriber so a
+-- partial failure is per-user, not per-batch.
+create table plan_price_migrations (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references plans(id) on delete cascade,
+  from_price_id uuid references plan_prices(id) on delete set null,
+  to_price_id uuid not null references plan_prices(id) on delete cascade,
+  notice_days int not null default 30,
+  status text not null default 'pending'
+    check (status in ('pending', 'running', 'done', 'cancelled')),
+  total int not null default 0,
+  succeeded int not null default 0,
+  failed int not null default 0,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  completed_at timestamptz
+);
+create table plan_price_migration_targets (
+  migration_id uuid not null references plan_price_migrations(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  status text not null default 'pending'
+    check (status in ('pending', 'notified', 'scheduled', 'failed', 'skipped')),
+  effective_at timestamptz,
+  error text,
+  updated_at timestamptz not null default now(),
+  primary key (migration_id, user_id)
+);
+
+alter table plans enable row level security;
+alter table plan_copy enable row level security;
+alter table plan_prices enable row level security;
+alter table plan_promotions enable row level security;
+alter table plan_price_migrations enable row level security;
+alter table plan_price_migration_targets enable row level security;
+revoke all on table plans from anon, authenticated;
+revoke all on table plan_copy from anon, authenticated;
+revoke all on table plan_prices from anon, authenticated;
+revoke all on table plan_promotions from anon, authenticated;
+revoke all on table plan_price_migrations from anon, authenticated;
+revoke all on table plan_price_migration_targets from anon, authenticated;
 
 -- ── outperforming_feed — relative "Outperforming" ranking (W3/V5) ────────────
 -- Ranks a user's feed by a follower-normalized relative score so small-niche

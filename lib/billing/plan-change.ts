@@ -28,6 +28,7 @@ import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiTier } from "@/lib/ai/tier";
 import { planFor, stripePriceIdForTier } from "@/lib/billing/plans";
+import { loadCatalog, currentPrice, planDisplayName } from "@/lib/billing/catalog";
 import { syncSubscription } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser, subscriptionAmountLabel } from "@/lib/billing/notify";
 import { dayLabel, dayLabelFromUnix, planChangeDirection, type PlanChangeDirection } from "@/lib/billing/format";
@@ -128,12 +129,17 @@ async function resolveTarget(
     };
   }
 
-  const priceId = stripePriceIdForTier(tier);
+  const catalog = await loadCatalog();
+  const catalogPrice = currentPrice(catalog, tier);
+  // The catalog is authoritative for WHICH price a plan sells; env price ids are
+  // the fallback for a deployment whose catalog hasn't been seeded yet.
+  const priceId = catalogPrice?.stripePriceId ?? stripePriceIdForTier(tier);
   if (!priceId) {
     return { ok: false, status: 503, error: "That plan isn't available for purchase yet." };
   }
-  // The Price object is the authority on what this tier costs; planFor().priceAed
-  // is only the number we print on the card.
+  // Stripe's own Price object stays the authority on what this tier COSTS — the
+  // catalog amount is what we print, and the two could differ if a price was
+  // edited in the Stripe dashboard. The money decision must follow the money.
   let unitAmount: number | null = null;
   let currency: string | null = null;
   try {
@@ -150,7 +156,7 @@ async function resolveTarget(
     userId,
     tier,
     priceId,
-    priceAed: planFor(tier).priceAed || null,
+    priceAed: catalogPrice ? Math.round(catalogPrice.unitAmount / 100) : planFor(tier).priceAed || null,
     entitlements: null,
     unitAmount,
     currency,
@@ -177,7 +183,8 @@ function currentAmountOf(sub: Stripe.Subscription): { amount: number | null; cur
 export function decidePlanChangeMode(
   sub: Stripe.Subscription,
   currentTier: AiTier,
-  target: { tier: AiTier; unitAmount: number | null; currency: string | null }
+  target: { tier: AiTier; unitAmount: number | null; currency: string | null },
+  ladder?: readonly AiTier[]
 ): { immediate: boolean; direction: PlanChangeDirection } {
   const current = currentAmountOf(sub);
   const comparable =
@@ -193,8 +200,13 @@ export function decidePlanChangeMode(
     return { immediate: up, direction: up ? "upgrade" : down ? "downgrade" : "change" };
   }
 
-  const direction = planChangeDirection(currentTier, target.tier);
+  const direction = planChangeDirection(currentTier, target.tier, ladder);
   return { immediate: direction === "upgrade", direction };
+}
+
+// The ladder as the catalog currently orders it, for the fallback path above.
+async function catalogLadder(): Promise<AiTier[]> {
+  return (await loadCatalog()).ladder as AiTier[];
 }
 
 // THE entry point for "the user picked a different plan". Works out whether that
@@ -222,7 +234,7 @@ export async function changePlanForUser(params: {
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
 
-  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   return immediate
     ? applyPlanChangeNow({ admin, stripe, sub, userId, currentTier, target, direction })
     : schedulePlanChangeAtPeriodEnd({ admin, stripe, sub, userId, currentTier, target, direction });
@@ -251,7 +263,7 @@ export async function previewPlanChangeForUser(params: {
     return { ok: false, status: 502, error: "Could not reach Stripe. Please try again." };
   }
 
-  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target);
+  const { immediate, direction } = decidePlanChangeMode(sub, currentTier, target, await catalogLadder());
   const renewsOnLabel = dayLabelFromUnix(sub.current_period_end);
   const priceLabel =
     target.unitAmount !== null
@@ -265,7 +277,7 @@ export async function previewPlanChangeForUser(params: {
     mode: immediate ? "immediate" : "scheduled",
     direction,
     tier,
-    tierName: planFor(tier).name,
+    tierName: await planDisplayName(tier),
     priceLabel,
     chargeTodayLabel: immediate ? await previewProration(stripe, sub, target.priceId) : null,
     effectiveOnLabel: immediate ? dayLabel(new Date()) : renewsOnLabel,
@@ -387,9 +399,9 @@ async function applyPlanChangeNow(params: {
   if (to) {
     await sendPlanChangeApplied({
       to,
-      previousTierName: planFor(currentTier).name,
+      previousTierName: await planDisplayName(currentTier),
       tier: target.tier,
-      tierName: planFor(target.tier).name,
+      tierName: await planDisplayName(target.tier),
       entitlements: target.entitlements,
       amountLabel: subscriptionAmountLabel(updated),
       renewsOnLabel,
@@ -403,7 +415,7 @@ async function applyPlanChangeNow(params: {
     ok: true,
     mode: "immediate",
     tier: target.tier,
-    tierName: planFor(target.tier).name,
+    tierName: await planDisplayName(target.tier),
     direction,
     priceAed: target.priceAed,
     chargedLabel,
@@ -457,9 +469,9 @@ async function schedulePlanChangeAtPeriodEnd(params: {
   if (to && effectiveOnLabel) {
     await sendPlanChangeScheduled({
       to,
-      currentTierName: planFor(currentTier).name,
+      currentTierName: await planDisplayName(currentTier),
       nextTier: target.tier,
-      nextTierName: planFor(target.tier).name,
+      nextTierName: await planDisplayName(target.tier),
       effectiveOnLabel,
       nextPriceLabel: pending.priceAed ? `AED ${pending.priceAed}` : null,
       nextEntitlements: pending.entitlements,
@@ -471,7 +483,7 @@ async function schedulePlanChangeAtPeriodEnd(params: {
     ok: true,
     mode: "scheduled",
     tier: target.tier,
-    tierName: planFor(target.tier).name,
+    tierName: await planDisplayName(target.tier),
     effectiveAt: pending.effectiveAt,
     effectiveOnLabel,
     priceAed: pending.priceAed,
@@ -510,7 +522,7 @@ export async function cancelScheduledChangeForUser(params: {
       .select("pending_tier")
       .eq("user_id", userId)
       .maybeSingle();
-    if (data?.pending_tier) cancelledTierName = planFor(data.pending_tier as AiTier).name;
+    if (data?.pending_tier) cancelledTierName = await planDisplayName(data.pending_tier as string);
   } catch {
     // Cosmetic only — the release below is what matters.
   }
@@ -523,10 +535,10 @@ export async function cancelScheduledChangeForUser(params: {
   }
 
   const fresh = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
-  let tierName = planFor("free").name;
+  let tierName = await planDisplayName("free");
   if (fresh) {
     const result = await syncSubscription(admin, fresh, stripe).catch(() => null);
-    if (result) tierName = planFor(result.tier).name;
+    if (result) tierName = await planDisplayName(result.tier);
   }
 
   const to = await emailForUser(admin, userId);

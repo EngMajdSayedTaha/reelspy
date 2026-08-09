@@ -12,8 +12,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("plan metadata", () => {
-  it("has exactly the four tiers in display order", () => {
+// PLANS is no longer the plan catalog — the admin-managed one in the database
+// is (lib/billing/catalog.ts). What these assert is that PLANS remains a sound
+// FALLBACK, which is what every billing path degrades to when the catalog can't
+// be read.
+describe("plan metadata (the built-in fallback catalog)", () => {
+  it("has exactly the four built-in tiers in display order", () => {
     expect(PLANS.map((p) => p.tier)).toEqual(["free", "creator", "pro", "studio"]);
   });
 
@@ -24,8 +28,10 @@ describe("plan metadata", () => {
     expect(planFor("studio").priceEnv).toBe("STRIPE_PRICE_STUDIO");
   });
 
-  it("planFor falls back to the free plan for an unknown tier", () => {
-    // @ts-expect-error deliberately passing an invalid tier
+  // An admin-created slug this build has never heard of is a valid AiTier now,
+  // so this is an ordinary call rather than a type error — and it must still
+  // degrade to the free plan rather than returning undefined.
+  it("planFor falls back to the free plan for a slug it doesn't know", () => {
     expect(planFor("mystery")).toBe(PLANS[0]);
   });
 });

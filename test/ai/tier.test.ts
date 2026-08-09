@@ -19,14 +19,27 @@ function subRow(tier: string, status = "active") {
   };
 }
 
+// isAiTier validates a slug's SHAPE, not its membership of a fixed list: plans
+// are admin-created now, so a slug this build has never heard of is still the
+// customer's real plan and must survive being read back. Whether a plan actually
+// EXISTS and is sellable is a catalog question, asked on the write paths.
 describe("isAiTier", () => {
-  it("accepts the five valid tiers", () => {
+  it("accepts the built-in tiers", () => {
     for (const t of ["free", "creator", "pro", "studio", "custom"]) expect(isAiTier(t)).toBe(true);
   });
 
-  it("rejects unknown/empty values", () => {
-    expect(isAiTier("enterprise")).toBe(false);
+  it("accepts a well-formed slug an admin could have created", () => {
+    expect(isAiTier("enterprise")).toBe(true);
+    expect(isAiTier("agency-plus")).toBe(true);
+    expect(isAiTier("tier_2")).toBe(true);
+  });
+
+  it("rejects malformed and empty values", () => {
     expect(isAiTier("")).toBe(false);
+    expect(isAiTier("x")).toBe(false);              // too short
+    expect(isAiTier("Agency")).toBe(false);         // not lower-case
+    expect(isAiTier("2fast")).toBe(false);          // must start with a letter
+    expect(isAiTier("has space")).toBe(false);
     expect(isAiTier(null)).toBe(false);
     expect(isAiTier(undefined)).toBe(false);
   });

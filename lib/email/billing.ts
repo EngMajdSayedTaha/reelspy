@@ -26,7 +26,8 @@ import { sendEmail } from "./send";
 import { buildEmail, type EmailBlock } from "./layout";
 import { getSiteUrl } from "@/lib/site";
 import type { AiTier } from "@/lib/ai/tier";
-import { entitlementsFor, formatLimit, type Entitlements } from "@/lib/billing/entitlements";
+import { formatLimit, type Entitlements } from "@/lib/billing/entitlements";
+import { loadCatalog, entitlementsForSlug } from "@/lib/billing/catalog";
 
 // Format a Stripe minor-unit amount (e.g. 4900) + currency ("aed") as "AED 49.00".
 export function formatMoney(amountMinor: number | null | undefined, currency: string | null | undefined): string {
@@ -37,6 +38,17 @@ export function formatMoney(amountMinor: number | null | undefined, currency: st
 
 const billingUrl = () => `${getSiteUrl()}/dashboard/billing`;
 
+// The limits to quote for a plan in an email: a custom subscriber's own config
+// when we have it, otherwise whatever the plan currently grants. Reads the
+// catalog so an email never advertises limits an admin has since changed.
+async function emailEntitlements(
+  tier: AiTier,
+  custom?: Entitlements | null
+): Promise<Entitlements> {
+  if (custom) return custom;
+  return entitlementsForSlug(await loadCatalog(), tier);
+}
+
 const MODEL_LABELS: Record<Entitlements["model"], string> = {
   haiku: "Claude Haiku",
   sonnet: "Claude Sonnet",
@@ -45,9 +57,8 @@ const MODEL_LABELS: Record<Entitlements["model"], string> = {
 
 // What a plan actually gives you, spelled out. Used wherever an email tells the
 // customer what they're getting (or losing) so the numbers always come from the
-// same entitlements table the product enforces — never from hand-written copy.
-export function planHighlights(tier: AiTier, custom?: Entitlements | null): string[] {
-  const ent = custom ?? entitlementsFor(tier);
+// same entitlements the product enforces — never from hand-written copy.
+export function planHighlights(ent: Entitlements): string[] {
   return [
     `${formatLimit(ent.accounts)} tracked competitor accounts`,
     `${formatLimit(ent.scripts_mo)} AI scripts per month`,
@@ -95,7 +106,11 @@ export async function sendSubscriptionWelcome(params: {
   ];
 
   if (tier) {
-    blocks.push({ kind: "bullets", caption: "What's included", items: planHighlights(tier, entitlements) });
+    blocks.push({
+      kind: "bullets",
+      caption: "What's included",
+      items: planHighlights(await emailEntitlements(tier, entitlements)),
+    });
   }
 
   blocks.push({
@@ -346,7 +361,7 @@ export async function sendPlanChangeScheduled(params: {
       {
         kind: "bullets",
         caption: `What ${nextTierName} gives you from ${effectiveOnLabel}`,
-        items: planHighlights(nextTier, nextEntitlements),
+        items: planHighlights(await emailEntitlements(nextTier, nextEntitlements)),
       },
     ],
     cta: { href: billingUrl(), label: "View scheduled change" },
@@ -422,7 +437,11 @@ export async function sendPlanChangeApplied(params: {
           ...(renewsOnLabel ? [{ label: "Next renewal", value: renewsOnLabel }] : []),
         ],
       },
-      { kind: "bullets", caption: "What's included now", items: planHighlights(tier, entitlements) },
+      {
+        kind: "bullets",
+        caption: "What's included now",
+        items: planHighlights(await emailEntitlements(tier, entitlements)),
+      },
     ],
     cta: { href: `${getSiteUrl()}/dashboard`, label: "Open ReelSpy" },
     secondary: invoiceUrl

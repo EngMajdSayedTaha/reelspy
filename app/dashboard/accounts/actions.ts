@@ -14,6 +14,7 @@ import { isAdminUser } from "@/lib/billing/admin";
 import type { AiTier } from "@/lib/ai/tier";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { fallbackPlanName } from "@/lib/i18n/plan-copy";
 
 type ActionState = { error?: string };
 
@@ -26,7 +27,7 @@ async function dict() {
 // knows what upgrading buys them.
 async function accountLimitError(tier: AiTier, cap: number): Promise<string> {
   const d = await dict();
-  return d.accounts.actions.accountLimit(d.billing.plans[tier].name, cap);
+  return d.accounts.actions.accountLimit(fallbackPlanName(d, tier), cap);
 }
 
 // Count a user's tracked accounts (head-only, no rows pulled).

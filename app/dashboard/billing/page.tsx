@@ -6,10 +6,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSubscription, getPendingPlanChange } from "@/lib/billing/subscription";
 import { syncSubscriptionForUser } from "@/lib/billing/sync";
 import { getStripe } from "@/lib/billing/stripe";
-import { formatLimit, isUnlimited, entitlementsFor, ENTITLEMENTS } from "@/lib/billing/entitlements";
+import { formatLimit, isUnlimited, ENTITLEMENTS } from "@/lib/billing/entitlements";
 import type { AiTier } from "@/lib/ai/tier";
-import { PLANS, isPaidTier, type PaidTier } from "@/lib/billing/plans";
-import { planChangeDirection, planPriceLabel } from "@/lib/billing/format";
+import { isPaidTier, type PaidTier } from "@/lib/billing/plans";
+import { loadCatalog, entitlementsForSlug, planCopyFor, currentPrice } from "@/lib/billing/catalog";
+import { planChangeDirection } from "@/lib/billing/format";
 import { stripeConfigured } from "@/lib/billing/stripe";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,10 +130,14 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // sees "Free" here and can test the real checkout/switch flow, and a real
   // subscriber sees exactly the plan they pay for.
   const billingTier: AiTier = sub && sub.active ? sub.tier : "free";
+  // Plans, their limits, their prices and their copy all come from the
+  // admin-managed catalog now (falling back to the built-in constants when it
+  // has nothing to say), so changing any of them is a settings edit, not a deploy.
+  const catalog = await loadCatalog();
   const ent =
     billingTier === "custom"
       ? sub?.customEntitlements ?? ENTITLEMENTS.custom
-      : entitlementsFor(billingTier);
+      : entitlementsForSlug(catalog, billingTier);
 
   const [accountsUsed, automationsUsed, scriptsUsed, transcriptsUsed] = await Promise.all([
     count(supabase, "inspiration_accounts", user.id),
@@ -157,11 +162,21 @@ export default async function BillingPage({ searchParams }: PageProps) {
   // the schedule, the customer is on — and entitled to — the plan they paid for.
   const pending = sub?.active ? await getPendingPlanChange(supabase, user.id) : null;
   const pendingPlanName = pending
-    ? t.plans[pending.tier as "free" | "creator" | "pro" | "studio" | "custom"].name
+    ? planCopyFor(catalog, pending.tier, locale).name
     : null;
   const pendingEffectiveLabel = dateLabel(pending?.effectiveAt) ?? renewLabel;
-  const currentPlanName = t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name;
-  const currentPriceLabel = planPriceLabel(billingTier) ?? "";
+  const currentPlanName = planCopyFor(catalog, billingTier, locale).name;
+  // The comparison grid shows every published plan EXCEPT the build-your-own
+  // one, which has its own slider card below rather than a fixed price.
+  const gridPlans = catalog.plans.filter((p) => p.kind !== "custom");
+  const ladder = catalog.ladder as AiTier[];
+  const currentCatalogPrice = currentPrice(catalog, billingTier);
+  const currentPriceLabel =
+    billingTier === "custom"
+      ? ""
+      : currentCatalogPrice
+        ? `AED ${Math.round(currentCatalogPrice.unitAmount / 100)}`
+        : "";
   // Every in-app plan action needs a live Stripe subscription to schedule against.
   const canManagePlan = Boolean(sub?.active && sub.stripeSubscriptionId);
 
@@ -195,7 +210,7 @@ export default async function BillingPage({ searchParams }: PageProps) {
       <Card data-tour="plan-usage">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2">
-            {t.planLabel(t.plans[billingTier as "free" | "creator" | "pro" | "studio" | "custom"].name)}
+            {t.planLabel(currentPlanName)}
             <Badge variant={isPaidTier(billingTier) ? "default" : "secondary"}>
               {isPaidTier(billingTier) ? t.active : t.free}
             </Badge>
@@ -291,16 +306,16 @@ export default async function BillingPage({ searchParams }: PageProps) {
 
       {/* Plan grid */}
       <div data-tour="plan-comparison" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {PLANS.map((plan) => {
-          const isCurrent = plan.tier === billingTier;
-          const isPendingPlan = pending?.tier === plan.tier;
-          const planIndex = PLANS.findIndex((p) => p.tier === plan.tier);
-          const currentIndex = PLANS.findIndex((p) => p.tier === billingTier);
-          const isUpgrade = planIndex > currentIndex;
-          const planCopy = t.plans[plan.tier as "free" | "creator" | "pro" | "studio"];
+        {gridPlans.map((plan) => {
+          const isCurrent = plan.slug === billingTier;
+          const isPendingPlan = pending?.tier === plan.slug;
+          const isUpgrade = ladder.indexOf(plan.slug) > ladder.indexOf(billingTier);
+          const planCopy = planCopyFor(catalog, plan.slug, locale);
+          const price = currentPrice(catalog, plan.slug);
+          const priceMajor = price ? Math.round(price.unitAmount / 100) : 0;
           return (
             <Card
-              key={plan.tier}
+              key={plan.slug}
               className={
                 isCurrent ? "ring-2 ring-primary" : isPendingPlan ? "ring-2 ring-warning/60" : undefined
               }
@@ -316,11 +331,11 @@ export default async function BillingPage({ searchParams }: PageProps) {
                 </CardTitle>
                 <CardDescription>{planCopy.tagline}</CardDescription>
                 <div className="pt-1 text-2xl font-semibold text-foreground">
-                  {plan.priceAed === 0 ? (
+                  {priceMajor === 0 ? (
                     t.free
                   ) : (
                     <>
-                      AED {plan.priceAed}
+                      AED {priceMajor}
                       <span className="text-sm font-normal text-muted-foreground">
                         {t.perMonthSuffix}
                       </span>
@@ -342,22 +357,22 @@ export default async function BillingPage({ searchParams }: PageProps) {
                     <p className="text-center text-xs text-muted-foreground">
                       {t.scheduledChange.title(planCopy.name)} · {pendingEffectiveLabel}
                     </p>
-                  ) : isPaidTier(plan.tier) && !isCurrent ? (
+                  ) : isPaidTier(plan.slug) && !isCurrent ? (
                     <SubscribeButton
-                      tier={plan.tier as PaidTier}
+                      tier={plan.slug as PaidTier}
                       label={isUpgrade ? t.upgrade : t.switchPlan}
                       variant={isUpgrade ? "default" : "outline"}
                       disabled={!stripeConfigured()}
                       planName={planCopy.name}
-                      priceLabel={planPriceLabel(plan.tier) ?? ""}
+                      priceLabel={priceMajor ? `AED ${priceMajor}` : ""}
                       currentPlanName={currentPlanName}
                       effectiveOnLabel={renewLabel}
-                      direction={planChangeDirection(billingTier, plan.tier)}
+                      direction={planChangeDirection(billingTier, plan.slug, ladder)}
                       hasSubscription={canManagePlan}
                     />
                   ) : isCurrent ? (
                     <p className="text-center text-xs text-muted-foreground">{t.yourCurrentPlan}</p>
-                  ) : plan.tier === "free" && canManagePlan && !sub?.cancelAtPeriodEnd ? (
+                  ) : plan.slug === "free" && canManagePlan && !sub?.cancelAtPeriodEnd ? (
                     // Downgrading to Free means ending the subscription — same
                     // end-of-period promise, so it lives on the Free card.
                     <CancelSubscriptionButton

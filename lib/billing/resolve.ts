@@ -1,15 +1,21 @@
-// Resolves a signed-in user's tier AND effective entitlements in one call,
-// custom-plan aware (B4). Every fixed tier's entitlements come straight from
-// ENTITLEMENTS; a "custom" subscriber's come from their own subscription row
-// instead, since ENTITLEMENTS.custom is only the fail-open placeholder — see
-// lib/billing/entitlements.ts. Enforcement chokepoints (accounts, automations,
-// monthly quotas) should call this instead of resolveUserTier() + entitlementsFor()
-// whenever they need the actual numbers a custom subscriber configured.
+// Resolves a signed-in user's tier AND effective entitlements in one call.
+//
+// This is THE function every enforcement chokepoint goes through (accounts,
+// automations, monthly script/transcript quotas, IG connections), which is why
+// it is the only place that had to learn about the admin-managed plan catalog:
+// the chokepoints themselves are unchanged.
+//
+// Two sources, in order of specificity:
+//   - a "custom" (build-your-own) subscriber's limits live on their own
+//     subscription row, since no shared plan can describe them;
+//   - everyone else gets their plan's limits from the catalog, which falls back
+//     to the hardcoded ENTITLEMENTS table when the database has nothing to say.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolveUserTier, type AiTier } from "@/lib/ai/tier";
-import { entitlementsFor, ENTITLEMENTS, type Entitlements } from "@/lib/billing/entitlements";
+import { ENTITLEMENTS, type Entitlements } from "@/lib/billing/entitlements";
 import { getSubscription } from "@/lib/billing/subscription";
+import { loadCatalog, entitlementsForSlug } from "@/lib/billing/catalog";
 
 export async function resolveUserEntitlements(
   supabase: SupabaseClient,
@@ -17,8 +23,11 @@ export async function resolveUserEntitlements(
 ): Promise<{ tier: AiTier; entitlements: Entitlements }> {
   const tier = await resolveUserTier(supabase, userId);
   if (tier !== "custom") {
-    return { tier, entitlements: entitlementsFor(tier) };
+    const catalog = await loadCatalog();
+    return { tier, entitlements: entitlementsForSlug(catalog, tier) };
   }
+  // ENTITLEMENTS.custom is only the gap-filler for the seconds between checkout
+  // completing and the Stripe webhook writing the real config onto the row.
   const sub = await getSubscription(supabase, userId);
   return { tier, entitlements: sub?.customEntitlements ?? ENTITLEMENTS.custom };
 }

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/billing/stripe";
 import { getSubscription } from "@/lib/billing/subscription";
-import { planFor } from "@/lib/billing/plans";
+import { planDisplayName } from "@/lib/billing/catalog";
 import { dayLabel } from "@/lib/billing/format";
 import {
   cancelScheduledChangeForUser,
@@ -70,6 +70,6 @@ export async function POST(request: Request) {
     cancelAtPeriodEnd: result.cancelAtPeriodEnd,
     accessUntil: result.accessUntil,
     accessUntilLabel: dayLabel(result.accessUntil),
-    tierName: planFor(sub?.tier ?? "free").name,
+    tierName: await planDisplayName(sub?.tier ?? "free"),
   });
 }

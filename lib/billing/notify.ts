@@ -17,7 +17,7 @@
 import "server-only";
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { planFor } from "@/lib/billing/plans";
+import { loadCatalog, planName } from "@/lib/billing/catalog";
 import { customEntitlementsOf } from "@/lib/billing/sync";
 import type { SyncResult } from "@/lib/billing/sync";
 import { dayLabel } from "@/lib/billing/format";
@@ -75,6 +75,8 @@ export async function notifySubscriptionChange(
 
   const isActive = ACTIVE_STATUSES.has(result.status);
   const wasActive = ACTIVE_STATUSES.has(previous.status);
+  // One cached read for every plan name this diff might need to quote.
+  const catalog = await loadCatalog();
 
   try {
     // 1. A scheduled plan change went live: Stripe advanced the schedule phase
@@ -91,9 +93,9 @@ export async function notifySubscriptionChange(
       if (to) {
         await sendPlanChangeApplied({
           to,
-          previousTierName: planFor(previous.tier).name,
+          previousTierName: planName(catalog, previous.tier),
           tier: result.tier,
-          tierName: planFor(result.tier).name,
+          tierName: planName(catalog, result.tier),
           entitlements: result.tier === "custom" ? customEntitlementsOf(sub) : null,
           amountLabel: subscriptionAmountLabel(sub),
           renewsOnLabel: dayLabel(result.currentPeriodEnd),
@@ -107,7 +109,7 @@ export async function notifySubscriptionChange(
       if (to) {
         await sendCancellationScheduled({
           to,
-          tierName: planFor(result.tier).name,
+          tierName: planName(catalog, result.tier),
           accessUntilLabel: dayLabel(result.currentPeriodEnd),
         });
       }
@@ -119,7 +121,7 @@ export async function notifySubscriptionChange(
       if (to) {
         await sendSubscriptionResumed({
           to,
-          tierName: planFor(result.tier).name,
+          tierName: planName(catalog, result.tier),
           renewsOnLabel: dayLabel(result.currentPeriodEnd),
           amountLabel: subscriptionAmountLabel(sub),
         });
