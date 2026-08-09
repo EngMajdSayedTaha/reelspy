@@ -16,6 +16,8 @@ import {
 import { readAppPausedUntil } from "@/lib/instagram/rate-limit";
 import { dispatchPost } from "@/lib/publishing/dispatcher";
 import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-job";
+import { runTranscribeAccount } from "@/lib/media/transcribe-account-job";
+import { transcribeAccountDedupKey } from "@/lib/media/transcribe-account-status";
 import { runSendDigest } from "@/lib/email/digest-job";
 import { runRefreshSnapshot, RETRYABLE_REFRESH_OUTCOMES } from "@/lib/jobs/refresh-snapshot-job";
 import { runArchiveAccount } from "@/lib/jobs/archive-account-job";
@@ -38,6 +40,7 @@ export const maxDuration = 300;
 const KINDS: JobKind[] = [
   "publish_post",
   "transcribe_reel",
+  "transcribe_account",
   "send_digest",
   "refresh_snapshot",
   "archive_account",
@@ -57,6 +60,13 @@ const REFRESH_PACE_MS = numEnv("REFRESH_JOB_PACE_MS", 300);
 // Spread for deferred wake-ups so a whole cooldown's worth of jobs don't resume
 // in lockstep.
 const DEFER_JITTER_MS = numEnv("REFRESH_DEFER_JITTER_MS", 60_000);
+
+// How long a bulk transcribe run waits after being told "not now". Throttles
+// clear within the hour, so poll back into the window; a spent monthly quota
+// cannot clear before the calendar month turns, so check back rarely rather
+// than waking every few minutes for days to be told the same thing.
+const TRANSCRIBE_THROTTLE_DEFER_MS = numEnv("TRANSCRIBE_THROTTLE_DEFER_MS", 600_000);
+const TRANSCRIBE_QUOTA_DEFER_MS = numEnv("TRANSCRIBE_QUOTA_DEFER_MS", 6 * 3_600_000);
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -112,6 +122,53 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
       } else {
         await completeJob(admin, job.id);
       }
+      return { hitMeta: false, deferred: false };
+    }
+    case "transcribe_account": {
+      const accountId = String(job.payload.account_id ?? "");
+      const userId = String(job.payload.user_id ?? job.user_id ?? "");
+      if (!accountId || !userId) {
+        throw new Error("transcribe_account job missing account_id/user_id");
+      }
+
+      const { outcome, remaining } = await runTranscribeAccount(admin, accountId, userId);
+
+      // "Not now" for two different reasons, neither of them a fault: the hourly
+      // throttle admits ~20 reels/hour, and the plan's monthly cap can be spent
+      // mid-account. Deferring is attempt-neutral (see deferJob), so a run that
+      // spans days — which a large account on a small plan genuinely does —
+      // survives instead of exhausting its attempts while parked.
+      if (outcome === "throttled" || outcome === "quota_exceeded") {
+        const waitMs =
+          outcome === "quota_exceeded" ? TRANSCRIBE_QUOTA_DEFER_MS : TRANSCRIBE_THROTTLE_DEFER_MS;
+        const resumeAt = new Date(Date.now() + waitMs + jitterMs(DEFER_JITTER_MS));
+        await deferJob(
+          admin,
+          job,
+          resumeAt,
+          outcome === "quota_exceeded"
+            ? `${remaining} reels left — paused until your monthly transcript quota resets`
+            : `${remaining} reels left — paused while transcription is rate limited`
+        );
+        return { hitMeta: false, deferred: true };
+      }
+
+      // The follow-up can only be enqueued AFTER this job completes: they share
+      // a dedup key, and the in-flight job is the active holder of it.
+      await completeJob(admin, job.id);
+
+      if (outcome === "continued") {
+        await enqueueJob(admin, {
+          kind: "transcribe_account",
+          payload: { account_id: accountId, user_id: userId },
+          userId,
+          dedupKey: transcribeAccountDedupKey(accountId),
+          // A thousand-reel account is hundreds of chunks spread over days of
+          // throttle windows. Deferrals don't count, but leave real headroom.
+          maxAttempts: 25,
+        });
+      }
+
       return { hitMeta: false, deferred: false };
     }
     case "send_digest": {

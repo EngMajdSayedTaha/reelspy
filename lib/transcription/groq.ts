@@ -1,3 +1,4 @@
+import { TranscriptionRateLimitError, parseRetryAfter } from "@/lib/transcription/errors";
 import type { TranscriptionProvider } from "@/lib/transcription/types";
 
 // Groq hosts whisper-large-v3 with a generous free tier and very low latency.
@@ -55,6 +56,15 @@ export const groqProvider: TranscriptionProvider = {
         const mb = (blob.size / (1024 * 1024)).toFixed(1);
         throw new Error(
           `Groq rejected the audio as too large (${mb} MB > 25 MB free-tier limit). The reel may be too long.`
+        );
+      }
+      // 429 is the free tier's requests/day and audio-seconds/day ceilings; 503
+      // is Groq shedding load. Neither says anything about this reel, so they
+      // must not burn it as permanently untranscribable (see errors.ts).
+      if (response.status === 429 || response.status === 503) {
+        throw new TranscriptionRateLimitError(
+          `Groq is rate limiting transcription (${response.status}): ${body.slice(0, 200)}`,
+          parseRetryAfter(response.headers.get("retry-after"))
         );
       }
       throw new Error(`Groq API error (${response.status}): ${body.slice(0, 200)}`);

@@ -1,9 +1,11 @@
+import { TranscriptionRateLimitError } from "@/lib/transcription/errors";
 import { groqProvider } from "@/lib/transcription/groq";
 import { huggingfaceProvider } from "@/lib/transcription/huggingface";
 import { buildSrt } from "@/lib/transcription/srt";
 import type { TranscribeInput, TranscriptResult } from "@/lib/transcription/types";
 
 export { buildSrt } from "@/lib/transcription/srt";
+export { TranscriptionRateLimitError } from "@/lib/transcription/errors";
 export type {
   TranscribeInput,
   TranscriptResult,
@@ -36,6 +38,12 @@ export async function transcribeReel(input: TranscribeInput): Promise<Transcript
   const errors: string[] = [];
   const startedAt = Date.now();
 
+  // A throttle from ANY provider makes the whole attempt retryable, even if the
+  // others failed for their own reasons: the throttled one can still succeed on
+  // a later pass, so the reel has not been proven untranscribable.
+  let retryAfterSeconds: number | null = null;
+  let throttled = false;
+
   for (const provider of configured) {
     try {
       const { text, language, segments } = await provider.transcribe(input);
@@ -49,6 +57,14 @@ export async function transcribeReel(input: TranscribeInput): Promise<Transcript
         srt: buildSrt(segments),
       };
     } catch (error) {
+      if (error instanceof TranscriptionRateLimitError) {
+        throttled = true;
+        // Keep the longest hint offered — waiting less than a provider asked for
+        // just earns another 429.
+        if (error.retryAfterSeconds != null) {
+          retryAfterSeconds = Math.max(retryAfterSeconds ?? 0, error.retryAfterSeconds);
+        }
+      }
       const message = error instanceof Error ? error.message : "Unknown error";
       errors.push(`${provider.name}: ${message}`);
     }
@@ -57,5 +73,7 @@ export async function transcribeReel(input: TranscribeInput): Promise<Transcript
   return {
     status: "unavailable",
     reason: errors.join(" | ") || "All transcription providers failed.",
+    retryable: throttled,
+    retryAfterSeconds,
   };
 }

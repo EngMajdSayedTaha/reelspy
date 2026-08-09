@@ -1,3 +1,4 @@
+import { TranscriptionRateLimitError, parseRetryAfter } from "@/lib/transcription/errors";
 import type { TranscriptionProvider } from "@/lib/transcription/types";
 
 // Hugging Face Inference API exposes whisper-large-v3 on a free tier. It accepts
@@ -47,6 +48,14 @@ export const huggingfaceProvider: TranscriptionProvider = {
 
     if (!response.ok) {
       const body = await response.text();
+      // 429 is the Inference API's shared quota; 503 is the model cold-starting,
+      // which HF explicitly tells callers to wait out. Both are transient.
+      if (response.status === 429 || response.status === 503) {
+        throw new TranscriptionRateLimitError(
+          `Hugging Face is rate limiting transcription (${response.status}): ${body.slice(0, 200)}`,
+          parseRetryAfter(response.headers.get("retry-after"))
+        );
+      }
       throw new Error(`Hugging Face API error (${response.status}): ${body.slice(0, 200)}`);
     }
 

@@ -39,6 +39,11 @@ export type TranscriptReady = {
 export type TranscriptUnavailable = {
   status: "unavailable";
   reason: string;
+  // The attempt was throttled rather than defeated — the same reel can succeed
+  // later. Callers must not mark a retryable failure terminal (see errors.ts).
+  retryable?: boolean;
+  // Provider hint for how long to wait, in seconds, when one was given.
+  retryAfterSeconds?: number | null;
 };
 
 export type TranscriptResult = TranscriptReady | TranscriptUnavailable;
