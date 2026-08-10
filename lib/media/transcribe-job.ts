@@ -9,7 +9,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { processReel } from "@/lib/media/pipeline";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { consumeMonthlyQuota } from "@/lib/billing/quota";
-import { consumeUserAction } from "@/lib/utils/user-rate-limit";
+import { consumeUserAction, USER_ACTION_LIMITS } from "@/lib/utils/user-rate-limit";
 import { track } from "@/lib/analytics/track";
 import { numEnv } from "@/lib/utils/env";
 
@@ -39,10 +39,17 @@ function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 // Transcribe one reel end-to-end. Idempotent-ish: a reel already `ready` is left
 // alone; a missing reel is a no-op. Attributes quota to the owning user.
+//
+// `rateLimitAction` selects which hourly bucket paces this call — defaults to
+// the manual/auto-transcribe bucket ("transcript"); the bulk account job passes
+// "transcript_bulk" so a large run doesn't throttle at the same rate sized for
+// one click, and doesn't lock out the manual button while it works (see
+// user-rate-limit.ts for why they can't share a bucket).
 export async function runTranscribeReel(
   admin: SupabaseClient,
   reelId: string,
-  userId: string
+  userId: string,
+  rateLimitAction: keyof typeof USER_ACTION_LIMITS = "transcript"
 ): Promise<TranscribeOutcome> {
   if (!transcriptionConfigured()) return "skipped";
 
@@ -62,7 +69,10 @@ export async function runTranscribeReel(
   const { entitlements } = await resolveUserEntitlements(admin, userId);
 
   // Same guards as a manual transcribe: hourly throttle then monthly plan quota.
-  const hourly = await consumeUserAction(admin, userId, "transcript");
+  // The monthly quota is never bucket-specific — it's the billing-relevant cap
+  // (transcripts_mo) and applies identically regardless of which hourly bucket
+  // paced the call.
+  const hourly = await consumeUserAction(admin, userId, rateLimitAction);
   if (!hourly.allowed) return "throttled";
 
   const quota = await consumeMonthlyQuota(admin, userId, entitlements, "transcripts_mo");

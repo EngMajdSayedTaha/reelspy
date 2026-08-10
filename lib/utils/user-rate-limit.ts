@@ -22,8 +22,26 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_GROWTH_NOTES_PER_HOUR", 10),
     windowSeconds: 3600,
   },
+  // Guards a human clicking "Generate" on the per-reel page — sized to stop a
+  // runaway loop, not to move any real volume.
   transcript: {
     limit: numEnv("RL_TRANSCRIPT_PER_HOUR", 20),
+    windowSeconds: 3600,
+  },
+  // A SEPARATE bucket for the bulk "Transcribe all" run (lib/media/transcribe-
+  // account-job.ts). It has to be its own action, not a higher override on
+  // `transcript`: both would share one (user, action) counter row, so a bulk run
+  // spending past 20/hour would also lock out the manual button and auto-
+  // transcribe until the shared window resets — surprising behavior for a
+  // feature the user didn't touch. A distinct bucket means bulk moves at its own
+  // pace without throttling anything else.
+  //
+  // Well within Groq's free-tier ceiling (20 RPM / 2000 RPD) for one account,
+  // but GROQ_API_KEY is one key for the whole app (lib/transcription/groq.ts) —
+  // if many users run bulk transcription at once this is shared, uncoordinated
+  // budget. Raise or lower per deploy once real usage is known.
+  transcript_bulk: {
+    limit: numEnv("RL_TRANSCRIPT_BULK_PER_HOUR", 60),
     windowSeconds: 3600,
   },
   // Cheap to serve (just mints a presigned URL) but each one authorizes an
@@ -99,6 +117,7 @@ export function rateLimitMessage(action: keyof typeof USER_ACTION_LIMITS, retryA
     generate_script: "generate scripts",
     growth_notes: "generate growth notes",
     transcript: "request transcripts",
+    transcript_bulk: "bulk-transcribe reels",
     upload_presign: "upload videos",
   };
   return `You're doing that a lot. You can ${label[action] ?? "do that"} again in about ${mins} min.`;
