@@ -151,7 +151,7 @@ export async function runTranscribeAccount(
     if (index > 0 && Date.now() - startedAt > RUN_BUDGET_MS) break;
     if (index > 0 && REEL_PACE_MS > 0) await sleep(REEL_PACE_MS);
 
-    const outcome = await runTranscribeReel(admin, reel.id, userId);
+    const outcome = await runTranscribeReel(admin, reel.id, userId, "transcript_bulk");
 
     if (outcome === "throttled" || outcome === "quota_exceeded") {
       // Both are "come back later", and both already released the reel, so the
