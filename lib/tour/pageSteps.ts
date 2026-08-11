@@ -9,6 +9,7 @@ import type { TourStep } from "@/lib/tour/steps";
 export type PageTourKey =
   | "dashboard"
   | "accounts"
+  | "accountDetail"
   | "feed"
   | "trends"
   | "hooks"
@@ -41,6 +42,20 @@ export function buildPageTourSteps(page: PageTourKey, dict: Dict): TourStep[] {
         { element: '[data-tour="account-groups"]', title: s.groups.title, description: s.groups.desc },
         { element: '[data-tour="accounts-filter-bar"]', title: s.filterBar.title, description: s.filterBar.desc },
         { element: '[data-tour="account-cards"]', title: s.cards.title, description: s.cards.desc },
+      ];
+    }
+    case "accountDetail": {
+      // Sections are conditionally rendered (no charts under four reels), and
+      // startPageTour drops steps whose target isn't in the DOM — so a sparse
+      // account simply gets a shorter tour.
+      const s = dict.accounts.detailTour.steps;
+      return [
+        { element: '[data-tour="account-kpis"]', title: s.kpis.title, description: s.kpis.desc },
+        { element: '[data-tour="account-coverage"]', title: s.coverage.title, description: s.coverage.desc },
+        { element: '[data-tour="account-performance"]', title: s.performance.title, description: s.performance.desc },
+        { element: '[data-tour="account-patterns"]', title: s.patterns.title, description: s.patterns.desc },
+        { element: '[data-tour="account-content"]', title: s.content.title, description: s.content.desc },
+        { element: '[data-tour="account-activity"]', title: s.activity.title, description: s.activity.desc },
       ];
     }
     case "feed": {

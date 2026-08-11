@@ -316,6 +316,7 @@ export async function GET(request: Request) {
 
   await track(user.id, "archive_exported", {
     username: account.ig_username,
+    account_id: account.id,
     format,
     mode,
   });

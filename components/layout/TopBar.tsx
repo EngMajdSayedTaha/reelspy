@@ -9,6 +9,16 @@ import { useDict } from "@/lib/i18n/I18nProvider";
 
 type TitleKey = keyof Dict["titles"];
 
+// Sub-pages that deserve their own crumb under their section. The TopBar only
+// has `usePathname()`, so the crumb is a generic label — the actual handle
+// lives in the page's own <h1>, where it belongs.
+const SUB_CRUMBS: { match: (p: string) => boolean; key: TitleKey }[] = [
+  {
+    match: (p) => /^\/dashboard\/accounts\/[^/]+$/.test(p),
+    key: "accountDetail",
+  },
+];
+
 const TITLES: { match: (p: string) => boolean; key: TitleKey }[] = [
   { match: (p) => p === "/dashboard", key: "dashboard" },
   { match: (p) => p.startsWith("/dashboard/accounts"), key: "accounts" },
@@ -36,6 +46,7 @@ export function TopBar({ onMenu }: TopBarProps) {
   const { startTour } = useTour();
   const titleKey = TITLES.find((t) => t.match(pathname))?.key;
   const current = titleKey ? dict.titles[titleKey] : dict.shell.appName;
+  const subKey = SUB_CRUMBS.find((t) => t.match(pathname))?.key;
 
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3.5 backdrop-blur sm:px-6 lg:px-8">
@@ -51,7 +62,15 @@ export function TopBar({ onMenu }: TopBarProps) {
         </button>
         <span className="hidden font-mono text-subtle sm:inline">~/reelspy</span>
         <span className="hidden text-subtle sm:inline">/</span>
-        <span className="truncate font-medium text-foreground">{current}</span>
+        <span className={`truncate ${subKey ? "text-muted-foreground" : "font-medium text-foreground"}`}>
+          {current}
+        </span>
+        {subKey ? (
+          <>
+            <span className="text-subtle">/</span>
+            <span className="truncate font-medium text-foreground">{dict.titles[subKey]}</span>
+          </>
+        ) : null}
       </div>
       <div className="flex min-w-0 items-center gap-3">
         <button

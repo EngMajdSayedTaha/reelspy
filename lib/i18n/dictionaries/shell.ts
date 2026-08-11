@@ -22,6 +22,7 @@ const en = {
   titles: {
     dashboard: "Dashboard",
     accounts: "Inspiration Accounts",
+    accountDetail: "Account",
     feed: "Feed",
     trends: "Niche Radar",
     hooks: "Hook Library",
@@ -85,6 +86,7 @@ export const shellAr: ShellDict = {
   titles: {
     dashboard: "الرئيسية",
     accounts: "حسابات الإلهام",
+    accountDetail: "حساب",
     feed: "المحتوى",
     trends: "رادار المجال",
     hooks: "مكتبة الجمل الافتتاحية",

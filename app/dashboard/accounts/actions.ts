@@ -136,25 +136,36 @@ export async function addInspirationAccount(
     };
   }
 
-  const { error: insertError } = await supabase.from("inspiration_accounts").upsert(
-    {
-      user_id: user.id,
-      ig_username: igUsername,
-      display_name: igProfile.username,
-      followers_count: igProfile.followers_count ?? null,
-      avatar_url: igProfile.profile_picture_url ?? null,
-      is_active: true,
-      group_id: groupId,
-    },
-    { onConflict: "user_id,ig_username" }
-  );
+  const { data: inserted, error: insertError } = await supabase
+    .from("inspiration_accounts")
+    .upsert(
+      {
+        user_id: user.id,
+        ig_username: igUsername,
+        display_name: igProfile.username,
+        followers_count: igProfile.followers_count ?? null,
+        avatar_url: igProfile.profile_picture_url ?? null,
+        is_active: true,
+        group_id: groupId,
+      },
+      { onConflict: "user_id,ig_username" }
+    )
+    // Returned so the event can carry the account id — the dossier's activity
+    // timeline has no other way to attribute this event to an account.
+    .select("id")
+    .maybeSingle();
 
   if (insertError) {
     return { error: insertError.message };
   }
 
   // Instrumentation (L5): funnel step — tracking inspiration accounts.
-  await track(user.id, "account_added", { bulk: false, count: 1 });
+  await track(user.id, "account_added", {
+    bulk: false,
+    count: 1,
+    account_id: inserted?.id ?? null,
+    username: igUsername,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/accounts");
@@ -436,17 +447,28 @@ export async function assignAccountGroup(formData: FormData) {
     }
   }
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("inspiration_accounts")
     .update({ group_id: groupId })
     .eq("id", accountId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("ig_username")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
+  await track(user.id, "account_group_changed", {
+    account_id: accountId,
+    username: updated?.ig_username ?? null,
+    group: groupId,
+  });
+
   revalidatePath("/dashboard/accounts");
+  // The dynamic form needs the literal segment plus the "page" type argument,
+  // otherwise the dossier keeps serving its cached group name.
+  revalidatePath("/dashboard/accounts/[id]", "page");
   revalidatePath("/dashboard/feed");
 }
 
@@ -470,17 +492,25 @@ export async function toggleAccountActive(formData: FormData) {
 
   const isActive = desired === "true";
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("inspiration_accounts")
     .update({ is_active: isActive })
     .eq("id", accountId)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .select("ig_username")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
 
+  await track(user.id, isActive ? "account_resumed" : "account_paused", {
+    account_id: accountId,
+    username: updated?.ig_username ?? null,
+  });
+
   revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/accounts/[id]", "page");
   revalidatePath("/dashboard/feed");
 }
 
@@ -513,4 +543,5 @@ export async function removeInspirationAccount(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/accounts");
+  revalidatePath("/dashboard/accounts/[id]", "page");
 }
