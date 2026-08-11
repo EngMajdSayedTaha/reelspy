@@ -40,7 +40,10 @@ export function WeekdayBars({
 
   return (
     <div>
-      <div className="flex h-36 items-end gap-2">
+      {/* `items-stretch` (default, no override) so each column gets a definite
+          height from this h-36 container — see the comment in Histogram.tsx
+          for why the bar's `height: N%` is otherwise invisible. */}
+      <div className="flex h-36 gap-2">
         {values.map((v, i) => {
           const isBest = hasBest && i === bestIdx;
           const lowSample = counts[i] < minSample;
@@ -53,13 +56,15 @@ export function WeekdayBars({
               >
                 {v > 0 ? format(v) : ""}
               </span>
-              <div
-                className={`w-full rounded-t-md transition-colors ${
-                  isBest ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"
-                } ${lowSample ? "opacity-40" : ""}`}
-                style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }}
-                title={tooltip(labels[i], format(v), counts[i])}
-              />
+              <div className="flex w-full flex-1 items-end">
+                <div
+                  className={`w-full rounded-t-md transition-colors ${
+                    isBest ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"
+                  } ${lowSample ? "opacity-40" : ""}`}
+                  style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }}
+                  title={tooltip(labels[i], format(v), counts[i])}
+                />
+              </div>
               <span className={`text-[10px] ${isBest ? "font-semibold text-brand" : "text-subtle"}`}>
                 {labels[i]}
               </span>

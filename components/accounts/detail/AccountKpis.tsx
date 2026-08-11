@@ -87,9 +87,10 @@ export function AccountKpis({
         hint={t.commentShareHint}
         icon={<MessageCircle className="h-3.5 w-3.5" />}
         value={formatPercent(engagement.commentShare)}
-        footnote={`${formatCompact(aggregates.commentsTotal)} / ${formatCompact(
-          aggregates.likesTotal + aggregates.commentsTotal
-        )}`}
+        footnote={t.commentsOfInteractions(
+          formatCompact(aggregates.commentsTotal),
+          formatCompact(aggregates.likesTotal + aggregates.commentsTotal)
+        )}
       />
 
       <KpiCard

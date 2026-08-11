@@ -423,7 +423,7 @@ export type TagStat = { tag: string; count: number; medianViews: number | null }
 const HASHTAG_RE = /#[\p{L}\p{N}_]+/gu;
 const MENTION_RE = /@[A-Za-z0-9._]+/g;
 
-function tagStats(reels: ReelPoint[], re: RegExp, limit: number): TagStat[] {
+function tagStats(reels: ReelPoint[], re: RegExp, limit: number, minCount = 1): TagStat[] {
   const byTag = new Map<string, number[]>();
   for (const reel of reels) {
     if (!reel.caption) continue;
@@ -437,13 +437,22 @@ function tagStats(reels: ReelPoint[], re: RegExp, limit: number): TagStat[] {
   }
 
   return Array.from(byTag.entries())
+    .filter(([, views]) => views.length >= minCount)
     .map(([tag, views]) => ({ tag, count: views.length, medianViews: median(views) }))
     .sort((a, b) => b.count - a.count || (b.medianViews ?? 0) - (a.medianViews ?? 0))
     .slice(0, limit);
 }
 
+// A "top" hashtag implies repetition — a signal about how this account tags
+// its content, not a one-off. Without the floor, a creator who numbers steps
+// in a caption ("Tip #1 ... Tip #2 ...") floods the list with #1, #2, #3 — each
+// matching the hashtag pattern, each used exactly once, none of them a real
+// tagging pattern. Requiring at least 2 uses filters incidental matches like
+// this without having to guess "is this really a hashtag" from its text.
+const HASHTAG_MIN_COUNT = 2;
+
 export function hashtagStats(reels: ReelPoint[], limit = 10): TagStat[] {
-  return tagStats(reels, HASHTAG_RE, limit);
+  return tagStats(reels, HASHTAG_RE, limit, HASHTAG_MIN_COUNT);
 }
 
 export function mentionStats(reels: ReelPoint[], limit = 6): TagStat[] {
