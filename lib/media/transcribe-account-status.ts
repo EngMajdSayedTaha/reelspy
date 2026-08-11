@@ -127,7 +127,17 @@ export async function readTranscribeAccountStatus(
   let state: TranscribeRunState = "idle";
   let note: string | null = null;
 
-  if (row) {
+  // Ground truth wins over job bookkeeping. A job row can be stale for a long
+  // time relative to the reels: it might be sitting `queued` with a future
+  // run_at from an old throttle/quota defer while the last few reels finished
+  // through some OTHER path in the meantime — auto-transcribe picking up a
+  // reel this run released, a manual "Generate" click, or simply this run's own
+  // final chunk not yet reclaimed by the next cron tick. In every one of those
+  // cases `remaining` is already 0 and correct; the job row just hasn't caught
+  // up to say so yet (which, for a 6-hour quota-exceeded defer, it might not do
+  // for hours). Reporting "still going" when there is nothing left to do is a
+  // worse lie than reporting "done" a few minutes before the job row agrees.
+  if (remaining > 0 && row) {
     note = row.last_error;
     if (row.status === "failed") {
       state = "failed";
