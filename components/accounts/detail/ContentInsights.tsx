@@ -106,19 +106,24 @@ export function ContentInsights({
 
         <div className="space-y-4">
           <ChartCard title={t.captionLength} icon={<AlignLeft className="h-4 w-4" />}>
-            <div className="flex h-32 items-end gap-2">
+            {/* `items-stretch` (default) so each column gets a definite height
+                from h-32 — otherwise `height: N%` on the bar resolves against
+                an auto-height parent and computes to 0. See Histogram.tsx. */}
+            <div className="flex h-32 gap-2">
               {captions.map((bucket) => (
                 <div key={bucket.key} className="flex flex-1 flex-col items-center gap-1">
                   <span className="text-[10px] tabular-nums text-subtle">
                     {bucket.count > 0 ? formatCompact(Math.round(bucket.medianViews ?? 0)) : ""}
                   </span>
-                  <div
-                    className="w-full rounded-t-md bg-border-strong"
-                    style={{
-                      height: `${Math.max(((bucket.medianViews ?? 0) / captionMax) * 100, bucket.count > 0 ? 4 : 1)}%`,
-                    }}
-                    title={`${captionLabel[bucket.key]} ${t.captionChars} — ${t.reelsUsing(bucket.count)}`}
-                  />
+                  <div className="flex w-full flex-1 items-end">
+                    <div
+                      className="w-full rounded-t-md bg-border-strong"
+                      style={{
+                        height: `${Math.max(((bucket.medianViews ?? 0) / captionMax) * 100, bucket.count > 0 ? 4 : 1)}%`,
+                      }}
+                      title={`${captionLabel[bucket.key]} ${t.captionChars} — ${t.reelsUsing(bucket.count)}`}
+                    />
+                  </div>
                   <span className="text-[10px] text-subtle">{captionLabel[bucket.key]}</span>
                 </div>
               ))}

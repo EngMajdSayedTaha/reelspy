@@ -33,7 +33,13 @@ export function Histogram({
   }
 
   return (
-    <div className="flex h-40 items-end gap-1.5">
+    // `items-stretch` (the default — no override here) is load-bearing: each
+    // column must receive a DEFINITE height from this h-40 container so the
+    // bar's `height: N%` below has something real to resolve against. With
+    // `items-end` instead, columns shrink to their own content height, the
+    // percentage resolves against that auto height per the CSS spec, and every
+    // bar silently renders at 0px — no error, just an invisible chart.
+    <div className="flex h-40 gap-1.5">
       {buckets.map((bucket) => (
         <div key={bucket.label} className="group flex min-w-0 flex-1 flex-col items-center gap-1">
           <span
@@ -43,13 +49,19 @@ export function Histogram({
           >
             {bucket.count > 0 ? bucket.count : ""}
           </span>
-          <div
-            className={`w-full rounded-t-md transition-colors ${
-              bucket.marker ? "bg-primary" : "bg-border-strong"
-            }`}
-            style={{ height: `${Math.max((bucket.count / max) * 100, bucket.count > 0 ? 3 : 1)}%` }}
-            title={`${bucket.label}: ${bucket.count}`}
-          />
+          {/* The bar's containing block: flex-1 makes ITS resolved height
+              definite too (per spec, a flex item's post-flexing size counts as
+              definite for its own children), which is what the percentage
+              height on the bar below actually needs. */}
+          <div className="flex w-full flex-1 items-end">
+            <div
+              className={`w-full rounded-t-md transition-colors ${
+                bucket.marker ? "bg-primary" : "bg-border-strong"
+              }`}
+              style={{ height: `${Math.max((bucket.count / max) * 100, bucket.count > 0 ? 3 : 1)}%` }}
+              title={`${bucket.label}: ${bucket.count}`}
+            />
+          </div>
           <span className="w-full truncate text-center text-[9px] leading-tight text-subtle">
             {bucket.label}
           </span>
