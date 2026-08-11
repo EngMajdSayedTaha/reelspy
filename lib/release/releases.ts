@@ -28,6 +28,120 @@ import type { Release } from "./types";
 
 export const RELEASES: Release[] = [
   {
+    version: "0.13.0",
+    date: "2026-08-11",
+    spotlight: true,
+    title: {
+      en: "Account pages, bulk transcripts, and pricing that fits you",
+      ar: "صفحات للحسابات، تفريغ جماعي، وتسعير يناسبك",
+    },
+    summary: {
+      en: "Every tracked account now opens into its own page with charts and history. You can turn its entire reel library into text in one go, and billing got a real upgrade — your own currency, yearly pricing, free trials, and sale prices that show what you're saving.",
+      ar: "كل حساب تتابعه يفتح الآن على صفحته الخاصة بالرسوم البيانية والسجل. يمكنك تحويل كل مقاطعه إلى نص دفعة واحدة، كما شهدت الفوترة تطويرًا حقيقيًا — عملتك الخاصة، تسعير سنوي، فترات تجربة مجانية، وأسعار تخفيض تُظهر مقدار ما توفّره.",
+    },
+    changes: [
+      {
+        kind: "new",
+        text: {
+          en: "Click into any tracked account to see its own page: growth charts, when it posts, which reels are pulling ahead, and a timeline of what's happened on it.",
+          ar: "افتح أي حساب تتابعه لترى صفحته الخاصة: رسوم بيانية للنمو، أوقات نشره، المقاطع الأكثر تفوّقًا، وخط زمني لكل ما جرى فيه.",
+        },
+      },
+      {
+        kind: "new",
+        text: {
+          en: "Turn every reel in an account into text at once instead of one at a time, then download all of it as a single file ready to paste into an AI.",
+          ar: "حوّل كل مقاطع الحساب إلى نص دفعة واحدة بدل واحدًا تلو الآخر، ثم حمّلها كملف واحد جاهز للصقه في أي أداة ذكاء اصطناعي.",
+        },
+      },
+      {
+        kind: "new",
+        text: {
+          en: "Prices show in AED, SAR or USD depending on where you are, with a switcher if you'd rather see a different one.",
+          ar: "تظهر الأسعار بالدرهم الإماراتي أو الريال السعودي أو الدولار حسب موقعك، مع مبدّل إن أردت عملة أخرى.",
+        },
+      },
+      {
+        kind: "new",
+        text: {
+          en: "Pay yearly instead of monthly on any plan and save — the billing page shows exactly how much before you switch.",
+          ar: "ادفع سنويًا بدل شهريًا على أي باقة ووفّر — تعرض صفحة الفوترة المبلغ الذي ستوفّره بالضبط قبل أن تُبدّل.",
+        },
+      },
+      {
+        kind: "new",
+        text: {
+          en: "Some plans now come with a free trial. If yours is ending, you'll get an email first so nothing charges you by surprise.",
+          ar: "بعض الباقات صارت تأتي بفترة تجربة مجانية. وإن كانت فترتك على وشك الانتهاء، ستصلك رسالة أولًا حتى لا يُخصم منك شيء بمفاجأة.",
+        },
+      },
+      {
+        kind: "new",
+        text: {
+          en: "Plans on sale show the original price crossed out next to the new one, so you can see exactly what you're saving.",
+          ar: "الباقات المخفّضة تعرض السعر الأصلي مشطوبًا بجانب السعر الجديد، لترى بالضبط كم توفّر.",
+        },
+      },
+      {
+        kind: "improved",
+        text: {
+          en: "If a plan's price ever changes for new customers, yours stays the same for as long as you keep it — and if it ever has to move, you'll hear the new price and date at least a month ahead.",
+          ar: "إن تغيّر سعر أي باقة للعملاء الجدد، يبقى سعرك أنت كما هو ما دمت مشتركًا — وإن اضطر للتغيير يومًا، ستُبلَّغ بالسعر الجديد وتاريخه قبل شهر على الأقل.",
+        },
+      },
+      {
+        kind: "improved",
+        text: {
+          en: "The Hook Library and your saved hooks now load a page at a time, so long lists open faster.",
+          ar: "مكتبة الجمل الافتتاحية وجملك المحفوظة تُحمَّل الآن صفحة صفحة، فتفتح القوائم الطويلة أسرع.",
+        },
+      },
+      {
+        kind: "improved",
+        text: {
+          en: "Passwords can no longer be something too common or something that contains your email, so your account is harder to break into.",
+          ar: "لم يعد بإمكانك استخدام كلمة مرور شائعة جدًا أو تحتوي على بريدك الإلكتروني، ليصعب اختراق حسابك.",
+        },
+      },
+      {
+        kind: "improved",
+        text: {
+          en: "Signing up now confirms your email address, and if there's a waiting list, you'll know exactly where you stand.",
+          ar: "التسجيل صار يؤكّد بريدك الإلكتروني الآن، وإن وُجدت قائمة انتظار، ستعرف بالضبط أين موقعك فيها.",
+        },
+      },
+      {
+        kind: "fixed",
+        text: {
+          en: "Transcribing a whole account in bulk no longer slows down transcribing a single reel by hand or the automatic one — each now runs at its own pace.",
+          ar: "تفريغ حساب كامل دفعة واحدة لم يعد يُبطئ تفريغ مقطع واحد يدويًا أو التفريغ التلقائي — كل منها يعمل بوتيرته الخاصة الآن.",
+        },
+      },
+      {
+        kind: "fixed",
+        text: {
+          en: "A rare billing hiccup that could quietly drop a paying subscriber back to the Free plan can no longer happen.",
+          ar: "لن يحدث بعد الآن ذلك الخلل النادر في الفوترة الذي كان قد يُعيد مشتركًا يدفع إلى الباقة المجانية بصمت.",
+        },
+      },
+      {
+        kind: "fixed",
+        text: {
+          en: "Dropdown menus no longer appear behind other things on the page.",
+          ar: "القوائم المنسدلة لم تعد تظهر خلف عناصر أخرى في الصفحة.",
+        },
+      },
+      {
+        kind: "fixed",
+        text: {
+          en: "Links in emails from ReelSpy open the right page now instead of sometimes leading to a broken one.",
+          ar: "روابط رسائل ReelSpy تفتح الصفحة الصحيحة الآن بدل أن تقود أحيانًا إلى صفحة معطوبة.",
+        },
+      },
+    ],
+  },
+
+  {
     version: "0.12.0",
     date: "2026-08-05",
     spotlight: true,
