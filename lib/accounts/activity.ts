@@ -62,7 +62,12 @@ const REEL_EVENT_LIMIT = 6;
 /** Timestamps pulled for day-bucketing. */
 const BULK_LIMIT = 1000;
 const EVENT_LIMIT = 60;
-const JOB_LIMIT = 12;
+// A resumable bulk-transcription run inserts a new `jobs` row per chunk (one
+// per quota-limited batch, one per resume after a pause) — the same run can
+// leave a dozen rows behind in a single afternoon. Raised well past the old
+// 12 so day-bucketing below has enough raw rows to actually collapse; the
+// rendered output stays compact regardless, since bucketing is what shrinks it.
+const JOB_LIMIT = 60;
 /** Items returned; the client reveals the tail without another request. */
 const MAX_ITEMS = 80;
 
@@ -176,19 +181,40 @@ export async function readAccountActivity(
     });
   }
 
-  for (const job of (jobs.data ?? []) as {
+  // A resumable bulk-transcription run leaves one `jobs` row per chunk — the
+  // dedup key is constant for the account, but the queue still inserts a fresh
+  // row every time it picks the run back up (after each quota-limited batch,
+  // after every pause/resume). Listed individually that's a dozen identical
+  // "Started transcribing every reel" entries an hour apart for what the user
+  // experienced as clicking the button once. Bucketed by day it reads as one
+  // line, same as the reel-row events above.
+  //
+  // Failures are kept individual and un-bucketed: they're rarer, each one is
+  // independently actionable, and `last_error` differs row to row — collapsing
+  // them would either drop that detail or need a "3 failures today, expand for
+  // reasons" UI this timeline doesn't have.
+  const transcribeJobs = (jobs.data ?? []) as {
     id: string;
     kind: string;
     status: string;
     created_at: string;
     last_error: string | null;
-  }[]) {
-    if (job.kind !== "transcribe_account") continue;
+  }[];
+  items.push(
+    ...bucketByDay(
+      transcribeJobs
+        .filter((j) => j.kind === "transcribe_account" && j.status !== "failed")
+        .map((j) => j.created_at),
+      "transcribe_started"
+    )
+  );
+  for (const job of transcribeJobs) {
+    if (job.kind !== "transcribe_account" || job.status !== "failed") continue;
     items.push({
-      id: `transcribe:${job.id}`,
+      id: `transcribe_failed:${job.id}`,
       at: job.created_at,
-      kind: job.status === "failed" ? "transcribe_failed" : "transcribe_started",
-      label: job.status === "failed" ? job.last_error : null,
+      kind: "transcribe_failed",
+      label: job.last_error,
     });
   }
 

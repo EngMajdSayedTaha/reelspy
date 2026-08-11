@@ -238,6 +238,13 @@ const en = {
         rangeValue: (from: string, to: string) => `${from} → ${to}`,
         history: "History depth",
         fullHistory: "Full history",
+        // A user who pulled a bounded archive (e.g. "12 months") has ORDERS OF
+        // MAGNITUDE more reels than a normal sync, but the walk never reached
+        // the account's true first post, so it isn't `exhausted` either. Calling
+        // that "recent reels only" reads as if only the last sync's ~25-100
+        // reels were captured — reserve that phrase for when no archive was
+        // ever requested at all.
+        extendedHistory: "Extended archive",
         partialHistory: "Recent reels only",
         deeperAvailable: "Deeper history available",
         never: "Never",
@@ -263,6 +270,8 @@ const en = {
         commentShare: "Comment share",
         commentShareHint:
           "Comments as a share of all interactions. High means the content starts conversations rather than collecting passive likes.",
+        commentsOfInteractions: (comments: string, interactions: string) =>
+          `${comments} comments of ${interactions} interactions`,
         postsPerWeek: "Posts per week",
         followers: "Followers",
         times: (value: string) => `${value}×`,
@@ -333,8 +342,8 @@ const en = {
         transcripts: "Transcript coverage",
         transcriptsValue: (ready: number, total: number) => `${ready} of ${total} reels`,
         transcriptsFailed: (n: number) => `${n} failed`,
-        noCaptions: "No captions captured for this account yet.",
-        reelsUsing: (n: number) => `${n} reels`,
+        noCaptions: "No hashtag this account reuses across multiple reels yet.",
+        reelsUsing: (n: number) => (n === 1 ? "1 reel" : `${n} reels`),
       },
       reels: {
         title: "Latest reels",
@@ -352,7 +361,12 @@ const en = {
           sync_throttled: "Sync throttled by the hourly quota",
           archive_requested: "Requested full history",
           archive_completed: (n: number) => `Full history imported — ${n} reels`,
-          transcribe_started: "Started transcribing every reel",
+          // A bulk-transcription run resumes itself in chunks across quota
+          // resets, so one click can leave several "started" moments in the
+          // same day — the count says that plainly instead of implying the
+          // user clicked the button N times.
+          transcribe_started: (n: number) =>
+            n > 1 ? `Started transcribing every reel — ${n} runs` : "Started transcribing every reel",
           transcribe_failed: "Bulk transcription failed",
           transcripts_ready: (n: number) => `${n} transcripts finished`,
           reel_favorited: "Saved a reel",
@@ -656,6 +670,7 @@ export const accountsAr: AccountsDict = {
         rangeValue: (from: string, to: string) => `${from} ← ${to}`,
         history: "عمق السجل",
         fullHistory: "السجل الكامل",
+        extendedHistory: "أرشيف موسّع",
         partialHistory: "أحدث الريلات فقط",
         deeperAvailable: "يتوفر سجل أقدم",
         never: "أبدًا",
@@ -681,6 +696,8 @@ export const accountsAr: AccountsDict = {
         commentShare: "حصة التعليقات",
         commentShareHint:
           "التعليقات كنسبة من كل التفاعلات. النسبة العالية تعني محتوى يثير النقاش لا مجرد إعجابات عابرة.",
+        commentsOfInteractions: (comments: string, interactions: string) =>
+          `${comments} تعليق من ${interactions} تفاعل`,
         postsPerWeek: "منشورات أسبوعيًا",
         followers: "المتابعون",
         times: (value: string) => `${value}×`,
@@ -751,7 +768,7 @@ export const accountsAr: AccountsDict = {
         transcripts: "تغطية النصوص",
         transcriptsValue: (ready: number, total: number) => `${ready} من ${total} ريل`,
         transcriptsFailed: (n: number) => `${n} فشلت`,
-        noCaptions: "لا توجد أوصاف محفوظة لهذا الحساب بعد.",
+        noCaptions: "لا يوجد وسم يكرره هذا الحساب عبر أكثر من ريل حتى الآن.",
         reelsUsing: (n: number) => `${n} ريل`,
       },
       reels: {
@@ -770,7 +787,8 @@ export const accountsAr: AccountsDict = {
           sync_throttled: "تم تقييد المزامنة بسبب الحصة الساعية",
           archive_requested: "طلبت السجل الكامل",
           archive_completed: (n: number) => `تم استيراد السجل الكامل — ${n} ريل`,
-          transcribe_started: "بدأت تفريغ كل الريلات",
+          transcribe_started: (n: number) =>
+            n > 1 ? `بدأت تفريغ كل الريلات — ${n} مرات` : "بدأت تفريغ كل الريلات",
           transcribe_failed: "فشل التفريغ الجماعي",
           transcripts_ready: (n: number) => `اكتمل ${n} نص`,
           reel_favorited: "حفظت ريلًا",

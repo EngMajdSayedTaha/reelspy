@@ -319,14 +319,36 @@ describe("content signals", () => {
   });
 
   it("counts a repeated hashtag once per caption", () => {
-    const tags = hashtagStats([reel({ caption: "#reels #reels #REELS", view_count: 10 })]);
+    // A second reel is needed to clear the min-count floor below — without it
+    // this would test dedup-within-a-caption and repetition-across-reels at
+    // the same time, conflating two different things.
+    const tags = hashtagStats([
+      reel({ caption: "#reels #reels #REELS", view_count: 10 }),
+      reel({ caption: "#reels", view_count: 20 }),
+    ]);
     expect(tags).toHaveLength(1);
-    expect(tags[0].count).toBe(1);
+    expect(tags[0].count).toBe(2); // once per reel it appears in, not once per match
   });
 
   it("survives emoji and captions with no tags at all", () => {
     const tags = hashtagStats([reel({ caption: "🔥🔥🔥 no tags here" }), reel({ caption: null })]);
     expect(tags).toEqual([]);
+  });
+
+  it("excludes hashtags used only once — a repeat is what makes a tag 'top'", () => {
+    // The bug this guards against: a creator numbering steps in a caption
+    // ("Tip #1 ... Tip #2 ...") produces #1, #2, #3 — each matches the
+    // hashtag pattern, each used exactly once. Without a repetition floor,
+    // "top hashtags" fills up with these instead of any tag the account
+    // actually reuses.
+    const reels = [
+      reel({ caption: "Tip #1: wake up early", view_count: 100 }),
+      reel({ caption: "Tip #2: eat breakfast", view_count: 200 }),
+      reel({ caption: "Tip #3: go outside #morningroutine", view_count: 300 }),
+      reel({ caption: "another one #morningroutine", view_count: 400 }),
+    ];
+    const tags = hashtagStats(reels);
+    expect(tags.map((t) => t.tag)).toEqual(["#morningroutine"]);
   });
 
   it("extracts mentions separately from hashtags", () => {

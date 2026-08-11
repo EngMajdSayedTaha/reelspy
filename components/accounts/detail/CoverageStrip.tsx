@@ -35,7 +35,14 @@ export function CoverageStrip({
     ? t.coverage.fullHistory
     : deeperAvailable
       ? t.coverage.deeperAvailable
-      : t.coverage.partialHistory;
+      : // `requested` means THIS user actually pulled a bounded archive — the
+        // account can hold hundreds of reels across a full year without ever
+        // being `exhausted` (the walk just never asked to go back further than
+        // that). Only fall back to "recent reels only" when no archive was
+        // requested at all, i.e. what's here is whatever a normal sync grabbed.
+        archive?.requested
+        ? t.coverage.extendedHistory
+        : t.coverage.partialHistory;
 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm">

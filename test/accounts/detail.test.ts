@@ -193,4 +193,38 @@ describe("readAccountDetail", () => {
     const result = await readAccountDetail(supabase, null, "user-1", "acc-1");
     expect(result?.outperformers).toEqual([]);
   });
+
+  it("collapses a resumable transcription run's job chunks into one activity entry per day", async () => {
+    // What was observed in production: a bulk-transcription run inserts a new
+    // `jobs` row every time it resumes after a quota pause — a dozen rows in
+    // one afternoon for what the user experienced as one click. Un-bucketed,
+    // the activity timeline repeated "Started transcribing every reel" a dozen
+    // times; this is the regression test for the fix.
+    const tables = baseTables();
+    const adminTables = {
+      ...tables,
+      jobs: [
+        { id: "j1", kind: "transcribe_account", status: "done", created_at: "2026-06-14T09:00:00.000Z", last_error: null },
+        { id: "j2", kind: "transcribe_account", status: "running", created_at: "2026-06-14T10:00:00.000Z", last_error: null },
+        { id: "j3", kind: "transcribe_account", status: "queued", created_at: "2026-06-14T11:00:00.000Z", last_error: null },
+        // A different day's chunk must stay a separate bucket.
+        { id: "j4", kind: "transcribe_account", status: "done", created_at: "2026-06-13T09:00:00.000Z", last_error: null },
+        // Failures are kept individual — each one is independently actionable.
+        { id: "j5", kind: "transcribe_account", status: "failed", created_at: "2026-06-14T12:00:00.000Z", last_error: "quota exceeded" },
+      ],
+    };
+    const supabase = fakeClient({ tables });
+    const admin = fakeClient({ tables: adminTables });
+
+    const result = await readAccountDetail(supabase, admin, "user-1", "acc-1");
+
+    const started = result?.activity.filter((item) => item.kind === "transcribe_started") ?? [];
+    expect(started).toHaveLength(2); // one per day, not one per job row
+    const june14 = started.find((item) => item.at.startsWith("2026-06-14"));
+    expect(june14?.count).toBe(3);
+
+    const failed = result?.activity.filter((item) => item.kind === "transcribe_failed") ?? [];
+    expect(failed).toHaveLength(1);
+    expect(failed[0].label).toBe("quota exceeded");
+  });
 });
