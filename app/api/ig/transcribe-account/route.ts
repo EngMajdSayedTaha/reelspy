@@ -99,6 +99,7 @@ export async function POST(request: Request) {
 
   await track(user.id, "transcribe_account_requested", {
     username: account.ig_username,
+    account_id: account.id,
     remaining: status.remaining,
     alreadyRunning: skipped,
   });

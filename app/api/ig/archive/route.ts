@@ -194,6 +194,8 @@ export async function POST(request: Request) {
 
   await track(user.id, "archive_requested", {
     username: uname,
+    // Attribution for the per-account activity timeline on the dossier.
+    account_id: account.id,
     range,
     alreadyCovered,
     alreadyRunning: skipped,

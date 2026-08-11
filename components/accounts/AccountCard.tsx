@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { RefreshCw, Trash2, Users, AtSign, FolderClosed, PauseCircle, Power, Zap } from "lucide-react";
+import Link from "next/link";
+import {
+  BarChart3,
+  RefreshCw,
+  Trash2,
+  Users,
+  AtSign,
+  FolderClosed,
+  PauseCircle,
+  Power,
+  Zap,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -218,7 +229,14 @@ export function AccountCard({
       ) : null}
 
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        {/* Only the identity block links through. A full-card overlay would have
+            to sit above three Selects, five buttons and the archive's download
+            links — and any control added later without a z-index would silently
+            stop working. The explicit button below is the discoverable path. */}
+        <Link
+          href={`/dashboard/accounts/${account.id}`}
+          className="group/link -m-1 flex min-w-0 items-center gap-3 rounded-lg p-1 transition-colors hover:bg-secondary/60"
+        >
           {account.avatar_url && !avatarImg.failed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -237,14 +255,18 @@ export function AccountCard({
             </span>
           )}
           <div className="min-w-0">
-            <p className={`truncate text-base font-medium ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+            <p
+              className={`truncate text-base font-medium transition-colors group-hover/link:text-brand ${
+                isActive ? "text-foreground" : "text-muted-foreground"
+              }`}
+            >
               @{account.ig_username}
             </p>
             {account.display_name && account.display_name !== account.ig_username ? (
               <p className="truncate text-sm text-muted-foreground">{account.display_name}</p>
             ) : null}
           </div>
-        </div>
+        </Link>
         <Badge
           variant={isActive ? "default" : "outline"}
           className={isActive ? "" : "border-warning/50 bg-warning/15 text-warning"}
@@ -344,6 +366,16 @@ export function AccountCard({
         >
           <Power className="h-4 w-4" />
           {!isActive ? t.resumeLabel : null}
+        </Button>
+
+        <Button asChild size="sm" variant="outline">
+          <Link
+            href={`/dashboard/accounts/${account.id}`}
+            aria-label={t.viewInsightsAria}
+            title={t.viewInsightsTitle}
+          >
+            <BarChart3 className="h-4 w-4" />
+          </Link>
         </Button>
 
         <Button

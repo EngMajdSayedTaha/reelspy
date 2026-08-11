@@ -89,18 +89,28 @@ export async function trackNicheAccount(
     }
   }
 
-  const { error } = await supabase.from("inspiration_accounts").insert({
-    user_id: user.id,
-    ig_username: ig,
-    display_name: (snap?.display_name as string) ?? ig,
-    followers_count: (snap?.followers_count as number) ?? null,
-    avatar_url: (snap?.avatar_url as string) ?? null,
-    is_active: true,
-    group_id: groupId,
-  });
+  const { data: inserted, error } = await supabase
+    .from("inspiration_accounts")
+    .insert({
+      user_id: user.id,
+      ig_username: ig,
+      display_name: (snap?.display_name as string) ?? ig,
+      followers_count: (snap?.followers_count as number) ?? null,
+      avatar_url: (snap?.avatar_url as string) ?? null,
+      is_active: true,
+      group_id: groupId,
+    })
+    // Returned so the event can name the account for the dossier timeline.
+    .select("id")
+    .maybeSingle();
   if (error) return { error: error.message };
 
-  await track(user.id, "account_added", { bulk: false, source });
+  await track(user.id, "account_added", {
+    bulk: false,
+    source,
+    account_id: inserted?.id ?? null,
+    username: ig,
+  });
   revalidatePath("/dashboard/trends");
   revalidatePath("/dashboard/accounts");
   revalidatePath("/dashboard/feed");

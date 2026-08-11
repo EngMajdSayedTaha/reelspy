@@ -196,6 +196,11 @@ create policy "Users can manage own reels"
 
 create index tracked_reels_user_viral_idx on tracked_reels (user_id, viral_score desc);
 create index tracked_reels_user_posted_idx on tracked_reels (user_id, posted_at desc);
+-- The account dossier filters by (user_id, account_id) and orders by posted_at.
+-- The index above scans every reel the user owns and discards the ones from
+-- other accounts — fine at ten accounts, not at a hundred.
+create index tracked_reels_account_posted_idx
+  on tracked_reels (account_id, posted_at desc nulls last);
 -- Backs the ig_media_id lookups used by per-user sync and the cross-user
 -- thumbnail propagation (bulk_propagate_reel_thumbnails below).
 create index tracked_reels_ig_media_id_idx on tracked_reels (ig_media_id);
@@ -271,6 +276,87 @@ create table ig_reel_snapshots (
 );
 alter table ig_reel_snapshots enable row level security;
 create index ig_reel_snapshots_username_idx on ig_reel_snapshots (ig_username);
+-- Materializing an archive reads a whole account's reels newest-first, and an
+-- archived account holds thousands rather than the 25 a sync deals with.
+create index ig_reel_snapshots_username_posted_idx
+  on ig_reel_snapshots (ig_username, posted_at desc nulls last);
+
+-- ── ig_account_archives / _requests — full-history Business Discovery walk ────
+-- Two tables because two things have two lifetimes: the walk itself is per
+-- ACCOUNT and shared by everyone (the second person to ask for @nike pays
+-- nothing for history the first already pulled), while the REQUEST is per
+-- (account, user) so one paid user's deep pull doesn't land in the feed of
+-- every free user tracking the same account.
+-- Service-role only: RLS on with no policies, like the snapshot tables.
+create table ig_account_archives (
+  ig_username text primary key
+    references ig_account_snapshots(ig_username) on delete cascade,
+  status text not null default 'queued'
+    check (status in ('queued', 'running', 'done', 'partial', 'failed')),
+  -- Opaque Meta cursor for the NEXT page of the backwards walk; null means
+  -- "start from newest". The walk spans many worker passes and a full Meta
+  -- cooldown, so its position has to outlive the process holding it.
+  cursor text,
+  -- True once Meta stopped handing out cursors: the walk reached the account's
+  -- first post, so a later "everything" ask is answered from cache for free.
+  exhausted boolean not null default false,
+  -- Oldest media SEEN across all media types, not just reels — a page of
+  -- carousels still moves the walk backwards. Coverage is [oldest_seen_at, now].
+  oldest_seen_at timestamptz,
+  target_since timestamptz,             -- cutoff the current walk heads for; null = everything
+  reels_found int not null default 0,
+  pages_fetched int not null default 0,
+  started_at timestamptz,
+  finished_at timestamptz,
+  last_error text,
+  updated_at timestamptz not null default now()
+);
+alter table ig_account_archives enable row level security;
+
+create table ig_account_archive_requests (
+  ig_username text not null
+    references ig_account_snapshots(ig_username) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  since timestamptz,                    -- how deep this user asked; null = everything
+  requested_at timestamptz not null default now(),
+  -- When the finished archive was last copied into this user's tracked_reels.
+  -- Tells "already yours" apart from "cached, but you've never received it".
+  materialized_at timestamptz,
+  reels_materialized int not null default 0,
+  primary key (ig_username, user_id)
+);
+alter table ig_account_archive_requests enable row level security;
+-- "Which archives has this user asked for?" — read per user on the accounts
+-- page; the account-first primary key can't serve it.
+create index ig_account_archive_requests_user_idx
+  on ig_account_archive_requests (user_id);
+
+-- ── ig_account_metric_history — daily follower/metric history per account ─────
+-- The only time-series in the product. Everything else (followers_count,
+-- view_count) is overwritten in place on each sync, so without this table
+-- "did this account grow?" is unanswerable rather than merely unanswered.
+-- Keyed by username, not user: a follower count is a property of the public
+-- account. Per-user rows would write N copies for one shared fetch and would
+-- show an empty chart to anyone who added the account yesterday.
+create table ig_account_metric_history (
+  ig_username text not null
+    references ig_account_snapshots(ig_username) on delete cascade,
+  -- One row per UTC day, upserted — twenty force-refreshes make one data point.
+  captured_on date not null,
+  followers_count bigint,
+  -- Aggregates over the reels fetched in THIS pass. A sync fetches 25, an
+  -- archive walk fetches thousands, so rows are only comparable at equal
+  -- sample_size. v1 charts followers_count only, which always is comparable.
+  sample_size int,
+  sample_views bigint,
+  sample_likes bigint,
+  sample_comments bigint,
+  captured_at timestamptz not null default now(),
+  primary key (ig_username, captured_on)
+);
+alter table ig_account_metric_history enable row level security;   -- no policies
+create index ig_account_metric_history_recent_idx
+  on ig_account_metric_history (ig_username, captured_on desc);
 
 -- ── seed_accounts — curated cold-start pool for niche suggestions ─────────────
 -- Per-niche pool of real IG handles used ONLY as a fallback while the cross-user
@@ -1395,6 +1481,71 @@ as $$
 $$;
 revoke execute on function outperforming_feed(uuid, uuid, uuid[], text, text, int, int) from anon;
 grant execute on function outperforming_feed(uuid, uuid, uuid[], text, text, int, int) to authenticated;
+
+-- Exact, full-set aggregates for ONE tracked account (the dossier at
+-- /dashboard/accounts/[id]). After a full-history archive an account can hold
+-- 2,000+ reels: pulling them all through PostgREST to take a median would
+-- serialize megabytes per page load, and a median over a truncated window is
+-- simply wrong. percentile_cont in Postgres is the only honest way to get it.
+-- security invoker → RLS scopes every read to the caller; p_user_id is still
+-- explicit so the planner uses the (user_id, …) indexes.
+create or replace function account_insights(
+  p_user_id uuid,
+  p_account_id uuid
+)
+returns table (
+  reels_total bigint, reels_discarded bigint, reels_favorite bigint, reels_worked bigint,
+  views_total bigint, likes_total bigint, comments_total bigint,
+  views_median numeric, views_avg numeric, views_p90 numeric, views_max bigint,
+  likes_median numeric, comments_median numeric,
+  viral_median numeric, viral_p90 numeric, viral_max numeric,
+  first_posted_at timestamptz, last_posted_at timestamptz, first_tracked_at timestamptz,
+  transcripts_ready bigint, transcripts_failed bigint, transcripts_pending bigint,
+  posting_days bigint, scripts_generated bigint, hooks_saved bigint
+)
+language sql stable security invoker set search_path = public
+as $$
+  with mine as (
+    select r.* from tracked_reels r
+    where r.user_id = p_user_id and r.account_id = p_account_id
+  ),
+  -- Discarded reels count toward "what you did with this account" but must not
+  -- pollute the performance stats, so every metric below reads from `kept`.
+  kept as (select * from mine where is_discarded = false)
+  select
+    (select count(*) from kept),
+    (select count(*) from mine where is_discarded = true),
+    (select count(*) from kept where is_favorite = true),
+    (select count(*) from kept where is_worked_on = true),
+    (select coalesce(sum(view_count), 0) from kept),
+    (select coalesce(sum(like_count), 0) from kept),
+    (select coalesce(sum(comment_count), 0) from kept),
+    (select (percentile_cont(0.5) within group (order by view_count))::numeric from kept),
+    (select avg(view_count)::numeric from kept),
+    (select (percentile_cont(0.9) within group (order by view_count))::numeric from kept),
+    (select max(view_count) from kept),
+    (select (percentile_cont(0.5) within group (order by like_count))::numeric from kept),
+    (select (percentile_cont(0.5) within group (order by comment_count))::numeric from kept),
+    (select (percentile_cont(0.5) within group (order by viral_score))::numeric from kept),
+    (select (percentile_cont(0.9) within group (order by viral_score))::numeric from kept),
+    (select max(viral_score) from kept),
+    (select min(posted_at) from kept),
+    (select max(posted_at) from kept),
+    (select min(created_at) from mine),
+    (select count(*) from kept where transcript_status = 'ready'),
+    (select count(*) from kept where transcript_status = 'failed'),
+    (select count(*) from kept where transcript_status = 'pending'),
+    (select count(distinct date(posted_at)) from kept where posted_at is not null),
+    -- Lower bounds, both: generated_scripts.reel_id and saved_hooks.reel_id are
+    -- `on delete set null`, so a script whose source reel was removed no longer
+    -- points anywhere.
+    (select count(*) from generated_scripts g
+      where g.user_id = p_user_id and g.reel_id in (select id from mine)),
+    (select count(*) from saved_hooks h
+      where h.user_id = p_user_id and h.reel_id in (select id from mine));
+$$;
+revoke execute on function account_insights(uuid, uuid) from anon;
+grant execute on function account_insights(uuid, uuid) to authenticated;
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
 -- ║ Storage — private bucket for uploaded publish videos, public bucket for    ║

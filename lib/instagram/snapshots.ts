@@ -251,6 +251,44 @@ export async function refreshAccountSnapshot(
         avatar_url: snapshotProfile.avatar_url,
       })
       .eq("ig_username", uname);
+
+    // Append one point to the account's growth history.
+    //
+    // Everything above overwrites in place: this is the only line in the
+    // product that keeps a number instead of replacing it, and it is why the
+    // dossier can chart follower growth at all. Primary key is
+    // (ig_username, captured_on), so a user hammering "force refresh" produces
+    // one row for the day rather than twenty.
+    //
+    // Wrapped and swallowed on purpose — the table arrives with a migration a
+    // running deployment may not have applied yet, and a sync must never fail
+    // because a nice-to-have chart could not record a point.
+    try {
+      const sample = reels.length > 0 ? reels : null;
+      const sum = (get: (r: (typeof reels)[number]) => number | null | undefined) =>
+        sample ? sample.reduce((a, r) => a + (get(r) ?? 0), 0) : null;
+
+      const { error: historyError } = await admin.from("ig_account_metric_history").upsert(
+        {
+          ig_username: uname,
+          captured_on: new Date().toISOString().slice(0, 10), // UTC day
+          followers_count: snapshotProfile.followers_count,
+          sample_size: sample?.length ?? null,
+          sample_views: sum((r) => r.viewCount),
+          sample_likes: sum((r) => r.likeCount),
+          sample_comments: sum((r) => r.commentCount),
+        },
+        { onConflict: "ig_username,captured_on" }
+      );
+      if (historyError) {
+        console.warn("[snapshots] metric history write failed:", historyError.message);
+      }
+    } catch (historyError) {
+      console.warn(
+        "[snapshots] metric history write failed:",
+        historyError instanceof Error ? historyError.message : historyError
+      );
+    }
   }
 
   return {

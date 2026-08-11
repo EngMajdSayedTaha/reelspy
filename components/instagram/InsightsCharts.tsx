@@ -13,11 +13,18 @@ import {
   MessageCircle,
   PieChart,
   Send,
-  TrendingDown,
-  TrendingUp,
   Trophy,
   Users,
 } from "lucide-react";
+import {
+  ChartCard,
+  ChartTooltip,
+  KpiCard,
+  Pill,
+} from "@/components/charts/primitives";
+import { SeriesBarChart } from "@/components/charts/SeriesBarChart";
+import { Leaderboard, type LeaderboardEntry } from "@/components/charts/Leaderboard";
+import { WeekdayBars } from "@/components/charts/WeekdayBars";
 import {
   engagementRateOf,
   formatCompact,
@@ -131,117 +138,6 @@ function shortDate(ts: string | undefined, locale: Locale): string {
   return new Date(ts).toLocaleDateString(intlLocale(locale), { month: "short", day: "numeric" });
 }
 
-function Pill({
-  active,
-  onClick,
-  children,
-  title,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-        active
-          ? "bg-accent-brand text-accent-brand-foreground"
-          : "bg-secondary text-muted-foreground hover:bg-border-strong hover:text-foreground"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function ChartCard({
-  title,
-  icon,
-  hint,
-  className = "",
-  actions,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  hint?: string;
-  className?: string;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`rounded-xl border border-border bg-surface-2 p-4 ${className}`}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-          <span className="text-brand">{icon}</span>
-          {title}
-          {hint ? <span className="ms-1 text-[11px] font-normal text-subtle">{hint}</span> : null}
-        </h3>
-        {actions}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/** Floating tooltip anchored at a horizontal percentage inside a chart. */
-function ChartTooltip({ leftPct, children }: { leftPct: number; children: React.ReactNode }) {
-  const clamped = Math.min(86, Math.max(14, leftPct));
-  return (
-    <div
-      className="pointer-events-none absolute top-0 z-10 w-44 -translate-x-1/2 -translate-y-2 rounded-lg border border-border-strong bg-background/95 p-2.5 shadow-xl backdrop-blur-sm"
-      style={{ left: `${clamped}%` }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta == null) return null;
-  const up = delta >= 0;
-  return (
-    <span
-      className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-        up ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
-      }`}
-    >
-      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {up ? "+" : ""}
-      {delta.toFixed(0)}%
-    </span>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  delta,
-  icon,
-}: {
-  label: string;
-  value: string;
-  delta?: number | null;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-surface-2 p-3.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-xs text-subtle">
-          {icon}
-          {label}
-        </span>
-        {delta !== undefined ? <DeltaBadge delta={delta} /> : null}
-      </div>
-      <p className="mt-1.5 text-xl font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
 /** Interactive bar chart of the selected metric per post, with avg line + tooltip. */
 function MetricBarChart({
   items,
@@ -256,110 +152,47 @@ function MetricBarChart({
   dict: Dict["myAccount"];
   locale: Locale;
 }) {
-  const [hover, setHover] = useState<number | null>(null);
   const metric = metrics.find((m) => m.key === metricKey)!;
 
   const data = items.map((m) => ({ item: m, value: metric.get(m) ?? 0 }));
-  const max = Math.max(1, ...data.map((d) => d.value));
   const mean = data.length ? data.reduce((a, d) => a + d.value, 0) / data.length : 0;
-  const peakIdx = data.reduce((best, d, i) => (d.value > data[best].value ? i : best), 0);
-
-  const W = 100;
-  const H = 42;
-  const n = data.length;
-  const gap = n > 1 ? 1.5 : 0;
-  const barW = (W - gap * (n - 1)) / n;
-  const meanY = H - (mean / max) * H;
+  const peak = data.reduce((best, d) => (d.value > best ? d.value : best), 0);
 
   return (
-    <div className="relative" onMouseLeave={() => setHover(null)}>
-      {hover != null ? (
-        <ChartTooltip leftPct={((hover + 0.5) / n) * 100}>
+    <SeriesBarChart
+      points={data.map((d) => ({ id: d.item.id, value: d.value, href: d.item.permalink }))}
+      color={COLORS[metricKey]}
+      startLabel={shortDate(data[0]?.item.timestamp, locale)}
+      endLabel={shortDate(data[data.length - 1]?.item.timestamp, locale)}
+      centerLabel={dict.avgPeak(metric.format(mean), metric.format(peak))}
+      renderTooltip={(_point, i) => (
+        <>
           <p className="text-[10px] text-subtle">
-            {shortDate(data[hover].item.timestamp, locale)} ·{" "}
-            {String(data[hover].item.media_product_type ?? data[hover].item.media_type ?? "post").toLowerCase()}
+            {shortDate(data[i].item.timestamp, locale)} ·{" "}
+            {String(data[i].item.media_product_type ?? data[i].item.media_type ?? "post").toLowerCase()}
           </p>
           <p className="text-sm font-semibold" style={{ color: COLORS[metricKey] }}>
-            {metric.format(data[hover].value)} {metric.label.toLowerCase()}
+            {metric.format(data[i].value)} {metric.label.toLowerCase()}
           </p>
           <p className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-0.5">
               <Heart className="h-2.5 w-2.5" />
-              {formatCompact(data[hover].item.insights?.likes ?? data[hover].item.like_count)}
+              {formatCompact(data[i].item.insights?.likes ?? data[i].item.like_count)}
             </span>
             <span className="flex items-center gap-0.5">
               <MessageCircle className="h-2.5 w-2.5" />
-              {formatCompact(data[hover].item.insights?.comments ?? data[hover].item.comments_count)}
+              {formatCompact(data[i].item.insights?.comments ?? data[i].item.comments_count)}
             </span>
-            {engagementRateOf(data[hover].item) != null ? (
-              <span>{engagementRateOf(data[hover].item)!.toFixed(1)}% ER</span>
+            {engagementRateOf(data[i].item) != null ? (
+              <span>{engagementRateOf(data[i].item)!.toFixed(1)}% ER</span>
             ) : null}
           </p>
-          {data[hover].item.caption ? (
-            <p className="mt-1 line-clamp-2 text-[10px] text-subtle">{data[hover].item.caption}</p>
+          {data[i].item.caption ? (
+            <p className="mt-1 line-clamp-2 text-[10px] text-subtle">{data[i].item.caption}</p>
           ) : null}
-        </ChartTooltip>
-      ) : null}
-
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" preserveAspectRatio="none">
-        {/* Subtle horizontal gridlines */}
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="var(--chart-grid)" strokeWidth="0.3" />
-        ))}
-        {/* Average reference line */}
-        {mean > 0 ? (
-          <line
-            x1="0"
-            x2={W}
-            y1={meanY}
-            y2={meanY}
-            stroke="var(--chart-axis)"
-            strokeWidth="0.4"
-            strokeDasharray="1.5 1.5"
-          />
-        ) : null}
-        {data.map((d, i) => {
-          const h = (d.value / max) * H;
-          const x = i * (barW + gap);
-          const isPeak = i === peakIdx && d.value > 0;
-          const dimmed = hover != null && hover !== i;
-          return (
-            <g key={d.item.id}>
-              <rect
-                x={x}
-                y={H - h}
-                width={barW}
-                height={Math.max(h, 0.4)}
-                rx={barW > 3 ? 0.8 : 0.3}
-                fill={isPeak ? COLORS[metricKey] : "var(--chart-dim)"}
-                opacity={dimmed ? 0.35 : 1}
-                className="transition-opacity"
-              />
-              {/* Full-height invisible hit area so hovering is easy */}
-              <rect
-                x={x - gap / 2}
-                y="0"
-                width={barW + gap}
-                height={H}
-                fill="transparent"
-                className="cursor-pointer"
-                onMouseEnter={() => setHover(i)}
-                onClick={() => {
-                  if (d.item.permalink) window.open(d.item.permalink, "_blank", "noopener");
-                }}
-              />
-            </g>
-          );
-        })}
-      </svg>
-      <div className="mt-1 flex items-center justify-between text-[10px] text-subtle">
-        <span>{shortDate(data[0]?.item.timestamp, locale)}</span>
-        <span className="text-subtle">
-          {dict.avgPeak(metric.format(mean), metric.format(data[peakIdx]?.value ?? 0))}
-        </span>
-        <span>{shortDate(data[data.length - 1]?.item.timestamp, locale)}</span>
-      </div>
-    </div>
+        </>
+      )}
+    />
   );
 }
 
@@ -567,40 +400,16 @@ function BestDayChart({
     byDay[idx].push(m.insights?.views ?? 0);
   }
   const avgs = byDay.map((v) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0));
-  const max = Math.max(1, ...avgs);
-  const bestIdx = avgs.reduce((best, v, i) => (v > avgs[best] ? i : best), 0);
-
-  if (avgs.every((v) => v === 0)) return null;
 
   return (
-    <div>
-      <div className="flex h-36 items-end gap-2">
-        {avgs.map((v, i) => (
-          <div key={weekdays[i]} className="group flex flex-1 flex-col items-center gap-1">
-            <span
-              className={`text-[10px] tabular-nums transition-opacity ${
-                i === bestIdx ? "text-brand" : "text-subtle opacity-0 group-hover:opacity-100"
-              }`}
-            >
-              {v > 0 ? formatCompact(Math.round(v)) : ""}
-            </span>
-            <div
-              className={`w-full rounded-t-md transition-colors ${
-                i === bestIdx ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"
-              }`}
-              style={{ height: `${Math.max((v / max) * 100, v > 0 ? 4 : 1)}%` }}
-              title={dict.weekdayTooltip(weekdays[i], formatCompact(Math.round(v)), byDay[i].length)}
-            />
-            <span className={`text-[10px] ${i === bestIdx ? "font-semibold text-brand" : "text-subtle"}`}>
-              {weekdays[i]}
-            </span>
-          </div>
-        ))}
-      </div>
-      <p className="mt-2 text-[11px] text-subtle">
-        {dict.strongestDay(weekdays[bestIdx])}
-      </p>
-    </div>
+    <WeekdayBars
+      values={avgs}
+      counts={byDay.map((v) => v.length)}
+      labels={weekdays}
+      format={(v) => formatCompact(Math.round(v))}
+      tooltip={(label, value, count) => dict.weekdayTooltip(label, value, count)}
+      footnote={(best) => dict.strongestDay(weekdays[best])}
+    />
   );
 }
 
@@ -614,69 +423,25 @@ function TopPerformers({
   dict: Dict["myAccount"];
   locale: Locale;
 }) {
-  const ranked = items
+  const entries: LeaderboardEntry[] = items
     .slice()
     .sort((a, b) => (b.insights?.views ?? 0) - (a.insights?.views ?? 0))
-    .slice(0, 5);
-  const max = Math.max(1, ranked[0]?.insights?.views ?? 0);
+    .slice(0, 5)
+    .map((m) => {
+      const views = m.insights?.views ?? 0;
+      const rate = engagementRateOf(m);
+      return {
+        id: m.id,
+        title: m.caption?.replace(/\s+/g, " ") || shortDate(m.timestamp, locale) || dict.untitled,
+        thumbnail: m.thumbnail_url,
+        value: views,
+        valueLabel: formatCompact(views),
+        subLabel: rate != null ? `${rate.toFixed(1)}% ER` : dict.metrics.views.toLowerCase(),
+        href: m.permalink,
+      };
+    });
 
-  if (ranked.length === 0) return null;
-
-  return (
-    <ol className="space-y-2">
-      {ranked.map((m, i) => {
-        const views = m.insights?.views ?? 0;
-        const rate = engagementRateOf(m);
-        return (
-          <li key={m.id}>
-            <a
-              href={m.permalink}
-              target="_blank"
-              rel="noreferrer"
-              className="group flex items-center gap-2.5 rounded-lg p-1.5 transition-colors hover:bg-secondary"
-            >
-              <span
-                className={`w-4 shrink-0 text-center text-xs font-semibold ${
-                  i === 0 ? "text-brand" : "text-subtle"
-                }`}
-              >
-                {i + 1}
-              </span>
-              {m.thumbnail_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={m.thumbnail_url}
-                  alt=""
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  className="h-9 w-9 shrink-0 rounded-md object-cover"
-                />
-              ) : (
-                <span className="h-9 w-9 shrink-0 rounded-md bg-border" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs text-muted-foreground">
-                  {m.caption?.replace(/\s+/g, " ") || shortDate(m.timestamp, locale) || dict.untitled}
-                </p>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-border">
-                  <div
-                    className={`h-full rounded-full ${i === 0 ? "bg-primary" : "bg-border-strong group-hover:bg-border-strong"}`}
-                    style={{ width: `${Math.max((views / max) * 100, 2)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="shrink-0 text-end">
-                <p className="text-xs font-semibold text-foreground">{formatCompact(views)}</p>
-                <p className="text-[10px] text-subtle">
-                  {rate != null ? `${rate.toFixed(1)}% ER` : dict.metrics.views.toLowerCase()}
-                </p>
-              </div>
-            </a>
-          </li>
-        );
-      })}
-    </ol>
-  );
+  return <Leaderboard entries={entries} />;
 }
 
 export function InsightsCharts({ media, followers }: { media: MediaItem[]; followers?: number }) {

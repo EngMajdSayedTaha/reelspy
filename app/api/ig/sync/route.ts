@@ -356,6 +356,12 @@ export async function POST(request: Request) {
     queued,
     accounts: accounts.length,
     mode: asyncMode ? "async" : "inline",
+    // Attribution for the per-account activity timeline. Only meaningful for a
+    // single-account sync — "Sync All" touches every account at once, and
+    // stamping one id on it would be a lie.
+    ...(body.account_id
+      ? { account_id: body.account_id, username: accounts[0]?.ig_username ?? null }
+      : {}),
   });
 
   // Separate event so throttling is countable on its own, not buried in a
@@ -365,6 +371,9 @@ export async function POST(request: Request) {
       retryAfterSeconds,
       synced: totalInserted + totalUpdated,
       accounts: accounts.length,
+      ...(body.account_id
+        ? { account_id: body.account_id, username: accounts[0]?.ig_username ?? null }
+        : {}),
     });
   }
 

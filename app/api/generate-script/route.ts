@@ -58,6 +58,7 @@ export async function POST(request: Request) {
   let reelId: string | null = null;
   // Grounding context (W1) — populated only when generating from a tracked reel.
   let transcript: string | null = null;
+  let reelAccountId: string | null = null;
   let viralScore: number | null = null;
   let viewCount: number | null = null;
   let postedDaysAgo: number | null = null;
@@ -65,7 +66,9 @@ export async function POST(request: Request) {
   if (reel_id) {
     const { data: reel, error: reelError } = await supabase
       .from("tracked_reels")
-      .select("id, caption, transcript, transcript_status, viral_score, view_count, posted_at")
+      .select(
+        "id, account_id, caption, transcript, transcript_status, viral_score, view_count, posted_at"
+      )
       .eq("id", reel_id)
       .eq("user_id", user.id)
       .maybeSingle();
@@ -78,6 +81,9 @@ export async function POST(request: Request) {
     }
 
     reelId = reel.id;
+    // Carried into the script_generated event so the account dossier can show
+    // "you generated a script from this account" on its activity timeline.
+    reelAccountId = (reel.account_id as string | null) ?? null;
     sourceCaption = reel.caption ?? sourceCaption;
 
     // Only feed a genuinely-ready transcript into the prompt.
@@ -173,6 +179,7 @@ export async function POST(request: Request) {
     grounded_on: grounded ? "transcript" : "caption",
     provider: provider ?? null,
     reel_id: reelId,
+    account_id: reelAccountId,
   });
   if (usage) {
     await trackAiUsage(user.id, {

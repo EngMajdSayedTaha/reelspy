@@ -122,7 +122,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { data: reel, error: reelError } = await supabase
     .from("tracked_reels")
     .select(
-      "id, ig_permalink, transcript, transcript_srt, transcript_lang, transcript_source, transcript_status"
+      "id, account_id, ig_permalink, transcript, transcript_srt, transcript_lang, transcript_source, transcript_status"
     )
     .eq("id", reel_id)
     .eq("user_id", user.id)
@@ -255,6 +255,7 @@ export async function POST(request: Request, { params }: RouteContext) {
     source: result.source,
     lang: result.language,
     via: "reel",
+    account_id: reel.account_id ?? null,
   });
 
   return NextResponse.json({
