@@ -15,9 +15,11 @@ type Group = { id: string; name: string };
 type AddAccountFormProps = {
   action: ActionFn;
   groups: Group[];
+  /** Fires after a successful add — lets a dialog wrapper close itself. */
+  onAdded?: () => void;
 };
 
-export function AddAccountForm({ action, groups }: AddAccountFormProps) {
+export function AddAccountForm({ action, groups, onAdded }: AddAccountFormProps) {
   const dict = useDict().accounts;
   const [username, setUsername] = useState("");
   const [groupId, setGroupId] = useState("");
@@ -51,6 +53,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
             ? dict.addForm.addedToGroupToast(handle.toLowerCase(), groupName)
             : dict.addForm.addedToast(handle.toLowerCase())
         );
+        onAdded?.();
       } catch {
         const message = dict.addForm.addFailedToast;
         setError(message);
@@ -60,8 +63,8 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4 text-foreground">
-      <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+    <div className="text-foreground">
+      <div className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="ig_username">{dict.addForm.usernameLabel}</Label>
           <Input
@@ -76,6 +79,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
                 submit();
               }
             }}
+            autoFocus
             disabled={isPending}
           />
         </div>
@@ -89,7 +93,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
               value={groupId}
               disabled={isPending}
               onChange={(e) => setGroupId(e.target.value)}
-              className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60 md:w-44"
+              className="block h-9 w-full rounded-lg border border-border-strong bg-surface-2 px-2 text-base md:text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
             >
               <option value="">{dict.noGroupOption}</option>
               {groups.map((group) => (
@@ -103,7 +107,7 @@ export function AddAccountForm({ action, groups }: AddAccountFormProps) {
 
         <Button
           type="button"
-          className="md:min-w-[140px]"
+          className="w-full"
           onClick={submit}
           disabled={isPending}
         >

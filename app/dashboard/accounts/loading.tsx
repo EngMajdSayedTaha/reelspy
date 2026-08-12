@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Mirrors the Accounts page: header, add-account form, then the card grid.
+// Mirrors the Accounts page: header, toolbar, then the card grid.
 export default function AccountsLoading() {
   return (
     <div className="space-y-6">
@@ -9,8 +9,11 @@ export default function AccountsLoading() {
         <Skeleton className="h-4 w-80" />
       </div>
 
-      {/* Add-account form */}
-      <Skeleton className="h-16 w-full rounded-xl" />
+      {/* Add account / import toolbar */}
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-32 rounded-lg" />
+        <Skeleton className="h-8 w-40 rounded-lg" />
+      </div>
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center justify-between gap-3">

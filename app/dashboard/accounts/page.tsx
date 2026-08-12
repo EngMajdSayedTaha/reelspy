@@ -6,9 +6,8 @@ import { SuggestedAccountsSection } from "@/components/suggestions/SuggestedAcco
 import { SuggestionsSkeleton } from "@/components/suggestions/SuggestionsSkeleton";
 import { AccountsFilter } from "@/components/accounts/AccountsFilter";
 import { AccountsSearch } from "@/components/accounts/AccountsSearch";
-import { AddAccountForm } from "@/components/accounts/AddAccountForm";
+import { AccountsToolbar } from "@/components/accounts/AccountsToolbar";
 import { GroupsManager } from "@/components/accounts/GroupsManager";
-import { ImportFollowing } from "@/components/accounts/ImportFollowing";
 import { FeedPagination } from "@/components/reels/FeedPagination";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -188,13 +187,11 @@ export default async function AccountsPage({
         <p className="text-sm text-muted-foreground">{dict.accounts.page.subtitle}</p>
       </div>
 
-      <div data-tour="add-account">
-        <AddAccountForm action={addInspirationAccount} groups={groups} />
-      </div>
-
-      <div data-tour="import-following">
-        <ImportFollowing groups={groups} bulkAddAction={bulkAddInspirationAccounts} />
-      </div>
+      <AccountsToolbar
+        groups={groups}
+        addAction={addInspirationAccount}
+        bulkAddAction={bulkAddInspirationAccounts}
+      />
 
       <div data-tour="account-groups">
         <GroupsManager

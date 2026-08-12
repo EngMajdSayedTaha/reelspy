@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, CheckSquare, ChevronsUpDown, Search, Square } from "lucide-react";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 export type SearchableOption = { value: string; label: string };
@@ -151,6 +151,172 @@ export function SearchableSelect({
                   >
                     <span className="truncate">{option.label}</span>
                     {selected ? <Check className="h-3.5 w-3.5 shrink-0 text-accent-brand" /> : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type MultiSearchableSelectProps = {
+  options: SearchableOption[];
+  /** Selected option values. Empty = nothing selected ("all"). */
+  values: string[];
+  onChange: (values: string[]) => void;
+  /** Label shown on the trigger when nothing is selected. */
+  allLabel: string;
+  /** Trigger label when N options are selected (N > 1). Falls back to a plain count. */
+  selectedLabel?: (n: number) => string;
+  placeholder?: string;
+  ariaLabel: string;
+  disabled?: boolean;
+  className?: string;
+};
+
+// Checkbox variant of SearchableSelect: stays open across picks so multiple
+// options can be toggled in one interaction, closing only on outside
+// click/Escape rather than after every selection.
+export function MultiSearchableSelect({
+  options,
+  values,
+  onChange,
+  allLabel,
+  selectedLabel,
+  placeholder,
+  ariaLabel,
+  disabled,
+  className,
+}: MultiSearchableSelectProps) {
+  const dict = useDict().common;
+  const resolvedPlaceholder = placeholder ?? dict.searchPlaceholder;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = useMemo(() => new Set(values), [values]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  const toggleOpen = () => {
+    setOpen((v) => {
+      if (!v) setQuery("");
+      return !v;
+    });
+  };
+
+  const toggleValue = (value: string) => {
+    const next = new Set(selected);
+    if (next.has(value)) {
+      next.delete(value);
+    } else {
+      next.add(value);
+    }
+    onChange(Array.from(next));
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+    }
+  };
+
+  const triggerLabel =
+    values.length === 0
+      ? allLabel
+      : values.length === 1
+        ? (options.find((o) => o.value === values[0])?.label ?? allLabel)
+        : (selectedLabel ?? ((n: number) => `${n} selected`))(values.length);
+
+  return (
+    <div ref={rootRef} className={`relative ${className ?? ""}`}>
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={toggleOpen}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border-strong bg-surface-2 px-3 text-sm text-foreground outline-none transition focus:border-primary/60 focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+      >
+        <span className="truncate">{triggerLabel}</span>
+        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
+      </button>
+
+      {open ? (
+        <div className="absolute start-0 top-full z-30 mt-1 w-full min-w-[240px] overflow-hidden rounded-lg border border-border-strong bg-surface-2 shadow-xl shadow-black/50">
+          <div className="relative border-b border-border-strong">
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder={resolvedPlaceholder}
+              className="h-9 w-full bg-transparent ps-8 pe-3 text-base md:text-sm text-foreground placeholder:text-subtle outline-none"
+            />
+          </div>
+
+          {values.length > 0 ? (
+            <div className="flex items-center justify-between border-b border-border-strong px-3 py-1.5 text-xs">
+              <span className="text-subtle">{triggerLabel}</span>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-muted-foreground transition hover:text-accent-brand"
+              >
+                {dict.clearAll}
+              </button>
+            </div>
+          ) : null}
+
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-subtle">{dict.noResults}</p>
+            ) : (
+              filtered.map((option) => {
+                const checked = selected.has(option.value);
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleValue(option.value)}
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition hover:bg-border ${
+                      checked ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {checked ? (
+                      <CheckSquare className="h-3.5 w-3.5 shrink-0 text-accent-brand" />
+                    ) : (
+                      <Square className="h-3.5 w-3.5 shrink-0 text-subtle" />
+                    )}
+                    <span className="truncate">{option.label}</span>
                   </button>
                 );
               })

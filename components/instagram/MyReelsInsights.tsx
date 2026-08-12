@@ -199,7 +199,16 @@ function ExportMenu({
   );
 }
 
-export function MyReelsInsights({ connected }: { connected: boolean }) {
+export function MyReelsInsights({
+  connected,
+  onProfileUpdate,
+}: {
+  connected: boolean;
+  /** Fires whenever a fetch resolves with a profile, so a parent showing its
+   * own profile header (avatar/followers/bio) can stay in sync with syncs
+   * triggered from inside this component. */
+  onProfileUpdate?: (profile: ProfileSummary | null) => void;
+}) {
   const fullDict = useDict();
   const dict = fullDict.myAccount;
   const commonDict = fullDict.common;
@@ -220,6 +229,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
         { cache: "no-store" }
       );
       setData(json);
+      onProfileUpdate?.(json.profile ?? null);
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -230,7 +240,7 @@ export function MyReelsInsights({ connected }: { connected: boolean }) {
     } finally {
       setIsLoading(false);
     }
-  }, [dict]);
+  }, [dict, onProfileUpdate]);
 
   useEffect(() => {
     if (connected) {
