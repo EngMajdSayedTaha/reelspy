@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow, Loader2, Search, X } from "lucide-react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { MultiSearchableSelect } from "@/components/ui/searchable-select";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type Account = { id: string; ig_username: string };
@@ -70,6 +70,8 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
     apply({ q: search.trim() });
   }
 
+  const selectedAccountIds = current.account === "all" ? [] : current.account.split(",").filter(Boolean);
+
   const isFiltered =
     current.account !== "all" ||
     current.group !== "all" ||
@@ -114,12 +116,13 @@ export function FeedControls({ accounts, groups, current, statusCounts, total }:
         {/* On phones the filters form a 2-column grid; from `sm` up the
             wrapper dissolves (display: contents) into the flex-wrap row. */}
         <div className="grid grid-cols-2 gap-2 sm:contents">
-        <SearchableSelect
+        <MultiSearchableSelect
           ariaLabel={dict.filterByAccountAria}
           className="w-full sm:w-44"
-          value={current.account}
-          onChange={(value) => apply({ account: value })}
-          allOption={{ value: "all", label: dict.allAccountsOption }}
+          values={selectedAccountIds}
+          onChange={(ids) => apply({ account: ids.length ? ids.join(",") : null })}
+          allLabel={dict.allAccountsOption}
+          selectedLabel={dict.accountsSelectedLabel}
           options={accounts.map((a) => ({ value: a.id, label: `@${a.ig_username}` }))}
           placeholder={dict.searchAccountsPlaceholder}
         />

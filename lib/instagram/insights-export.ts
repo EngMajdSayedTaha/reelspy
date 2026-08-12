@@ -42,6 +42,7 @@ export type ProfileSummary = {
   followers_count?: number;
   media_count?: number;
   biography?: string;
+  profile_picture_url?: string | null;
 };
 
 export function isReelItem(item: Pick<MediaItem, "media_type" | "media_product_type">): boolean {

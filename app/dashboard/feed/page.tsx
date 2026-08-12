@@ -130,7 +130,10 @@ export default async function FeedPage({
   const prefs = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value);
   const dict = getDictionary(prefs.locale).feed;
 
-  const account = first(params.account) ?? "all";
+  // `?account=` holds one or more comma-separated account ids (multi-select
+  // filter), or "all" for no restriction.
+  const accountParam = first(params.account) ?? "all";
+  const accountIds = accountParam !== "all" ? accountParam.split(",").filter(Boolean) : [];
   const group = first(params.group) ?? "all";
   const status = first(params.status) ?? "new"; // default to New only
   const q = (first(params.q) ?? "").trim();
@@ -192,6 +195,19 @@ export default async function FeedPage({
     groupAccountIds = (ga ?? []).map((a) => a.id);
   }
 
+  // Combine the account multi-select and the group filter into one id list —
+  // both filters narrow "which accounts", so an account picked outside the
+  // selected group should match nothing rather than being OR'd back in.
+  let restrictAccountIds: string[] | null = null;
+  if (accountIds.length > 0 && groupAccountIds) {
+    const groupSet = new Set(groupAccountIds);
+    restrictAccountIds = accountIds.filter((id) => groupSet.has(id));
+  } else if (accountIds.length > 0) {
+    restrictAccountIds = accountIds;
+  } else if (groupAccountIds) {
+    restrictAccountIds = groupAccountIds;
+  }
+
   // Build the filtered reels query (with exact count for pagination).
   let query = supabase
     .from("tracked_reels")
@@ -202,13 +218,9 @@ export default async function FeedPage({
     .eq("user_id", user.id)
     .eq("inspiration_accounts.is_active", true);
 
-  if (account !== "all") {
-    query = query.eq("account_id", account);
-  }
-
-  if (group !== "all") {
-    // Empty group → no matching reels (sentinel keeps the query valid).
-    const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
+  if (restrictAccountIds) {
+    // Empty list → no matching reels (sentinel keeps the query valid).
+    const ids = restrictAccountIds.length ? restrictAccountIds : [NO_MATCH_ID];
     query = query.in("account_id", ids);
   }
 
@@ -239,18 +251,14 @@ export default async function FeedPage({
   if (sort === "outperforming") {
     // Relative ranking lives in an RPC (a cross-table ratio can't be an ORDER BY
     // in a PostgREST select). It applies the same filters + pagination and
-    // returns the outperform ratio per reel.
-    const pGroupIds =
-      group !== "all"
-        ? groupAccountIds && groupAccountIds.length
-          ? groupAccountIds
-          : [NO_MATCH_ID]
-        : null;
-
+    // returns the outperform ratio per reel. `p_group_ids` doubles as the
+    // combined account-multi-select/group restriction — the RPC only cares
+    // about "which account ids", not why they were chosen. No sentinel needed
+    // here: `= any('{}')` already matches zero rows in SQL.
     const { data: rpcData, error: rpcError } = await supabase.rpc("outperforming_feed", {
       p_user_id: user.id,
-      p_account: account !== "all" ? account : null,
-      p_group_ids: pGroupIds,
+      p_account: null,
+      p_group_ids: restrictAccountIds,
       p_status: status,
       p_q: q || null,
       p_limit: perPage,
@@ -279,7 +287,7 @@ export default async function FeedPage({
 
   // Account/group/search filters (status excluded — its default is "new").
   const hasContentFilters =
-    account !== "all" || group !== "all" || q !== "";
+    accountIds.length > 0 || group !== "all" || q !== "";
   const hasFilters = hasContentFilters || status !== "new";
 
   // Status counts (respecting the account/group/search filters) for the
@@ -290,9 +298,8 @@ export default async function FeedPage({
       .select("id, inspiration_accounts!inner(id)", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("inspiration_accounts.is_active", true);
-    if (account !== "all") qy = qy.eq("account_id", account);
-    if (group !== "all") {
-      const ids = groupAccountIds && groupAccountIds.length ? groupAccountIds : [NO_MATCH_ID];
+    if (restrictAccountIds) {
+      const ids = restrictAccountIds.length ? restrictAccountIds : [NO_MATCH_ID];
       qy = qy.in("account_id", ids);
     }
     if (q) qy = qy.ilike("caption", `%${q}%`);
@@ -388,7 +395,7 @@ export default async function FeedPage({
         <FeedControls
           accounts={accounts}
           groups={groups}
-          current={{ account, group, status, q, sort, order, perPage: String(perPage) }}
+          current={{ account: accountParam, group, status, q, sort, order, perPage: String(perPage) }}
           statusCounts={statusCounts}
           total={total}
         />
