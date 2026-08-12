@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
@@ -291,28 +291,6 @@ export default async function AccountDetailPage({ params }: PageProps) {
           removeAction={removeInspirationAccount}
         />
       </section>
-
-      {/* Said plainly where a manager would look for it. Silently omitting
-          reach/saves/watch-time reads as a gap in the product rather than a
-          hard limit of Instagram's Business Discovery API. */}
-      <div className="rounded-xl border border-border bg-surface-2 p-4">
-        <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-          <Info className="h-4 w-4 text-subtle" />
-          {t.unavailable.title}
-        </h3>
-        <p className="mt-1.5 text-xs text-muted-foreground">{t.unavailable.desc}</p>
-        <ul className="mt-2 flex flex-wrap gap-1.5">
-          {t.unavailable.items.map((item) => (
-            <li
-              key={item}
-              className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground"
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-xs text-muted-foreground">{t.unavailable.velocity}</p>
-      </div>
     </div>
   );
 }

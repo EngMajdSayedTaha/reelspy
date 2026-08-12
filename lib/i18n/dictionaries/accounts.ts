@@ -387,18 +387,6 @@ const en = {
         removeDesc:
           "Stops tracking and deletes every captured reel for this account. Scripts you already generated are kept.",
       },
-      unavailable: {
-        title: "Not available for tracked accounts",
-        desc: "Instagram's Business Discovery API only returns views, likes and comments for accounts you do not own. These would need access you cannot be granted:",
-        items: [
-          "Reach, impressions, saves and shares",
-          "Average watch time and retention",
-          "Audience demographics",
-          "Stories, carousels and static posts",
-        ],
-        velocity:
-          "Per-reel view velocity is also unavailable — each sync overwrites a reel's counts rather than keeping a history.",
-      },
     },
     detailTour: {
       steps: {
@@ -808,18 +796,6 @@ export const accountsAr: AccountsDict = {
         removeHeading: "إزالة الحساب",
         removeDesc:
           "يوقف المتابعة ويحذف كل ريل محفوظ لهذا الحساب. تبقى النصوص التي أنشأتها سابقًا.",
-      },
-      unavailable: {
-        title: "غير متاح للحسابات المتتبَّعة",
-        desc: "واجهة Business Discovery من إنستغرام تعيد المشاهدات والإعجابات والتعليقات فقط للحسابات التي لا تملكها. هذه تحتاج صلاحيات لا يمكن منحها:",
-        items: [
-          "الوصول والظهور والحفظ والمشاركة",
-          "متوسط مدة المشاهدة والاستبقاء",
-          "بيانات الجمهور الديموغرافية",
-          "القصص والألبومات والمنشورات الثابتة",
-        ],
-        velocity:
-          "سرعة نمو مشاهدات كل ريل غير متاحة أيضًا — كل مزامنة تستبدل أرقام الريل بدل الاحتفاظ بسجل لها.",
       },
     },
     detailTour: {
