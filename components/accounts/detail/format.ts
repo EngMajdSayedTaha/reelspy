@@ -47,8 +47,3 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   if (value == null || !Number.isFinite(value)) return "—";
   return `${value.toFixed(digits)}%`;
 }
-
-export function formatRounded(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return String(Math.round(value));
-}
