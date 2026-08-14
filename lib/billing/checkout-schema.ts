@@ -56,8 +56,6 @@ export const planSelectionSchema = z
     }
   });
 
-export type PlanSelection = z.infer<typeof planSelectionSchema>;
-
 // The one message both routes give for a body they can't act on. Deliberately
 // vague: the client already knows which plans exist, so a detailed validation
 // error would only help someone probing the endpoint.
