@@ -49,12 +49,21 @@ export async function postJson<T = CheckoutResponse>(
   fallbackError: string,
   body?: unknown
 ): Promise<T & { error?: string }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return res.json().catch(() => ({ error: fallbackError }) as T & { error?: string });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return await res.json().catch(() => ({ error: fallbackError }) as T & { error?: string });
+  } catch {
+    // The request never completed at all — offline, DNS, a dropped connection.
+    // `fetch` REJECTS there rather than resolving, and every caller below only
+    // ever reads `.error`, so without this the rejection escapes the click
+    // handler: no toast, no setLoading(false), and the button sits on its
+    // spinner forever. Report it the same way as any other failure.
+    return { error: fallbackError } as T & { error?: string };
+  }
 }
 
 type BillingDict = ReturnType<typeof useDict>["billing"];

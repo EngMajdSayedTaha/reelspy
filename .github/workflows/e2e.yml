@@ -1,0 +1,56 @@
+name: E2E
+
+# Kept separate from ci.yml on purpose: the unit suite is hermetic and runs on
+# every push, while this one talks to a real Supabase project and Stripe in test
+# mode. Splitting them means a Stripe blip never masks a typecheck failure.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E suite
+        run: npm run e2e
+        env:
+          CI: "true"
+          # Supabase — the service-role key is what seeds and tears down the
+          # per-test accounts. Point these at a throwaway project if you'd rather
+          # the suite never touched production data.
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Stripe TEST mode only. A live key here would put the checkout spec on
+          # real money.
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_TEST_SECRET_KEY }}
+          STRIPE_PRICE_CREATOR: ${{ secrets.STRIPE_TEST_PRICE_CREATOR }}
+          STRIPE_PRICE_PRO: ${{ secrets.STRIPE_TEST_PRICE_PRO }}
+          STRIPE_PRICE_STUDIO: ${{ secrets.STRIPE_TEST_PRICE_STUDIO }}
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+
+      # Traces and screenshots are only written for failures, so this uploads
+      # nothing on a green run.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
