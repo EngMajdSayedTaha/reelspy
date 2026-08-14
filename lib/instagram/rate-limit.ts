@@ -76,8 +76,6 @@ function decayAppUsage(rawPct: number, observedAtMs: number, nowMs: number): num
   return Math.round(rawPct * factor);
 }
 
-export type RateLimitReason = "circuit_open" | "user_quota" | "app_budget" | "rate_limited";
-
 // Fixed quota identity for the background snapshot worker (not a real auth user).
 // The FK from meta_api_user_usage to auth.users is dropped so this id can exist.
 export const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
