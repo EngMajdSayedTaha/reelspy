@@ -478,10 +478,6 @@ export async function loadCatalog(opts: { force?: boolean } = {}): Promise<Catal
 
 // ── lookups ──────────────────────────────────────────────────────────────────
 
-export function planBySlug(catalog: Catalog, slug: string): CatalogPlan | null {
-  return catalog.bySlug.get(slug) ?? null;
-}
-
 // The entitlements a slug grants. Unknown slugs fall back to the hardcoded table
 // and finally to free — the same fail-open posture entitlementsFor() has always
 // had, so an unrecognised tier can't crash an enforcement chokepoint.

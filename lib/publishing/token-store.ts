@@ -14,25 +14,6 @@ const CONNECTION_COLUMNS =
   "id, user_id, platform, account_id, account_name, account_username, avatar_url, " +
   "access_token, refresh_token, token_expires_at, token_status, scopes, is_active";
 
-// Public (browser-safe) columns — no tokens. Used by server components that read
-// through the regular authenticated client for rendering connection cards.
-export const PUBLIC_CONNECTION_COLUMNS =
-  "id, platform, account_id, account_name, account_username, avatar_url, " +
-  "token_status, token_expires_at, scopes, is_active";
-
-export async function listConnections(
-  admin: SupabaseClient,
-  userId: string
-): Promise<SocialConnection[]> {
-  const { data, error } = await admin
-    .from("social_connections")
-    .select(CONNECTION_COLUMNS)
-    .eq("user_id", userId);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as SocialConnection[];
-}
-
 export async function getConnection(
   admin: SupabaseClient,
   userId: string,

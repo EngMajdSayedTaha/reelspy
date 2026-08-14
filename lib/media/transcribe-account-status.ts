@@ -49,13 +49,6 @@ type JobRow = {
   last_error: string | null;
 };
 
-// True while there's work in flight or parked — what the client polls on. A
-// paused run counts: it resumes without the user doing anything, so the card has
-// to keep watching it.
-export function isTranscribeRunActive(status: TranscribeAccountStatus): boolean {
-  return status.state === "queued" || status.state === "running" || status.state === "paused";
-}
-
 // Which of this user's accounts have a bulk run in flight, in ONE query for the
 // whole accounts grid.
 //

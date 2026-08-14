@@ -30,11 +30,6 @@ export type ArchiveStatus = {
 
 export type ArchiveAccountRef = { id: string; ig_username: string };
 
-// True while there's still work in flight — what the client polls on.
-export function isArchiveActive(status: ArchiveStatus): boolean {
-  return status.requested && (status.status === "queued" || status.status === "running");
-}
-
 export async function readArchiveStatuses(
   admin: SupabaseClient,
   userId: string,
