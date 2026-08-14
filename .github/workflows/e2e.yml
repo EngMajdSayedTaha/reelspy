@@ -17,7 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22+ only: @supabase/realtime-js reaches for the global WebSocket
+          # constructor inside createClient(), which Node added natively in 22.
+          # On 20 every fixture fails at adminClient() before a single test
+          # runs — this bit the first CI run (node 20) even though it's fine
+          # locally, since local dev runs Node 24. Matching that here.
+          node-version: 24
           cache: npm
 
       - run: npm ci
