@@ -36,6 +36,18 @@ const nextConfig: NextConfig = {
   // at /auth/*, /api/* etc. Only in production — a bare `next dev` has no proxy
   // in front of it.
   assetPrefix: process.env.NODE_ENV === "production" ? "/dashboard-static" : undefined,
+  // Next 16.3 made Vercel serve `/_next/static/immutable/*` straight off its
+  // CDN edge, keyed to this project's own build manifest and skipping the
+  // deployment-scoped `?dpl` query param — a platform optimization, not a
+  // next.config rewrite. That happens BEFORE the rewrite below ever runs, so
+  // when reelspy-landing proxies /dashboard-static/_next/static/immutable/*
+  // in from this app, Vercel's edge on the LANDING project (which has no
+  // record of this app's immutable manifest) 404s it outright — this app's
+  // own server, where the assetPrefix rewrite lives, is never reached. Opting
+  // out reverts these assets to the pre-16.3 `?dpl`-scoped static-file path,
+  // which IS routed through the normal rewrite pipeline and is what makes the
+  // cross-origin proxy in reelspy-landing's next.config.ts work at all.
+  supportsImmutableAssets: false,
   // Bundle the yt-dlp static binary into the transcript route's serverless
   // function so it can be spawned at runtime.
   outputFileTracingIncludes: {
