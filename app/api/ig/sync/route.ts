@@ -108,7 +108,8 @@ export async function POST(request: Request) {
   const { data: allAccounts, error: accountsError } = await accountsQuery;
 
   if (accountsError) {
-    return NextResponse.json({ error: accountsError.message }, { status: 500 });
+    console.error("[ig/sync] account load failed:", accountsError.message);
+    return NextResponse.json({ error: "Couldn't load your tracked accounts." }, { status: 500 });
   }
 
   if (!allAccounts || allAccounts.length === 0) {

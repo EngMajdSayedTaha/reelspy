@@ -56,6 +56,15 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_ACCOUNT_EXPORT_PER_HOUR", 5),
     windowSeconds: 3600,
   },
+  // /api/reels/diag. Cheap-looking, but every call spawns yt-dlp (probeYtDlp,
+  // plus a full extraction when ?url= is passed) and the ?url= path burns the
+  // ONE shared Instagram cookie session the whole app depends on — hammering it
+  // is a good way to get that session flagged. It's a post-deploy smoke test, so
+  // a handful per hour is all any legitimate use needs.
+  reel_diag: {
+    limit: numEnv("RL_REEL_DIAG_PER_HOUR", 10),
+    windowSeconds: 3600,
+  },
   // Admin control-panel mutations (tier overrides, bans, deletes, job retries,
   // settings edits, …). Keyed by the acting admin's id. Generous — an admin
   // working through a support queue makes many changes — but bounded so a

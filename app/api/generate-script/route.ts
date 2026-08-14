@@ -74,7 +74,10 @@ export async function POST(request: Request) {
       .maybeSingle();
 
     if (reelError) {
-      return NextResponse.json({ error: reelError.message }, { status: 500 });
+      // Postgres error text names tables, columns and constraints — log it,
+      // don't ship it.
+      console.error("[generate-script] reel lookup failed:", reelError.message);
+      return NextResponse.json({ error: "Couldn't load that reel." }, { status: 500 });
     }
     if (!reel) {
       return NextResponse.json({ error: "Reel not found." }, { status: 404 });
@@ -170,7 +173,8 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    console.error("[generate-script] script insert failed:", insertError.message);
+    return NextResponse.json({ error: "Couldn't save the generated script." }, { status: 500 });
   }
 
   // Instrumentation (L5): the output half of the research→script loop (WLC),

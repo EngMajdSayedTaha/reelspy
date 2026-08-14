@@ -87,7 +87,8 @@ export async function GET(_request: Request, { params }: RouteContext) {
     .maybeSingle();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[transcript] reel lookup failed:", error.message);
+    return NextResponse.json({ error: "Couldn't load that reel." }, { status: 500 });
   }
   if (!reel) {
     return NextResponse.json({ error: "Reel not found." }, { status: 404 });
@@ -129,7 +130,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     .maybeSingle();
 
   if (reelError) {
-    return NextResponse.json({ error: reelError.message }, { status: 500 });
+    console.error("[transcript] reel lookup failed:", reelError.message);
+    return NextResponse.json({ error: "Couldn't load that reel." }, { status: 500 });
   }
   if (!reel) {
     return NextResponse.json({ error: "Reel not found." }, { status: 404 });
@@ -247,7 +249,8 @@ export async function POST(request: Request, { params }: RouteContext) {
     .eq("user_id", user.id);
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+    console.error("[transcript] status update failed:", updateError.message);
+    return NextResponse.json({ error: "Couldn't save the transcript." }, { status: 500 });
   }
 
   // Instrumentation (L5): a research event — the input half of the WLC loop.
