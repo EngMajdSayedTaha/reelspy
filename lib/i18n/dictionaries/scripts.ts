@@ -20,6 +20,8 @@ const en = {
     transcribe: "Transcribe",
     transcribing: "Transcribing…",
     transcriptLoaded: "Transcript loaded",
+    viewTranscript: "View transcript",
+    hideTranscript: "Hide transcript",
     couldNotFetchReel: "Could not fetch reel.",
     reelFetchMessages: [
       "Fetching reel…",
@@ -180,6 +182,8 @@ export const scriptsAr: ScriptsDict = {
     transcribe: "تفريغ",
     transcribing: "جارٍ التفريغ…",
     transcriptLoaded: "تم تحميل النص المفرَّغ",
+    viewTranscript: "عرض النص المفرَّغ",
+    hideTranscript: "إخفاء النص المفرَّغ",
     couldNotFetchReel: "تعذّر جلب الريل.",
     reelFetchMessages: [
       "جارٍ جلب الريل…",
