@@ -75,6 +75,7 @@ export function ScriptGenerator({
   // can send it to the AI as a trusted <reel_transcript> block instead of a
   // plain caption — see /api/generate-script.
   const [fetchedTranscript, setFetchedTranscript] = useState<string | null>(null);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   // W1: one-tap "transcribe this reel first, then regenerate" when the last
   // script came back caption-only. Only reachable for a tracked reel (reelId).
@@ -198,7 +199,26 @@ export function ScriptGenerator({
             {isFetchingReel ? <AiThinking messages={s.reelFetchMessages} /> : null}
 
             {!isFetchingReel && fetchedTranscript ? (
-              <p className="text-xs text-success">{s.transcriptLoaded} ✓</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-success">{s.transcriptLoaded} ✓</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowTranscript((v) => !v)}
+                    className="text-xs font-medium text-accent-brand underline-offset-2 hover:underline"
+                  >
+                    {showTranscript ? s.hideTranscript : s.viewTranscript}
+                  </button>
+                </div>
+                {showTranscript ? (
+                  <Textarea
+                    readOnly
+                    value={fetchedTranscript}
+                    rows={6}
+                    className="resize-none text-sm text-muted-foreground"
+                  />
+                ) : null}
+              </div>
             ) : null}
           </div>
 
