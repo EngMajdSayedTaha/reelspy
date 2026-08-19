@@ -57,6 +57,33 @@ export async function storeIgToken(
   userId: string,
   params: { token: string; igUserId: string; username: string; expiresAt: string | null }
 ): Promise<void> {
+  // profiles.ig_user_id has no unique constraint, so nothing stops the same
+  // Instagram Business account from being connected from a second Reelspy
+  // login (e.g. a dev/test account). When that happens, every webhook lookup
+  // that resolves the owning profile by ig_user_id (processCommentChange,
+  // processDirectMessage) uses .maybeSingle() and starts throwing "multiple
+  // (or no) rows returned" for BOTH accounts — silently dropping comment and
+  // DM auto-replies. Retire the credential from any other profile that
+  // currently holds this ig_user_id before attaching it here, the same way
+  // upsertConnection retires a stale social_connections row.
+  const { error: cleanupError } = await admin
+    .from("profiles")
+    .update({
+      ig_access_token: null,
+      ig_user_id: null,
+      ig_token_expires_at: null,
+      ig_token_status: "active",
+      ig_token_refreshed_at: null,
+      fb_page_id: null,
+      fb_page_name: null,
+      fb_page_access_token: null,
+      webhook_subscribed_at: null,
+    })
+    .eq("ig_user_id", params.igUserId)
+    .neq("id", userId);
+
+  if (cleanupError) throw new Error(cleanupError.message);
+
   const { error } = await admin
     .from("profiles")
     .update({
