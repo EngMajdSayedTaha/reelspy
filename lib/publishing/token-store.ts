@@ -68,6 +68,23 @@ export async function upsertConnection(
   );
 
   if (error) throw new Error(error.message);
+
+  // TikTok/YouTube are single-account connections (unlike Instagram's
+  // multi-workspace support) — every reader assumes at most one row per
+  // (user, platform), e.g. getConnection()'s .maybeSingle(). The upsert above
+  // is keyed on (user_id, platform, account_id), so a reconnect that resolves
+  // a *different* account_id than a prior connect (e.g. the channel-lookup
+  // fallback below landing on a placeholder id, later replaced by the real
+  // channel id) inserts a second row instead of replacing the first. Retire
+  // any such sibling so exactly one connection survives per platform.
+  const { error: cleanupError } = await admin
+    .from("social_connections")
+    .delete()
+    .eq("user_id", userId)
+    .eq("platform", platform)
+    .neq("account_id", params.accountId);
+
+  if (cleanupError) throw new Error(cleanupError.message);
 }
 
 // Persist a freshly refreshed access token (and rotated refresh token, if any).
