@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   ClipboardList,
   BellRing,
+  ShieldCheck,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +41,7 @@ const links: NavLink[] = [
   { href: "/admin/notifications", label: "Notifications", icon: BellRing },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
+  { href: "/admin/security", label: "Admin access", icon: ShieldCheck },
 ];
 
 function isActive(pathname: string, link: NavLink): boolean {

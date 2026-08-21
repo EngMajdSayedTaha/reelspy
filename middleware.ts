@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { authCookieOptions } from "@/lib/supabase/cookie-options";
 import { middlewareRedirect } from "@/lib/http/redirect";
 import { CURRENCY_COOKIE, currencyForCountry } from "@/lib/billing/currency";
+import { ADMIN_GATE_PATHS, ELEVATION_COOKIE } from "@/lib/admin/elevation-cookie";
 
 // A present-but-malformed NEXT_PUBLIC_SUPABASE_URL (missing scheme, stray
 // whitespace/quote, placeholder) passes a truthiness check but makes the
@@ -158,6 +159,20 @@ export async function middleware(request: NextRequest) {
     if (!isAdmin) {
       return NextResponse.rewrite(new URL("/404", request.url));
     }
+
+    // Step-up belt: send an admin with no elevation cookie to the unlock
+    // screen instead of letting them render a panel page that would redirect
+    // there anyway. PRESENCE only — validating the token needs the
+    // service-role client and the admin_sessions table, neither of which
+    // belongs in edge middleware. app/admin/(panel)/layout.tsx is what
+    // actually decides, and it re-checks expiry, idle timeout and revocation.
+    const onGateScreen = ADMIN_GATE_PATHS.some(
+      (path) =>
+        request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(`${path}/`)
+    );
+    if (!onGateScreen && !request.cookies.get(ELEVATION_COOKIE)) {
+      return redirect(`/admin/unlock?next=${encodeURIComponent(request.nextUrl.pathname)}`);
+    }
   }
 
   // Stamp the visitor's currency once, from Vercel's edge geo header, so the
@@ -186,10 +201,15 @@ export async function middleware(request: NextRequest) {
 
   // Forward the pathname to the dashboard layout (Server Component, no
   // access to the URL otherwise) so it can enforce the admin's flag:pages
-  // switch — see lib/dashboard/pages-flag.ts. Scoped to /dashboard: it's the
-  // only tree that reads x-pathname, and rebuilding the response for every
-  // route would be pure overhead.
-  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+  // switch — see lib/dashboard/pages-flag.ts. /admin gets the same treatment so
+  // the panel layout can build a "come back here after unlocking" link. Both
+  // are set from the REAL url here, so a client-supplied x-pathname never
+  // survives. Scoped to these two trees: they're the only ones that read the
+  // header, and rebuilding the response for every route would be pure overhead.
+  if (
+    request.nextUrl.pathname.startsWith("/dashboard") ||
+    request.nextUrl.pathname.startsWith("/admin")
+  ) {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-pathname", request.nextUrl.pathname);
     const response = NextResponse.next({ request: { headers: requestHeaders } });

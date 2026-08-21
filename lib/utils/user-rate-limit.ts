@@ -74,6 +74,16 @@ export const USER_ACTION_LIMITS: Record<string, UserActionLimit> = {
     limit: numEnv("RL_ADMIN_MUTATION_PER_HOUR", 240),
     windowSeconds: 3600,
   },
+  // Admin passphrase attempts (unlock, re-auth, rotation). A coarse ceiling on
+  // top of — never instead of — the per-credential lockout in
+  // lib/admin/credentials.ts: this limiter fails OPEN when its RPC is missing,
+  // so it must not be what stands between an attacker and unlimited guesses.
+  // What it does add is a bound on how fast a session-holder can grind, and it
+  // counts successful unlocks too, so a script can't cycle elevations.
+  admin_unlock: {
+    limit: numEnv("RL_ADMIN_UNLOCK_PER_HOUR", 20),
+    windowSeconds: 3600,
+  },
   // Full-history archive of a tracked account: dozens of Business Discovery
   // calls out of an app-wide pool everyone shares, so the window is a DAY, not
   // an hour. The limit here is only the floor — callers pass the tier's real

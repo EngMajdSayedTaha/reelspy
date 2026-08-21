@@ -1653,3 +1653,48 @@ create index admin_alerts_created_idx on admin_alerts (created_at desc);
 create index admin_alerts_event_recent_idx on admin_alerts (event, created_at desc);
 create index admin_alerts_pending_idx on admin_alerts (created_at) where delivery = 'pending';
 create index admin_alerts_unread_idx on admin_alerts (created_at desc) where read_at is null;
+
+-- ╔══════════════════════════════════════════════════════════════════════════╗
+-- ║ Admin step-up authentication — the admin passphrase and the short-lived    ║
+-- ║ elevations it grants (migration 20260821140000_admin_step_up_auth.sql).    ║
+-- ║ `profiles.is_admin` says a person MAY administer; these say the request    ║
+-- ║ in front of us really is that person, right now. Service-role only.        ║
+-- ╚══════════════════════════════════════════════════════════════════════════╝
+
+-- One admin passphrase per admin: scrypt-hashed, separate from the account
+-- password, plus brute-force state and the out-of-band enrollment ticket.
+create table admin_credentials (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  passphrase_hash text,                 -- "scrypt$N$r$p$<salt-b64>$<hash-b64>"; null while only invited
+  passphrase_set_at timestamptz,
+  failed_attempts int not null default 0,
+  last_failed_at timestamptz,
+  locked_until timestamptz,
+  enrollment_hash text,                 -- sha256 of a one-time CLI-minted ticket
+  enrollment_expires_at timestamptz,
+  enrollment_created_at timestamptz,
+  last_verified_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table admin_credentials enable row level security;  -- no policies: service-role only
+revoke all on table admin_credentials from anon, authenticated;
+
+-- One row per live elevation. The cookie holds the token; only its hash lives here.
+create table admin_sessions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references profiles(id) on delete cascade,
+  token_hash text not null unique,      -- sha256(hex) of the cookie token
+  created_at timestamptz not null default now(),
+  reauth_at timestamptz not null default now(),   -- last passphrase entry (critical-action window)
+  last_seen_at timestamptz not null default now(),-- idle-timeout anchor
+  expires_at timestamptz not null,                -- absolute deadline
+  revoked_at timestamptz,
+  revoked_reason text,
+  ip text,
+  user_agent text
+);
+alter table admin_sessions enable row level security;  -- no policies: service-role only
+revoke all on table admin_sessions from anon, authenticated;
+create index admin_sessions_admin_idx on admin_sessions (admin_id, created_at desc);
+create index admin_sessions_expires_idx on admin_sessions (expires_at);

@@ -30,6 +30,40 @@ export class ApiError extends Error {
   }
 }
 
+// ── Step-up challenge hook ──────────────────────────────────────────────────
+// The admin panel can answer a request with "prove it's really you" instead of
+// a result: `elevation_required` (the panel re-locked under you) or
+// `reauth_required` (this particular action is destructive enough to want the
+// passphrase again — see lib/admin/critical-actions.ts).
+//
+// Handling that at 30-odd call sites would guarantee some of them get it wrong,
+// and the ones that get it wrong would be the destructive ones. So the admin
+// shell registers ONE handler here (components/admin/security/ReauthProvider):
+// requestJson pauses the failed call, the provider collects the passphrase, and
+// the original request is replayed exactly once. Every admin action inherits
+// the behaviour without knowing it exists.
+export type ChallengeCode = "reauth_required" | "elevation_required";
+
+/** Resolves true when the challenge was satisfied and the call may be retried. */
+export type ChallengeHandler = (code: ChallengeCode, action: string | null) => Promise<boolean>;
+
+let challengeHandler: ChallengeHandler | null = null;
+
+/** Registers the handler; returns an unsubscribe for the provider's cleanup. */
+export function setApiChallengeHandler(handler: ChallengeHandler): () => void {
+  challengeHandler = handler;
+  return () => {
+    if (challengeHandler === handler) challengeHandler = null;
+  };
+}
+
+// A retry has to send the same bytes again. Strings (every JSON call in this
+// app) and empty bodies replay safely; a stream or a FormData may already be
+// consumed, so those surface the 403 to the caller instead.
+function isReplayable(body: BodyInit | null | undefined): boolean {
+  return body == null || typeof body === "string";
+}
+
 // fetch + JSON wrapper with consistent error handling. Throws ApiError with a
 // human-readable message derived from the response's `{ error }` body.
 //
@@ -39,6 +73,14 @@ export class ApiError extends Error {
 export async function requestJson<T = unknown>(
   input: RequestInfo | URL,
   init?: RequestInit & { timeoutMs?: number }
+): Promise<T> {
+  return execute<T>(input, init, true);
+}
+
+async function execute<T>(
+  input: RequestInfo | URL,
+  init: (RequestInit & { timeoutMs?: number }) | undefined,
+  allowChallenge: boolean
 ): Promise<T> {
   const { timeoutMs, signal: callerSignal, ...rest } = init ?? {};
 
@@ -81,6 +123,22 @@ export async function requestJson<T = unknown>(
     }
 
     const record = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+
+    // Step-up challenge: hand it to the registered handler and, if the admin
+    // satisfies it, replay the original request once. `allowChallenge` is false
+    // on that replay, so a server stuck returning 403 can never loop.
+    const code = record && typeof record.code === "string" ? record.code : null;
+    if (
+      response.status === 403 &&
+      allowChallenge &&
+      challengeHandler &&
+      (code === "reauth_required" || code === "elevation_required") &&
+      isReplayable(rest.body)
+    ) {
+      const action = record && typeof record.action === "string" ? record.action : null;
+      const satisfied = await challengeHandler(code, action);
+      if (satisfied) return execute<T>(input, init, false);
+    }
 
     // Prefer the API's `error`, then the first `errors[]` entry, then a default.
     let message = commonDict().requestFailed(response.status);

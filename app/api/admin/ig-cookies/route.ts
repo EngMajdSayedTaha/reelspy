@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { isAdminUser } from "@/lib/billing/admin";
+import { requireAdmin } from "@/lib/admin/auth";
 import { decodeB64Cookies, validateNetscapeCookies } from "@/lib/media/cookie-format";
 import { getIgCookieStatus, saveIgCookies } from "@/lib/media/ig-cookies";
 import { probeYtDlp, testCandidateCookies } from "@/lib/media/ytdlp";
-import { createClient } from "@/lib/supabase/server";
 import { cronAuthorized } from "@/lib/utils/cron";
 
 // Rotate the Instagram session cookies used by the transcript pipeline WITHOUT
@@ -25,31 +24,31 @@ const bodySchema = z.object({
   live_test: z.boolean().optional().default(true),
 });
 
-// Two ways in, both fail closed: a logged-in admin (profiles.is_admin, only
-// settable via service role/SQL) or the CRON_SECRET bearer token the founder's
-// local script uses.
-async function authorized(request: Request): Promise<boolean> {
-  if (cronAuthorized(request)) return true;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
-  return isAdminUser(supabase, user.id);
+// Two ways in, both fail closed: the CRON_SECRET bearer token the founder's
+// local script uses, or a browser admin — who must come through the full admin
+// gate, meaning an UNLOCKED panel and (for the POST, which replaces the session
+// cookies the whole scraping pipeline runs on) a freshly re-entered admin
+// passphrase. Checking `is_admin` alone here would have left a hole straight
+// past the step-up gate to the product's most sensitive stored credential.
+async function authorized(
+  request: Request
+): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  if (cronAuthorized(request)) return { ok: true };
+  const gate = await requireAdmin(request);
+  if (gate.ok) return { ok: true };
+  return { ok: false, response: gate.response };
 }
 
 export async function GET(request: Request) {
-  if (!(await authorized(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await authorized(request);
+  if (!auth.ok) return auth.response;
   const [status, ytdlp] = await Promise.all([getIgCookieStatus(), probeYtDlp()]);
   return NextResponse.json({ cookies: status, ytdlp });
 }
 
 export async function POST(request: Request) {
-  if (!(await authorized(request))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await authorized(request);
+  if (!auth.ok) return auth.response;
 
   const rawBody = await request.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(rawBody);
