@@ -27,6 +27,12 @@ export type ResearchReel = {
   permalink?: string | null;
   caption?: string | null;
   thumbnailUrl?: string | null;
+  /**
+   * Direct URL to the video file itself, when the platform exposes one.
+   * Instagram returns it as `media_url` on VIDEO media and it is signed —
+   * treat it as short-lived and mirror the bytes before publishing it.
+   */
+  videoUrl?: string | null;
   viewCount?: number | null;
   likeCount?: number | null;
   commentCount?: number | null;

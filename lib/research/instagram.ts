@@ -39,12 +39,32 @@ export function mapIgProfile(
   };
 }
 
+// Rejects only what is definitely NOT a video, rather than demanding an
+// explicit "VIDEO". Two reasons: mapMediaItem already defaults an absent
+// media_type to VIDEO and isReel has filtered non-reels out before anything
+// reaches here, so requiring the literal would only ever fire on a shape that
+// does not occur; and the failure modes are lopsided. Being too strict drops a
+// real reel's video silently — the wall shows a still and nothing says why.
+// Being too lenient hands a JPEG's URL to the mirror, which checks the response
+// content-type and refuses to store it (media-cache), so it costs one HEAD-ish
+// fetch and self-corrects.
+function isVideoMedia(m: InstagramMedia): boolean {
+  const type = String(m.media_type ?? "").toUpperCase();
+  return type !== "IMAGE" && type !== "CAROUSEL_ALBUM";
+}
+
 export function mapIgReel(m: InstagramMedia): ResearchReel {
   return {
     externalId: m.id,
     permalink: m.permalink ?? null,
     caption: m.caption ?? null,
     thumbnailUrl: m.thumbnail_url ?? null,
+    // `media_url` was already in every field list we send; it was just never
+    // read. For a VIDEO it is the mp4, which is what the marketing wall plays.
+    // Guard on media_type: on an IMAGE or CAROUSEL_ALBUM the same field is a
+    // JPEG, and handing that to a <video> element yields a permanently broken
+    // one rather than a still.
+    videoUrl: isVideoMedia(m) ? (m.media_url ?? null) : null,
     viewCount: m.view_count ?? null,
     likeCount: m.like_count ?? null,
     commentCount: m.comments_count ?? null,

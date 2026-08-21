@@ -8,6 +8,7 @@ import {
 } from "@/lib/instagram/rate-limit";
 import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapshots";
 import { enrichSeedAccounts } from "@/lib/instagram/enrich";
+import { mirrorShowcaseVideos } from "@/lib/instagram/showcase-video";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { numEnv } from "@/lib/utils/env";
 
@@ -196,6 +197,25 @@ export async function GET(request: Request) {
     invalidToken = invalidToken || !!seed.invalidToken;
   }
 
+  // Promote the showcase reels' mp4s into our own bucket so the marketing
+  // wall can play them. Runs here rather than on its own schedule for two
+  // reasons: Instagram's media_url is signed and short-lived, so mirroring is
+  // only reliable immediately after the refresh above wrote it; and this is
+  // the established place for bounded batch work (see enrichSeedAccounts).
+  //
+  // Pure DB + Storage IO — it spends no Meta quota, so it runs even when we
+  // were throttled or the token died. Swallowed on purpose: the marketing
+  // page degrades to stills, which is not worth failing a sync over.
+  let videos = null;
+  try {
+    videos = await mirrorShowcaseVideos(admin);
+  } catch (err) {
+    console.warn(
+      "[refresh-snapshots] showcase video mirror failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
   // Revive anything that got stranded in `failed`, so no tracked account can go
   // permanently stale without the user ever being told.
   let requeued = 0;
@@ -215,6 +235,7 @@ export async function GET(request: Request) {
     refreshed,
     requeued: requeued || undefined,
     seed: seed ?? undefined,
+    videos: videos ?? undefined,
     rateLimited: rateLimited || undefined,
     invalidToken: invalidToken || undefined,
   });

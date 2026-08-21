@@ -11,6 +11,9 @@ import type { TrendReel } from "@/lib/trends/shared";
 
 const SELF_HOSTED = "https://xyz.supabase.co/storage/v1/object/public/ig-media/r/abc.jpg";
 const IG_CDN = "https://scontent.cdninstagram.com/v/t51.29350-15/abc.jpg?_nc_ht=x&oe=6890AB";
+const SELF_HOSTED_VIDEO =
+  "https://xyz.supabase.co/storage/v1/object/public/ig-media/videos/ABC.mp4";
+const IG_CDN_VIDEO = "https://scontent.cdninstagram.com/o1/v/t16/abc.mp4?_nc_ht=x&oe=6890AB";
 
 function reel(over: Partial<TrendReel> = {}): TrendReel {
   return {
@@ -19,6 +22,7 @@ function reel(over: Partial<TrendReel> = {}): TrendReel {
     permalink: "https://www.instagram.com/reel/ABC/",
     caption: "A caption",
     thumbnailUrl: SELF_HOSTED,
+    videoUrl: null,
     viewCount: 900_000,
     likeCount: 40_000,
     commentCount: 1_200,
@@ -67,6 +71,7 @@ describe("toPublicReels", () => {
         "permalink",
         "postedAt",
         "thumbnailUrl",
+        "videoUrl",
         "viewCount",
       ].sort()
     );
@@ -104,5 +109,37 @@ describe("toPublicReels", () => {
 
   it("rounds outperformRatio to two decimals", () => {
     expect(toPublicReels([reel({ outperformRatio: 2.34567 })])[0].outperformRatio).toBe(2.35);
+  });
+});
+
+// The landing wall plays videoUrl when it is present and falls back to the
+// still when it is null. The publishing rule is therefore identical to the
+// thumbnail's, and for the same reason: this endpoint is cached for a day at
+// the CDN, so a signed Instagram URL published here becomes a dead <video>
+// long before the cache turns over.
+describe("public video URLs", () => {
+  it("publishes a self-hosted video", () => {
+    const [out] = toPublicReels([reel({ videoUrl: SELF_HOSTED_VIDEO })]);
+    expect(out.videoUrl).toBe(SELF_HOSTED_VIDEO);
+  });
+
+  it("withholds an Instagram CDN video, which expires in about a week", () => {
+    const [out] = toPublicReels([reel({ videoUrl: IG_CDN_VIDEO })]);
+    expect(out.videoUrl).toBeNull();
+  });
+
+  it("resolves a missing video to null rather than undefined", () => {
+    const [out] = toPublicReels([reel({ videoUrl: null })]);
+    expect(out.videoUrl).toBeNull();
+  });
+
+  // Most reels are in exactly this state: mirrored thumbnail, un-mirrored
+  // video, because only the showcase set is ever promoted. The card has to
+  // stay fully renderable — a still with no video is the normal case, not a
+  // degraded one.
+  it("still publishes the thumbnail when only the video is un-mirrored", () => {
+    const [out] = toPublicReels([reel({ thumbnailUrl: SELF_HOSTED, videoUrl: IG_CDN_VIDEO })]);
+    expect(out.thumbnailUrl).toBe(SELF_HOSTED);
+    expect(out.videoUrl).toBeNull();
   });
 });

@@ -18,6 +18,8 @@ export type TrendReel = {
   permalink: string | null;
   caption: string | null;
   thumbnailUrl: string | null;
+  /** Reel mp4. Only ever published once self-hosted — see public-showcase. */
+  videoUrl: string | null;
   viewCount: number;
   likeCount: number;
   commentCount: number;

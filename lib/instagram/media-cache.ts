@@ -9,6 +9,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const BUCKET = "ig-media";
 const MAX_BYTES = 10 * 1024 * 1024;
 
+// Video gets its own, larger ceiling: a 30-second reel is comfortably past the
+// 10MB image limit, and rejecting it there would silently mirror nothing.
+// Still bounded — this runs against someone else's CDN on a cron, and an
+// unbounded download is how one pathological file stalls the whole pass.
+const MAX_VIDEO_BYTES = 40 * 1024 * 1024;
+
 // A URL already served from our bucket needs no re-fetch — the image behind
 // it (a specific reel's thumbnail) never changes after the reel is posted, so
 // re-downloading it on every sync would just burn bandwidth for the same bytes.
@@ -19,24 +25,27 @@ export function isSelfHosted(url: string | null | undefined): boolean {
 // Downloads `sourceUrl` and stores it at `path` in the shared public bucket,
 // returning our permanent URL. Returns null on any failure so callers can
 // fall back to the (still valid, just temporary) source URL instead of
-// breaking the image entirely.
-export async function cacheImage(
+// breaking the media entirely.
+async function cacheMedia(
   admin: SupabaseClient,
   sourceUrl: string,
-  path: string
+  path: string,
+  kind: "image" | "video"
 ): Promise<string | null> {
+  const maxBytes = kind === "video" ? MAX_VIDEO_BYTES : MAX_BYTES;
+  const fallbackType = kind === "video" ? "video/mp4" : "image/jpeg";
   try {
     const res = await fetch(sourceUrl, { headers: { "user-agent": "Mozilla/5.0" } });
     if (!res.ok) return null;
 
-    const contentType = res.headers.get("content-type") ?? "image/jpeg";
-    if (!contentType.startsWith("image/")) return null;
+    const contentType = res.headers.get("content-type") ?? fallbackType;
+    if (!contentType.startsWith(`${kind}/`)) return null;
 
     const contentLength = Number(res.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_BYTES) return null;
+    if (contentLength > maxBytes) return null;
 
     const bytes = Buffer.from(await res.arrayBuffer());
-    if (bytes.byteLength > MAX_BYTES) return null;
+    if (bytes.byteLength > maxBytes) return null;
 
     const { error } = await admin.storage.from(BUCKET).upload(path, bytes, {
       contentType,
@@ -49,4 +58,26 @@ export async function cacheImage(
   } catch {
     return null;
   }
+}
+
+export function cacheImage(
+  admin: SupabaseClient,
+  sourceUrl: string,
+  path: string
+): Promise<string | null> {
+  return cacheMedia(admin, sourceUrl, path, "image");
+}
+
+// Mirrors a reel's mp4. Deliberately NOT called from the sync path: a video is
+// three orders of magnitude larger than a thumbnail, and every user's sync
+// pulling one for every reel they track would be an enormous bandwidth and
+// storage bill for bytes nobody looks at. Only the public showcase needs
+// video, so only the showcase mirror cron (app/api/cron/mirror-reel-videos)
+// calls this — a few dozen files, not tens of thousands.
+export function cacheVideo(
+  admin: SupabaseClient,
+  sourceUrl: string,
+  path: string
+): Promise<string | null> {
+  return cacheMedia(admin, sourceUrl, path, "video");
 }

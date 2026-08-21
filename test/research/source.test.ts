@@ -44,11 +44,28 @@ describe("instagram research mappers", () => {
       permalink: "http://p",
       caption: "hi",
       thumbnailUrl: "http://t",
+      videoUrl: null,
       viewCount: 900,
       likeCount: 10,
       commentCount: 2,
       postedAt: "2026-01-01T00:00:00Z",
     });
+  });
+
+  // media_url is the reel's mp4 and is what the public wall plays. It was
+  // already in every field list we request from Meta — it just wasn't read.
+  it("carries the video URL through for a reel", () => {
+    const r = mapIgReel({ id: "m3", media_type: "VIDEO", media_url: "http://v.mp4" });
+    expect(r.videoUrl).toBe("http://v.mp4");
+  });
+
+  // On an IMAGE or a carousel the same field is a JPEG. Handing that to a
+  // <video> element yields a permanently broken one instead of a still.
+  it("refuses media_url on non-video media", () => {
+    expect(mapIgReel({ id: "m4", media_type: "IMAGE", media_url: "http://x.jpg" }).videoUrl).toBeNull();
+    expect(
+      mapIgReel({ id: "m5", media_type: "CAROUSEL_ALBUM", media_url: "http://x.jpg" }).videoUrl
+    ).toBeNull();
   });
 
   it("maps missing optional metrics to null", () => {
