@@ -26,11 +26,13 @@ const DAYS = 21;
 
 // Ceiling per run. Each item is a full download-and-re-upload of a file up to
 // 40MB against someone else's CDN, inside a function with a 300s budget that
-// is already doing a snapshot refresh and a seed-enrichment pass. Twelve is
-// comfortably inside that, and the backlog is small and self-limiting: once a
-// niche's top reels are mirrored they stay mirrored, so steady-state runs only
-// pick up what newly entered the top eight.
-const MAX_PER_RUN = 12;
+// is already doing a snapshot refresh and a seed-enrichment pass. The backlog
+// is small and self-limiting: once a niche's top reels are mirrored they stay
+// mirrored, so steady-state runs only pick up what newly entered the top
+// eight. Sized to clear everything the public landing page actually shows
+// (3 niches × SHOWCASE_LIMIT) in a single run, still comfortably inside the
+// time budget alongside the other work in the same request.
+const MAX_PER_RUN = 24;
 
 export type MirrorResult = {
   scanned: number;
