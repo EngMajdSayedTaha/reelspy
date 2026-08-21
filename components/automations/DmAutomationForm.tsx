@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SuggestionFlipper } from "@/components/automations/SuggestionFlipper";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ActionState = { error?: string };
@@ -24,6 +25,7 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
   const [replyLink, setReplyLink] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const replyMessageRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
     if (matchMode !== "any" && !keywords.trim()) {
@@ -117,6 +119,16 @@ export function DmAutomationForm({ action }: DmAutomationFormProps) {
               placeholder={dict.dmForm.replyMessagePlaceholder}
               value={replyMessage}
               onChange={(e) => setReplyMessage(e.target.value)}
+              disabled={isPending}
+              ref={replyMessageRef}
+            />
+            <SuggestionFlipper
+              suggestions={dict.suggestions.dmReply}
+              value={replyMessage}
+              onChange={setReplyMessage}
+              applyMode="replace"
+              icons={dict.suggestions.icons}
+              targetRef={replyMessageRef}
               disabled={isPending}
             />
           </div>
