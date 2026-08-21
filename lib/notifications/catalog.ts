@@ -231,6 +231,49 @@ export const ALERT_EVENTS: AlertEventDef[] = [
     defaultDigest: false,
     defaultThrottleMinutes: 0,
   },
+  {
+    key: "admin.passphrase_changed",
+    category: "security",
+    label: "Admin passphrase set or changed",
+    description:
+      "The second factor guarding the control panel was replaced, and every other unlocked session was signed out.",
+    severity: "critical",
+    defaultEnabled: true,
+    defaultDigest: false,
+    defaultThrottleMinutes: 0,
+  },
+  {
+    key: "admin.locked_out",
+    category: "security",
+    label: "Admin panel locked after wrong passphrases",
+    description:
+      "Someone holding an admin login ran out of attempts at the admin passphrase. If it wasn't you, the login itself is already compromised.",
+    severity: "critical",
+    defaultEnabled: true,
+    defaultDigest: false,
+    defaultThrottleMinutes: 0,
+  },
+  {
+    key: "admin.unlock_failed",
+    category: "security",
+    label: "Wrong admin passphrase",
+    description: "An admin passphrase attempt failed — a typo, or someone probing with a stolen session.",
+    severity: "warning",
+    defaultEnabled: true,
+    defaultDigest: false,
+    // Folded: a burst of typos should be one message, not five.
+    defaultThrottleMinutes: 15,
+  },
+  {
+    key: "admin.unlocked",
+    category: "security",
+    label: "Admin panel unlocked",
+    description: "A new elevated admin session started. Routine on your own devices; not on anyone else's.",
+    severity: "info",
+    defaultEnabled: true,
+    defaultDigest: true,
+    defaultThrottleMinutes: 0,
+  },
 
   // ── Abuse ────────────────────────────────────────────────────────────────
   {
