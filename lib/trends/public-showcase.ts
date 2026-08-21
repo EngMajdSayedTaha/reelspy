@@ -38,6 +38,12 @@ export type PublicReel = {
   permalink: string | null;
   caption: string | null;
   thumbnailUrl: string | null;
+  /**
+   * Reel mp4, self-hosted only. The landing wall plays this when present and
+   * falls back to the still when it is null, so publishing a signed Instagram
+   * URL here would put a dead <video> on a page cached for a day.
+   */
+  videoUrl: string | null;
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -67,7 +73,10 @@ function truncate(text: string | null, max: number): string | null {
 // behind on a marketing page:
 //  - thumbnails that aren't ours (raw IG CDN URLs are signed and expire in
 //    ~7 days, so a cached marketing page would rot into broken images — the
-//    card renders a graphite placeholder for null instead)
+//    card renders a generated cover for null instead)
+//  - videos that aren't ours, for exactly the same reason. Most reels have a
+//    video_url that is still the signed original, because only the showcase
+//    set gets mirrored; those publish as null and the card shows its still.
 //  - reels with no permalink (nothing to click through to)
 export function toPublicReels(reels: TrendReel[], limit = SHOWCASE_LIMIT): PublicReel[] {
   return reels
@@ -78,6 +87,7 @@ export function toPublicReels(reels: TrendReel[], limit = SHOWCASE_LIMIT): Publi
       permalink: r.permalink,
       caption: truncate(r.caption, CAPTION_MAX),
       thumbnailUrl: isSelfHosted(r.thumbnailUrl) ? r.thumbnailUrl : null,
+      videoUrl: isSelfHosted(r.videoUrl) ? r.videoUrl : null,
       viewCount: r.viewCount,
       likeCount: r.likeCount,
       commentCount: r.commentCount,

@@ -103,6 +103,7 @@ type ReelSnapRow = {
   permalink: string | null;
   caption: string | null;
   thumbnail_url: string | null;
+  video_url: string | null;
   view_count: number | null;
   like_count: number | null;
   comment_count: number | null;
@@ -143,7 +144,7 @@ export async function rankUsernameReels(
       admin
         .from("ig_reel_snapshots")
         .select(
-          "ig_username, ig_media_id, permalink, caption, thumbnail_url, view_count, like_count, comment_count, posted_at"
+          "ig_username, ig_media_id, permalink, caption, thumbnail_url, video_url, view_count, like_count, comment_count, posted_at"
         )
         .in("ig_username", batch)
         .gte("posted_at", sinceIso)
@@ -182,6 +183,7 @@ export async function rankUsernameReels(
         permalink: r.permalink,
         caption: r.caption,
         thumbnailUrl: r.thumbnail_url,
+        videoUrl: r.video_url,
         viewCount: r.view_count ?? 0,
         likeCount: r.like_count ?? 0,
         commentCount: r.comment_count ?? 0,

@@ -181,6 +181,14 @@ export async function refreshAccountSnapshot(
         permalink: r.permalink!,
         caption: r.caption ?? null,
         thumbnail_url: (r.externalId && cachedThumbnails.get(r.externalId)) || r.thumbnailUrl || null,
+        // Instagram's signed mp4 URL, stored raw and NOT mirrored here. Writing
+        // the column is free; downloading tens of thousands of videos on the
+        // hot sync path would not be, and nothing in the dashboard plays them.
+        // The showcase mirror cron promotes the handful the marketing wall
+        // actually needs to permanent storage, and the public endpoint refuses
+        // to publish any value that has not been promoted — so an expired link
+        // can never reach a cached page.
+        video_url: r.videoUrl ?? null,
         view_count: r.viewCount ?? 0,
         like_count: r.likeCount ?? 0,
         comment_count: r.commentCount ?? 0,
