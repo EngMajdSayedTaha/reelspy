@@ -33,8 +33,9 @@ long-lived cookies, and how to rotate them — **no Vercel redeploy is ever need
   → `/api/cron/ig-cookie-health`) runs one authenticated extraction against
   `IG_HEALTHCHECK_REEL_URL`. Success doubles as a keep-alive (the daily touch +
   write-back is what keeps the session fresh even with no user traffic).
-  Failure emails `ADMIN_ALERT_EMAIL` via Resend and turns the Actions run red
-  (GitHub's own failure email is the free backup channel).
+  Failure raises an `integration.unhealthy` admin alert (Admin → Notifications,
+  see `docs/admin-notifications.md`) and turns the Actions run red (GitHub's own
+  failure email is the free backup channel when no mailer is configured).
 - Live status (age, last success, last error — never the cookie material) is
   visible at `GET /api/reels/diag` (any authenticated user) under `cookies`.
 
@@ -78,7 +79,7 @@ future admin UI can reuse it as-is.
 | Variable | Where | Purpose |
 | --- | --- | --- |
 | `IG_HEALTHCHECK_REEL_URL` | Vercel | A stable, public reel (ideally your own) used by the daily health check and the pre-save live test. |
-| `ADMIN_ALERT_EMAIL` | Vercel | Recipient for cookie-failure alerts (needs `RESEND_API_KEY`/`EMAIL_FROM`). |
+| `ADMIN_ALERT_EMAIL` | Vercel | Fallback alert recipient when Admin → Notifications has no recipients set (needs `RESEND_API_KEY`/`EMAIL_FROM`). |
 | `YTDLP_COOKIES_B64` | Vercel | Legacy bootstrap fallback only — deletable once `/api/reels/diag` shows `cookies.source: "db"`. |
 | `CRON_SECRET` | Vercel + GitHub secret + `.env.local` | Authenticates the health cron and the update script. |
 

@@ -69,7 +69,13 @@ Rules that hold across every email:
 | Price change notice | admin migrates subscribers onto a new price | `lib/email/billing.ts` |
 | Publish failure | ≥1 failed publish target | `lib/email/publish-failure.ts` |
 | Weekly digest | weekly cron (opt-in) | `lib/email/weekly-digest.ts` |
-| IG cookie health (internal) | daily watchdog failure | `app/api/cron/ig-cookie-health/route.ts` |
+| Admin alert (internal) | any event in the alert catalog | `lib/notifications/email.ts` |
+| Admin alert digest (internal) | hourly flush, on the founder's interval | `lib/notifications/email.ts` |
+
+Internal alerts — including the IG cookie watchdog, which used to send its own
+one-off email — all go through `notifyAdmins()`. What is sent, to whom, and how
+loudly is configured in-product at **Admin → Notifications**; see
+[`admin-notifications.md`](./admin-notifications.md).
 
 All of them are **fail-open**: with `RESEND_API_KEY` / `EMAIL_FROM` unset,
 `sendEmail` logs and returns `false`. A missing notification never fails a

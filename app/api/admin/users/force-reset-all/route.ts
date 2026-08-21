@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
 import { guardAdminMutation, parseBody } from "@/lib/admin/mutation";
 import { writeAudit } from "@/lib/admin/audit";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export const runtime = "nodejs";
 
@@ -59,6 +60,26 @@ export async function POST(request: Request) {
     ip,
     userAgent,
   });
+
+  // The largest blast radius any admin action in this product has: every
+  // customer is logged out and forced through a password reset. If this fires
+  // and no admin meant to do it, that is an incident.
+  await notifyAdmins(
+    "auth.force_reset_all",
+    {
+      title: `Password reset forced on ${count ?? "all"} users`,
+      summary:
+        "Every session except the acting admin's was revoked and every account must set a new password before it can use the product again.",
+      context: {
+        "By admin": user.email ?? user.id,
+        "Accounts affected": count ?? undefined,
+        Reason: reason ?? undefined,
+        "Sessions revoked": sessionError ? "failed — see logs" : "yes",
+      },
+      link: "/admin/users",
+    },
+    { admin }
+  );
 
   return NextResponse.json({ ok: true, affected: count ?? null });
 }

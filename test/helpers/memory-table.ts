@@ -9,7 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // effects of the last. So this fake keeps actual rows and applies the filters.
 //
 // Supports the subset the waitlist code uses:
-//   from(t).select(cols, {count, head}).eq().lt().order().range().maybeSingle()
+//   from(t).select(cols, {count, head}).eq().is().lt().gte().in().order().range()
+//     .limit().maybeSingle()
 //   await from(t).select(...)                    -> { data, count, error }
 //   from(t).insert(row).select().maybeSingle()
 //   from(t).update(patch).eq(...).select().maybeSingle()
@@ -64,10 +65,15 @@ export function memoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
             return { data: [existing], error: null };
           }
         }
+        // Stamped like Postgres would (`default now()`), not at the epoch:
+        // code that filters on a recency window (`created_at >= <now - 1h>`)
+        // has to see a freshly inserted row as recent, or the fake silently
+        // exercises the wrong branch.
+        const now = new Date().toISOString();
         const row: Row = {
           id: payload.id ?? `row-${rows.length + 1}`,
-          created_at: payload.created_at ?? new Date(0).toISOString(),
-          updated_at: new Date(0).toISOString(),
+          created_at: payload.created_at ?? now,
+          updated_at: now,
           ...payload,
         };
         if (name === "waitlist_entries" && row.queue_number == null) {
@@ -119,6 +125,13 @@ export function memoryDb(seed: Record<string, Row[]> = {}): MemoryDb {
       },
       gte: (col: string, val: unknown) => {
         filters.push((r) => String(r[col]) >= String(val));
+        return chain;
+      },
+      // Postgres IS NULL / IS NOT NULL. Treats undefined as null, since a fake
+      // row that simply omits a nullable column is the same thing as one that
+      // stores null in it.
+      is: (col: string, val: unknown) => {
+        filters.push((r) => (val === null ? r[col] == null : r[col] === val));
         return chain;
       },
       lte: () => chain,

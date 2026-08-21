@@ -3,9 +3,9 @@
 // user + third-party data (e.g. `automation_events.comment_text`) indefinitely,
 // per PDPL data minimization. Run weekly by /api/cron/prune-events.
 //
-// Service-role only — `app_events`/`ai_usage`/`jobs` have RLS on with no
-// policies, and we delete third-party content from `automation_events`. Always
-// pass an admin (service-role) client.
+// Service-role only — `app_events`/`ai_usage`/`jobs`/`admin_alerts` have RLS on
+// with no policies, and we delete third-party content from
+// `automation_events`. Always pass an admin (service-role) client.
 //
 // Cadence note: this app's oldest data is only months old, so at a 365-day
 // window this is a no-op until ~mid-2027; running it weekly from now keeps the
@@ -22,7 +22,8 @@ const EVENT_TABLES = ["app_events", "ai_usage", "automation_events"] as const;
 export type PruneResult = {
   eventRetentionDays: number;
   jobsRetentionDays: number;
-  cutoffs: { events: string; jobs: string };
+  alertRetentionDays: number;
+  cutoffs: { events: string; jobs: string; alerts: string };
   deleted: Record<string, number>;
   errors: Record<string, string>;
 };
@@ -41,8 +42,10 @@ export async function pruneEventLogs(
 ): Promise<PruneResult> {
   const eventRetentionDays = numEnv("EVENT_RETENTION_DAYS", 365);
   const jobsRetentionDays = numEnv("JOBS_RETENTION_DAYS", 30);
+  const alertRetentionDays = numEnv("ALERT_RETENTION_DAYS", 180);
   const eventsCutoff = cutoffIso(eventRetentionDays, now);
   const jobsCutoff = cutoffIso(jobsRetentionDays, now);
+  const alertsCutoff = cutoffIso(alertRetentionDays, now);
 
   const deleted: Record<string, number> = {};
   const errors: Record<string, string> = {};
@@ -75,10 +78,28 @@ export async function pruneEventLogs(
     errors.jobs = err instanceof Error ? err.message : String(err);
   }
 
+  // Admin alerts (lib/notifications). They quote customer emails and Stripe
+  // amounts, so they fall under the same minimization rule as the event logs —
+  // on a shorter window, because an operational alert stops being useful long
+  // before a year is out. RESOLVED rows only: an alert nobody has dealt with
+  // must never be deleted out from under them, however old it is.
+  try {
+    const { count, error } = await admin
+      .from("admin_alerts")
+      .delete({ count: "exact" })
+      .not("resolved_at", "is", null)
+      .lt("created_at", alertsCutoff);
+    if (error) throw new Error(error.message);
+    deleted.admin_alerts = count ?? 0;
+  } catch (err) {
+    errors.admin_alerts = err instanceof Error ? err.message : String(err);
+  }
+
   return {
     eventRetentionDays,
     jobsRetentionDays,
-    cutoffs: { events: eventsCutoff, jobs: jobsCutoff },
+    alertRetentionDays,
+    cutoffs: { events: eventsCutoff, jobs: jobsCutoff, alerts: alertsCutoff },
     deleted,
     errors,
   };

@@ -12,6 +12,7 @@ import {
 } from "@/lib/waitlist/entry";
 import { consumeAnonAction } from "@/lib/utils/anon-rate-limit";
 import { sendWaitlistConfirmation } from "@/lib/waitlist/email";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export const runtime = "nodejs";
 // Both verbs read live state; never let Next try to pre-render this.
@@ -109,8 +110,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: "closed", signupOpen: true }, { status: 409 });
   }
 
-  const throttle = await consumeAnonAction(admin, hashIp(clientIp(request)), "waitlist_join");
+  const ipHash = hashIp(clientIp(request));
+  const throttle = await consumeAnonAction(admin, ipHash, "waitlist_join");
   if (!throttle.allowed) {
+    // Someone is hammering the public form — usually a bot farming queue
+    // numbers. Worth telling the founder ONCE (the alert's own throttle folds
+    // the flood into a single row), never once per rejected request.
+    await notifyAdmins(
+      "abuse.rate_limited",
+      {
+        title: "The waiting-list form is being hammered",
+        summary:
+          "One source hit the public join endpoint hard enough to be throttled. Entries from it are being rejected; check the queue for junk applications.",
+        context: { Endpoint: "POST /api/waitlist", "Source (hashed)": ipHash.slice(0, 12) },
+        link: "/admin/waitlist",
+        dedupeKey: `waitlist_join:${ipHash}`,
+      },
+      { admin }
+    );
     return NextResponse.json(
       { error: "That's a lot of requests from here. Try again a bit later." },
       { status: 429, headers: { "Retry-After": String(throttle.retryAfterSeconds) } }
@@ -143,7 +160,7 @@ export async function POST(request: Request) {
     utm: body.utm ?? {},
     source: "landing",
     userId,
-    ipHash: hashIp(clientIp(request)),
+    ipHash,
     userAgent: request.headers.get("user-agent"),
     autoApprove: flag.autoApprove,
   });
@@ -164,6 +181,32 @@ export async function POST(request: Request) {
       queueNumber: result.entry.queue_number,
       total,
     });
+  }
+
+  // Tell the founder someone applied. Only on a NEW entry, for the same reason
+  // the confirmation is: a re-submit is not a new lead. Batched into the digest
+  // by default (see lib/notifications/catalog.ts) so a good launch day doesn't
+  // arrive as two hundred separate emails.
+  if (result.created) {
+    await notifyAdmins(
+      "waitlist.joined",
+      {
+        title: `#${result.entry.queue_number} joined the waiting list`,
+        summary: result.entry.note ? result.entry.note.slice(0, 200) : null,
+        context: {
+          Email: result.entry.email,
+          Name: result.entry.name ?? undefined,
+          Instagram: result.entry.instagram_handle ?? undefined,
+          Niche: result.entry.niche ?? undefined,
+          Followers: result.entry.follower_range ?? undefined,
+          "Heard about us via": result.entry.referral_source ?? undefined,
+          "On the list": String(total),
+          Status: result.entry.status,
+        },
+        link: "/admin/waitlist",
+      },
+      { admin }
+    );
   }
 
   return NextResponse.json({

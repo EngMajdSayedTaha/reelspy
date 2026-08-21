@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,6 +14,7 @@ import {
   ScrollText,
   ArrowLeft,
   ClipboardList,
+  BellRing,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +37,7 @@ const links: NavLink[] = [
   { href: "/admin/plans", label: "Plans & pricing", icon: Tags },
   { href: "/admin/content", label: "Content", icon: FolderOpen },
   { href: "/admin/ops", label: "Operations", icon: Wrench },
+  { href: "/admin/notifications", label: "Notifications", icon: BellRing },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/audit", label: "Audit log", icon: ScrollText },
 ];
@@ -46,6 +49,7 @@ function isActive(pathname: string, link: NavLink): boolean {
 
 export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
+  const unread = useUnreadAlerts(pathname);
 
   return (
     <>
@@ -99,6 +103,11 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
                 ) : null}
                 <Icon className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-110" />
                 {link.label}
+                {link.href === "/admin/notifications" && unread > 0 ? (
+                  <span className="ms-auto rounded-full bg-accent-brand/20 px-1.5 py-0.5 text-[10px] font-bold text-accent-brand">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -117,4 +126,31 @@ export function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => 
       </aside>
     </>
   );
+}
+
+// The unread badge. Re-read on every admin navigation rather than polled on a
+// timer: an admin who is clicking around gets a fresh number for free, and one
+// sitting still on a page isn't waiting on this. Silent on failure — a missing
+// badge must never be the thing that breaks the admin chrome.
+function useUnreadAlerts(pathname: string): number {
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/notifications/alerts?counts=1");
+        if (!res.ok) return;
+        const body = (await res.json()) as { counts?: { unread?: number } };
+        if (!cancelled) setUnread(body.counts?.unread ?? 0);
+      } catch {
+        // Keep the last number we had.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  return unread;
 }

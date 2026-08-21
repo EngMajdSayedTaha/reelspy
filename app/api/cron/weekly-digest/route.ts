@@ -4,6 +4,7 @@ import { cronAuthorized } from "@/lib/utils/cron";
 import { emailConfigured } from "@/lib/email/send";
 import { enqueueJob } from "@/lib/jobs/queue";
 import { numEnv } from "@/lib/utils/env";
+import { notifyCronFailure } from "@/lib/notifications/cron";
 
 // Weekly niche digest (V3/W6) — now a producer for the durable queue (V4).
 // Triggered by .github/workflows/weekly-digest.yml (Mondays 08:00 UTC). This
@@ -45,6 +46,9 @@ export async function GET(request: Request) {
     .returns<{ id: string }[]>();
 
   if (error) {
+    // The whole week's digests don't go out if this query fails, and nobody
+    // watches a red Actions run at 08:00 on a Monday.
+    await notifyCronFailure("weekly-digest", error, { admin });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

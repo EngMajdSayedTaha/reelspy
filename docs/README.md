@@ -38,6 +38,7 @@ PDF versions live in `product/` next to the Markdown. **The `.md` files are cano
 | [`cron-cadence.md`](./cron-cadence.md) | Vercel Hobby vs Pro cron layout, GitHub Actions workers |
 | [`domain-migration.md`](./domain-migration.md) | Domain history + the app.reelspy.dev subdomain split (founder actions) |
 | [`waitlist.md`](./waitlist.md) | Closing the product behind a waiting list: the switch, the review queue, who gets grandfathered |
+| [`admin-notifications.md`](./admin-notifications.md) | The alert inbox: what emails the founder, how to add a new alert, quiet hours + digest |
 | [`RELEASING.md`](./RELEASING.md) | Versioning scheme, how to ship a release, and how to write user-facing release notes |
 
 ## Live infrastructure (quick reference)

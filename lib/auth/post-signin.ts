@@ -6,6 +6,7 @@
 import "server-only";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { track } from "@/lib/analytics/track";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export type PostSignInError =
   | { code: "schema_missing"; message: string }
@@ -50,6 +51,20 @@ export async function completePostSignIn(
   const createdAt = user.created_at ? Date.parse(user.created_at) : NaN;
   if (Number.isFinite(createdAt) && Date.now() - createdAt < 2 * 60_000) {
     await track(user.id, "signed_up");
+
+    // Same window, same reason: this is the first session, so it's the signup.
+    // Batched into the digest by default — one email per new account is the
+    // fastest way to make a founder mute the whole alert channel.
+    await notifyAdmins("user.signed_up", {
+      title: `New account: ${user.email ?? user.id}`,
+      context: {
+        Email: user.email ?? undefined,
+        "Signed up with": user.app_metadata?.provider ?? "email",
+        "User id": user.id,
+      },
+      link: `/admin/users/${user.id}`,
+      // No dedupe key: two signups are never the same event, even in one minute.
+    });
   }
 
   return null;

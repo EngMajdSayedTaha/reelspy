@@ -32,8 +32,14 @@ GitHub Actions (`.github/workflows/`), each `curl`s its endpoint with
 - **`ig-cookie-health.yml`** (daily 07:15) — Instagram cookie watchdog for the
   transcript pipeline. Runs one cookie-authenticated extraction against
   `IG_HEALTHCHECK_REEL_URL`; success doubles as the session keep-alive
-  (persists the cookies Instagram rotated), failure emails
-  `ADMIN_ALERT_EMAIL` and goes red. See `docs/ig-cookies-runbook.md`.
+  (persists the cookies Instagram rotated), failure raises an
+  `integration.unhealthy` admin alert and goes red. See
+  `docs/ig-cookies-runbook.md`.
+- **`admin-digest.yml`** (hourly :20) — flushes the batched admin alerts. The
+  endpoint decides whether the founder's configured digest interval has
+  actually elapsed, so the cadence lives in Admin → Notifications rather than
+  in this cron expression. Almost every run is a no-op. See
+  `docs/admin-notifications.md`.
 
 5 minutes is the finest granularity GitHub Actions cron supports, and scheduled
 runs are best-effort (can be delayed under load).
