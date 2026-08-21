@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
 import { guardAdminMutation, parseBody } from "@/lib/admin/mutation";
 import { writeAudit } from "@/lib/admin/audit";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ip,
     userAgent,
   });
+
+  // Critical by catalog default, and it ignores quiet hours: an admin grant
+  // nobody expected is the single clearest sign an account has been taken over,
+  // and it is worth waking up for.
+  await notifyAdmins(
+    "admin.role_granted",
+    {
+      title: body.data.is_admin ? "Admin access GRANTED to a user" : "Admin access removed from a user",
+      summary: body.data.is_admin
+        ? "This account can now read every customer's data and change billing. If you didn't do this, treat it as a compromise."
+        : null,
+      context: {
+        "User id": id,
+        "Changed by": user.email ?? user.id,
+        From: before.is_admin === true ? "admin" : "regular",
+        To: body.data.is_admin ? "admin" : "regular",
+      },
+      link: `/admin/users/${id}`,
+    },
+    { admin }
+  );
 
   return NextResponse.json({ ok: true, is_admin: body.data.is_admin });
 }

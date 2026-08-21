@@ -8,6 +8,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numEnv } from "@/lib/utils/env";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export type JobKind =
   | "publish_post"
@@ -159,7 +160,9 @@ export async function deferJob(
 // plain update is safe — no contention.
 export async function failJob(
   admin: SupabaseClient,
-  job: Pick<Job, "id" | "attempts" | "max_attempts">,
+  // `kind` and `user_id` are optional only so existing callers that hand over a
+  // trimmed row keep compiling; both are used to describe the alert.
+  job: Pick<Job, "id" | "attempts" | "max_attempts"> & Partial<Pick<Job, "kind" | "user_id">>,
   error: unknown
 ): Promise<{ retried: boolean }> {
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
@@ -169,6 +172,28 @@ export async function failJob(
       .from("jobs")
       .update({ status: "failed", last_error: message, updated_at: new Date().toISOString() })
       .eq("id", job.id);
+
+    // A parked job is work that will NEVER happen on its own — a scheduled post
+    // that won't publish, a digest that won't send. Alerted here rather than in
+    // the worker so every producer of failures is covered by construction.
+    // Deduped by kind, not by job id: when the queue breaks it breaks for every
+    // job of that kind at once, and forty identical emails help nobody.
+    await notifyAdmins(
+      "job.failed",
+      {
+        title: `Job gave up after ${job.attempts} attempts: ${job.kind ?? "unknown"}`,
+        summary: message.slice(0, 300),
+        context: {
+          Kind: job.kind ?? undefined,
+          "Job id": job.id,
+          Attempts: `${job.attempts}/${job.max_attempts}`,
+          "User id": job.user_id ?? undefined,
+        },
+        link: "/admin/ops",
+        dedupeKey: `job_kind:${job.kind ?? "unknown"}`,
+      },
+      { admin }
+    );
     return { retried: false };
   }
   const runAt = new Date(Date.now() + backoffMs(job.attempts)).toISOString();

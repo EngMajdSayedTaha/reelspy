@@ -1619,3 +1619,37 @@ create index admin_notes_user_idx on admin_notes (user_id, created_at desc);
 create extension if not exists pg_trgm;
 create index profiles_username_trgm_idx on profiles using gin (username gin_trgm_ops);
 create index profiles_created_at_idx on profiles (created_at desc);
+
+-- Operational alert inbox behind /admin/notifications (migration
+-- 20260821120000_admin_alerts.sql). Every alert the product raises is logged
+-- here first and emailed second, so the record survives an unconfigured mailer,
+-- a quiet-hours hold or a failed send. Routing preferences live in the
+-- `admin_notifications` app_settings row; only the DECISION is stored per row.
+create table admin_alerts (
+  id uuid primary key default gen_random_uuid(),
+  event text not null,                    -- catalog key, e.g. 'billing.dispute_opened'
+  category text not null,
+  severity text not null check (severity in ('info', 'warning', 'critical')),
+  title text not null,
+  summary text,
+  context jsonb not null default '{}'::jsonb,
+  link text,                              -- relative admin path, e.g. '/admin/waitlist'
+  dedupe_key text,                        -- folds a storm of one failure into one row
+  repeat_count int not null default 1,
+  last_seen_at timestamptz not null default now(),
+  delivery text not null default 'pending'
+    check (delivery in ('pending', 'emailed', 'digested', 'suppressed', 'dropped', 'failed')),
+  delivery_reason text,
+  emailed_at timestamptz,
+  recipients text[] not null default '{}',
+  read_at timestamptz,
+  resolved_at timestamptz,
+  resolved_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+alter table admin_alerts enable row level security;  -- no policies: service-role only
+revoke all on table admin_alerts from anon, authenticated;
+create index admin_alerts_created_idx on admin_alerts (created_at desc);
+create index admin_alerts_event_recent_idx on admin_alerts (event, created_at desc);
+create index admin_alerts_pending_idx on admin_alerts (created_at) where delivery = 'pending';
+create index admin_alerts_unread_idx on admin_alerts (created_at desc) where read_at is null;

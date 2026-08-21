@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin/auth";
 import { type PaidTier } from "@/lib/billing/plans";
 import { loadCatalog, currentPrice, type Catalog } from "@/lib/billing/catalog";
+import { alertCounts } from "@/lib/notifications/alerts";
 
 export const runtime = "nodejs";
 
@@ -166,6 +167,9 @@ export async function GET(request: Request) {
       oldestQueuedAgeSeconds,
     },
     ai: { calls30d: aiCalls, estUsd30d: Math.round(aiEstUsd * 100) / 100 },
+    // The alert inbox in miniature, so the landing page of the admin area shows
+    // "something needs you" without the founder having to go looking for it.
+    alerts: await alertCounts(admin),
     weeklyLoopCompleters: wlc.data?.loop_completers ?? 0,
     generatedAt: new Date(now).toISOString(),
   });

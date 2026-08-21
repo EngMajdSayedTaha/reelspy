@@ -6,12 +6,14 @@ import { pruneEventLogs } from "@/lib/analytics/retention";
 // per table. Mirrors the exact call shape retention.ts uses:
 //   from(t).delete({count}).lt('created_at', cutoff)        (event tables)
 //   from(t).delete({count}).in('status', [...]).lt(...)     (jobs)
+//   from(t).delete({count}).not('resolved_at','is',null).lt(...)  (admin_alerts)
 // The builder is thenable so `await ...lt(...)` resolves.
 type TableCfg = { count?: number; error?: string };
+type Call = { table: string; ltVal?: string; inVals?: unknown; notArgs?: unknown[] };
 function fakeAdmin(perTable: Record<string, TableCfg> = {}) {
-  const calls: Array<{ table: string; ltVal?: string; inVals?: unknown }> = [];
+  const calls: Call[] = [];
   function makeBuilder(table: string) {
-    const state: { table: string; ltVal?: string; inVals?: unknown } = { table };
+    const state: Call = { table };
     const settle = () => {
       calls.push(state);
       const cfg = perTable[table] ?? { count: 0 };
@@ -24,6 +26,10 @@ function fakeAdmin(perTable: Record<string, TableCfg> = {}) {
       delete: () => builder,
       in: (_col: string, vals: unknown) => {
         state.inVals = vals;
+        return builder;
+      },
+      not: (...args: unknown[]) => {
+        state.notArgs = args;
         return builder;
       },
       lt: (_col: string, val: string) => {
@@ -41,12 +47,13 @@ const NOW = Date.UTC(2027, 0, 1); // fixed clock so cutoffs are deterministic
 const DAY = 86_400_000;
 
 describe("pruneEventLogs", () => {
-  it("prunes all four tables and sums the deleted counts", async () => {
+  it("prunes every retained table and sums the deleted counts", async () => {
     const { client, calls } = fakeAdmin({
       app_events: { count: 3 },
       ai_usage: { count: 1 },
       automation_events: { count: 2 },
       jobs: { count: 5 },
+      admin_alerts: { count: 7 },
     });
     const result = await pruneEventLogs(client, NOW);
 
@@ -55,6 +62,7 @@ describe("pruneEventLogs", () => {
       ai_usage: 1,
       automation_events: 2,
       jobs: 5,
+      admin_alerts: 7,
     });
     expect(result.errors).toEqual({});
     expect(calls.map((c) => c.table)).toEqual([
@@ -62,19 +70,36 @@ describe("pruneEventLogs", () => {
       "ai_usage",
       "automation_events",
       "jobs",
+      "admin_alerts",
     ]);
   });
 
-  it("uses the 365-day window for events and 30-day for jobs", async () => {
+  it("uses a window sized to each table's usefulness", async () => {
     const { client, calls } = fakeAdmin();
     const result = await pruneEventLogs(client, NOW);
 
     expect(result.cutoffs.events).toBe(new Date(NOW - 365 * DAY).toISOString());
     expect(result.cutoffs.jobs).toBe(new Date(NOW - 30 * DAY).toISOString());
+    expect(result.cutoffs.alerts).toBe(new Date(NOW - 180 * DAY).toISOString());
     for (const c of calls) {
-      const expected = c.table === "jobs" ? result.cutoffs.jobs : result.cutoffs.events;
+      const expected =
+        c.table === "jobs"
+          ? result.cutoffs.jobs
+          : c.table === "admin_alerts"
+            ? result.cutoffs.alerts
+            : result.cutoffs.events;
       expect(c.ltVal).toBe(expected);
     }
+  });
+
+  it("never prunes an alert nobody has resolved, however old", async () => {
+    const { client, calls } = fakeAdmin();
+    await pruneEventLogs(client, NOW);
+    expect(calls.find((c) => c.table === "admin_alerts")?.notArgs).toEqual([
+      "resolved_at",
+      "is",
+      null,
+    ]);
   });
 
   it("only deletes terminal jobs (done/failed)", async () => {

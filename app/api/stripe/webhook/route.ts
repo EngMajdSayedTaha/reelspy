@@ -11,6 +11,7 @@ import {
   customEntitlementsOf,
 } from "@/lib/billing/sync";
 import { notifySubscriptionChange, emailForUser } from "@/lib/billing/notify";
+import { alertOnStripeEvent } from "@/lib/notifications/billing-alerts";
 import { dayLabelFromUnix } from "@/lib/billing/format";
 import { loadCatalog, planName, resolverFor, slugForStripePrice } from "@/lib/billing/catalog";
 import type { AiTier } from "@/lib/ai/tier";
@@ -435,6 +436,11 @@ export async function POST(request: Request) {
     console.error("[stripe/webhook] handler error:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Handler error." }, { status: 500 });
   }
+
+  // Tell the founder what just moved. AFTER the handler, so an alert is only
+  // ever raised for an event we actually processed, and outside its try/catch,
+  // so alerting can never turn a successful webhook into a 500 Stripe retries.
+  await alertOnStripeEvent(admin, event);
 
   // Record success for idempotency (best-effort; never fail the ack over this).
   try {

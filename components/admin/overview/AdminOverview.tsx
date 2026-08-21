@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Users, CreditCard, Briefcase, Sparkles, Repeat, TriangleAlert } from "lucide-react";
+import { BellRing, Users, CreditCard, Briefcase, Sparkles, Repeat, TriangleAlert } from "lucide-react";
 import { StatCard } from "@/components/admin/StatCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requestJson, notifyError } from "@/lib/utils/api";
@@ -11,6 +11,7 @@ type Overview = {
   subscriptions: { byTier: Record<string, number>; activePaid: number; mrrAed: number };
   jobs: { byStatus: Record<string, number>; failed24h: number; oldestQueuedAgeSeconds: number | null };
   ai: { calls30d: number; estUsd30d: number };
+  alerts: { unresolved: number; criticalUnresolved: number; last24h: number };
   weeklyLoopCompleters: number;
   generatedAt: string;
 };
@@ -65,6 +66,20 @@ export function AdminOverview() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Two banners, above everything, because the point of this page is to
+          answer "does anything need me right now?" before it answers anything
+          else. Both are silent when there is nothing to say. */}
+      {data.alerts && data.alerts.criticalUnresolved > 0 ? (
+        <StatCard
+          label="Alerts needing action"
+          value={data.alerts.criticalUnresolved}
+          hint={`${data.alerts.unresolved} open in total · Notifications →`}
+          href="/admin/notifications"
+          tone="danger"
+          icon={<BellRing className="h-4 w-4" />}
+        />
+      ) : null}
+
       {data.jobs.failed24h > 0 ? (
         <StatCard
           label="Failed jobs (24h)"

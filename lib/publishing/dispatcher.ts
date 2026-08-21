@@ -16,6 +16,7 @@ import { tiktokAdapter } from "./adapters/tiktok";
 import { youtubeAdapter } from "./adapters/youtube";
 import { track } from "@/lib/analytics/track";
 import { notifyPublishFailure, type FailedTarget } from "@/lib/email/publish-failure";
+import { notifyAdmins } from "@/lib/notifications/notify";
 import type {
   PlatformAdapter,
   Platform,
@@ -241,6 +242,29 @@ export async function dispatchPost(
         err instanceof Error ? err.message : err
       );
     }
+
+    // The founder's copy. OFF by default in the catalog — the user is already
+    // told, and one rejected caption is their problem, not an incident. It's
+    // here so it can be switched ON during a platform outage, when a wave of
+    // these is the fastest signal that an integration has broken.
+    await notifyAdmins(
+      "publish.failed",
+      {
+        title: `Publish failed on ${failedTargets.map((t) => t.platform).join(", ")}`,
+        summary: failedTargets[0]?.error?.slice(0, 200) ?? null,
+        context: {
+          "Post id": postId,
+          "User id": post.user_id,
+          Succeeded: String(succeeded),
+          Failed: String(stillFailed),
+        },
+        link: "/admin/ops",
+        // Per platform: a platform-wide outage folds into one alert, while two
+        // different platforms breaking stay two separate signals.
+        dedupeKey: `publish:${failedTargets.map((t) => t.platform).sort().join("+")}`,
+      },
+      { admin }
+    );
   }
 
   return { postId, published, failed };

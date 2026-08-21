@@ -1,0 +1,42 @@
+name: Admin alert digest
+
+# Flushes the batched admin alerts (Admin → Notifications → Digest). Calls
+# /api/cron/admin-digest, which reads the founder's configured interval from
+# app_settings and returns `too_soon` until it has elapsed — so this workflow
+# runs HOURLY and the actual cadence stays a setting in the product, changeable
+# without a deploy or an edit here.
+#
+# Vercel Hobby's cron slots are spent on the snapshot/token/catalog refreshers,
+# so this rides GitHub Actions like the weekly digest and the cookie watchdog.
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#   Secret    CRON_SECRET   = the same value as the Vercel env var CRON_SECRET
+#   Variable  APP_BASE_URL  = https://<your-production-domain>   (no trailing slash)
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load.
+# Scheduled workflows run on the default branch only and auto-pause after 60 days
+# of repo inactivity. A delayed run just means a slightly late digest — alerts
+# routed as immediate never wait for this.
+
+on:
+  schedule:
+    # Every hour at :20, away from the other workflows' :00/:15 starts.
+    - cron: "20 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Flush the admin alert digest
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "Missing CRON_SECRET secret or APP_BASE_URL variable — see workflow header." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/admin-digest"

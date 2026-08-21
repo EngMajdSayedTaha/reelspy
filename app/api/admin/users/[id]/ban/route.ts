@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin/auth";
 import { guardAdminMutation, parseBody } from "@/lib/admin/mutation";
 import { writeAudit } from "@/lib/admin/audit";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ip,
     userAgent,
   });
+
+  // Locking a customer out is a decision the whole team should see, not just a
+  // line in the audit log nobody reads until something goes wrong.
+  await notifyAdmins(
+    "user.banned",
+    {
+      title: body.data.banned ? "A user was banned" : "A user was unbanned",
+      summary: body.data.reason ?? null,
+      context: {
+        "User id": id,
+        "By admin": user.email ?? user.id,
+        Reason: body.data.reason ?? undefined,
+      },
+      link: `/admin/users/${id}`,
+    },
+    { admin }
+  );
 
   return NextResponse.json({ ok: true, banned: body.data.banned });
 }

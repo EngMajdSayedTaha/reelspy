@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { deleteR2Object } from "@/lib/storage/r2";
+import { notifyAdmins } from "@/lib/notifications/notify";
 
 // POST /api/account/delete — PDPL right to erasure. Permanently deletes the
 // account and everything hanging off it. Order:
@@ -38,6 +39,20 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+
+  // Read what they were worth BEFORE the cascade takes it away — a churn alert
+  // that can't say "this was a paying customer" is barely worth sending.
+  let tierAtDeletion: string | null = null;
+  try {
+    const { data: sub } = await admin
+      .from("subscriptions")
+      .select("tier, status")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    tierAtDeletion = sub ? `${sub.tier}${sub.status ? ` (${sub.status})` : ""}` : null;
+  } catch {
+    tierAtDeletion = null;
+  }
 
   // 1. Revoke Meta permissions so our token can no longer touch their account.
   try {
@@ -107,6 +122,24 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  // The account is gone; tell the founder while there's still something to say
+  // about it. Deliberately after the deletion succeeded — an alert about an
+  // erasure that failed halfway would be worse than none.
+  await notifyAdmins("user.deleted_account", {
+    title: `Account deleted: ${user.email ?? user.id}`,
+    summary:
+      "The user erased their account and all their data (PDPL right to erasure). Nothing is recoverable.",
+    context: {
+      Email: user.email ?? undefined,
+      "User id": user.id,
+      Plan: tierAtDeletion ?? "free / none",
+      "Account age": user.created_at
+        ? `${Math.max(0, Math.floor((Date.now() - Date.parse(user.created_at)) / 86_400_000))} day(s)`
+        : undefined,
+    },
+    dedupeKey: `user:${user.id}`,
+  });
 
   // Best-effort: clear the now-orphaned session cookies.
   try {

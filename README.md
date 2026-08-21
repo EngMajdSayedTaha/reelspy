@@ -38,7 +38,7 @@ and never errors):
   `node scripts/update-ig-cookies.mjs <cookies.txt>` (no redeploy). The session self-refreshes
   and a daily health check alerts on failure — see `docs/ig-cookies-runbook.md`.
   `YTDLP_COOKIES_B64` remains only as a bootstrap fallback.
-- `IG_HEALTHCHECK_REEL_URL` / `ADMIN_ALERT_EMAIL` — cookie health check + alert recipient.
+- `IG_HEALTHCHECK_REEL_URL` / `ADMIN_ALERT_EMAIL` — cookie health check + fallback admin-alert recipient (alerts are configured in-product at Admin → Notifications; see `docs/admin-notifications.md`).
 - `YTDLP_BIN` — optional path override for the yt-dlp binary.
 
 Set `GROQ_API_KEY` in `.env.local` locally and in the Vercel project's Production

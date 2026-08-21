@@ -24,6 +24,8 @@ type IgCookieValue = {
   last_ok_at?: string | null;
   last_error?: string | null;
   last_error_at?: string | null;
+  // Written by the retired in-module email throttle; alert throttling now lives
+  // in lib/notifications. Kept on the type so an existing row still parses.
   last_alert_at?: string | null;
   rotations?: number;
 };
@@ -155,17 +157,4 @@ export async function recordCookieFailure(detail: string): Promise<void> {
     last_error: detail.slice(0, 400),
     last_error_at: new Date().toISOString(),
   });
-}
-
-// Email throttle for the health cron: claims an alert slot if none was claimed
-// within minIntervalMs. Read-modify-write (not atomic) — a racing duplicate
-// email is harmless and the cron runs once a day anyway.
-export async function claimAlertSlot(minIntervalMs: number): Promise<boolean> {
-  const row = await readRow();
-  const last = row?.value.last_alert_at ? Date.parse(row.value.last_alert_at) : 0;
-  if (Number.isFinite(last) && Date.now() - last < minIntervalMs) {
-    return false;
-  }
-  await writeValue({ last_alert_at: new Date().toISOString() });
-  return true;
 }
