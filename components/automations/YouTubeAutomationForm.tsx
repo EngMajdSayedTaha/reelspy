@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SuggestionFlipper } from "@/components/automations/SuggestionFlipper";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 type ActionState = { error?: string };
@@ -145,6 +146,13 @@ export function YouTubeAutomationForm({ action }: YouTubeAutomationFormProps) {
               placeholder={dict.ytForm.publicRepliesPlaceholder}
               value={templates}
               onChange={(e) => setTemplates(e.target.value)}
+              disabled={isPending}
+            />
+            <SuggestionFlipper
+              suggestions={dict.suggestions.publicReply}
+              value={templates}
+              onChange={setTemplates}
+              applyMode="append-line"
               disabled={isPending}
             />
           </div>

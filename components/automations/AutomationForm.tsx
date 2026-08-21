@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Clapperboard, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SuggestionFlipper } from "@/components/automations/SuggestionFlipper";
 import { isReelItem } from "@/lib/instagram/insights-export";
 import { requestJson } from "@/lib/utils/api";
 import { useDict, useLocale } from "@/lib/i18n/I18nProvider";
@@ -64,6 +65,7 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
   const [dmLink, setDmLink] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const dmMessageRef = useRef<HTMLTextAreaElement>(null);
 
   // The picker rides the cache-first my-reels endpoint, so the initial load
   // normally costs zero Graph API calls. `force` hits the endpoint with
@@ -262,6 +264,13 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
               onChange={(e) => setTemplates(e.target.value)}
               disabled={isPending}
             />
+            <SuggestionFlipper
+              suggestions={dict.suggestions.publicReply}
+              value={templates}
+              onChange={setTemplates}
+              applyMode="append-line"
+              disabled={isPending}
+            />
           </div>
 
           <div className="space-y-2">
@@ -272,6 +281,16 @@ export function AutomationForm({ action, automatedMediaIds }: AutomationFormProp
               placeholder={dict.form.dmMessagePlaceholder}
               value={dmMessage}
               onChange={(e) => setDmMessage(e.target.value)}
+              disabled={isPending}
+              ref={dmMessageRef}
+            />
+            <SuggestionFlipper
+              suggestions={dict.suggestions.dmMessage}
+              value={dmMessage}
+              onChange={setDmMessage}
+              applyMode="replace"
+              icons={dict.suggestions.icons}
+              targetRef={dmMessageRef}
               disabled={isPending}
             />
           </div>
