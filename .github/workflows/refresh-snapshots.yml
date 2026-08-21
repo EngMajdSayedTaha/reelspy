@@ -1,0 +1,63 @@
+name: Refresh snapshots
+
+# Keeps the global IG snapshot cache warm and mirrors the public showcase's
+# reel videos. Calls /api/cron/refresh-snapshots, authenticated with
+# CRON_SECRET (see lib/utils/cron.ts).
+#
+# vercel.json already schedules this endpoint once a day, which is all the
+# Vercel Hobby plan permits — an hourly schedule there is rejected outright at
+# deploy time (the deployment fails in seconds, before any build runs). That
+# daily cadence was the reason the marketing wall on reelspy.dev sat on stills
+# after reel-video ingestion shipped: video_url is only written when the Meta
+# sync re-fetches an account, and the day's single run had already happened
+# before the feature deployed, so the next opportunity was 24h out.
+#
+# Running here as well closes that window without touching the Vercel plan —
+# the same escape hatch run-jobs, poll-youtube-comments and the other frequent
+# workers in this directory already use. Six-hourly deliberately matches
+# SNAPSHOT_TTL_SECONDS (6h): a run inside the TTL finds every account still
+# fresh and skips it, so the extra runs cost no Meta quota and exist to catch
+# up whatever the previous one could not finish.
+#
+# workflow_dispatch is the manual "backfill now" button — Actions → Refresh
+# snapshots → Run workflow — which beats waiting for a schedule after shipping
+# a change to what the sync writes.
+#
+# One-time setup — repo Settings → Secrets and variables → Actions:
+#   Secret    CRON_SECRET   = the same value as the Vercel env var CRON_SECRET
+#   Variable  APP_BASE_URL  = https://<your-production-domain>   (no trailing slash)
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed under load.
+# Scheduled workflows run on the default branch only and auto-pause after 60
+# days of repo inactivity.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+# The endpoint refreshes accounts, drains a seed batch and mirrors videos in
+# one request; two overlapping runs would race for the same Meta budget.
+concurrency:
+  group: refresh-snapshots
+  cancel-in-progress: false
+
+jobs:
+  refresh-snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Refresh snapshots and mirror showcase video
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$CRON_SECRET" ] || [ -z "$APP_BASE_URL" ]; then
+            echo "Missing CRON_SECRET secret or APP_BASE_URL variable — see workflow header." >&2
+            exit 1
+          fi
+          # --max-time sits just past the route's own maxDuration (300s) so a
+          # run that legitimately uses its whole budget is not cut short here.
+          curl --fail-with-body --silent --show-error --max-time 320 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${APP_BASE_URL}/api/cron/refresh-snapshots"
