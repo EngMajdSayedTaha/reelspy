@@ -20,7 +20,9 @@ import { publishFetch } from "../http";
 import type { PlatformAdapter, PublishInput, PublishMediaItem, PublishResult } from "../types";
 import { buildCaption } from "../caption";
 
-const POLL_INTERVAL_MS = 3000;
+function pollIntervalMs(): number {
+  return numEnv("PUBLISH_POLL_INTERVAL_MS", 3000);
+}
 
 function containerDeadlineMs(): number {
   return numEnv("PUBLISH_CONTAINER_TIMEOUT_MS", 4 * 60_000);
@@ -74,7 +76,7 @@ async function waitForContainer(
   deadline: number
 ): Promise<void> {
   for (;;) {
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(pollIntervalMs());
 
     const url = new URL(`${THREADS_BASE}/${containerId}`);
     url.searchParams.set("fields", "status,error_message");

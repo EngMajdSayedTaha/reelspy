@@ -20,7 +20,9 @@ import type { PlatformAdapter, PublishInput, PublishResult } from "../types";
 import { buildCaption } from "../caption";
 
 export const API_BASE = "https://open.tiktokapis.com/v2";
-const POLL_INTERVAL_MS = 4000;
+function pollIntervalMs(): number {
+  return numEnv("PUBLISH_POLL_INTERVAL_MS", 4000);
+}
 
 function statusDeadlineMs(): number {
   return numEnv("PUBLISH_CONTAINER_TIMEOUT_MS", 4 * 60_000);
@@ -92,7 +94,7 @@ async function waitForPublish(
   const deadline = Date.now() + statusDeadlineMs();
 
   for (;;) {
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(pollIntervalMs());
 
     const { ok, status, json } = await tiktokPost<StatusResponse>(
       "/post/publish/status/fetch/",

@@ -26,7 +26,9 @@ import { buildCaption } from "../caption";
 // Container processing is async on Meta's side; poll with a wall-clock deadline
 // so a stuck transcode can't hold the worker. A 10-video carousel polls all of
 // its children concurrently against this same budget.
-const POLL_INTERVAL_MS = 3000;
+function pollIntervalMs(): number {
+  return numEnv("PUBLISH_POLL_INTERVAL_MS", 3000);
+}
 
 function containerDeadlineMs(): number {
   return numEnv("PUBLISH_CONTAINER_TIMEOUT_MS", 4 * 60_000);
@@ -103,7 +105,7 @@ async function waitForContainer(
   deadline: number
 ): Promise<void> {
   for (;;) {
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(pollIntervalMs());
 
     const url = new URL(`${GRAPH_BASE}/${containerId}`);
     url.searchParams.set("fields", "status_code");
