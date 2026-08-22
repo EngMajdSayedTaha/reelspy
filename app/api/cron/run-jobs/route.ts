@@ -14,7 +14,7 @@ import {
   type JobKind,
 } from "@/lib/jobs/queue";
 import { readAppPausedUntil } from "@/lib/instagram/rate-limit";
-import { dispatchPost } from "@/lib/publishing/dispatcher";
+import { abandonPendingJobs, dispatchPost } from "@/lib/publishing/dispatcher";
 import { runTranscribeReel, RETRYABLE_OUTCOMES } from "@/lib/media/transcribe-job";
 import { runTranscribeAccount } from "@/lib/media/transcribe-account-job";
 import { transcribeAccountDedupKey } from "@/lib/media/transcribe-account-status";
@@ -113,7 +113,14 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
         // the queue job here would strand it: nothing else re-runs a pending
         // publish_job. Reschedule with backoff so the same dispatcher picks up
         // exactly the targets that haven't landed yet.
-        await failJob(admin, job, new Error(`${result.deferred} target(s) waiting on a retry`));
+        const reason = `${result.deferred} target(s) waiting on a retry`;
+        const { retried } = await failJob(admin, job, new Error(reason));
+        if (!retried) {
+          // Out of attempts. The queue will never look at this post again, so
+          // close the still-pending targets out honestly rather than leaving
+          // the post reading "Publishing" forever.
+          await abandonPendingJobs(admin, postId, "Gave up after repeated retries.");
+        }
       } else {
         await completeJob(admin, job.id);
       }

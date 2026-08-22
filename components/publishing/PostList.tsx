@@ -47,9 +47,14 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "border-border-strong bg-border-strong/40 text-muted-foreground",
 };
 
-// A post in one of these is still moving, so it's worth polling for.
+// A post in one of these is actually in flight, so it's worth polling for.
+//
+// Deliberately keyed on the POST's status, not its jobs': a post scheduled for
+// next week also has `pending` jobs, and polling on those would mean a request
+// every 30 seconds, forever, for a post that cannot change until its scheduled
+// time. The dispatcher flips the post to `publishing` the moment it picks it
+// up, which is exactly when there is something to watch.
 const LIVE_POST_STATUSES = new Set(["publishing", "processing"]);
-const LIVE_JOB_STATUSES = new Set(["pending", "processing"]);
 
 type Filter = "all" | "scheduled" | "published" | "failed";
 
@@ -88,14 +93,7 @@ export function PostList({ initialPosts }: { initialPosts: PostRow[] }) {
   }
 
   const liveIds = useMemo(
-    () =>
-      posts
-        .filter(
-          (post) =>
-            LIVE_POST_STATUSES.has(post.status) ||
-            post.publish_jobs.some((job) => LIVE_JOB_STATUSES.has(job.status))
-        )
-        .map((post) => post.id),
+    () => posts.filter((post) => LIVE_POST_STATUSES.has(post.status)).map((post) => post.id),
     [posts]
   );
 

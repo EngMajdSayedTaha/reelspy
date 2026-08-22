@@ -70,6 +70,7 @@ const en = {
     // ── Platform targets ─────────────────────────────────────────────────────
     postToLabel: "Post to",
     notConnectedSuffix: " · not connected",
+    notConnectedLabel: "Not connected",
     connectFirstHint: "Connect this platform first",
     connectAtLeastOne: "Connect at least one platform on the Connections tab to start posting.",
     capCarousel: (max: number) => `Carousel · up to ${max} slides`,
@@ -383,6 +384,7 @@ export const publishingAr: PublishingDict = {
 
     postToLabel: "النشر على",
     notConnectedSuffix: " · غير متصل",
+    notConnectedLabel: "غير متصل",
     connectFirstHint: "اربط هذه المنصة أولًا",
     connectAtLeastOne: "اربط منصة واحدة على الأقل من تبويب الربط لتتمكن من النشر.",
     capCarousel: (max: number) => `ألبوم · حتى ${max} شريحة`,

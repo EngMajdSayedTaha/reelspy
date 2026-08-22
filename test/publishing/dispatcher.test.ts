@@ -75,7 +75,9 @@ vi.mock("@/lib/notifications/notify", () => ({
 
 vi.mock("@/lib/analytics/track", () => ({ track: vi.fn(async () => {}) }));
 
-const { dispatchPost, isRetryableFailure } = await import("@/lib/publishing/dispatcher");
+const { abandonPendingJobs, dispatchPost, isRetryableFailure } = await import(
+  "@/lib/publishing/dispatcher"
+);
 
 type JobRow = {
   id: string;
@@ -118,22 +120,21 @@ function fakeAdmin(post: Record<string, unknown>, jobs: JobRow[]) {
 
   function builder(table: string) {
     const eqs: Array<[string, unknown]> = [];
+    const ins: Array<[string, unknown[]]> = [];
     let patch: Record<string, unknown> | null = null;
 
     const matches = (row: Record<string, unknown>) =>
-      eqs.every(([col, val]) => row[col] === val);
+      eqs.every(([col, val]) => row[col] === val) &&
+      ins.every(([col, vals]) => vals.includes(row[col]));
 
     const run = async () => {
+      const rows = table === "publish_jobs" ? state.jobs.filter(matches) : [state.post].filter(matches);
       if (patch) {
-        if (table === "publish_jobs") {
-          for (const row of state.jobs) if (matches(row)) Object.assign(row, patch);
-        } else if (matches(state.post)) {
-          Object.assign(state.post, patch);
-        }
-        return { data: null, error: null };
+        for (const row of rows) Object.assign(row, patch);
+        // PostgREST returns the affected rows when the caller chains .select().
+        return { data: rows, error: null };
       }
-      const data = table === "publish_jobs" ? state.jobs.filter(matches) : [state.post];
-      return { data, error: null };
+      return { data: rows, error: null };
     };
 
     const b = {
@@ -141,6 +142,10 @@ function fakeAdmin(post: Record<string, unknown>, jobs: JobRow[]) {
       returns: () => b,
       eq: (col: string, val: unknown) => {
         eqs.push([col, val]);
+        return b;
+      },
+      in: (col: string, vals: unknown[]) => {
+        ins.push([col, vals]);
         return b;
       },
       update: (next: Record<string, unknown>) => {
@@ -360,5 +365,44 @@ describe("dispatchPost", () => {
 
     const [, input] = publishMock.mock.calls[0];
     expect(input.mediaKind).toBe("video");
+  });
+});
+
+describe("abandonPendingJobs", () => {
+  it("closes out targets the queue gave up on, so a post can't read 'Publishing' forever", async () => {
+    const { client, state } = fakeAdmin({ ...basePost, status: "publishing" }, [
+      job({ id: "job-ig", platform: "instagram", status: "pending" }),
+      job({ id: "job-tt", platform: "tiktok", status: "processing" }),
+    ]);
+
+    await abandonPendingJobs(client, "post-1", "Gave up after repeated retries.");
+
+    expect(state.jobs.map((j) => j.status)).toEqual(["failed", "failed"]);
+    expect(state.jobs[0].error_message).toBe("Gave up after repeated retries.");
+    expect(state.post.status).toBe("failed");
+  });
+
+  it("reports `partial` when some targets did land before the queue gave up", async () => {
+    const { client, state } = fakeAdmin({ ...basePost, status: "publishing" }, [
+      job({ id: "job-ig", platform: "instagram", status: "published" }),
+      job({ id: "job-tt", platform: "tiktok", status: "pending" }),
+    ]);
+
+    await abandonPendingJobs(client, "post-1", "Gave up.");
+
+    expect(state.jobs.find((j) => j.id === "job-ig")!.status).toBe("published");
+    expect(state.jobs.find((j) => j.id === "job-tt")!.status).toBe("failed");
+    expect(state.post.status).toBe("partial");
+  });
+
+  it("leaves a finished post alone", async () => {
+    const { client, state } = fakeAdmin({ ...basePost, status: "done" }, [
+      job({ id: "job-ig", platform: "instagram", status: "published" }),
+    ]);
+
+    await abandonPendingJobs(client, "post-1", "Gave up.");
+
+    expect(state.jobs[0].status).toBe("published");
+    expect(state.post.status).toBe("done");
   });
 });

@@ -144,6 +144,53 @@ async function resolveCredentials(
   }
 }
 
+/**
+ * Give up on a post whose queue job has spent its retries.
+ *
+ * A deferred target is left `pending` on purpose so the queue re-runs it — but
+ * the queue eventually parks the job as `failed`, and at that point nothing
+ * else in the system will ever look at those rows again. Without this the post
+ * sits on "Publishing" forever, with a Retry button that is the user's only
+ * clue anything is wrong. Called by the worker when failJob reports it did not
+ * reschedule.
+ */
+export async function abandonPendingJobs(
+  admin: SupabaseClient,
+  postId: string,
+  reason: string
+): Promise<void> {
+  // One statement, so the status flip and the reason land together and the
+  // `pending`/`processing` filter can't miss rows a partial write left behind.
+  const { data: stranded } = await admin
+    .from("publish_jobs")
+    .update({
+      status: "failed",
+      error_message: reason.slice(0, 500),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("post_id", postId)
+    .in("status", ["pending", "processing"])
+    .select("id")
+    .returns<{ id: string }[]>();
+
+  if (!stranded || stranded.length === 0) return;
+
+  const { data: allJobs } = await admin
+    .from("publish_jobs")
+    .select("status")
+    .eq("post_id", postId)
+    .returns<{ status: string }[]>();
+
+  const succeeded = allJobs?.filter((j) => j.status === "published").length ?? 0;
+  await admin
+    .from("publish_posts")
+    .update({
+      status: succeeded > 0 ? "partial" : "failed",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", postId);
+}
+
 export async function dispatchPost(
   admin: SupabaseClient,
   postId: string

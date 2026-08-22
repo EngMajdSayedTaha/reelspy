@@ -272,12 +272,14 @@ Final ordering: **followers desc** (biggest, most recognizable creators first �
 
 ## 10. Publishing
 
-`lib/publishing/*` — cross-post one video to IG Reels, FB Page, TikTok, YouTube; now or scheduled.
-- Video goes **browser → Cloudflare R2** via presigned PUT (bytes never touch the server — fixes the 413 cap; client guard 500 MB). Dispatcher signs one 30-min GET URL; platform adapters pull directly.
-- Idempotent fan-out: one `publish_posts` row → N `publish_jobs`; only `pending` jobs run, so "Post now" + the queued job can't double-post. Partial results tracked per job.
-- TikTok/YouTube tokens auto-refresh; unrefreshable connections marked invalid.
-- TikTok/YouTube posts default **private** until each platform's app audit passes (`TIKTOK_ALLOW_PUBLIC` / `YOUTUBE_ALLOW_PUBLIC`). TikTok pull-from-URL additionally needs a verified custom domain on the R2 bucket (`R2_PUBLIC_BASE_URL`).
-- Publish failures can email the user via Resend (silent no-op without keys).
+`lib/publishing/*` — cross-post one upload (video, photo, or carousel) to IG, FB Page, TikTok, YouTube, Threads; now or scheduled.
+- Media goes **browser → Cloudflare R2** via presigned PUT (bytes never touch the server — fixes the 413 cap; ceilings `PUBLISH_MAX_IMAGE_MB` / `PUBLISH_MAX_VIDEO_MB`), uploaded per file with real progress (XHR — `fetch` reports none). One `publish_media` row per slide; the dispatcher signs each and the adapters pull directly.
+- **One capability table** (`lib/publishing/capabilities.ts`) holds every platform's real limits — carousel bounds (IG 2–10, Threads 2–20, TikTok photo 2–35, none on YouTube), accepted MIME types, size caps, caption/hashtag ceilings. `validate.ts` turns it into issues that the composer renders and `createPublishPost` re-runs server-side, so a stale tab can't queue a job only the platform could reject.
+- **Everything goes through the durable queue** — "Post now" included. The action enqueues and pokes `/api/cron/run-jobs` from `after()`; publishing then runs in its own 300s invocation instead of racing the server action's timeout (IG polls its container for minutes; a carousel is a dozen round-trips). Without `CRON_SECRET` the poke is skipped and the 5-minute cron picks it up.
+- Idempotent fan-out: one `publish_posts` row → N `publish_jobs`, unique on `(post_id, platform)`; only `pending` jobs run, so a retry can't double-post. Failures are classified — a rate limit/timeout/5xx stays `pending` for the queue's backoff, a rejection is written `failed`; when the queue itself gives up, the stranded targets are closed out rather than left reading "Publishing".
+- TikTok/YouTube/Threads tokens auto-refresh; unrefreshable connections marked invalid. Threads has **no** refresh token — its 60-day access token is refreshed in place, and one that lapses cannot be revived.
+- TikTok/YouTube posts default **private** until each platform's app audit passes (`TIKTOK_ALLOW_PUBLIC` / `YOUTUBE_ALLOW_PUBLIC`). TikTok pull-from-URL additionally needs a verified custom domain on the R2 bucket (`R2_PUBLIC_BASE_URL`). IG/FB/Threads post publicly with no review.
+- Publish failures can email the user via Resend (silent no-op without keys). Deferred targets stay silent — they haven't failed yet.
 - Studio tier: up to 5 IG connections, switchable in the composer (X4; `ig_connections` table).
 
 ---

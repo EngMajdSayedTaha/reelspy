@@ -80,7 +80,7 @@ export function PlatformTargets({ connected, handles, selected, onToggle, media 
                   </span>
                   <span className="block truncate text-[11px] text-muted-foreground">
                     {!isConn
-                      ? t.notConnectedSuffix.replace(/^\s*·\s*/, "")
+                      ? t.notConnectedLabel
                       : !fits
                         ? t.incompatibleWithMedia
                         : (handles[platform] ?? capabilityLine(platform))}
