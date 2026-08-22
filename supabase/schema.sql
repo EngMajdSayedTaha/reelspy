@@ -530,7 +530,7 @@ create table social_connections (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   platform text not null
-    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube')),
+    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube', 'threads')),
   account_id text not null,
   account_name text,
   account_username text,
@@ -614,11 +614,15 @@ create table publish_posts (
   title text,
   caption text,
   hashtags text,
-  video_path text not null,                -- object path in the publish-media bucket
+  video_path text,                         -- legacy single-video R2 key; null for image/carousel posts
   thumbnail_path text,
   duration_seconds integer,
   status text not null default 'draft'
     check (status in ('draft', 'scheduled', 'publishing', 'done', 'partial', 'failed')),
+  media_kind text not null default 'video'
+    check (media_kind in ('video', 'image', 'carousel')),
+  cover_index integer not null default 0,  -- carousel cover slide (TikTok photo_cover_index)
+  cover_ms integer,                        -- video cover frame in ms (Instagram thumb_offset)
   scheduled_at timestamptz,                -- null = publish immediately
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -630,13 +634,38 @@ create policy "Users can manage own posts"
 create index publish_posts_user_created_idx on publish_posts (user_id, created_at desc);
 create index publish_posts_due_idx on publish_posts (status, scheduled_at);
 
+-- One row per slide, ordered by `position`. The source of truth for a post's
+-- media since 20260822021155 (photos + carousels); `video_path` above is the
+-- legacy single-video column, kept populated for pre-existing posts.
+create table publish_media (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references publish_posts(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  position integer not null,               -- 0-based; slide 0 is the single-media fallback
+  kind text not null check (kind in ('image', 'video')),
+  storage_path text not null,              -- Cloudflare R2 object key
+  mime_type text not null,
+  byte_size bigint,
+  width integer,
+  height integer,
+  duration_seconds numeric,
+  alt_text text,                           -- IG alt_text / FB alt_text_custom
+  created_at timestamptz not null default now(),
+  unique (post_id, position)
+);
+alter table publish_media enable row level security;
+create policy "Users can manage own publish media"
+  on publish_media for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index publish_media_post_idx on publish_media (post_id, position);
+
 create table publish_jobs (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references publish_posts(id) on delete cascade,
   user_id uuid not null references profiles(id) on delete cascade,
   connection_id uuid references social_connections(id) on delete set null,
   platform text not null
-    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube')),
+    check (platform in ('instagram', 'facebook', 'tiktok', 'youtube', 'threads')),
   privacy text not null default 'public',
   status text not null default 'pending'
     check (status in ('pending', 'processing', 'published', 'failed')),
@@ -647,13 +676,17 @@ create table publish_jobs (
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   caption text,
-  platform_options jsonb,                  -- TikTok-only compliance-panel choices (T4); null elsewhere
-  unique (post_id, connection_id)          -- idempotency: never double-post a target
+  platform_options jsonb                   -- per-platform composer choices (TikTok compliance panel); null elsewhere
 );
 alter table publish_jobs enable row level security;
 create policy "Users can read own jobs"
   on publish_jobs for select using (auth.uid() = user_id);
 create index publish_jobs_post_idx on publish_jobs (post_id);
+create index publish_jobs_user_status_idx on publish_jobs (user_id, status);
+-- Idempotency: never double-post a target. Keyed on platform, not connection_id
+-- — IG/FB keep their credentials on `profiles`, so connection_id is NULL for
+-- both and NULLs are distinct in a unique constraint (fixed 20260822021155).
+create unique index publish_jobs_post_platform_key on publish_jobs (post_id, platform);
 
 -- ── YouTube auto-reply (comment keyword → public reply) ──────────────────────
 create table youtube_automations (
@@ -1548,9 +1581,12 @@ revoke execute on function account_insights(uuid, uuid) from anon;
 grant execute on function account_insights(uuid, uuid) to authenticated;
 
 -- ╔══════════════════════════════════════════════════════════════════════════╗
--- ║ Storage — private bucket for uploaded publish videos, public bucket for    ║
--- ║ cached IG media. publish-media objects live under {user_id}/...; RLS keys  ║
--- ║ off the first path segment.                                                ║
+-- ║ Storage — public bucket for cached IG media.                               ║
+-- ║                                                                            ║
+-- ║ NOTE: the `publish-media` bucket below is SUPERSEDED and unused. Publish    ║
+-- ║ uploads (videos and images alike) go straight from the browser to a private ║
+-- ║ Cloudflare R2 bucket via a presigned PUT — see lib/storage/r2.ts. It is     ║
+-- ║ kept only so the canonical schema still matches production.                 ║
 -- ╚══════════════════════════════════════════════════════════════════════════╝
 insert into storage.buckets (id, name, public)
   values ('publish-media', 'publish-media', false)
