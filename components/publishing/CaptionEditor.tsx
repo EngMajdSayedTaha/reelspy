@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,6 +85,11 @@ export function CaptionEditor({
 }: Props) {
   const t = useDict().publishing;
 
+  const [pinnedTab, setPinnedTab] = useState<Platform | null>(null);
+  const activeTab =
+    pinnedTab && selected.includes(pinnedTab) ? pinnedTab : (selected[0] ?? "");
+  const setActiveTab = (value: string) => setPinnedTab(value as Platform);
+
   // The strictest selected platform drives the shared caption's meter, so the
   // number shown is the one that can actually block the post.
   const tightest = selected.reduce<Platform | null>((worst, platform) => {
@@ -149,7 +155,11 @@ export function CaptionEditor({
         ) : selected.length === 0 ? (
           <p className="text-xs text-warning">{t.selectPlatformToCustomize}</p>
         ) : (
-          <Tabs defaultValue={selected[0]}>
+          // Controlled, and clamped to the current selection during render:
+          // with an uncontrolled `defaultValue` the tabs keep pointing at a
+          // platform the user just deselected, and Radix then renders no panel
+          // at all.
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList aria-label={t.customizeCaptionPerPlatform}>
               {selected.map((platform) => {
                 const Icon = PLATFORM_ICONS[platform];

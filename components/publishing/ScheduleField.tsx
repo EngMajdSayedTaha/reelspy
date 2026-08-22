@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDict } from "@/lib/i18n/I18nProvider";
@@ -39,6 +39,11 @@ export function ScheduleField({ enabled, onEnabled, value, onValue }: Props) {
     () => false
   );
 
+  // Captured once per mount rather than read on every render, so the render
+  // itself stays deterministic. Only used after hydration, so the server's
+  // clock never reaches the DOM.
+  const [minValue] = useState(() => toLocalInputValue(new Date()));
+
   const timezone = hydrated
     ? (Intl.DateTimeFormat().resolvedOptions().timeZone ?? "")
     : "";
@@ -70,7 +75,7 @@ export function ScheduleField({ enabled, onEnabled, value, onValue }: Props) {
           <Input
             type="datetime-local"
             value={value}
-            min={hydrated ? toLocalInputValue(new Date()) : undefined}
+            min={hydrated ? minValue : undefined}
             onChange={(e) => onValue(e.target.value)}
             aria-label={t.scheduledTimeLabel}
           />
