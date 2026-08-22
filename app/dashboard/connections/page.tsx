@@ -32,6 +32,7 @@ function errorMap(dict: Dict["connections"]): Record<string, string> {
     oauth_failed: dict.oauthFailed,
     tiktok_env_missing: dict.tiktokEnvMissing,
     youtube_env_missing: dict.youtubeEnvMissing,
+    threads_env_missing: dict.threadsEnvMissing,
     unsupported_platform: dict.unsupportedPlatform,
     meta_env_missing: dict.metaEnvMissing,
     profile_update_failed: dict.profileUpdateFailed,
@@ -120,6 +121,11 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   // ── TikTok / YouTube (social_connections) ──────────────────────────────────
   const tiktok = conns?.find((c) => c.platform === "tiktok" && c.is_active);
   const youtube = conns?.find((c) => c.platform === "youtube" && c.is_active);
+  const threads = conns?.find((c) => c.platform === "threads" && c.is_active);
+  // Threads has its OWN app id/secret — adding the Threads use case to a Meta
+  // app mints a second pair, and META_APP_ID does not work against
+  // graph.threads.net. See docs/publishing-setup.md.
+  const threadsReady = Boolean(process.env.THREADS_APP_ID && process.env.THREADS_APP_SECRET);
 
   // ── Studio multi-account workspaces (X4) ───────────────────────────────────
   // Fail-open: listIgConnections returns [] when the table isn't there yet, so
@@ -277,6 +283,19 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
           connectHref="/api/social/youtube/connect"
           disconnectHref="/api/social/youtube/disconnect"
           note={dict.youtubeNote}
+        />
+        </div>
+
+        <div data-tour="threads-connection">
+        <ConnectionCard
+          platform="threads"
+          connected={Boolean(threads)}
+          handle={threads?.account_username ? `@${threads.account_username}` : null}
+          needsReconnect={threads?.token_status === "invalid"}
+          connectHref="/api/social/threads/connect"
+          disconnectHref="/api/social/threads/disconnect"
+          disabled={!threadsReady}
+          note={threadsReady ? dict.threadsNote : dict.threadsEnvMissing}
         />
         </div>
       </div>

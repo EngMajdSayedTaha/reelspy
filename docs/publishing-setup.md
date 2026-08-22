@@ -1,23 +1,43 @@
-# Publishing Setup (Instagram, Facebook, TikTok, YouTube)
+# Publishing Setup (Instagram, Facebook, TikTok, YouTube, Threads)
 
-The **Publishing** module lets you upload one video and cross-post it to your own
-Instagram Reels, Facebook Page, TikTok, and YouTube channel — now or scheduled.
-Everything runs on each platform's **official, free** API. This guide is written
-for the common case: **you posting your own videos to your own accounts.**
+The **Publishing** module lets you upload once — a video, a single photo, or a
+multi-slide carousel — and cross-post it to your own Instagram, Facebook Page,
+TikTok, YouTube channel, and Threads profile, now or scheduled. Everything runs
+on each platform's **official, free** API. This guide is written for the common
+case: **you posting your own content to your own accounts.**
 
 ## What needs review (and what doesn't)
 
 | Platform | Post to your own account? | Public posts? | What's required |
 |---|---|---|---|
-| **Instagram Reels** | ✅ works now | ✅ **public, no review** | App in Development/Standard mode + you are an app role. Same as Auto-Reply. |
+| **Instagram** | ✅ works now | ✅ **public, no review** | App in Development/Standard mode + you are an app role. Same as Auto-Reply. |
 | **Facebook Page** | ✅ works now | ✅ **public, no review** | Same Meta app + a linked Page. |
+| **Threads** | ✅ works now | ✅ **public, no review** | Its **own** Threads App ID/secret + you accept a Threads Tester invite. |
 | **TikTok** | ✅ works now | ⚠️ **private until audit** | Posts are forced `SELF_ONLY` until the Content Posting API audit passes. |
 | **YouTube** | ✅ works now | ⚠️ **private until audit** | Uploads forced `private`; test-mode tokens expire weekly. Needs OAuth verification + API audit for public + stable tokens. |
 
-> **Bottom line:** Instagram + Facebook give you fully public personal posting
-> with **zero submissions**. TikTok and YouTube will post to your own account
-> immediately, but the posts stay **private to you** until you complete each
-> platform's audit (steps below).
+> **Bottom line:** Instagram, Facebook and Threads give you fully public personal
+> posting with **zero submissions**. TikTok and YouTube will post to your own
+> account immediately, but the posts stay **private to you** until you complete
+> each platform's audit (steps below).
+
+## What each platform accepts
+
+These are the platforms' own published limits, and they are enforced in the
+composer *before* you can post — `lib/publishing/capabilities.ts` is the single
+table every layer reads.
+
+| | Video | Photo | Carousel | Caption | Per-day cap |
+|---|---|---|---|---|---|
+| **Instagram** | ✅ Reels, 3s–15min, ≤300 MB | ✅ JPEG ≤8 MB, 4:5–1.91:1 | ✅ **2–10**, photos + videos | 2200 chars, 30 hashtags | 50 posts / 24h |
+| **Facebook Page** | ✅ | ✅ JPEG/PNG ≤10 MB | ✅ **2–10**, photos only | 63,206 chars | 30 reels / 24h |
+| **TikTok** | ✅ | ✅ JPEG/WebP ≤20 MB | ✅ **2–35**, photos only | 2200 chars | — |
+| **YouTube** | ✅ only | ✗ | ✗ | title 100 / desc 5000 | ~6 uploads (quota) |
+| **Threads** | ✅ | ✅ JPEG/PNG | ✅ **2–20**, photos + videos | 500 chars | 250 posts / 24h |
+
+A carousel counts as **one** post against every one of those daily caps. Photos
+and videos can't be mixed in a TikTok or Facebook carousel — the composer says
+so and blocks it rather than letting the platform reject it later.
 
 The adapters enforce this automatically: TikTok/YouTube post privately unless you
 set `TIKTOK_ALLOW_PUBLIC=true` / `YOUTUBE_ALLOW_PUBLIC=true` — which you should
@@ -33,7 +53,8 @@ Apply the publishing migration to your Supabase project:
 supabase db push          # or run supabase/migrations/20260621_publishing.sql
 ```
 
-It creates `social_connections`, `publish_posts`, and `publish_jobs`. (The
+It creates `social_connections`, `publish_posts`, `publish_media` (one row per
+carousel slide) and `publish_jobs`. (The
 migration also defines a Supabase `publish-media` Storage bucket, but uploaded
 **video bytes now live in Cloudflare R2** — see the next step. The bucket is no
 longer used by the upload flow and can be ignored.)
@@ -44,11 +65,17 @@ Set the cron secret so the scheduler can run (already used by the other crons):
 CRON_SECRET=<long random string>
 ```
 
-Scheduled posts are published by the durable job-queue worker
-`/api/cron/run-jobs` (roadmap V4). On **Hobby** it runs every 5 minutes from
-`.github/workflows/run-jobs.yml`; on **Vercel Pro** prefer a `*/2` Vercel cron
-(see [`cron-cadence.md`](./cron-cadence.md)). "Post now" is unaffected (it runs
-the dispatcher inline).
+**Every** publish — scheduled *and* "Post now" — runs in the durable job-queue
+worker `/api/cron/run-jobs` (roadmap V4). On **Hobby** it runs every 5 minutes
+from `.github/workflows/run-jobs.yml`; on **Vercel Pro** prefer a `*/2` Vercel
+cron (see [`cron-cadence.md`](./cron-cadence.md)).
+
+"Post now" doesn't wait for that schedule: the server action enqueues the job and
+then pokes `/api/cron/run-jobs` from `after()`, so publishing starts within a
+second in its own 300-second invocation while the composer returns immediately.
+That poke is authenticated with `CRON_SECRET`, so **if `CRON_SECRET` is unset in
+production, "Post now" silently falls back to the 5-minute cron.** The publish
+still happens — it's just late.
 
 ---
 
@@ -217,13 +244,61 @@ units, so about **6 uploads/day** until you request more in the audit.
 
 ---
 
-## 5. Going-live checklist
+## 5. Threads
 
-- [ ] Migration applied (`social_connections`, `publish_posts`, `publish_jobs`).
+Threads is free, needs **no App Review** to post to your own profile, and
+supports text, photos, videos and carousels. The one thing to get right is that
+it does **not** use `META_APP_ID` / `META_APP_SECRET`.
+
+### Why it needs its own credentials
+
+Threads is a separate *use case* on the Meta developer platform. When you add it
+to an app, the dashboard shows **two** sets of credentials — the Meta app's, and
+a **Threads App ID + Threads App Secret**. Only the Threads pair works against
+`graph.threads.net`, and the consent window is hosted on `threads.net`, not
+`facebook.com`. Using the Meta app id here fails with an opaque OAuth error.
+
+### Setup
+
+1. In the [Meta App Dashboard](https://developers.facebook.com/apps), open your
+   app (or create one) and add the **Threads** use case.
+2. **App settings → Basic** → copy the **Threads App ID** and **Threads App
+   secret** (not the ones at the top of the page).
+3. Under the Threads use case settings, add the **Redirect Callback URL**:
+   `https://<your-domain>/api/social/threads/callback`.
+4. **App roles → Roles → Add People → Threads Tester**, invite your own Threads
+   account, then accept the invite in the Threads app under **Account Settings →
+   Website permissions → Invites**. Without this the consent screen refuses you.
+5. Set env vars:
+   ```
+   THREADS_APP_ID=
+   THREADS_APP_SECRET=
+   THREADS_REDIRECT_URI=https://<your-domain>/api/social/threads/callback
+   ```
+6. **Connections → Threads → Connect.** Posts are public immediately.
+
+**Tokens:** the connect flow exchanges the 1-hour short-lived token for a
+**60-day** long-lived one straight away. `/api/cron/refresh-tokens` renews it
+nightly once it's inside the 7-day window. A long-lived token that goes 60 days
+without a refresh **cannot be revived** — you have to reconnect — so make sure
+that cron is actually running.
+
+**Limits:** 250 API-published posts per 24h; carousels are 2–20 items and count
+as one post; text caps at 500 characters.
+
+---
+
+## 6. Going-live checklist
+
+- [ ] Migration applied (`social_connections`, `publish_posts`, `publish_media`, `publish_jobs`).
 - [ ] Cloudflare R2 bucket created (private) + CORS rule + `R2_*` env vars set.
+- [ ] `R2_PUBLIC_BASE_URL` set to a Custom Domain (required for TikTok).
 - [ ] `CRON_SECRET` set; `/api/cron/run-jobs` scheduled (GH Actions on Hobby, or a Vercel cron on Pro).
+      Without it, "Post now" degrades to the 5-minute cron.
 - [ ] Instagram + Facebook connected (public posting works, no review).
+- [ ] Threads connected via its **own** app id/secret + Threads Tester invite accepted.
 - [ ] TikTok connected (private now) → audit passed → `TIKTOK_ALLOW_PUBLIC=true`.
 - [ ] YouTube connected (private now) → verification + audit passed →
       `YOUTUBE_ALLOW_PUBLIC=true`.
-- [ ] Sanity-check the limits: IG 50 posts/24h, YouTube ~6 uploads/day.
+- [ ] Sanity-check the limits: IG 50 posts/24h, FB reels 30/24h, Threads 250/24h,
+      YouTube ~6 uploads/day.
