@@ -1,62 +1,70 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Send, CalendarClock, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { CalendarClock, Eye, EyeOff, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { notifyError, requestJson } from "@/lib/utils/api";
+import { notifyError } from "@/lib/utils/api";
 import { PLATFORMS, PLATFORM_LABELS, type Platform, type TikTokPostOptions } from "@/lib/publishing/types";
-import { PublishPreview } from "@/components/publishing/PublishPreview";
+import { mediaKindFor } from "@/lib/publishing/capabilities";
+import { platformAcceptsMedia, validateDraft } from "@/lib/publishing/validate";
+import { probeFile, uploadMediaFile } from "@/lib/publishing/upload-client";
 import { createPublishPost } from "@/app/dashboard/publishing/actions";
 import { useDict } from "@/lib/i18n/I18nProvider";
-
-type TikTokCreatorInfo = {
-  creatorAvatarUrl: string | null;
-  creatorUsername: string | null;
-  creatorNickname: string | null;
-  privacyLevelOptions: string[];
-  commentDisabled: boolean;
-  duetDisabled: boolean;
-  stitchDisabled: boolean;
-  maxVideoPostDurationSec: number | null;
-};
+import { MediaDropzone } from "./MediaDropzone";
+import { PlatformTargets } from "./PlatformTargets";
+import { CaptionEditor } from "./CaptionEditor";
+import { ScheduleField } from "./ScheduleField";
+import { ValidationSummary } from "./ValidationSummary";
+import { PublishPreview } from "./PublishPreview";
+import {
+  TIKTOK_DEFAULTS,
+  TikTokPanel,
+  tiktokBrandedBlocked,
+  type TikTokPanelState,
+} from "./TikTokPanel";
+import { toDraftMedia, type ComposerMedia } from "./composer-media";
 
 type Props = {
   connected: Record<Platform, boolean>;
+  /** Handles shown on each platform card, when we know them. */
+  handles?: Partial<Record<Platform, string | null>>;
   /** Account handle shown in the live preview (e.g. "your_account"). */
   handle?: string;
   /**
    * Whether each platform can post publicly. TikTok/YouTube are false until
-   * their app audit passes (server reads *_ALLOW_PUBLIC). Defaults keep IG/FB
-   * public and the pre-audit platforms private-only.
+   * their app audit passes (server reads *_ALLOW_PUBLIC).
    */
   publicAllowed?: Record<Platform, boolean>;
 };
-
-const ACCEPT = "video/mp4,video/quicktime,video/webm";
 
 const DEFAULT_PUBLIC_ALLOWED: Record<Platform, boolean> = {
   instagram: true,
   facebook: true,
   tiktok: false,
   youtube: false,
+  threads: true,
 };
+
+function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 export function PublishComposer({
   connected,
+  handles = {},
   handle = "your_account",
   publicAllowed = DEFAULT_PUBLIC_ALLOWED,
 }: Props) {
   const router = useRouter();
   const dict = useDict();
   const t = dict.publishing;
-  const fileInput = useRef<HTMLInputElement>(null);
 
-  const [file, setFile] = useState<File | null>(null);
+  const [media, setMedia] = useState<ComposerMedia[]>([]);
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
@@ -64,43 +72,152 @@ export function PublishComposer({
   const [scheduled, setScheduled] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [selected, setSelected] = useState<Set<Platform>>(new Set());
-  // Per-platform caption overrides. Off by default: every platform uses the
-  // shared caption above. When on, each selected platform gets its own box and
-  // anything left blank still falls back to the shared caption.
   const [perPlatform, setPerPlatform] = useState(false);
-  // Phones hide the side-by-side preview column; this toggles it inline instead.
+  const [platformCaptions, setPlatformCaptions] = useState<Partial<Record<Platform, string>>>({});
+  const [rawCoverIndex, setCoverIndex] = useState(0);
+  const [coverMs, setCoverMs] = useState<number | null>(null);
   const [showMobilePreview, setShowMobilePreview] = useState(false);
-  const [platformCaptions, setPlatformCaptions] = useState<Record<Platform, string>>({
-    instagram: "",
-    facebook: "",
-    tiktok: "",
-    youtube: "",
-  });
   const [busy, setBusy] = useState(false);
+  const [tiktok, setTiktok] = useState<TikTokPanelState>(TIKTOK_DEFAULTS);
+  const [tiktokReady, setTiktokReady] = useState(false);
 
-  // TikTok compliance panel (T4) — draft-vs-direct, real privacy options fetched
-  // live from creator_info/query, disclosure toggles, and the required Music
-  // Usage / Terms confirmation. Only relevant once TikTok is selected.
-  const [tiktokInfo, setTiktokInfo] = useState<TikTokCreatorInfo | null>(null);
-  const [tiktokInfoLoading, setTiktokInfoLoading] = useState(false);
-  const [tiktokInfoError, setTiktokInfoError] = useState<string | null>(null);
-  const [tiktokPostMode, setTiktokPostMode] = useState<"direct" | "draft">("direct");
-  const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState("");
-  const [tiktokBrandedContent, setTiktokBrandedContent] = useState(false);
-  const [tiktokBrandOrganic, setTiktokBrandOrganic] = useState(false);
-  const [tiktokConfirmed, setTiktokConfirmed] = useState(false);
+  // Object URLs are created per file and must be released, or a long composing
+  // session leaks every preview it ever made. The ref is written in an effect
+  // (never during render) so the unmount cleanup can see the final list.
+  const mediaRef = useRef<ComposerMedia[]>([]);
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
+  useEffect(() => {
+    return () => {
+      for (const item of mediaRef.current) URL.revokeObjectURL(item.objectUrl);
+    };
+  }, []);
 
   const anyConnected = PLATFORMS.some((p) => connected[p]);
 
-  // Platforms still locked to private by their pending app audit (server flag).
+  const draftMedia = useMemo(() => media.map(toDraftMedia), [media]);
+
+  // A platform that simply cannot post this SHAPE (a photo to YouTube) is
+  // dropped from the targets here, during render, rather than being pruned out
+  // of state by an effect — so it comes back on its own the moment the media
+  // changes back, and there's never a frame where the card says selected while
+  // the validator disagrees. Fixable problems (too many slides, a caption over
+  // the limit) deliberately stay selected so the validation summary can say what
+  // to do about them.
+  const selectedList = useMemo(
+    () => PLATFORMS.filter((p) => selected.has(p) && platformAcceptsMedia(p, draftMedia)),
+    [selected, draftMedia]
+  );
+  const tiktokSelected = selected.has("tiktok");
+  const isPhotoPost = media.length > 0 && media.every((m) => m.kind === "image");
+  const hasVideo = media.some((m) => m.kind === "video");
+  const mediaKind = media.length > 0 ? mediaKindFor(media) : "video";
+
+  // The composer's copy of the exact validation the server action re-runs.
+  const validation = useMemo(
+    () =>
+      validateDraft({
+        media: draftMedia,
+        platforms: selectedList,
+        title,
+        caption,
+        hashtags,
+        captions: platformCaptions,
+        scheduledAt: scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      }),
+    [draftMedia, selectedList, title, caption, hashtags, platformCaptions, scheduled, scheduledAt]
+  );
+
+  // Platforms still locked to private by their pending app audit.
   const preAuditLocked = PLATFORMS.filter((p) => !publicAllowed[p]);
-  // Of the platforms actually selected, which will be forced private despite a
-  // "public" choice — the honest, per-selection version of the audit warning.
   const selectedForcedPrivate =
-    privacy === "public" ? Array.from(selected).filter((p) => !publicAllowed[p]) : [];
+    privacy === "public" ? selectedList.filter((p) => !publicAllowed[p]) : [];
+
+  // Clamped during render: removing slides shouldn't leave the cover pointing
+  // past the end for a frame.
+  const coverIndex = Math.min(rawCoverIndex, Math.max(0, media.length - 1));
+
+  // ── Media handling ─────────────────────────────────────────────────────────
+
+  async function startUpload(id: string, file: File) {
+    setMedia((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status: "uploading", progress: 0, error: null } : m))
+    );
+    try {
+      const result = await uploadMediaFile(file, (percent) => {
+        setMedia((prev) => prev.map((m) => (m.id === id ? { ...m, progress: percent } : m)));
+      });
+      setMedia((prev) =>
+        prev.map((m) =>
+          m.id === id ? { ...m, status: "done", progress: 100, path: result.path } : m
+        )
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMedia((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, status: "error", error: message } : m))
+      );
+    }
+  }
+
+  async function handleAdd(files: File[]) {
+    // Upload starts the moment a file is picked, so by the time the user has
+    // written a caption the media is usually already in R2 and "Post now" is
+    // instant. The old flow uploaded on submit and made the user wait twice.
+    for (const file of files) {
+      const probed = await probeFile(file);
+      if (!probed) {
+        toast.error(t.unsupportedFile(file.name));
+        continue;
+      }
+      const id = newId();
+      const item: ComposerMedia = {
+        id,
+        file,
+        kind: probed.kind,
+        mimeType: probed.mimeType,
+        bytes: probed.bytes,
+        width: probed.width,
+        height: probed.height,
+        durationSeconds: probed.durationSeconds,
+        altText: "",
+        objectUrl: URL.createObjectURL(file),
+        status: "pending",
+        progress: 0,
+        path: null,
+        error: null,
+      };
+      setMedia((prev) => [...prev, item]);
+      void startUpload(id, file);
+    }
+  }
+
+  function handleRemove(id: string) {
+    setMedia((prev) => {
+      const item = prev.find((m) => m.id === id);
+      if (item) URL.revokeObjectURL(item.objectUrl);
+      return prev.filter((m) => m.id !== id);
+    });
+  }
+
+  function handleReorder(from: number, to: number) {
+    setMedia((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    // Keep the cover pinned to the same slide it was on.
+    setCoverIndex((prev) => {
+      if (prev === from) return to;
+      if (from < prev && to >= prev) return prev - 1;
+      if (from > prev && to <= prev) return prev + 1;
+      return prev;
+    });
+  }
 
   function toggle(platform: Platform) {
-    if (!connected[platform]) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(platform)) next.delete(platform);
@@ -109,77 +226,38 @@ export function PublishComposer({
     });
   }
 
-  const tiktokSelected = selected.has("tiktok");
+  // ── Submit ─────────────────────────────────────────────────────────────────
 
-  // Fetch the creator's real account info (avatar/nickname + privacy_level
-  // options) once TikTok is selected and connected — never a hardcoded
-  // privacy list per TikTok's UX guidelines. Fetched at most once per mount;
-  // re-fetch if it previously failed and the panel is shown again.
-  useEffect(() => {
-    if (!tiktokSelected || !connected.tiktok) return;
-    if (tiktokInfo || tiktokInfoLoading) return;
+  const uploading = media.filter((m) => m.status === "uploading" || m.status === "pending").length;
+  const uploadFailed = media.some((m) => m.status === "error");
+  const blocked =
+    busy ||
+    !anyConnected ||
+    media.length === 0 ||
+    uploading > 0 ||
+    uploadFailed ||
+    validation.errors.length > 0;
 
-    let cancelled = false;
-    setTiktokInfoLoading(true);
-    setTiktokInfoError(null);
-    requestJson<TikTokCreatorInfo>("/api/publishing/tiktok/creator-info")
-      .then((info) => {
-        if (cancelled) return;
-        setTiktokInfo(info);
-        setTiktokPrivacyLevel((prev) => prev || info.privacyLevelOptions[0] || "SELF_ONLY");
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setTiktokInfoError(error instanceof Error ? error.message : String(error));
-      })
-      .finally(() => {
-        if (!cancelled) setTiktokInfoLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiktokSelected, connected.tiktok]);
-
-  // The client-side mirror of the server guard in actions.ts: branded content
-  // can't post privately, and until the app audit passes every TikTok direct
-  // post is forced private regardless of the chosen level.
-  const tiktokBrandedBlocked =
-    tiktokBrandedContent &&
-    tiktokPostMode === "direct" &&
-    (tiktokPrivacyLevel === "SELF_ONLY" || !publicAllowed.tiktok);
-
-  // Upload the file straight to Cloudflare R2 via a one-time presigned PUT URL,
-  // returning the object path the post will reference. The bytes go directly to
-  // R2 (no server hop, no Supabase 50 MB cap), which is what fixes the 413.
-  async function uploadVideo(video: File): Promise<string> {
-    const contentType = video.type || "video/mp4";
-    const { path, uploadUrl } = await requestJson<{ path: string; uploadUrl: string }>(
-      "/api/publishing/upload",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType, fileName: video.name }),
-      }
-    );
-
-    // Content-Type isn't part of the presigned signature (host-only), so this is
-    // just stored as the object's content type on R2.
-    const res = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": contentType },
-      body: video,
-    });
-    if (!res.ok) {
-      throw new Error(t.uploadFailed(res.status));
-    }
-    return path;
+  function resetComposer() {
+    for (const item of media) URL.revokeObjectURL(item.objectUrl);
+    setMedia([]);
+    setTitle("");
+    setCaption("");
+    setHashtags("");
+    setSelected(new Set());
+    setPerPlatform(false);
+    setPlatformCaptions({});
+    setScheduled(false);
+    setScheduledAt("");
+    setCoverIndex(0);
+    setCoverMs(null);
+    setTiktok(TIKTOK_DEFAULTS);
+    setTiktokReady(false);
   }
 
   async function handleSubmit() {
-    if (!file) {
-      toast.error(t.chooseVideoFirst);
+    if (media.length === 0) {
+      toast.error(t.chooseMediaFirst);
       return;
     }
     if (selected.size === 0) {
@@ -190,31 +268,42 @@ export function PublishComposer({
       toast.error(t.pickDateTimeSchedule);
       return;
     }
+    if (validation.errors.length > 0) {
+      toast.error(t.validation.message(validation.errors[0]));
+      return;
+    }
     if (tiktokSelected) {
-      if (tiktokInfoLoading || !tiktokInfo) {
+      if (!tiktokReady) {
         toast.error(t.tiktokSettings.loading);
         return;
       }
-      if (!tiktokConfirmed) {
+      if (!tiktok.confirmed) {
         toast.error(t.tiktokSettings.confirmRequiredError);
         return;
       }
-      if (tiktokBrandedBlocked) {
+      if (tiktokBrandedBlocked(tiktok, publicAllowed.tiktok)) {
         toast.error(
-          !publicAllowed.tiktok ? t.tiktokSettings.brandedNeedsAuditWarning : t.tiktokSettings.brandedPrivacyWarning
+          !publicAllowed.tiktok
+            ? t.tiktokSettings.brandedNeedsAuditWarning
+            : t.tiktokSettings.brandedPrivacyWarning
         );
         return;
       }
     }
 
+    const uploaded = media.filter((m) => m.status === "done" && m.path);
+    if (uploaded.length !== media.length) {
+      toast.error(t.uploadingLabel);
+      return;
+    }
+
     setBusy(true);
     try {
-      const videoPath = await uploadVideo(file);
       // Only forward per-platform captions when the toggle is on, and only for
       // platforms actually selected with non-blank copy.
       const captions: Record<string, string> = {};
       if (perPlatform) {
-        for (const platform of selected) {
+        for (const platform of selectedList) {
           const value = platformCaptions[platform]?.trim();
           if (value) captions[platform] = value;
         }
@@ -226,48 +315,41 @@ export function PublishComposer({
             // sets them inside TikTok), so SELF_ONLY here is just a valid
             // placeholder satisfying the type, not a real choice.
             privacyLevel:
-              tiktokPostMode === "draft"
+              tiktok.postMode === "draft"
                 ? "SELF_ONLY"
-                : (tiktokPrivacyLevel as TikTokPostOptions["privacyLevel"]),
-            postMode: tiktokPostMode,
-            brandedContent: tiktokPostMode === "direct" && tiktokBrandedContent,
-            brandOrganic: tiktokPostMode === "direct" && tiktokBrandOrganic,
+                : (tiktok.privacyLevel as TikTokPostOptions["privacyLevel"]),
+            postMode: tiktok.postMode,
+            brandedContent: tiktok.postMode === "direct" && tiktok.brandedContent,
+            brandOrganic: tiktok.postMode === "direct" && tiktok.brandOrganic,
+            autoAddMusic: tiktok.autoAddMusic,
           }
         : undefined;
 
       const result = await createPublishPost({
-        videoPath,
+        media: uploaded.map((m) => ({
+          path: m.path!,
+          kind: m.kind,
+          mimeType: m.mimeType,
+          bytes: m.bytes,
+          width: m.width,
+          height: m.height,
+          durationSeconds: m.durationSeconds,
+          altText: m.altText.trim() || null,
+        })),
         title: title.trim() || null,
         caption: caption.trim() || null,
         hashtags: hashtags.trim() || null,
-        platforms: Array.from(selected),
+        platforms: selectedList,
         captions: Object.keys(captions).length > 0 ? captions : undefined,
         privacy,
+        coverIndex,
+        coverMs,
         scheduledAt: scheduled && scheduledAt ? new Date(scheduledAt).toISOString() : null,
         tiktokOptions,
       });
 
-      if (result.publishedNow) {
-        toast.success(t.publishStarted);
-      } else {
-        toast.success(t.scheduledSuccessToast);
-      }
-
-      // Reset and refresh the history.
-      setFile(null);
-      setTitle("");
-      setCaption("");
-      setHashtags("");
-      setSelected(new Set());
-      setPerPlatform(false);
-      setPlatformCaptions({ instagram: "", facebook: "", tiktok: "", youtube: "" });
-      setScheduled(false);
-      setScheduledAt("");
-      setTiktokPostMode("direct");
-      setTiktokBrandedContent(false);
-      setTiktokBrandOrganic(false);
-      setTiktokConfirmed(false);
-      if (fileInput.current) fileInput.current.value = "";
+      toast.success(result.publishedNow ? t.publishStarted : t.scheduledSuccessToast);
+      resetComposer();
       router.refresh();
     } catch (error) {
       notifyError(error, t.publishFallbackError);
@@ -279,342 +361,126 @@ export function PublishComposer({
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_300px] md:items-start lg:grid-cols-[minmax(0,1fr)_340px]">
       <div data-tour="publish-composer" className="space-y-5 rounded-2xl border border-border bg-card p-5">
-      {/* Upload */}
-      <div className="space-y-2">
-        <Label>{t.videoLabel}</Label>
-        <button
-          type="button"
-          onClick={() => fileInput.current?.click()}
-          className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border-strong bg-background px-4 py-6 text-start transition hover:border-primary"
-        >
-          {file ? (
-            <CheckCircle2 className="h-5 w-5 text-success" />
-          ) : (
-            <Upload className="h-5 w-5 text-muted-foreground" />
-          )}
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-foreground">
-              {file ? file.name : t.chooseVideo}
-            </span>
-            <span className="block text-xs text-muted-foreground">{t.videoFormats}</span>
-          </span>
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept={ACCEPT}
-          className="hidden"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        <MediaDropzone
+          items={media}
+          onAdd={handleAdd}
+          onRemove={handleRemove}
+          onReorder={handleReorder}
+          onAltText={(id, altText) =>
+            setMedia((prev) => prev.map((m) => (m.id === id ? { ...m, altText } : m)))
+          }
+          onRetry={(id) => {
+            const item = media.find((m) => m.id === id);
+            if (item) void startUpload(id, item.file);
+          }}
+          coverIndex={mediaKind === "carousel" && isPhotoPost ? coverIndex : null}
+          onCoverIndex={setCoverIndex}
+          disabled={busy}
         />
-      </div>
 
-      {/* Caption */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="pub-title">{t.titleLabel}</Label>
-          <Input
-            id="pub-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={t.optionalTitlePlaceholder}
+        {/* Instagram's thumb_offset — only meaningful for a single reel. */}
+        {mediaKind === "video" && hasVideo && selected.has("instagram") ? (
+          <CoverFramePicker
+            objectUrl={media[0]?.objectUrl ?? null}
+            valueMs={coverMs}
+            onChange={setCoverMs}
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="pub-hashtags">{t.hashtagsLabel}</Label>
-          <Input
-            id="pub-hashtags"
-            value={hashtags}
-            onChange={(e) => setHashtags(e.target.value)}
-            placeholder={t.hashtagsPlaceholder}
-          />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="pub-caption">{t.captionLabel}</Label>
-        <Textarea
-          id="pub-caption"
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          placeholder={t.captionPlaceholder}
-          rows={3}
-        />
-      </div>
-
-      {/* Platforms */}
-      <div className="space-y-2">
-        <Label>{t.postToLabel}</Label>
-        <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((platform) => {
-            const isConn = connected[platform];
-            const isOn = selected.has(platform);
-            return (
-              <button
-                key={platform}
-                type="button"
-                disabled={!isConn}
-                onClick={() => toggle(platform)}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                  isOn
-                    ? "border-accent-brand bg-accent-brand/10 text-accent-brand"
-                    : "border-border bg-background text-muted-foreground hover:text-foreground"
-                } disabled:cursor-not-allowed disabled:opacity-40`}
-                title={isConn ? "" : t.connectFirstHint}
-              >
-                {PLATFORM_LABELS[platform]}
-                {!isConn ? t.notConnectedSuffix : ""}
-              </button>
-            );
-          })}
-        </div>
-        {!anyConnected ? (
-          <p className="text-xs text-warning">{t.connectAtLeastOne}</p>
         ) : null}
-      </div>
 
-      {/* TikTok compliance panel — draft-vs-direct, real privacy options,
-          disclosure toggles, creator identity, Music Usage/Terms confirmation. */}
-      {tiktokSelected && connected.tiktok ? (
-        <div className="space-y-3 rounded-xl border border-border bg-background p-4">
-          <Label>{t.tiktokSettings.heading}</Label>
+        <CaptionEditor
+          title={title}
+          onTitle={setTitle}
+          hashtags={hashtags}
+          onHashtags={setHashtags}
+          caption={caption}
+          onCaption={setCaption}
+          perPlatform={perPlatform}
+          onPerPlatform={setPerPlatform}
+          platformCaptions={platformCaptions}
+          onPlatformCaption={(platform, value) =>
+            setPlatformCaptions((prev) => ({ ...prev, [platform]: value }))
+          }
+          selected={selectedList}
+        />
 
-          {tiktokInfoLoading ? (
-            <p className="flex items-center gap-2 text-xs text-subtle">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t.tiktokSettings.loading}
-            </p>
-          ) : tiktokInfoError ? (
-            <p className="text-xs text-danger">{t.tiktokSettings.loadFailed(tiktokInfoError)}</p>
-          ) : tiktokInfo ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm">
-                {tiktokInfo.creatorAvatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={tiktokInfo.creatorAvatarUrl}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="h-8 w-8 shrink-0 rounded-full object-cover ring-1 ring-border-strong"
-                  />
-                ) : (
-                  <span className="h-8 w-8 shrink-0 rounded-full bg-secondary ring-1 ring-border-strong" />
-                )}
-                <span className="text-muted-foreground">
-                  {t.tiktokSettings.postingAsPrefix}{" "}
-                  <span className="font-medium text-foreground">
-                    {tiktokInfo.creatorNickname ?? tiktokInfo.creatorUsername ?? "—"}
-                  </span>
-                </span>
-              </div>
+        <PlatformTargets
+          connected={connected}
+          handles={handles}
+          selected={selected}
+          onToggle={toggle}
+          media={media}
+        />
 
-              <div className="space-y-2">
-                <Label>{t.tiktokSettings.postModeLabel}</Label>
-                <div className="flex flex-col gap-1.5">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="tiktok-post-mode"
-                      checked={tiktokPostMode === "direct"}
-                      onChange={() => setTiktokPostMode("direct")}
-                    />
-                    {t.tiktokSettings.postModeDirect}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="radio"
-                      name="tiktok-post-mode"
-                      checked={tiktokPostMode === "draft"}
-                      onChange={() => setTiktokPostMode("draft")}
-                    />
-                    {t.tiktokSettings.postModeDraft}
-                  </label>
-                  {tiktokPostMode === "draft" ? (
-                    <p className="text-xs text-subtle">{t.tiktokSettings.postModeDraftHint}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              {tiktokPostMode === "direct" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="pub-tiktok-privacy">{t.tiktokSettings.privacyLevelLabel}</Label>
-                    <select
-                      id="pub-tiktok-privacy"
-                      value={tiktokPrivacyLevel}
-                      onChange={(e) => setTiktokPrivacyLevel(e.target.value)}
-                      className="h-9 w-full rounded-lg border border-border bg-background px-3 text-base md:text-sm"
-                    >
-                      {tiktokInfo.privacyLevelOptions.map((level) => (
-                        <option key={level} value={level}>
-                          {t.tiktokSettings.privacyLevelLabelFor(level)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label>{t.tiktokSettings.disclosureLabel}</Label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={tiktokBrandedContent}
-                        onChange={(e) => setTiktokBrandedContent(e.target.checked)}
-                      />
-                      {t.tiktokSettings.brandedContentLabel}
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={tiktokBrandOrganic}
-                        onChange={(e) => setTiktokBrandOrganic(e.target.checked)}
-                      />
-                      {t.tiktokSettings.brandOrganicLabel}
-                    </label>
-                    {tiktokBrandedBlocked ? (
-                      <p className="text-xs text-warning">
-                        {!publicAllowed.tiktok
-                          ? t.tiktokSettings.brandedNeedsAuditWarning
-                          : t.tiktokSettings.brandedPrivacyWarning}
-                      </p>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
-
-              <label className="flex items-start gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={tiktokConfirmed}
-                  onChange={(e) => setTiktokConfirmed(e.target.checked)}
-                />
-                <span>
-                  {t.tiktokSettings.confirmBefore}
-                  <a
-                    href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    {t.tiktokSettings.musicUsageLink}
-                  </a>
-                  {t.tiktokSettings.confirmMiddle}
-                  <a
-                    href="https://www.tiktok.com/legal/page/global/terms-of-service/en"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline hover:text-foreground"
-                  >
-                    {t.tiktokSettings.termsOfServiceLink}
-                  </a>
-                  {t.tiktokSettings.confirmAfter}
-                </span>
-              </label>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Per-platform captions */}
-      <div className="space-y-3 rounded-xl border border-border bg-background p-4">
-        <Label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={perPlatform}
-            onChange={(e) => setPerPlatform(e.target.checked)}
+        {tiktokSelected && connected.tiktok ? (
+          <TikTokPanel
+            state={tiktok}
+            onChange={(patch) => setTiktok((prev) => ({ ...prev, ...patch }))}
+            publicAllowed={publicAllowed.tiktok}
+            isPhotoPost={isPhotoPost}
+            onInfo={(info) => setTiktokReady(Boolean(info))}
           />
-          {t.customizeCaptionPerPlatform}
-        </Label>
-        {!perPlatform ? (
-          <p className="text-xs text-subtle">{t.perPlatformOffHint}</p>
-        ) : selected.size === 0 ? (
-          <p className="text-xs text-warning">{t.selectPlatformToCustomize}</p>
-        ) : (
-          <div className="space-y-3">
-            {Array.from(selected).map((platform) => (
-              <div key={platform} className="space-y-1.5">
-                <Label htmlFor={`pub-caption-${platform}`} className="text-xs">
-                  {t.platformCaptionLabel(PLATFORM_LABELS[platform])}
-                </Label>
-                <Textarea
-                  id={`pub-caption-${platform}`}
-                  value={platformCaptions[platform]}
-                  onChange={(e) =>
-                    setPlatformCaptions((prev) => ({ ...prev, [platform]: e.target.value }))
-                  }
-                  placeholder={
-                    caption.trim()
-                      ? t.leaveBlankPlaceholder
-                      : t.captionForPlatformPlaceholder(PLATFORM_LABELS[platform])
-                  }
-                  rows={2}
-                />
-              </div>
-            ))}
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="pub-privacy">{t.visibilityLabel}</Label>
+            <select
+              id="pub-privacy"
+              value={privacy}
+              onChange={(e) => setPrivacy(e.target.value as "public" | "private")}
+              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-base md:text-sm"
+            >
+              <option value="public">{t.visibilityPublic}</option>
+              <option value="private">{t.visibilityPrivate}</option>
+            </select>
+            {selectedForcedPrivate.length > 0 ? (
+              <p className="text-xs text-warning">
+                {t.forcedPrivateWarning(
+                  selectedForcedPrivate.map((p) => PLATFORM_LABELS[p]).join(t.andConnector),
+                  selectedForcedPrivate.length > 1
+                )}
+              </p>
+            ) : preAuditLocked.length > 0 ? (
+              <p className="text-xs text-subtle">
+                {t.preAuditHint(preAuditLocked.map((p) => PLATFORM_LABELS[p]).join(t.andConnector))}
+              </p>
+            ) : null}
           </div>
-        )}
-      </div>
 
-      {/* Privacy + scheduling */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="pub-privacy">{t.visibilityLabel}</Label>
-          <select
-            id="pub-privacy"
-            value={privacy}
-            onChange={(e) => setPrivacy(e.target.value as "public" | "private")}
-            className="h-9 w-full rounded-lg border border-border bg-background px-3 text-base md:text-sm"
-          >
-            <option value="public">{t.visibilityPublic}</option>
-            <option value="private">{t.visibilityPrivate}</option>
-          </select>
-          {selectedForcedPrivate.length > 0 ? (
-            <p className="text-xs text-warning">
-              {t.forcedPrivateWarning(
-                selectedForcedPrivate.map((p) => PLATFORM_LABELS[p]).join(t.andConnector),
-                selectedForcedPrivate.length > 1
-              )}
-            </p>
-          ) : preAuditLocked.length > 0 ? (
-            <p className="text-xs text-subtle">
-              {t.preAuditHint(preAuditLocked.map((p) => PLATFORM_LABELS[p]).join(t.andConnector))}
-            </p>
-          ) : null}
+          <ScheduleField
+            enabled={scheduled}
+            onEnabled={setScheduled}
+            value={scheduledAt}
+            onValue={setScheduledAt}
+          />
         </div>
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={scheduled}
-              onChange={(e) => setScheduled(e.target.checked)}
-            />
-            {t.scheduleForLater}
-          </Label>
-          {scheduled ? (
-            <Input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-            />
+
+        <ValidationSummary
+          errors={validation.errors}
+          warnings={validation.warnings}
+          ready={media.length > 0 && selected.size > 0}
+        />
+
+        <Button type="button" onClick={handleSubmit} disabled={blocked} className="w-full sm:w-auto">
+          {busy ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> {t.workingButton}
+            </>
+          ) : uploading > 0 ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />{" "}
+              {t.uploadingButton(media.length - uploading, media.length)}
+            </>
+          ) : scheduled ? (
+            <>
+              <CalendarClock className="h-4 w-4" /> {t.schedulePostButton}
+            </>
           ) : (
-            <p className="text-xs text-subtle">{t.leaveOffHint}</p>
+            <>
+              <Send className="h-4 w-4" /> {t.postNowButton}
+            </>
           )}
-        </div>
-      </div>
-
-      <Button type="button" onClick={handleSubmit} disabled={busy || !anyConnected} className="w-full sm:w-auto">
-        {busy ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" /> {t.workingButton}
-          </>
-        ) : scheduled ? (
-          <>
-            <CalendarClock className="h-4 w-4" /> {t.schedulePostButton}
-          </>
-        ) : (
-          <>
-            <Send className="h-4 w-4" /> {t.postNowButton}
-          </>
-        )}
-      </Button>
+        </Button>
       </div>
 
       {/* Live social-media preview — a side column on tablet & desktop, an
@@ -631,11 +497,11 @@ export function PublishComposer({
         </button>
         <div className={`mt-4 md:mt-0 ${showMobilePreview ? "block" : "hidden"} md:block`}>
           <PublishPreview
-            file={file}
+            media={media}
             title={title}
             caption={caption}
             hashtags={hashtags}
-            selected={Array.from(selected)}
+            selected={selectedList}
             perPlatform={perPlatform}
             platformCaptions={platformCaptions}
             privacy={privacy}
@@ -644,6 +510,64 @@ export function PublishComposer({
             scheduledAt={scheduledAt}
             handle={handle}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Instagram's `thumb_offset`: which frame of a reel becomes the thumbnail.
+ * Scrubbing a muted <video> is the only way to pick one without uploading and
+ * re-downloading the file, so the picker is just the video plus a range input.
+ */
+function CoverFramePicker({
+  objectUrl,
+  valueMs,
+  onChange,
+}: {
+  objectUrl: string | null;
+  valueMs: number | null;
+  onChange: (ms: number | null) => void;
+}) {
+  const t = useDict().publishing;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [duration, setDuration] = useState(0);
+
+  if (!objectUrl) return null;
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-background p-4">
+      <Label>{t.coverFrameLabel}</Label>
+      <p className="text-xs text-subtle">{t.coverFrameHint}</p>
+      <div className="flex items-center gap-3">
+        <video
+          ref={videoRef}
+          src={objectUrl}
+          muted
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+          className="h-20 w-20 shrink-0 rounded-lg bg-black object-cover"
+        />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <input
+            type="range"
+            min={0}
+            max={Math.max(0, Math.floor(duration * 1000))}
+            step={100}
+            value={valueMs ?? 0}
+            onChange={(e) => {
+              const ms = Number(e.target.value);
+              onChange(ms > 0 ? ms : null);
+              if (videoRef.current) videoRef.current.currentTime = ms / 1000;
+            }}
+            className="w-full"
+            aria-label={t.coverFrameLabel}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {valueMs ? `${(valueMs / 1000).toFixed(1)}s` : t.coverFrameCleared}
+          </p>
         </div>
       </div>
     </div>

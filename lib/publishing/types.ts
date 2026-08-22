@@ -1,6 +1,6 @@
 // Shared types for the multi-platform Publishing module.
 
-export const PLATFORMS = ["instagram", "facebook", "tiktok", "youtube"] as const;
+export const PLATFORMS = ["instagram", "facebook", "tiktok", "youtube", "threads"] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 export function isPlatform(value: string): value is Platform {
@@ -13,7 +13,18 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   youtube: "YouTube",
+  threads: "Threads",
 };
+
+// Platforms whose tokens live in `social_connections` and are refreshed through
+// lib/publishing/oauth-token.ts. Instagram/Facebook keep theirs on `profiles`
+// (shared with the Auto-Reply module), which is why they aren't here.
+export const OAUTH_PLATFORMS = ["tiktok", "youtube", "threads"] as const;
+export type OAuthPlatform = (typeof OAUTH_PLATFORMS)[number];
+
+export function isOAuthPlatform(value: string): value is OAuthPlatform {
+  return (OAUTH_PLATFORMS as readonly string[]).includes(value);
+}
 
 // A connected social account (row in social_connections). Token fields are
 // present only when loaded through the service-role client.
@@ -40,6 +51,23 @@ export type PublishContent = {
   hashtags: string | null;
 };
 
+// How a post's media should be published. `carousel` means "post every slide as
+// one multi-item post"; `image`/`video` mean a single slide.
+export const MEDIA_KINDS = ["video", "image", "carousel"] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+export type MediaItemKind = "image" | "video";
+
+// One slide, as the adapters see it: the URL is already signed/publicly
+// reachable (lib/publishing/media.ts does the signing).
+export type PublishMediaItem = {
+  position: number;
+  kind: MediaItemKind;
+  url: string;
+  mimeType: string;
+  altText: string | null;
+};
+
 // Credentials resolved by the dispatcher and handed to an adapter. Which fields
 // are populated depends on the platform (see dispatcher.resolveCredentials).
 export type ResolvedCredentials = {
@@ -48,6 +76,9 @@ export type ResolvedCredentials = {
   // Facebook Page posting uses a page-scoped token + id.
   pageId?: string;
   pageToken?: string;
+  // Handle used to build a permalink the platform's API doesn't return
+  // (TikTok returns only a post id).
+  accountUsername?: string | null;
 };
 
 // TikTok's actual privacy vocabulary (Content Posting API), fetched live per
@@ -68,12 +99,21 @@ export type TikTokPostOptions = {
   postMode: "direct" | "draft";
   brandedContent: boolean; // paid partnership / third-party brand deal
   brandOrganic: boolean; // creator's own promotional content
+  // Photo posts only — lets TikTok pick a soundtrack for the carousel.
+  autoAddMusic?: boolean;
 };
 
 export type PublishInput = {
   content: PublishContent;
-  // Short-lived signed URL to the uploaded video in Storage.
-  signedVideoUrl: string;
+  // Ordered slides, always at least one. Single-media posts use media[0]; a
+  // platform that can't do carousels is never given a multi-slide post (the
+  // validator blocks that combination before a job is ever created).
+  media: PublishMediaItem[];
+  mediaKind: MediaKind;
+  // Carousel slide to use as the cover (TikTok photo_cover_index).
+  coverIndex: number;
+  // Video frame (ms) to use as the cover (Instagram thumb_offset). Null = first.
+  coverMs: number | null;
   creds: ResolvedCredentials;
   // "public" or "private" — adapters map this to each platform's vocabulary and
   // force the safe value when the app isn't audited yet.

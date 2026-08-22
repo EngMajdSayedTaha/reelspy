@@ -5,13 +5,16 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { dispatchPost } from "@/lib/publishing/dispatcher";
 import { enqueueJob } from "@/lib/jobs/queue";
 import { deleteR2Object } from "@/lib/storage/r2";
 import { getConnection } from "@/lib/publishing/token-store";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
-import { PLATFORMS, type Platform } from "@/lib/publishing/types";
+import { listPublishMediaPaths } from "@/lib/publishing/media";
+import { kickPublishWorker } from "@/lib/publishing/kick";
+import { PLATFORMS, isOAuthPlatform, type Platform } from "@/lib/publishing/types";
 import { readPlatformsFlag } from "@/lib/publishing/platforms-flag";
+import { mediaKindFor } from "@/lib/publishing/capabilities";
+import { validateDraft, type Issue } from "@/lib/publishing/validate";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import type { PublishingDict } from "@/lib/i18n/dictionaries/publishing";
@@ -31,13 +34,26 @@ const tiktokOptionsSchema = z.object({
   postMode: z.enum(["direct", "draft"]),
   brandedContent: z.boolean(),
   brandOrganic: z.boolean(),
+  autoAddMusic: z.boolean().optional(),
+});
+
+const mediaItemSchema = z.object({
+  path: z.string().min(1),
+  kind: z.enum(["image", "video"]),
+  mimeType: z.string().min(1),
+  bytes: z.number().int().nonnegative().nullable().optional(),
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
+  durationSeconds: z.number().nonnegative().nullable().optional(),
+  altText: z.string().max(1000).nullable().optional(),
 });
 
 // Built per-call (not module scope) so the "pick at least one platform" message
 // reflects the caller's locale cookie.
 function createSchema(t: PublishingDict["publishing"]) {
   return z.object({
-    videoPath: z.string().min(1),
+    // Ordered slides. One = a single image or video post; more = a carousel.
+    media: z.array(mediaItemSchema).min(1, t.chooseMediaFirst).max(35),
     title: z.string().max(200).optional().nullable(),
     caption: z.string().max(5000).optional().nullable(),
     hashtags: z.string().max(2000).optional().nullable(),
@@ -47,6 +63,10 @@ function createSchema(t: PublishingDict["publishing"]) {
     // absent or blank falls back to `caption` at dispatch time.
     captions: z.record(z.string(), z.string().max(5000)).optional(),
     privacy: z.enum(["public", "private"]).default("public"),
+    // Carousel slide used as the cover (TikTok photo_cover_index).
+    coverIndex: z.number().int().nonnegative().default(0),
+    // Video frame (ms) used as the cover (Instagram thumb_offset).
+    coverMs: z.number().int().nonnegative().nullable().optional(),
     // ISO datetime; absent/empty = publish now.
     scheduledAt: z.string().datetime().optional().nullable(),
     // TikTok compliance-panel choices (T4) — required client-side whenever
@@ -79,6 +99,11 @@ async function isConnected(
   return Boolean(conn?.access_token && conn.token_status !== "invalid");
 }
 
+/** Turn the validator's first blocking issue into the thrown user-facing error. */
+function issueMessage(t: PublishingDict["publishing"], issue: Issue): string {
+  return t.validation.message(issue);
+}
+
 export async function createPublishPost(input: CreatePostInput): Promise<{
   postId: string;
   publishedNow: boolean;
@@ -101,6 +126,33 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
     throw new Error(t.noPlatformsConnected);
   }
 
+  // Re-run the exact validation the composer ran. The composer's copy is a
+  // convenience for the user; this one is the guarantee — a stale tab or a
+  // hand-rolled request must not be able to queue a job only the platform can
+  // reject (an 11-slide Instagram carousel, a photo aimed at YouTube, a caption
+  // 400 characters over Threads' limit).
+  const { errors } = validateDraft(
+    {
+      media: parsed.media.map((item) => ({
+        kind: item.kind,
+        mimeType: item.mimeType,
+        bytes: item.bytes ?? null,
+        width: item.width ?? null,
+        height: item.height ?? null,
+        durationSeconds: item.durationSeconds ?? null,
+        altText: item.altText ?? null,
+      })),
+      platforms: targets,
+      title: parsed.title ?? "",
+      caption: parsed.caption ?? "",
+      hashtags: parsed.hashtags ?? "",
+      captions: parsed.captions as Partial<Record<Platform, string>> | undefined,
+      scheduledAt: parsed.scheduledAt ?? null,
+    },
+    Date.now()
+  );
+  if (errors.length > 0) throw new Error(issueMessage(t, errors[0]));
+
   // TikTok rejects branded/paid-partnership content posted as SELF_ONLY — the
   // disclosure has to reach an audience. Reject early with a clear message
   // instead of letting the client-side gate be the only thing enforcing it.
@@ -113,6 +165,8 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
   }
 
   const immediate = !parsed.scheduledAt;
+  const mediaKind = mediaKindFor(parsed.media);
+  const coverIndex = Math.min(Math.max(parsed.coverIndex, 0), parsed.media.length - 1);
 
   const { data: post, error: postErr } = await admin
     .from("publish_posts")
@@ -121,7 +175,15 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
       title: parsed.title ?? null,
       caption: parsed.caption ?? null,
       hashtags: parsed.hashtags ?? null,
-      video_path: parsed.videoPath,
+      // Kept in sync for the single-video case so anything still reading the
+      // legacy column (and the media loader's fallback) resolves.
+      video_path: mediaKind === "video" ? parsed.media[0].path : null,
+      media_kind: mediaKind,
+      cover_index: coverIndex,
+      cover_ms: parsed.coverMs ?? null,
+      duration_seconds: parsed.media[0].durationSeconds
+        ? Math.round(parsed.media[0].durationSeconds)
+        : null,
       status: immediate ? "publishing" : "scheduled",
       scheduled_at: parsed.scheduledAt ?? null,
     })
@@ -130,14 +192,36 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
 
   if (postErr || !post) throw new Error(postErr?.message ?? t.couldNotCreatePost);
 
+  const { error: mediaErr } = await admin.from("publish_media").insert(
+    parsed.media.map((item, index) => ({
+      post_id: post.id,
+      user_id: user.id,
+      position: index,
+      kind: item.kind,
+      storage_path: item.path,
+      mime_type: item.mimeType,
+      byte_size: item.bytes ?? null,
+      width: item.width ?? null,
+      height: item.height ?? null,
+      duration_seconds: item.durationSeconds ?? null,
+      alt_text: item.altText?.trim() || null,
+    }))
+  );
+  if (mediaErr) {
+    // The post row without its media is unpublishable and would sit in the
+    // history as a permanent failure — take it back out.
+    await admin.from("publish_posts").delete().eq("id", post.id);
+    throw new Error(mediaErr.message);
+  }
+
   // One job per connected target. connection_id is the social_connections row
-  // for TikTok/YouTube; IG/FB credentials live on the profile, so it stays null.
+  // for TikTok/YouTube/Threads; IG/FB credentials live on the profile, so it
+  // stays null.
   const jobRows = [] as Array<Record<string, unknown>>;
   for (const platform of targets) {
-    const conn =
-      platform === "tiktok" || platform === "youtube"
-        ? await getConnection(admin, user.id, platform)
-        : null;
+    const conn = isOAuthPlatform(platform)
+      ? await getConnection(admin, user.id, platform)
+      : null;
     // Per-platform override wins; blank/absent leaves caption null so the
     // dispatcher falls back to the shared post caption.
     const override = parsed.captions?.[platform]?.trim();
@@ -156,21 +240,21 @@ export async function createPublishPost(input: CreatePostInput): Promise<{
   const { error: jobsErr } = await admin.from("publish_jobs").insert(jobRows);
   if (jobsErr) throw new Error(jobsErr.message);
 
-  if (immediate) {
-    // Run inline so the user sees results on return. Dispatcher writes per-job
-    // status; we don't throw on partial failure.
-    await dispatchPost(admin, post.id);
-  } else {
-    // Scheduled: enqueue a durable publish job that fires at the scheduled time
-    // (V4). The cron worker claims it when due and runs the same dispatcher.
-    await enqueueJob(admin, {
-      kind: "publish_post",
-      payload: { post_id: post.id },
-      userId: user.id,
-      runAt: parsed.scheduledAt!,
-      dedupKey: `publish:${post.id}`,
-    });
-  }
+  // Everything goes through the durable queue — "post now" included. The
+  // dispatcher can spend minutes per platform (Instagram polls its container, a
+  // carousel is a dozen round-trips, YouTube streams the file), which is far
+  // longer than a server action should hold a response open.
+  await enqueueJob(admin, {
+    kind: "publish_post",
+    payload: { post_id: post.id },
+    userId: user.id,
+    runAt: parsed.scheduledAt ?? undefined,
+    dedupKey: `publish:${post.id}`,
+  });
+
+  // For an immediate post, poke the worker so it starts within a second instead
+  // of waiting for the next cron tick. Runs after the response is sent.
+  if (immediate) kickPublishWorker(post.id);
 
   revalidatePath("/dashboard/publishing");
   revalidatePath("/dashboard/calendar");
@@ -220,24 +304,7 @@ export async function updateScheduledPost(input: UpdatePostInput): Promise<void>
     .eq("id", parsed.postId);
   if (error) throw new Error(error.message);
 
-  // Keep the durable publish job's fire time in sync with the new schedule.
-  // Update the still-queued job in place; if none exists (e.g. a post scheduled
-  // before the queue), enqueue one.
-  const { data: bumped } = await admin
-    .from("jobs")
-    .update({ run_at: parsed.scheduledAt, updated_at: new Date().toISOString() })
-    .eq("dedup_key", `publish:${parsed.postId}`)
-    .eq("status", "queued")
-    .select("id");
-  if (!bumped || bumped.length === 0) {
-    await enqueueJob(admin, {
-      kind: "publish_post",
-      payload: { post_id: parsed.postId },
-      userId: user.id,
-      runAt: parsed.scheduledAt,
-      dedupKey: `publish:${parsed.postId}`,
-    });
-  }
+  await syncQueuedPublishJob(admin, user.id, parsed.postId, parsed.scheduledAt);
 
   revalidatePath("/dashboard/publishing");
   revalidatePath("/dashboard/calendar");
@@ -279,25 +346,36 @@ export async function reschedulePost(input: {
     .eq("id", parsed.postId);
   if (error) throw new Error(error.message);
 
-  // Keep the durable publish job's fire time in sync (mirror updateScheduledPost).
+  await syncQueuedPublishJob(admin, user.id, parsed.postId, parsed.scheduledAt);
+
+  revalidatePath("/dashboard/publishing");
+  revalidatePath("/dashboard/calendar");
+}
+
+// Keep the durable publish job's fire time in sync with the post's schedule.
+// Update the still-queued job in place; if none exists (e.g. a post scheduled
+// before the queue), enqueue one.
+async function syncQueuedPublishJob(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  postId: string,
+  scheduledAt: string
+): Promise<void> {
   const { data: bumped } = await admin
     .from("jobs")
-    .update({ run_at: parsed.scheduledAt, updated_at: new Date().toISOString() })
-    .eq("dedup_key", `publish:${parsed.postId}`)
+    .update({ run_at: scheduledAt, updated_at: new Date().toISOString() })
+    .eq("dedup_key", `publish:${postId}`)
     .eq("status", "queued")
     .select("id");
   if (!bumped || bumped.length === 0) {
     await enqueueJob(admin, {
       kind: "publish_post",
-      payload: { post_id: parsed.postId },
-      userId: user.id,
-      runAt: parsed.scheduledAt,
-      dedupKey: `publish:${parsed.postId}`,
+      payload: { post_id: postId },
+      userId,
+      runAt: scheduledAt,
+      dedupKey: `publish:${postId}`,
     });
   }
-
-  revalidatePath("/dashboard/publishing");
-  revalidatePath("/dashboard/calendar");
 }
 
 export async function retryJob(jobId: string): Promise<void> {
@@ -306,8 +384,8 @@ export async function retryJob(jobId: string): Promise<void> {
   const user = await requireUser(t);
   const admin = createAdminClient();
 
-  // Reset to pending (idempotency lock lives on post_id+connection_id), then
-  // re-run the parent post's dispatcher.
+  // Reset to pending (the post_id+platform unique index is the idempotency
+  // lock), then queue the parent post's dispatcher — never run it inline.
   const { data: job } = await admin
     .from("publish_jobs")
     .select("id, post_id, user_id")
@@ -317,11 +395,76 @@ export async function retryJob(jobId: string): Promise<void> {
 
   await admin
     .from("publish_jobs")
-    .update({ status: "pending", error_message: null })
+    .update({ status: "pending", error_message: null, updated_at: new Date().toISOString() })
     .eq("id", jobId);
+  await admin
+    .from("publish_posts")
+    .update({ status: "publishing", updated_at: new Date().toISOString() })
+    .eq("id", job.post_id);
 
-  await dispatchPost(admin, job.post_id);
+  await enqueueJob(admin, {
+    kind: "publish_post",
+    payload: { post_id: job.post_id },
+    userId: user.id,
+    dedupKey: `publish:${job.post_id}`,
+  });
+  kickPublishWorker(job.post_id);
+
   revalidatePath("/dashboard/publishing");
+}
+
+/**
+ * Clone a post's copy and media into a fresh draft, ready to re-target and
+ * re-schedule. The media rows point at the SAME R2 objects — nothing is
+ * re-uploaded, and deleting the copy leaves the original's media alone because
+ * deletePost only removes objects the post still owns (see below).
+ */
+export async function duplicatePost(postId: string): Promise<{ postId: string }> {
+  const dict = await getDict();
+  const t = dict.publishing;
+  const user = await requireUser(t);
+  const admin = createAdminClient();
+
+  const { data: source } = await admin
+    .from("publish_posts")
+    .select("id, user_id, title, caption, hashtags, video_path, media_kind, cover_index, cover_ms, duration_seconds")
+    .eq("id", postId)
+    .maybeSingle();
+  if (!source || source.user_id !== user.id) throw new Error(t.postNotFound);
+
+  const { data: copy, error: copyErr } = await admin
+    .from("publish_posts")
+    .insert({
+      user_id: user.id,
+      title: source.title,
+      caption: source.caption,
+      hashtags: source.hashtags,
+      video_path: source.video_path,
+      media_kind: source.media_kind ?? "video",
+      cover_index: source.cover_index ?? 0,
+      cover_ms: source.cover_ms,
+      duration_seconds: source.duration_seconds,
+      status: "draft",
+      scheduled_at: null,
+    })
+    .select("id")
+    .single();
+  if (copyErr || !copy) throw new Error(copyErr?.message ?? t.couldNotCreatePost);
+
+  const { data: media } = await admin
+    .from("publish_media")
+    .select("position, kind, storage_path, mime_type, byte_size, width, height, duration_seconds, alt_text")
+    .eq("post_id", postId)
+    .order("position", { ascending: true });
+
+  if (media && media.length > 0) {
+    await admin
+      .from("publish_media")
+      .insert(media.map((row) => ({ ...row, post_id: copy.id, user_id: user.id })));
+  }
+
+  revalidatePath("/dashboard/publishing");
+  return { postId: copy.id };
 }
 
 export async function deletePost(postId: string): Promise<void> {
@@ -337,14 +480,31 @@ export async function deletePost(postId: string): Promise<void> {
     .maybeSingle();
   if (!post || post.user_id !== user.id) throw new Error(t.postNotFound);
 
-  // Remove the uploaded R2 object too (best-effort), then the row (jobs cascade).
-  if (post.video_path) {
+  // Remove the R2 objects too — every slide, not just the legacy video column.
+  // Objects shared with another post (a duplicate) are left alone, otherwise
+  // deleting a copy would blank the original.
+  const paths = await listPublishMediaPaths(admin, postId, post.video_path);
+  const shared = new Set<string>();
+  if (paths.length > 0) {
+    const { data: others } = await admin
+      .from("publish_media")
+      .select("storage_path")
+      .in("storage_path", paths)
+      .neq("post_id", postId)
+      .returns<{ storage_path: string }[]>();
+    for (const row of others ?? []) shared.add(row.storage_path);
+  }
+
+  for (const path of paths) {
+    if (shared.has(path)) continue;
     try {
-      await deleteR2Object(post.video_path);
+      await deleteR2Object(path);
     } catch {
       // Don't block post deletion if the object is already gone / R2 hiccups.
     }
   }
+
+  // publish_media and publish_jobs cascade from the post row.
   await admin.from("publish_posts").delete().eq("id", postId);
 
   revalidatePath("/dashboard/publishing");

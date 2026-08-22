@@ -107,8 +107,16 @@ async function runJob(admin: ReturnType<typeof createAdminClient>, job: Job): Pr
     case "publish_post": {
       const postId = String(job.payload.post_id ?? "");
       if (!postId) throw new Error("publish_post job missing post_id");
-      await dispatchPost(admin, postId); // idempotent (pending-jobs-only)
-      await completeJob(admin, job.id);
+      const result = await dispatchPost(admin, postId); // idempotent (pending-jobs-only)
+      if (result.deferred > 0) {
+        // A target hit a rate limit / timeout and was left `pending`. Completing
+        // the queue job here would strand it: nothing else re-runs a pending
+        // publish_job. Reschedule with backoff so the same dispatcher picks up
+        // exactly the targets that haven't landed yet.
+        await failJob(admin, job, new Error(`${result.deferred} target(s) waiting on a retry`));
+      } else {
+        await completeJob(admin, job.id);
+      }
       return { hitMeta: false, deferred: false };
     }
     case "transcribe_reel": {

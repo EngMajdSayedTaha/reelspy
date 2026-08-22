@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Dialog } from "radix-ui";
-import { Loader2, Pencil, RotateCw, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Copy, Loader2, Pencil, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError } from "@/lib/utils/api";
-import { retryJob, deletePost, updateScheduledPost } from "@/app/dashboard/publishing/actions";
+import {
+  retryJob,
+  deletePost,
+  duplicatePost,
+  updateScheduledPost,
+} from "@/app/dashboard/publishing/actions";
 import { useDict } from "@/lib/i18n/I18nProvider";
 
 // Turn a stored UTC ISO timestamp into the `datetime-local` value (no zone) the
@@ -176,6 +182,46 @@ export function EditPostButton({ postId, title, caption, hashtags, scheduledAt }
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/**
+ * Clone a post into a fresh draft. The media rows point at the same R2 objects,
+ * so nothing is re-uploaded — this is the "post this again next week" path every
+ * scheduler has and this one didn't.
+ */
+export function DuplicatePostButton({ postId }: { postId: string }) {
+  const dict = useDict();
+  const t = dict.publishing;
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  return (
+    <Button
+      type="button"
+      size="icon-sm"
+      variant="ghost"
+      disabled={pending}
+      title={t.duplicatePost}
+      aria-label={t.duplicatePost}
+      onClick={() =>
+        start(async () => {
+          try {
+            await duplicatePost(postId);
+            toast.success(t.duplicatedToast);
+            router.refresh();
+          } catch (error) {
+            notifyError(error, t.couldNotDuplicate);
+          }
+        })
+      }
+    >
+      {pending ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : (
+        <Copy className="h-4 w-4 text-muted-foreground" />
+      )}
+    </Button>
   );
 }
 

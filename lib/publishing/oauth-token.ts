@@ -1,14 +1,14 @@
-// Shared "get me a live access token" resolver for the two OAuth-refresh
-// platforms (TikTok/YouTube). Extracted from dispatcher.ts so the new
-// creator-info route (T4) can resolve a usable TikTok token the same way the
-// dispatcher does, instead of re-implementing the expiry/refresh/invalidate
-// dance a second time.
+// Shared "get me a live access token" resolver for the OAuth-refresh platforms
+// (TikTok / YouTube / Threads). Extracted from dispatcher.ts so the creator-info
+// route (T4) can resolve a usable TikTok token the same way the dispatcher does,
+// instead of re-implementing the expiry/refresh/invalidate dance a second time.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getConnection, markConnectionInvalid, updateConnectionTokens } from "./token-store";
 import { refreshTikTokToken } from "./adapters/tiktok";
 import { refreshYouTubeToken } from "./adapters/youtube";
-import type { SocialConnection } from "./types";
+import { refreshThreadsToken } from "./adapters/threads";
+import { PLATFORM_LABELS, type OAuthPlatform, type SocialConnection } from "./types";
 
 export type OAuthTokenResult =
   | { accessToken: string; connection: SocialConnection }
@@ -17,10 +17,11 @@ export type OAuthTokenResult =
 export async function resolveOAuthAccessToken(
   admin: SupabaseClient,
   userId: string,
-  platform: "tiktok" | "youtube"
+  platform: OAuthPlatform
 ): Promise<OAuthTokenResult> {
+  const label = PLATFORM_LABELS[platform];
   const conn = await getConnection(admin, userId, platform);
-  if (!conn?.access_token) return { error: `${platform} is not connected.` };
+  if (!conn?.access_token) return { error: `${label} is not connected.` };
 
   const expired =
     conn.token_expires_at != null &&
@@ -28,14 +29,18 @@ export async function resolveOAuthAccessToken(
 
   if (!expired) return { accessToken: conn.access_token, connection: conn };
 
-  if (!conn.refresh_token) {
+  // TikTok and YouTube exchange a separate refresh token. Threads refreshes the
+  // long-lived ACCESS token in place (th_refresh_token), so there is no refresh
+  // token to check — a Threads connection is refreshable as long as it has a
+  // token that hasn't already lapsed.
+  if (platform !== "threads" && !conn.refresh_token) {
     await markConnectionInvalid(admin, conn.id);
-    return { error: `${platform} session expired — reconnect the account.` };
+    return { error: `${label} session expired — reconnect the account.` };
   }
 
   try {
     if (platform === "tiktok") {
-      const r = await refreshTikTokToken(conn.refresh_token);
+      const r = await refreshTikTokToken(conn.refresh_token!);
       await updateConnectionTokens(admin, conn.id, {
         accessToken: r.accessToken,
         refreshToken: r.refreshToken,
@@ -43,7 +48,17 @@ export async function resolveOAuthAccessToken(
       });
       return { accessToken: r.accessToken, connection: conn };
     }
-    const r = await refreshYouTubeToken(conn.refresh_token);
+
+    if (platform === "threads") {
+      const r = await refreshThreadsToken(conn.access_token);
+      await updateConnectionTokens(admin, conn.id, {
+        accessToken: r.accessToken,
+        expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
+      });
+      return { accessToken: r.accessToken, connection: conn };
+    }
+
+    const r = await refreshYouTubeToken(conn.refresh_token!);
     await updateConnectionTokens(admin, conn.id, {
       accessToken: r.accessToken,
       expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
@@ -51,6 +66,6 @@ export async function resolveOAuthAccessToken(
     return { accessToken: r.accessToken, connection: conn };
   } catch {
     await markConnectionInvalid(admin, conn.id);
-    return { error: `${platform} session expired — reconnect the account.` };
+    return { error: `${label} session expired — reconnect the account.` };
   }
 }

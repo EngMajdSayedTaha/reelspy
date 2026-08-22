@@ -12,6 +12,7 @@ import {
 } from "@/lib/publishing/token-store";
 import { refreshTikTokToken } from "@/lib/publishing/adapters/tiktok";
 import { refreshYouTubeToken } from "@/lib/publishing/adapters/youtube";
+import { refreshThreadsToken } from "@/lib/publishing/adapters/threads";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { numEnv } from "@/lib/utils/env";
 
@@ -97,26 +98,38 @@ export async function GET(request: Request) {
   let socialRefreshed = 0;
   let socialInvalidated = 0;
 
+  // No `refresh_token is not null` filter: Threads has no separate refresh
+  // token — its 60-day long-lived ACCESS token is refreshed in place — so
+  // filtering on one would silently skip every Threads connection and let it
+  // lapse permanently (a Threads token that goes 60 days unrefreshed can never
+  // be revived; the user has to reconnect).
   const { data: connections } = await admin
     .from("social_connections")
-    .select("id, platform, refresh_token, token_expires_at")
-    .in("platform", ["tiktok", "youtube"])
+    .select("id, platform, access_token, refresh_token, token_expires_at")
+    .in("platform", ["tiktok", "youtube", "threads"])
     .eq("token_status", "active")
-    .not("refresh_token", "is", null)
     .or(`token_expires_at.is.null,token_expires_at.lte.${cutoffIso}`);
 
   for (const conn of connections ?? []) {
-    if (!conn.refresh_token) continue;
+    const needsRefreshToken = conn.platform !== "threads";
+    if (needsRefreshToken && !conn.refresh_token) continue;
+    if (!needsRefreshToken && !conn.access_token) continue;
     try {
       if (conn.platform === "tiktok") {
-        const r = await refreshTikTokToken(conn.refresh_token);
+        const r = await refreshTikTokToken(conn.refresh_token!);
         await updateConnectionTokens(admin, conn.id, {
           accessToken: r.accessToken,
           refreshToken: r.refreshToken,
           expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
         });
+      } else if (conn.platform === "threads") {
+        const r = await refreshThreadsToken(conn.access_token!);
+        await updateConnectionTokens(admin, conn.id, {
+          accessToken: r.accessToken,
+          expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),
+        });
       } else {
-        const r = await refreshYouTubeToken(conn.refresh_token);
+        const r = await refreshYouTubeToken(conn.refresh_token!);
         await updateConnectionTokens(admin, conn.id, {
           accessToken: r.accessToken,
           expiresAt: new Date(Date.now() + r.expiresInSeconds * 1000).toISOString(),

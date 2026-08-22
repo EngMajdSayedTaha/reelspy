@@ -3,12 +3,12 @@ import { cookies } from "next/headers";
 import { createRouteClient } from "@/lib/supabase/route";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { upsertConnection } from "@/lib/publishing/token-store";
-import { isPlatform, type Platform } from "@/lib/publishing/types";
+import { isOAuthPlatform } from "@/lib/publishing/types";
 import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
 import { relativeRedirect } from "@/lib/http/redirect";
 
-// OAuth callback for TikTok / YouTube: verify state, exchange the code for
-// tokens, and persist them with the service-role client (browser roles can't
+// OAuth callback for TikTok / YouTube / Threads: verify state, exchange the code
+// for tokens, and persist them with the service-role client (browser roles can't
 // see the token columns — see 20260621_publishing.sql).
 
 const STATE_COOKIE = "reelspy_social_oauth_state";
@@ -144,6 +144,89 @@ async function exchangeYouTube(code: string) {
   };
 }
 
+// Threads runs a two-step exchange: the authorization code buys a SHORT-lived
+// (1h) token, which must immediately be swapped for the 60-day long-lived one.
+// Skipping the second step leaves a connection that dies within the hour.
+async function exchangeThreads(code: string) {
+  const clientId = process.env.THREADS_APP_ID!;
+  const clientSecret = process.env.THREADS_APP_SECRET!;
+  const redirectUri = getSocialRedirectUri("threads");
+
+  const shortRes = await fetch("https://graph.threads.net/oauth/access_token", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }),
+  });
+  const short = (await shortRes.json()) as {
+    access_token?: string;
+    user_id?: string | number;
+    error_message?: string;
+    error_type?: string;
+  };
+  if (!shortRes.ok || !short.access_token || short.user_id == null) {
+    throw new Error(short.error_message ?? short.error_type ?? "threads_token_failed");
+  }
+
+  // Exchange for the long-lived token straight away.
+  const longUrl = new URL("https://graph.threads.net/access_token");
+  longUrl.searchParams.set("grant_type", "th_exchange_token");
+  longUrl.searchParams.set("client_secret", clientSecret);
+  longUrl.searchParams.set("access_token", short.access_token);
+
+  const longRes = await fetch(longUrl, { cache: "no-store" });
+  const long = (await longRes.json()) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: { message?: string };
+  };
+  if (!longRes.ok || !long.access_token) {
+    throw new Error(long.error?.message ?? "threads_long_token_failed");
+  }
+
+  const accessToken = long.access_token;
+  // 60 days, per the Threads long-lived token docs.
+  const expiresIn = long.expires_in ?? 60 * 24 * 60 * 60;
+
+  // Handle + avatar for the connection card (best-effort).
+  let username: string | null = null;
+  let avatarUrl: string | null = null;
+  try {
+    const meUrl = new URL("https://graph.threads.net/v1.0/me");
+    meUrl.searchParams.set("fields", "id,username,threads_profile_picture_url");
+    meUrl.searchParams.set("access_token", accessToken);
+    const meRes = await fetch(meUrl, { cache: "no-store" });
+    if (meRes.ok) {
+      const me = (await meRes.json()) as {
+        username?: string;
+        threads_profile_picture_url?: string;
+      };
+      username = me.username ?? null;
+      avatarUrl = me.threads_profile_picture_url ?? null;
+    }
+  } catch {
+    // ignore
+  }
+
+  return {
+    accountId: String(short.user_id),
+    accountUsername: username,
+    avatarUrl,
+    accessToken,
+    // Threads refreshes the access token in place (th_refresh_token), so there
+    // is no separate refresh token to store.
+    refreshToken: null,
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+    scopes: "threads_basic,threads_content_publish",
+  };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ platform: string }> }
@@ -156,7 +239,7 @@ export async function GET(
 
   if (error) return fail(error);
   if (!code) return fail("missing_code");
-  if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
+  if (!isOAuthPlatform(platform)) {
     return fail("unsupported_platform");
   }
 
@@ -177,13 +260,23 @@ export async function GET(
 
   try {
     const admin = createAdminClient();
-    const p = platform as Platform;
 
-    if (p === "tiktok") {
+    if (platform === "tiktok") {
       const t = await exchangeTikTok(code);
       await upsertConnection(admin, user.id, "tiktok", {
         accountId: t.accountId,
         accountUsername: t.accountUsername,
+        accessToken: t.accessToken,
+        refreshToken: t.refreshToken,
+        expiresAt: t.expiresAt,
+        scopes: t.scopes,
+      });
+    } else if (platform === "threads") {
+      const t = await exchangeThreads(code);
+      await upsertConnection(admin, user.id, "threads", {
+        accountId: t.accountId,
+        accountUsername: t.accountUsername,
+        avatarUrl: t.avatarUrl,
         accessToken: t.accessToken,
         refreshToken: t.refreshToken,
         expiresAt: t.expiresAt,

@@ -10,8 +10,7 @@
 //   - instagram_manage_messages + pages_messaging → sendPrivateReply
 //   - pages_manage_metadata      → subscribePageToWebhooks
 
-const GRAPH_VERSION = "v23.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+import { GRAPH_BASE } from "@/lib/meta/graph";
 
 // Same reasoning as GRAPH_TIMEOUT_MS in lib/instagram/graph-api.ts: a Meta call
 // with no ceiling can outlive the serverless invocation, which kills the handler

@@ -11,9 +11,7 @@
 
 import { MetaRateLimitError, type MetaRateLimiter } from "./rate-limit";
 import { getSiteUrl } from "@/lib/site";
-
-const GRAPH_VERSION = "v23.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+import { GRAPH_BASE, GRAPH_VERSION } from "@/lib/meta/graph";
 
 // The redirect URI Meta bounces back to after the Facebook Login dialog. Meta
 // requires this to be an EXACT, pre-registered string and it must be identical
