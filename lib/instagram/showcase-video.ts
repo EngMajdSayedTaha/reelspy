@@ -91,13 +91,24 @@ export async function mirrorShowcaseVideos(admin: SupabaseClient): Promise<Mirro
     }
     // Match on the URL we just mirrored rather than on the media id: the id
     // here is derived from the permalink, and writing by it would need a
-    // second lookup. The signed URL is unique per reel, so this hits one row.
-    const { error } = await admin
+    // second lookup. The signed URL is unique per reel, so this hits one row
+    // — unless a resync overwrote it with a fresh signed URL in the window
+    // between our fetch and this write, in which case zero rows match.
+    const { data, error } = await admin
       .from("ig_reel_snapshots")
       .update({ video_url: permanent })
-      .eq("video_url", item.videoUrl);
+      .eq("video_url", item.videoUrl)
+      .select("ig_media_id");
     if (error) {
       console.warn("[showcase-video] snapshot update failed", { id: item.mediaId, error });
+      result.failed += 1;
+      continue;
+    }
+    if (!data || data.length === 0) {
+      // Nothing to point at the file we just uploaded — delete it rather
+      // than leaving an orphaned mirror. A later run will re-mirror under
+      // whatever signed URL the row holds by then.
+      await admin.storage.from("ig-media").remove([`videos/${item.mediaId}.mp4`]);
       result.failed += 1;
       continue;
     }
