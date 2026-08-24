@@ -1,21 +1,13 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Link2, Unplug, RefreshCw, Camera, ThumbsUp, Music2, PlayCircle, type LucideIcon } from "lucide-react";
+import { Link2, Unplug, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { notifyError, requestJson } from "@/lib/utils/api";
+import { PLATFORM_ICONS } from "@/components/publishing/platform-icons";
 import { PLATFORM_LABELS, type Platform } from "@/lib/publishing/types";
 import { useDict } from "@/lib/i18n/I18nProvider";
-
-// Icons live here (a client component) rather than being passed in as props —
-// component functions can't cross the Server→Client boundary.
-const PLATFORM_ICONS: Record<Platform, LucideIcon> = {
-  instagram: Camera,
-  facebook: ThumbsUp,
-  tiktok: Music2,
-  youtube: PlayCircle,
-};
 
 type Props = {
   platform: Platform;

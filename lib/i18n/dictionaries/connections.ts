@@ -16,6 +16,8 @@ const en = {
     oauthFailed: "Connection failed. Please try again.",
     tiktokEnvMissing: "TikTok isn't configured on the server yet.",
     youtubeEnvMissing: "YouTube isn't configured on the server yet.",
+    threadsEnvMissing:
+      "Threads isn't configured on the server yet — it needs its own Threads App ID and secret, not the Meta app's.",
     unsupportedPlatform: "That platform can't be connected here.",
     metaEnvMissing: "Instagram connection isn't configured yet. Contact support.",
     profileUpdateFailed: "Connected, but we couldn't save your connection. Please retry.",
@@ -68,6 +70,7 @@ const en = {
     pageConnected: "Page connected",
     tiktokNote: "Posts via the TikTok Content Posting API.",
     youtubeNote: "Uploads via the YouTube Data API and powers comment auto-reply.",
+    threadsNote: "Posts text, photos, videos and carousels via the Threads API.",
 
     footerNoteBeforeDocs:
       "Note: Instagram & Facebook posting works on your own account with no Meta App Review (the app stays in development mode). TikTok and YouTube post to your own account right away but stay private until their platform audits pass. See",
@@ -122,6 +125,8 @@ export const connectionsAr: ConnectionsDict = {
     oauthFailed: "فشل الربط. يرجى المحاولة مرة أخرى.",
     tiktokEnvMissing: "تيك توك غير مهيأ على الخادم بعد.",
     youtubeEnvMissing: "يوتيوب غير مهيأ على الخادم بعد.",
+    threadsEnvMissing:
+      "ثريدز غير مهيأ على الخادم بعد — فهو يحتاج معرّف تطبيق Threads وسرّه الخاصين، لا بيانات تطبيق ميتا.",
     unsupportedPlatform: "لا يمكن ربط هذه المنصة من هنا.",
     metaEnvMissing: "ربط إنستغرام غير مهيأ بعد. يرجى التواصل مع الدعم.",
     profileUpdateFailed: "تم الربط، لكن تعذّر حفظ الاتصال. يرجى إعادة المحاولة.",
@@ -170,6 +175,7 @@ export const connectionsAr: ConnectionsDict = {
     pageConnected: "الصفحة مرتبطة",
     tiktokNote: "ينشر عبر واجهة TikTok Content Posting API.",
     youtubeNote: "يرفع عبر YouTube Data API ويشغّل الرد الآلي على التعليقات.",
+    threadsNote: "ينشر النصوص والصور والفيديوهات والألبومات عبر واجهة Threads API.",
 
     footerNoteBeforeDocs:
       "ملاحظة: النشر على إنستغرام وفيسبوك يعمل على حسابك الخاص دون مراجعة تطبيق Meta (يبقى التطبيق في وضع التطوير). ينشر تيك توك ويوتيوب على حسابك فورًا لكنه يبقى خاصًا حتى تجتاز مراجعة كل منصة. راجع",

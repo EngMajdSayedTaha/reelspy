@@ -117,6 +117,8 @@ export function buildPageTourSteps(page: PageTourKey, dict: Dict): TourStep[] {
         { element: '[data-tour="connect-accounts"]', title: s.connectAccounts.title, description: s.connectAccounts.desc },
         { element: '[data-tour="needs-attention"]', title: s.needsAttention.title, description: s.needsAttention.desc },
         { element: '[data-tour="publish-composer"]', title: s.composer.title, description: s.composer.desc },
+        { element: '[data-tour="publish-media"]', title: s.media.title, description: s.media.desc },
+        { element: '[data-tour="publish-validation"]', title: s.validation.title, description: s.validation.desc },
         { element: '[data-tour="publish-preview"]', title: s.preview.title, description: s.preview.desc },
         { element: '[data-tour="publish-history"]', title: s.history.title, description: s.history.desc },
       ];

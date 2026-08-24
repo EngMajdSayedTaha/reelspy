@@ -4,16 +4,17 @@ import { cookies } from "next/headers";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
 import { renderOAuthInterstitial } from "@/lib/oauth/interstitial";
 import { createRouteClient } from "@/lib/supabase/route";
-import { isPlatform } from "@/lib/publishing/types";
+import { isOAuthPlatform, PLATFORM_LABELS } from "@/lib/publishing/types";
 import { getSocialRedirectUri } from "@/lib/publishing/oauth-redirect";
 import { relativeRedirect } from "@/lib/http/redirect";
 import { checkOAuthOrigin } from "@/lib/oauth/origin";
 import { oauthLog, requestContext } from "@/lib/oauth/log";
 
-// OAuth initiation for the net-new publishing platforms (TikTok, YouTube).
-// Instagram/Facebook reuse the existing /api/ig/connect flow. Mirrors that
-// pattern: sign a random `state` into an httpOnly cookie, redirect to the
-// provider's consent screen, verify on the way back in the callback.
+// OAuth initiation for the publishing platforms that carry their own tokens
+// (TikTok, YouTube, Threads). Instagram/Facebook reuse the existing
+// /api/ig/connect flow. Mirrors that pattern: sign a random `state` into an
+// httpOnly cookie, redirect to the provider's consent screen, verify on the way
+// back in the callback.
 
 const STATE_COOKIE = "reelspy_social_oauth_state";
 const SETTINGS = "/dashboard/connections";
@@ -25,7 +26,7 @@ export async function GET(
   const { platform } = await params;
   const ctx = requestContext(request);
 
-  if (!isPlatform(platform) || (platform !== "tiktok" && platform !== "youtube")) {
+  if (!isOAuthPlatform(platform)) {
     return relativeRedirect(`${SETTINGS}?error=unsupported_platform`);
   }
 
@@ -78,6 +79,25 @@ export async function GET(
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("state", state);
     authUrl = url.toString();
+  } else if (platform === "threads") {
+    // Threads is its own product inside the same Meta App Dashboard: adding the
+    // Threads use case mints a SEPARATE Threads App ID + secret, and the consent
+    // window lives on threads.net rather than facebook.com. META_APP_ID does not
+    // work here — see docs/publishing-setup.md.
+    const clientId = process.env.THREADS_APP_ID;
+    const redirectUri = getSocialRedirectUri("threads");
+    if (!clientId) {
+      return applyCookies(relativeRedirect(`${SETTINGS}?error=threads_env_missing`));
+    }
+    const url = new URL("https://threads.net/oauth/authorize");
+    url.searchParams.set("client_id", clientId);
+    // threads_basic is required for every Threads endpoint;
+    // threads_content_publish is what lets us post.
+    url.searchParams.set("scope", "threads_basic,threads_content_publish");
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("state", state);
+    authUrl = url.toString();
   } else {
     const clientId = process.env.YOUTUBE_CLIENT_ID;
     const redirectUri = getSocialRedirectUri("youtube");
@@ -118,7 +138,7 @@ export async function GET(
     new NextResponse(
       renderOAuthInterstitial({
         authorizeUrl: authUrl,
-        provider: platform === "tiktok" ? "TikTok" : "YouTube",
+        provider: PLATFORM_LABELS[platform],
         locale,
         flow: platform,
       }),

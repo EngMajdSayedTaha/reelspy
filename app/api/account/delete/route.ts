@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { deleteR2Object } from "@/lib/storage/r2";
 import { notifyAdmins } from "@/lib/notifications/notify";
+import { GRAPH_BASE } from "@/lib/meta/graph";
 
 // POST /api/account/delete — PDPL right to erasure. Permanently deletes the
 // account and everything hanging off it. Order:
@@ -12,8 +13,6 @@ import { notifyAdmins } from "@/lib/notifications/notify";
 //   3. auth.admin.deleteUser() — the profiles row cascades (every user table is
 //      `on delete cascade` from profiles), so all app rows go with it.
 // POST + a typed confirmation guards against accidental/CSRF deletion.
-
-const GRAPH_VERSION = "v23.0";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -59,7 +58,7 @@ export async function POST(request: Request) {
     const ig = await getIgCredentials(admin, user.id);
     if (ig?.token) {
       await fetch(
-        `https://graph.facebook.com/${GRAPH_VERSION}/me/permissions?access_token=${encodeURIComponent(ig.token)}`,
+        `${GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(ig.token)}`,
         { method: "DELETE" }
       );
     }
