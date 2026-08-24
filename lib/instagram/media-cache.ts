@@ -5,9 +5,19 @@
 // once and serving them from our own public Storage bucket makes the image
 // permanent regardless of what Instagram does with the source media later.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 const BUCKET = "ig-media";
 const MAX_BYTES = 10 * 1024 * 1024;
+
+// Thumbnails/avatars are only ever displayed as small card/profile previews,
+// never at source resolution, so there is no reason to store Instagram's
+// full-size JPEG (often 1080px+ per side, several hundred KB) byte for byte.
+// Capping the longer side at 480px and re-encoding keeps every image sharp at
+// any card size the app actually renders while cutting typical file size by
+// roughly 80%.
+const THUMBNAIL_MAX_DIMENSION = 480;
+const THUMBNAIL_JPEG_QUALITY = 74;
 
 // Video gets its own, larger ceiling: a 30-second reel is comfortably past the
 // 10MB image limit, and rejecting it there would silently mirror nothing.
@@ -44,11 +54,32 @@ async function cacheMedia(
     const contentLength = Number(res.headers.get("content-length") ?? 0);
     if (contentLength > maxBytes) return null;
 
-    const bytes = Buffer.from(await res.arrayBuffer());
+    let bytes = Buffer.from(await res.arrayBuffer());
     if (bytes.byteLength > maxBytes) return null;
 
+    let outContentType = contentType;
+    if (kind === "image") {
+      // Best-effort: a source image sharp can't parse (corrupt, unsupported
+      // format) still caches fine at its original size rather than failing
+      // the whole mirror over a cosmetic optimization.
+      try {
+        bytes = await sharp(bytes)
+          .resize({
+            width: THUMBNAIL_MAX_DIMENSION,
+            height: THUMBNAIL_MAX_DIMENSION,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: THUMBNAIL_JPEG_QUALITY })
+          .toBuffer();
+        outContentType = "image/jpeg";
+      } catch {
+        // fall through with the original bytes/contentType
+      }
+    }
+
     const { error } = await admin.storage.from(BUCKET).upload(path, bytes, {
-      contentType,
+      contentType: outContentType,
       upsert: true,
       cacheControl: "31536000",
     });
