@@ -64,6 +64,11 @@ export type PublishMediaItem = {
   position: number;
   kind: MediaItemKind;
   url: string;
+  // TikTok-only alternate URL when no R2 Custom Domain is configured — TikTok's
+  // pull_from_url requires a domain-verified host, which the raw R2 endpoint
+  // never can be (see lib/storage/r2.ts, presignTikTokUrl). Falls back to `url`
+  // when absent; every other platform ignores this field.
+  tiktokUrl?: string;
   mimeType: string;
   altText: string | null;
 };

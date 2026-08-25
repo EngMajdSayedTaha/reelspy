@@ -170,7 +170,7 @@ export const tiktokAdapter: PlatformAdapter = {
           source_info: {
             source: "PULL_FROM_URL",
             photo_cover_index: coverIndex,
-            photo_images: input.media.map((item) => item.url),
+            photo_images: input.media.map((item) => item.tiktokUrl ?? item.url),
           },
         }
       );
@@ -198,7 +198,7 @@ export const tiktokAdapter: PlatformAdapter = {
       const { ok, status, json } = await tiktokPost<{ data?: { publish_id?: string } }>(
         "/post/publish/inbox/video/init/",
         accessToken,
-        { source_info: { source: "PULL_FROM_URL", video_url: video.url } }
+        { source_info: { source: "PULL_FROM_URL", video_url: video.tiktokUrl ?? video.url } }
       );
       if (!ok || !json.data?.publish_id) throw new Error(tiktokError(json.error, status));
       return { remoteId: json.data.publish_id, remoteUrl: null };
@@ -217,7 +217,7 @@ export const tiktokAdapter: PlatformAdapter = {
           brand_content_toggle: Boolean(options?.brandedContent),
           brand_organic_toggle: Boolean(options?.brandOrganic),
         },
-        source_info: { source: "PULL_FROM_URL", video_url: video.url },
+        source_info: { source: "PULL_FROM_URL", video_url: video.tiktokUrl ?? video.url },
       }
     );
     if (!ok || !json.data?.publish_id) throw new Error(tiktokError(json.error, status));

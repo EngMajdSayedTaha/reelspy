@@ -170,17 +170,26 @@ handed to Meta as a short-lived signed URL, so uploads must finish processing
 3. Add your **Redirect URI**: `https://<your-domain>/api/social/tiktok/callback`.
 4. Because the adapter uses `PULL_FROM_URL`, verify a domain under the app's
    **URL properties** (URL Prefix verification). This domain must be the one
-   `presignGetUrl()` hands TikTok — bind a Cloudflare **Custom Domain** to the
-   R2 bucket (R2 → bucket → Settings → Custom Domains) and set
-   `R2_PUBLIC_BASE_URL` to it (step 1 above); the raw R2 S3 endpoint can't be
-   verified since you don't control its DNS. *(Alternative: switch the adapter
-   to `FILE_UPLOAD` if you'd rather not stand up a custom domain at all.)*
+   `presignTikTokUrl()` hands TikTok (`lib/storage/r2.ts`) — two options:
+   - **Custom domain (preferred once you have DNS to spend on it):** bind a
+     Cloudflare **Custom Domain** to the R2 bucket (R2 → bucket → Settings →
+     Custom Domains) and set `R2_PUBLIC_BASE_URL` to it (step 1 above); the raw
+     R2 S3 endpoint can't be verified since you don't control its DNS.
+   - **Free fallback, no new domain:** leave `R2_PUBLIC_BASE_URL` unset.
+     `presignTikTokUrl` then routes TikTok's pull through
+     `app/api/publishing/media-proxy/route.ts` on your own app origin
+     (`getSiteUrl()`, e.g. `app.reelspy.dev`) instead — verify *that* domain
+     with TikTok. Every other platform is unaffected either way; only TikTok's
+     URL changes. Requires `CRON_SECRET` to be set (it signs the proxy link);
+     without it, TikTok posting fails the same way it does today.
+   *(A third option: switch the adapter to `FILE_UPLOAD` if you'd rather not
+   verify any domain at all.)*
 5. Set env vars:
    ```
    TIKTOK_CLIENT_KEY=
    TIKTOK_CLIENT_SECRET=
    TIKTOK_REDIRECT_URI=https://<your-domain>/api/social/tiktok/callback
-   R2_PUBLIC_BASE_URL=https://<your custom domain bound to the R2 bucket>
+   R2_PUBLIC_BASE_URL=https://<your custom domain bound to the R2 bucket>  # omit to use the free proxy fallback instead
    ```
 6. **Publishing → Connections → TikTok → Connect.** Posts now work, but TikTok
    forces them to **`SELF_ONLY`** (visible only to you).
@@ -292,7 +301,10 @@ as one post; text caps at 500 characters.
 
 - [ ] Migration applied (`social_connections`, `publish_posts`, `publish_media`, `publish_jobs`).
 - [ ] Cloudflare R2 bucket created (private) + CORS rule + `R2_*` env vars set.
-- [ ] `R2_PUBLIC_BASE_URL` set to a Custom Domain (required for TikTok).
+- [ ] `R2_PUBLIC_BASE_URL` set to a Custom Domain for TikTok — **or**, if skipping
+      that, `CRON_SECRET` set so `presignTikTokUrl`'s free proxy fallback
+      (`app/api/publishing/media-proxy`) works and that domain is verified with
+      TikTok instead (§3 above).
 - [ ] `CRON_SECRET` set; `/api/cron/run-jobs` scheduled (GH Actions on Hobby, or a Vercel cron on Pro).
       Without it, "Post now" degrades to the 5-minute cron.
 - [ ] Instagram + Facebook connected (public posting works, no review).
