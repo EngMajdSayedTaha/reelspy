@@ -23,10 +23,18 @@
 //                         S3 API host can never be verified — it isn't a domain
 //                         you control DNS for. See docs/BUSINESS-LOGIC.md.
 //
+//                         Without one, presignTikTokUrl below falls back to a
+//                         free alternative: routing TikTok's pull through our
+//                         own already-verified app origin instead (see the
+//                         "TikTok media proxy" section below and
+//                         app/api/publishing/media-proxy/route.ts).
+//
 // The bucket also needs a CORS rule allowing PUT/GET from the app origin so the
 // browser upload's preflight succeeds — see docs/publishing-setup.md.
 
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { AwsClient } from "aws4fetch";
+import { getSiteUrl } from "@/lib/site";
 
 type R2Config = {
   endpoint: string;
@@ -126,6 +134,69 @@ export async function presignGetUrl(key: string, expiresSeconds = 60 * 30): Prom
     aws: { signQuery: true },
   });
   return signed.url;
+}
+
+// ── TikTok media proxy ───────────────────────────────────────────────────────
+// TikTok's Content Posting API (PULL_FROM_URL) requires the pulled URL's
+// domain to be verified in TikTok's developer portal. A Custom Domain
+// (R2_PUBLIC_BASE_URL) already satisfies that, same as presignGetUrl above.
+// Without one — no Cloudflare-managed DNS zone to prove ownership of, and no
+// budget for a new domain — route TikTok specifically through our own
+// already-verified app origin (getSiteUrl()) instead, which streams the R2
+// object back via app/api/publishing/media-proxy/route.ts. Every other
+// platform keeps pulling straight from R2 via presignGetUrl: they have no
+// domain-verification requirement, so there's no reason to add a proxy hop
+// (and its bandwidth cost) to traffic that already works.
+
+function proxySigningKey(): string | null {
+  // Reuses CRON_SECRET (already required, server-only) rather than adding a
+  // new secret — same convention as lib/email/digest-token.ts.
+  return process.env.CRON_SECRET?.trim() || null;
+}
+
+function signProxyPayload(key: string, expiresAt: number, signingKey: string): string {
+  return createHmac("sha256", signingKey).update(`${key}:${expiresAt}`).digest("hex");
+}
+
+function buildMediaProxyUrl(key: string, expiresSeconds: number): string | null {
+  const signingKey = proxySigningKey();
+  if (!signingKey) return null;
+
+  const expiresAt = Date.now() + expiresSeconds * 1000;
+  const sig = signProxyPayload(key, expiresAt, signingKey);
+  const url = new URL(`${getSiteUrl()}/api/publishing/media-proxy`);
+  url.searchParams.set("key", key);
+  url.searchParams.set("exp", String(expiresAt));
+  url.searchParams.set("sig", sig);
+  return url.toString();
+}
+
+/** Verifies a media-proxy URL's signature and expiry. Used by the proxy route. */
+export function verifyMediaProxySignature(key: string, expiresAt: number, sig: string): boolean {
+  const signingKey = proxySigningKey();
+  if (!signingKey || !Number.isFinite(expiresAt) || Date.now() > expiresAt) return false;
+
+  const expected = Buffer.from(signProxyPayload(key, expiresAt, signingKey));
+  const received = Buffer.from(sig);
+  return expected.length === received.length && timingSafeEqual(expected, received);
+}
+
+/** Direct authenticated fetch — what the proxy route streams back to TikTok. */
+export function fetchR2Object(key: string): Promise<Response> {
+  const config = getConfig();
+  return config.client.fetch(objectUrl(config, key), { method: "GET" });
+}
+
+/**
+ * URL to hand TikTok specifically. Identical to presignGetUrl when a Custom
+ * Domain is configured; otherwise the signed media-proxy URL above, or —
+ * lacking even CRON_SECRET to sign one — the same raw R2 URL every other
+ * platform gets (TikTok rejects it the same way it does today; not a new
+ * failure mode, just today's unconfigured-server behavior preserved).
+ */
+export async function presignTikTokUrl(key: string, expiresSeconds = 60 * 30): Promise<string> {
+  if (process.env.R2_PUBLIC_BASE_URL?.trim()) return presignGetUrl(key, expiresSeconds);
+  return buildMediaProxyUrl(key, expiresSeconds) ?? presignGetUrl(key, expiresSeconds);
 }
 
 // Best-effort delete of an uploaded object (called when a post is removed).

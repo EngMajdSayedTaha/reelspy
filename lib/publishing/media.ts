@@ -8,7 +8,7 @@
 
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { presignGetUrl } from "@/lib/storage/r2";
+import { presignGetUrl, presignTikTokUrl } from "@/lib/storage/r2";
 import type { MediaItemKind, PublishMediaItem } from "./types";
 
 // Long enough for a large upload to transcode on the platform's side (Instagram
@@ -72,6 +72,7 @@ export async function loadPublishMedia(
       position: index,
       kind: row.kind,
       url: await presignGetUrl(row.storage_path, SIGNED_URL_TTL_SECONDS),
+      tiktokUrl: await presignTikTokUrl(row.storage_path, SIGNED_URL_TTL_SECONDS),
       mimeType: row.mime_type,
       altText: row.alt_text,
     }))
