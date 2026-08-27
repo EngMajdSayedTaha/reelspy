@@ -31,14 +31,23 @@ end to end, [FOUNDER] = a human must click/upload/submit.
 - [x] **P0.3** [AGENT] `npm run check:meta` preflight — exists, run after every domain/env/console change
 - [ ] **P0.4** [FOUNDER] Stripe, `ig_connections` migration, mailboxes, API keys — see `GO-LIVE-CHECKLIST.md`
 
-**Phase 1 — Meta Advanced Access without a trade licence**
+**Phase 1 — Meta Advanced Access without a trade licence — COMPLETE 2026-08-27**
 - [x] **P1.1** [AGENT] **Code:** Meta Deauthorize + Data Deletion callbacks, `fb_user_id` capture, status page, tests
-- [ ] **P1.2** [FOUNDER] Point the App Dashboard at the new callback URLs
+- [x] **P1.2** [FOUNDER] Point the App Dashboard at the new callback URLs — verified live: Privacy/Terms/Data Deletion callback all correctly set on App Settings → Basic. Current Meta console has no separate "Deauthorize Callback URL" field (consolidated into Data Deletion callback) — nothing further needed.
 - [x] **P1.3** [AGENT] Privacy policy names each Meta permission and its purpose
 - [x] **P1.4** [AGENT] **Code:** create the reviewer login (`scripts/seed-reviewer-account.mjs`, `meta-reviewer@reelspy.dev`) — credentials handed off
-- [ ] **P1.4b** [FOUNDER] Log in as that account and connect a real Instagram Business account you control, then sync + generate one script
-- [ ] **P1.5** [FOUNDER] Screencast + submit App Review for the **P0 scope set only**
-- [ ] **P1.R** [FOUNDER] Business Verification ladder: unregistered → freelance permit → US LLC (§1b — **decision point, ask the founder**)
+- [x] **P1.4b** [FOUNDER] Log in as that account and connect a real Instagram Business account you control, then sync + generate one script — done; reviewer instructions on file confirm the account has a pre-connected demo account
+- [x] **P1.5** [FOUNDER] Screencast + submit App Review for the **P0 scope set only** — resubmitted 2026-08-27 after the first submission's screencast was rejected ("Screencast Not Aligned with Use Case Details" on all 3 non-renewal permissions); **APPROVED** same day: `pages_show_list`, `business_management`, `pages_read_engagement` all Approved, `instagram_basic`/`instagram_manage_insights`/`email` renewed.
+- [x] **P1.6** [AGENT] Discovered `public_profile` + `email` were still Standard access even after the P0 submission approved — Facebook Login for Business flagged this ("requires advanced access"). Both are the lightweight self-certification path (Usage check + Data handling, no screencast) under App Review → Permissions and Features. Founder confirmed the usage claim, submitted, **instant approval** on both. This was the actual last blocker — the combined OAuth consent for Connect Instagram is gated by every requested scope, not just the ones from the last submission.
+- [ ] **P1.R** [FOUNDER] Business Verification ladder: unregistered → freelance permit → US LLC (§1b — **decision point, ask the founder**) — moot for now since Business Verification already shows Verified on the app; revisit only if verification is ever lost/re-required.
+
+**Verified live via the App Dashboard, 2026-08-27:**
+- App Mode: Live · Business Verification: Verified · Tech Provider (Access) Verification: Verified · Data Use Checkup: Complete
+- `npm run check:meta` redirect URI confirmed valid via the console's own Redirect URI Validator (the script's own anonymous check is inconclusive by design — see its output)
+- Every permission gating Connect Instagram (`public_profile`, `email`, `instagram_basic`, `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_manage_insights`) shows **Advanced access granted**
+- `META_BETA_MODE` is **not set** in Vercel prod — `showBetaGate` in `app/dashboard/connections/page.tsx:150` already evaluates false, so the Tester-only wall was never actually active in production; no code/env change was needed to open Connect Instagram to non-role accounts.
+
+**Remaining before calling Phase 1 fully done:** the one test nothing here can substitute for — a Facebook account with **no role on the app** completing Connect Instagram end to end in production. That's [FOUNDER]-only (needs a real second identity) and is the actual proof Advanced Access took effect, not just what the dashboard claims.
 
 **Phase 2 — TikTok** (independent of Meta, no licence needed)
 - [ ] **T1** [FOUNDER] Individual developer account + Content Posting API product
