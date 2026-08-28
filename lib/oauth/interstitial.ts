@@ -116,9 +116,22 @@ export function renderOAuthInterstitial({
 }: InterstitialOptions): string {
   const copy = (COPY[locale === "ar" ? "ar" : "en"] ?? COPY.en)(provider);
   const rtl = locale === "ar";
-  // Single-quoted JS string literal; escapeHtml already neutralised quotes and
-  // angle brackets, so the URL cannot break out of the attribute or the script.
+  // Two contexts, two encodings:
+  //  - HTML attributes (<meta refresh>, <a href>): HTML-escape, so "&" → "&amp;"
+  //    and the browser decodes it back on navigation.
+  //  - the JS string literal `var URL_ = '…'` below: HTML-escaping is WRONG here.
+  //    location.replace() does NOT decode entities, so "&amp;" would reach the
+  //    provider as the literal text "&amp;redirect_uri=…" — a bogus parameter
+  //    name. Facebook/TikTok/YouTube shrug the junk params off (they fall back to
+  //    defaults); Instagram Login requires redirect_uri + response_type
+  //    explicitly and rejects the whole request. So escape only what would
+  //    terminate the string or break out of the <script> element.
   const safeUrl = escapeHtml(authorizeUrl);
+  const jsUrl = authorizeUrl
+    .replace(/[\r\n\u2028\u2029]/g, "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/</g, "\\u003c");
   const markerKey = escapeHtml(`reelspy_oauth_attempt_${flow}`);
 
   return `<!doctype html>
@@ -177,7 +190,7 @@ export function renderOAuthInterstitial({
 </div>
 <script>
 (function () {
-  var URL_ = '${safeUrl}';
+  var URL_ = '${jsUrl}';
   var KEY = '${markerKey}';
 
   function showStuck() {

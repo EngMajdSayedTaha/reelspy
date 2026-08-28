@@ -30,6 +30,19 @@ describe("renderOAuthInterstitial", () => {
     expect(html).not.toContain("location.href =");
   });
 
+  it("feeds location.replace() a real URL, not an HTML-escaped one", () => {
+    // location.replace() does not decode HTML entities. If the "&" separators
+    // were escaped to "&amp;" here (as they must be in the href attribute), the
+    // provider would receive "&amp;state=abc" as a bogus parameter name.
+    // Facebook tolerates it; Instagram Login rejects the whole request.
+    const jsLiteral = html.match(/var URL_ = '([^']*)';/);
+    expect(jsLiteral).not.toBeNull();
+    expect(jsLiteral![1]).toBe(AUTHORIZE);
+    expect(jsLiteral![1]).not.toContain("&amp;");
+    // The href attribute, by contrast, MUST stay HTML-escaped.
+    expect(html).toContain(`href="${AUTHORIZE.replace(/&/g, "&amp;")}"`);
+  });
+
   it("always renders a tappable manual link, so a no-JS browser is not stranded", () => {
     expect(html).toContain(`href="https://www.facebook.com/v23.0/dialog/oauth?client_id=1&amp;state=abc"`);
     expect(html).toContain("<noscript>");
