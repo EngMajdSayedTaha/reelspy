@@ -196,6 +196,8 @@ const en = {
       groupNotFound: "Group not found.",
       connectInstagramFirst:
         "Connect your Instagram account first (Settings → Instagram) before adding inspiration accounts.",
+      needsFacebookLoginForDiscovery:
+        "Tracking other accounts needs the Facebook-linked Instagram connection — reconnect via Instagram → Connect (Facebook) in Settings. Publishing and your own insights keep working either way.",
       accountNotFound: "Account not found or not a Business/Creator account.",
       noUsernamesProvided: "No usernames provided.",
       tooManyUsernames: "That's a lot at once — import up to 300 accounts at a time.",
@@ -618,6 +620,8 @@ export const accountsAr: AccountsDict = {
         `باقتك ${plan} تتيح متابعة حتى ${limit} حساب. قم بالترقية من صفحة الفوترة لإضافة المزيد.`,
       groupNotFound: "المجموعة غير موجودة.",
       connectInstagramFirst: "اربط حساب إنستغرام أولًا (الإعدادات ← إنستغرام) قبل إضافة حسابات الإلهام.",
+      needsFacebookLoginForDiscovery:
+        "متابعة حسابات أخرى تتطلب ربط إنستغرام المرتبط بفيسبوك — أعد الربط عبر إنستغرام ← ربط (فيسبوك) في الإعدادات. يستمر النشر وإحصاءاتك الخاصة بالعمل في كلتا الحالتين.",
       accountNotFound: "لم يتم العثور على الحساب أو أنه ليس حساب أعمال/منشئ محتوى.",
       noUsernamesProvided: "لم يتم إدخال أي أسماء مستخدمين.",
       tooManyUsernames: "هذا عدد كبير دفعة واحدة — يمكنك استيراد حتى 300 حساب في كل مرة.",

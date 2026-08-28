@@ -11,7 +11,7 @@
 
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { IgCredentials } from "./token-store";
+import type { IgAuthFlow, IgCredentials } from "./token-store";
 
 // Non-token fields only — safe to hand to the UI.
 export type IgConnectionSummary = {
@@ -22,6 +22,7 @@ export type IgConnectionSummary = {
   avatarUrl: string | null;
   tokenStatus: string;
   isActive: boolean;
+  authFlow: IgAuthFlow;
 };
 
 type ConnRow = {
@@ -32,6 +33,7 @@ type ConnRow = {
   avatar_url: string | null;
   token_status: string | null;
   is_active: boolean | null;
+  auth_flow: string | null;
 };
 
 // List a user's IG connections (non-token). Empty on any error / missing table.
@@ -42,7 +44,7 @@ export async function listIgConnections(
   try {
     const { data, error } = await admin
       .from("ig_connections")
-      .select("id, ig_user_id, username, display_name, avatar_url, token_status, is_active")
+      .select("id, ig_user_id, username, display_name, avatar_url, token_status, is_active, auth_flow")
       .eq("user_id", userId)
       .order("created_at", { ascending: true })
       .returns<ConnRow[]>();
@@ -55,6 +57,7 @@ export async function listIgConnections(
       avatarUrl: r.avatar_url,
       tokenStatus: r.token_status ?? "active",
       isActive: Boolean(r.is_active),
+      authFlow: (r.auth_flow as IgAuthFlow | null) ?? "facebook_login",
     }));
   } catch {
     return [];
@@ -78,7 +81,7 @@ export async function getActiveIgCredentials(
 
     const { data: conn, error: cErr } = await admin
       .from("ig_connections")
-      .select("ig_user_id, access_token, token_status, token_expires_at")
+      .select("ig_user_id, access_token, token_status, token_expires_at, auth_flow")
       .eq("id", profile.active_ig_connection_id as string)
       .eq("user_id", userId)
       .maybeSingle();
@@ -89,6 +92,7 @@ export async function getActiveIgCredentials(
       token: conn.access_token as string,
       status: (conn.token_status as string) ?? "active",
       expiresAt: (conn.token_expires_at as string) ?? null,
+      authFlow: (conn.auth_flow as IgAuthFlow | null) ?? "facebook_login",
     };
   } catch {
     return null;
@@ -105,6 +109,7 @@ export type UpsertConnectionParams = {
   pageName?: string | null;
   pageToken?: string | null;
   webhookSubscribedAt?: string | null;
+  authFlow?: IgAuthFlow;
 };
 
 // Insert-or-refresh a connection for (user, ig_user_id) and return its id.
@@ -133,6 +138,7 @@ export async function upsertIgConnection(
           fb_page_name: params.pageName ?? null,
           fb_page_access_token: params.pageToken ?? null,
           webhook_subscribed_at: params.webhookSubscribedAt ?? null,
+          auth_flow: params.authFlow ?? "facebook_login",
           is_active: true,
           updated_at: new Date().toISOString(),
         },

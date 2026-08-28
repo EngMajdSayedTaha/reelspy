@@ -15,6 +15,7 @@ import {
 } from "@/lib/instagram/graph-api";
 import { createMetaRateLimiter } from "@/lib/instagram/rate-limit";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 import { matchKeyword } from "./keyword-match";
 import { replyToComment, sendPrivateReply } from "./graph-calls";
 import type { CommentWebhookValue, ReelAutomation } from "./types";
@@ -130,7 +131,12 @@ export async function processCommentChange(
   if (credentials) {
     try {
       const template = pickTemplate(automation.public_reply_templates);
-      await replyToComment(value.id, template, credentials.token);
+      await replyToComment(
+        value.id,
+        template,
+        credentials.token,
+        graphBaseForAuthFlow(credentials.authFlow)
+      );
       update.public_reply_status = "sent";
     } catch (err) {
       update.public_reply_status = "failed";

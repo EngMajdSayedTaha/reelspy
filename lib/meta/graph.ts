@@ -24,3 +24,18 @@ export const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 // GRAPH_VERSION.
 export const THREADS_BASE = "https://graph.threads.net/v1.0";
 export const THREADS_OAUTH_BASE = "https://graph.threads.net";
+
+// "Instagram API with Instagram Login" — a separate product from Facebook
+// Login for Business. Its Graph host, OAuth authorize host and token-exchange
+// host are all different from the graph.facebook.com family above, and a
+// token minted by one family is NOT valid against the other (wrong audience —
+// Meta answers with an OAuthException, not a helpful error). See
+// lib/instagram/login-api.ts for the flow that uses these.
+export const IG_LOGIN_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
+export const IG_LOGIN_AUTHORIZE_BASE = "https://www.instagram.com";
+export const IG_LOGIN_OAUTH_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
+
+/** Resolve the right Graph host for a stored connection's auth flow. */
+export function graphBaseForAuthFlow(authFlow: string | null | undefined): string {
+  return authFlow === "instagram_login" ? IG_LOGIN_GRAPH_BASE : GRAPH_BASE;
+}

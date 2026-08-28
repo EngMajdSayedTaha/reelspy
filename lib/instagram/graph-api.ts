@@ -275,13 +275,19 @@ export type MyMediaItem = {
 };
 
 // Pages through /{ig-user-id}/media until `maxItems` items are collected.
+//
+// `graphBase` defaults to the Facebook-Login host for backward compatibility;
+// callers holding an Instagram-Login credential MUST pass
+// graphBaseForAuthFlow(credentials.authFlow) — that token is not valid
+// against graph.facebook.com. See lib/meta/graph.ts.
 export async function getMyMediaPaged(
   igUserId: string,
   token: string,
-  maxItems = 60
+  maxItems = 60,
+  graphBase: string = GRAPH_BASE
 ): Promise<MyMediaItem[]> {
   const items: MyMediaItem[] = [];
-  let url: URL | null = toUrl(`${GRAPH_BASE}/${igUserId}/media`, {
+  let url: URL | null = toUrl(`${graphBase}/${igUserId}/media`, {
     fields:
       "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count",
     access_token: token,
@@ -355,7 +361,8 @@ export type BatchInsightsResult = {
 // rejected (older media generations) are retried once with the lean set.
 export async function getMediaInsightsBatch(
   items: Array<{ id: string; isReel: boolean }>,
-  token: string
+  token: string,
+  graphBase: string = GRAPH_BASE
 ): Promise<BatchInsightsResult> {
   const insights = new Map<string, MediaInsights | null>();
   let rateLimited = false;
@@ -378,7 +385,7 @@ export async function getMediaInsightsBatch(
         relative_url: `${p.id}/insights?metric=${p.metrics}`,
       }));
 
-      const response = await fetch(`${GRAPH_BASE}/`, {
+      const response = await fetch(`${graphBase}/`, {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -805,8 +812,12 @@ export async function fetchAccountReels(
   }
 }
 
-export async function getMyRecentMedia(igUserId: string, token: string) {
-  const url = toUrl(`${GRAPH_BASE}/${igUserId}/media`, {
+export async function getMyRecentMedia(
+  igUserId: string,
+  token: string,
+  graphBase: string = GRAPH_BASE
+) {
+  const url = toUrl(`${graphBase}/${igUserId}/media`, {
     fields:
       "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count",
     access_token: token,
@@ -820,8 +831,12 @@ export async function getMyRecentMedia(igUserId: string, token: string) {
   return { igUserId, media };
 }
 
-export async function getMyInsights(igUserId: string, token: string) {
-  const url = toUrl(`${GRAPH_BASE}/${igUserId}`, {
+export async function getMyInsights(
+  igUserId: string,
+  token: string,
+  graphBase: string = GRAPH_BASE
+) {
+  const url = toUrl(`${graphBase}/${igUserId}`, {
     fields: "id,username,media_count,followers_count,biography,profile_picture_url",
     access_token: token,
   });

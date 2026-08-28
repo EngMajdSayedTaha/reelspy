@@ -186,6 +186,7 @@ const BASE_TABLES = {
       ig_token_status: "active",
       ig_token_expires_at: null,
       ig_token_refreshed_at: null,
+      ig_auth_flow: "facebook_login",
     },
   ],
   meta_api_limiter: [{ id: 1, hourly_budget: 160, throttled_until: null }],

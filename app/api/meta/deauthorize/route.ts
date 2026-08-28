@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseSignedRequest } from "@/lib/meta/signed-request";
-import { clearIgToken, findUserIdByFacebookUserId } from "@/lib/instagram/token-store";
+import {
+  clearIgToken,
+  findUserIdByFacebookUserId,
+  findUserIdByIgLoginUserId,
+} from "@/lib/instagram/token-store";
 import { oauthError, oauthLog } from "@/lib/oauth/log";
 
 // Meta **Deauthorize Callback** — App Dashboard → App Settings → Basic.
@@ -56,7 +60,13 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
-  const userId = await findUserIdByFacebookUserId(admin, fbUserId);
+  // Try the ASID (Facebook Login) first, then the Instagram-Login id — the
+  // Instagram Login flow never produces an ASID, but `user_id` in its
+  // signed_request is the Instagram-scoped id, which findUserIdByIgLoginUserId
+  // resolves. See lib/instagram/token-store.ts.
+  const userId =
+    (await findUserIdByFacebookUserId(admin, fbUserId)) ??
+    (await findUserIdByIgLoginUserId(admin, fbUserId));
 
   if (!userId) {
     // Expected for anyone who connected before migration 20260802120000 added

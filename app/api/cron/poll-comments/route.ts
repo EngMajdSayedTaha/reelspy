@@ -4,6 +4,7 @@ import { getIgCredentials } from "@/lib/instagram/token-store";
 import { cronAuthorized } from "@/lib/utils/cron";
 import { fetchRecentComments } from "@/lib/auto-reply/graph-calls";
 import { processCommentChange } from "@/lib/auto-reply/processor";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 
 // POLLING FALLBACK for the Auto-Reply module — webhooks are the primary
 // mechanism (app/api/ig/webhooks). This route exists for the case where Meta's
@@ -51,7 +52,12 @@ export async function GET(request: Request) {
     if (!credentials) continue;
 
     try {
-      const comments = await fetchRecentComments(automation.ig_media_id, credentials.token);
+      const comments = await fetchRecentComments(
+        automation.ig_media_id,
+        credentials.token,
+        25,
+        graphBaseForAuthFlow(credentials.authFlow)
+      );
       for (const comment of comments) {
         if (!comment.id) continue;
         if (comment.timestamp) {

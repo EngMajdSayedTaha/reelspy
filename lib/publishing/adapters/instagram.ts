@@ -19,6 +19,12 @@
 import { parseGraphError } from "@/lib/instagram/graph-api";
 import { GRAPH_BASE } from "@/lib/meta/graph";
 import { numEnv } from "@/lib/utils/env";
+
+// Content Publishing is supported on BOTH Graph hosts, but a token is only
+// valid on the one that minted it (see lib/meta/graph.ts's header comment).
+// `input.creds.igGraphBase` (set by the dispatcher from the connection's
+// ig_auth_flow) is the source of truth; GRAPH_BASE is only the fallback for
+// any caller that predates that field.
 import { publishFetch } from "../http";
 import type { PlatformAdapter, PublishInput, PublishMediaItem, PublishResult } from "../types";
 import { buildCaption } from "../caption";
@@ -49,9 +55,13 @@ async function graphError(response: Response): Promise<string> {
  * the user is told to "retry" something that cannot succeed for hours.
  * Best-effort: a failure to READ the limit never blocks a publish.
  */
-async function assertWithinPublishingLimit(igUserId: string, accessToken: string): Promise<void> {
+async function assertWithinPublishingLimit(
+  igUserId: string,
+  accessToken: string,
+  graphBase: string
+): Promise<void> {
   try {
-    const url = new URL(`${GRAPH_BASE}/${igUserId}/content_publishing_limit`);
+    const url = new URL(`${graphBase}/${igUserId}/content_publishing_limit`);
     url.searchParams.set("fields", "config,quota_usage");
     url.searchParams.set("access_token", accessToken);
 
@@ -85,9 +95,10 @@ class InstagramQuotaError extends Error {
 async function createContainer(
   igUserId: string,
   accessToken: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  graphBase: string
 ): Promise<string> {
-  const url = new URL(`${GRAPH_BASE}/${igUserId}/media`);
+  const url = new URL(`${graphBase}/${igUserId}/media`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
   url.searchParams.set("access_token", accessToken);
 
@@ -102,12 +113,13 @@ async function createContainer(
 async function waitForContainer(
   containerId: string,
   accessToken: string,
-  deadline: number
+  deadline: number,
+  graphBase: string
 ): Promise<void> {
   for (;;) {
     await sleep(pollIntervalMs());
 
-    const url = new URL(`${GRAPH_BASE}/${containerId}`);
+    const url = new URL(`${graphBase}/${containerId}`);
     url.searchParams.set("fields", "status_code");
     url.searchParams.set("access_token", accessToken);
 
@@ -139,11 +151,12 @@ function childParams(item: PublishMediaItem): Record<string, string> {
 
 export const instagramAdapter: PlatformAdapter = {
   async publish(input: PublishInput): Promise<PublishResult> {
-    const { accountId: igUserId, accessToken } = input.creds;
+    const { accountId: igUserId, accessToken, igGraphBase } = input.creds;
+    const graphBase = igGraphBase ?? GRAPH_BASE;
     const caption = buildCaption(input.content);
     const deadline = Date.now() + containerDeadlineMs();
 
-    await assertWithinPublishingLimit(igUserId, accessToken);
+    await assertWithinPublishingLimit(igUserId, accessToken, graphBase);
 
     let containerId: string;
 
@@ -151,16 +164,16 @@ export const instagramAdapter: PlatformAdapter = {
       // Build every child first, then wait on all of them together — a serial
       // poll per child would multiply a 10-slide carousel's wall time by 10.
       const children = await Promise.all(
-        input.media.map((item) => createContainer(igUserId, accessToken, childParams(item)))
+        input.media.map((item) => createContainer(igUserId, accessToken, childParams(item), graphBase))
       );
-      await Promise.all(children.map((id) => waitForContainer(id, accessToken, deadline)));
+      await Promise.all(children.map((id) => waitForContainer(id, accessToken, deadline, graphBase)));
 
       const parentParams: Record<string, string> = {
         media_type: "CAROUSEL",
         children: children.join(","),
       };
       if (caption) parentParams.caption = caption;
-      containerId = await createContainer(igUserId, accessToken, parentParams);
+      containerId = await createContainer(igUserId, accessToken, parentParams, graphBase);
     } else {
       const item = input.media[0];
       if (!item) throw new Error("Instagram needs at least one photo or video.");
@@ -182,14 +195,14 @@ export const instagramAdapter: PlatformAdapter = {
       }
       if (caption) params.caption = caption;
 
-      containerId = await createContainer(igUserId, accessToken, params);
+      containerId = await createContainer(igUserId, accessToken, params, graphBase);
     }
 
-    await waitForContainer(containerId, accessToken, deadline);
+    await waitForContainer(containerId, accessToken, deadline, graphBase);
 
     // Publish the finished container. Not retried: a second media_publish on a
     // container that already succeeded is how you get a duplicate post.
-    const publishUrl = new URL(`${GRAPH_BASE}/${igUserId}/media_publish`);
+    const publishUrl = new URL(`${graphBase}/${igUserId}/media_publish`);
     publishUrl.searchParams.set("creation_id", containerId);
     publishUrl.searchParams.set("access_token", accessToken);
 
@@ -201,7 +214,7 @@ export const instagramAdapter: PlatformAdapter = {
     // Resolve the permalink (best-effort — failure here doesn't fail the post).
     let permalink: string | null = null;
     try {
-      const permaUrl = new URL(`${GRAPH_BASE}/${mediaId}`);
+      const permaUrl = new URL(`${graphBase}/${mediaId}`);
       permaUrl.searchParams.set("fields", "permalink");
       permaUrl.searchParams.set("access_token", accessToken);
       const permaRes = await publishFetch(permaUrl, {}, { retries: 1 });
