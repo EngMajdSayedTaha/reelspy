@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { getMyInsights } from "@/lib/instagram/graph-api";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 
 export async function GET() {
   const supabase = await createClient();
@@ -22,7 +23,11 @@ export async function GET() {
   }
 
   try {
-    const insights = await getMyInsights(credentials.igUserId, credentials.token);
+    const insights = await getMyInsights(
+      credentials.igUserId,
+      credentials.token,
+      graphBaseForAuthFlow(credentials.authFlow)
+    );
     return NextResponse.json({ connected: true, ...insights });
   } catch (error) {
     console.error("IG insights failed", error);

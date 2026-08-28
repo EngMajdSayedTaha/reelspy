@@ -18,6 +18,7 @@ import {
   type MyMediaItem,
 } from "./graph-api";
 import type { IgCredentials } from "./token-store";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 import { numEnv } from "@/lib/utils/env";
 
 const MAX_MEDIA = 60;
@@ -95,15 +96,16 @@ export async function syncMyInsights(
   userId: string,
   credentials: IgCredentials
 ): Promise<MyInsightsPayload> {
+  const graphBase = graphBaseForAuthFlow(credentials.authFlow);
   const [profile, media] = await Promise.all([
-    getMyInsights(credentials.igUserId, credentials.token),
-    getMyMediaPaged(credentials.igUserId, credentials.token, MAX_MEDIA),
+    getMyInsights(credentials.igUserId, credentials.token, graphBase),
+    getMyMediaPaged(credentials.igUserId, credentials.token, MAX_MEDIA, graphBase),
   ]);
 
   const targets = media
     .slice(0, MAX_INSIGHTS)
     .map((item) => ({ id: item.id, isReel: isReelItem(item) }));
-  const { insights, rateLimited } = await getMediaInsightsBatch(targets, credentials.token);
+  const { insights, rateLimited } = await getMediaInsightsBatch(targets, credentials.token, graphBase);
 
   const enriched = media.map((item) => ({
     ...item,

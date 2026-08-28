@@ -4,7 +4,11 @@ import {
   issueConfirmationCode,
   parseSignedRequest,
 } from "@/lib/meta/signed-request";
-import { clearIgToken, findUserIdByFacebookUserId } from "@/lib/instagram/token-store";
+import {
+  clearIgToken,
+  findUserIdByFacebookUserId,
+  findUserIdByIgLoginUserId,
+} from "@/lib/instagram/token-store";
 import { getSiteUrl } from "@/lib/site";
 import { oauthError, oauthLog } from "@/lib/oauth/log";
 
@@ -66,7 +70,10 @@ export async function POST(request: Request) {
 
   const fbUserId = parsed.payload.user_id;
   const admin = createAdminClient();
-  const userId = fbUserId ? await findUserIdByFacebookUserId(admin, fbUserId) : null;
+  const userId = fbUserId
+    ? ((await findUserIdByFacebookUserId(admin, fbUserId)) ??
+      (await findUserIdByIgLoginUserId(admin, fbUserId)))
+    : null;
 
   if (userId) {
     try {

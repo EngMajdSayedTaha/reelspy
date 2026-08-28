@@ -84,6 +84,11 @@ export type ResolvedCredentials = {
   // Handle used to build a permalink the platform's API doesn't return
   // (TikTok returns only a post id).
   accountUsername?: string | null;
+  // Instagram only: which Graph host accessToken is valid against — set from
+  // the connected account's ig_auth_flow (lib/instagram/token-store.ts). An
+  // Instagram-Login token 404s/OAuthExceptions against graph.facebook.com, so
+  // the adapter must not assume the Facebook-Login host.
+  igGraphBase?: string;
 };
 
 // TikTok's actual privacy vocabulary (Content Posting API), fetched live per

@@ -13,11 +13,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { clearIgConnections, getActiveIgCredentials } from "./connections";
 
+// Which Meta OAuth flow produced this credential — see
+// supabase/migrations/20260828073318_ig_auth_flow.sql. Callers that build a
+// Graph API URL must route through lib/meta/graph.ts's graphBaseForAuthFlow
+// instead of assuming graph.facebook.com: an instagram_login token is not
+// valid against that host.
+export type IgAuthFlow = "facebook_login" | "instagram_login";
+
 export type IgCredentials = {
   igUserId: string;
   token: string;
   status: string;
   expiresAt: string | null;
+  authFlow: IgAuthFlow;
 };
 
 // Returns the user's IG credentials, or null when not connected.
@@ -37,7 +45,7 @@ export async function getIgCredentials(
 
   const { data, error } = await admin
     .from("profiles")
-    .select("ig_access_token, ig_user_id, ig_token_status, ig_token_expires_at")
+    .select("ig_access_token, ig_user_id, ig_token_status, ig_token_expires_at, ig_auth_flow")
     .eq("id", userId)
     .maybeSingle();
 
@@ -49,13 +57,20 @@ export async function getIgCredentials(
     token: data.ig_access_token,
     status: data.ig_token_status ?? "active",
     expiresAt: data.ig_token_expires_at ?? null,
+    authFlow: (data.ig_auth_flow as IgAuthFlow | null) ?? "facebook_login",
   };
 }
 
 export async function storeIgToken(
   admin: SupabaseClient,
   userId: string,
-  params: { token: string; igUserId: string; username: string; expiresAt: string | null }
+  params: {
+    token: string;
+    igUserId: string;
+    username: string;
+    expiresAt: string | null;
+    authFlow?: IgAuthFlow;
+  }
 ): Promise<void> {
   // profiles.ig_user_id has no unique constraint, so nothing stops the same
   // Instagram Business account from being connected from a second Reelspy
@@ -93,6 +108,7 @@ export async function storeIgToken(
       ig_token_expires_at: params.expiresAt,
       ig_token_status: "active",
       ig_token_refreshed_at: new Date().toISOString(),
+      ig_auth_flow: params.authFlow ?? "facebook_login",
     })
     .eq("id", userId);
 
@@ -164,6 +180,31 @@ export async function findUserIdByFacebookUserId(
 
   if (error) {
     console.warn("[token-store] fb_user_id lookup skipped:", error.message);
+    return null;
+  }
+  return (data?.id as string | undefined) ?? null;
+}
+
+// Same reverse lookup, for Instagram-Login connections: that flow's
+// Deauthorize / Data Deletion `signed_request.user_id` carries the
+// Instagram-scoped user ID (there is no ASID — no Facebook login ever
+// happened), and profiles.ig_user_id already holds exactly that value for
+// these rows. Scoped to ig_auth_flow = 'instagram_login' so it can never
+// collide with a facebook_login row's ig_user_id, which lives in a different
+// id space.
+export async function findUserIdByIgLoginUserId(
+  admin: SupabaseClient,
+  igUserId: string
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("ig_user_id", igUserId)
+    .eq("ig_auth_flow", "instagram_login")
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[token-store] ig_login user_id lookup skipped:", error.message);
     return null;
   }
   return (data?.id as string | undefined) ?? null;

@@ -9,6 +9,7 @@ import { generateGrowthNotes, type BrandVoice } from "@/lib/ai/claude";
 import { resolveUserTier } from "@/lib/ai/tier";
 import { trackAiUsage } from "@/lib/analytics/track";
 import { getMyInsights, getMyRecentMedia } from "@/lib/instagram/graph-api";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 import { consumeUserAction, rateLimitMessage } from "@/lib/utils/user-rate-limit";
 
 // Give the AI retry loop (see lib/ai/provider.ts, ~55s budget) headroom above
@@ -63,9 +64,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const graphBase = graphBaseForAuthFlow(credentials.authFlow);
     const [insightsResult, mediaResult] = await Promise.allSettled([
-      getMyInsights(credentials.igUserId, credentials.token),
-      getMyRecentMedia(credentials.igUserId, credentials.token),
+      getMyInsights(credentials.igUserId, credentials.token, graphBase),
+      getMyRecentMedia(credentials.igUserId, credentials.token, graphBase),
     ]);
 
     const insights = insightsResult.status === "fulfilled" ? insightsResult.value : null;

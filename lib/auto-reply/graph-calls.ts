@@ -35,14 +35,17 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   return (await response.json()) as T;
 }
 
-// Public reply under a comment. Uses the long-lived USER token.
-// Returns the new reply's comment id.
+// Public reply under a comment. Uses the long-lived USER token — unlike the
+// Page-token functions below, this one also works with an Instagram-Login
+// token, so it accepts the caller's Graph host instead of assuming
+// graph.facebook.com. Defaults preserve existing (Facebook-Login) behavior.
 export async function replyToComment(
   commentId: string,
   message: string,
-  userToken: string
+  userToken: string,
+  graphBase: string = GRAPH_BASE
 ): Promise<string | null> {
-  const json = await postJson<{ id?: string }>(`${GRAPH_BASE}/${commentId}/replies`, {
+  const json = await postJson<{ id?: string }>(`${graphBase}/${commentId}/replies`, {
     message,
     access_token: userToken,
   });
@@ -155,9 +158,10 @@ export type RecentComment = {
 export async function fetchRecentComments(
   mediaId: string,
   userToken: string,
-  limit = 25
+  limit = 25,
+  graphBase: string = GRAPH_BASE
 ): Promise<RecentComment[]> {
-  const url = new URL(`${GRAPH_BASE}/${mediaId}/comments`);
+  const url = new URL(`${graphBase}/${mediaId}/comments`);
   url.searchParams.set("fields", "id,text,timestamp,parent_id,from{id,username}");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("access_token", userToken);

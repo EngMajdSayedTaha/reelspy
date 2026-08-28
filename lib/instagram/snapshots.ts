@@ -479,12 +479,19 @@ export type HealthyToken = { userId: string; igUserId: string; token: string };
 // Discovery can read any public account with any valid token, and the rate limit
 // is app-level, so one healthy token is enough; we rotate by least-recently-used
 // to surface dead tokens. Returns null when nobody has connected yet.
+//
+// Facebook-Login tokens only: Business Discovery is not exposed on
+// graph.instagram.com, and an Instagram-Login token is a different OAuth
+// audience than graph.facebook.com anyway — using one here would fail every
+// call it's picked for (not just that one user's), degrading the shared pool
+// for everybody. See lib/meta/graph.ts's header comment.
 export async function pickHealthyToken(admin: SupabaseClient): Promise<HealthyToken | null> {
   const nowIso = new Date().toISOString();
   const { data } = await admin
     .from("profiles")
     .select("id, ig_user_id, ig_access_token, ig_token_expires_at, ig_token_status")
     .eq("ig_token_status", "active")
+    .eq("ig_auth_flow", "facebook_login")
     .not("ig_access_token", "is", null)
     .not("ig_user_id", "is", null)
     .order("ig_token_refreshed_at", { ascending: true, nullsFirst: true })

@@ -158,6 +158,44 @@ You can now publish **public** Reels and Page videos to your own account.
 handed to Meta as a short-lived signed URL, so uploads must finish processing
 (the adapter polls the container until `FINISHED`).
 
+### 2b. No Facebook Page? Connect directly via Instagram Login instead
+
+The flow above needs a Facebook Page linked to the Instagram account. Some
+creators — especially ones who set up Instagram before ever touching Facebook
+— have no Page and don't want one. For them, use **"Instagram API with
+Instagram Login"**, a separate Meta product that authenticates straight
+against Instagram (`www.instagram.com` / `graph.instagram.com`), no Page
+required:
+
+1. Your Instagram must still be a **Business or Creator** account (Meta only
+   grants this product's permissions to professional accounts) — it just
+   doesn't need a Page.
+2. In the Meta App Dashboard → your app → **Instagram → API setup with
+   Instagram business login**, add the product and note the **Instagram App
+   ID / Instagram App Secret** it issues — this is a *different* credential
+   pair from `META_APP_ID` / `META_APP_SECRET`, even though both live under
+   the same app.
+3. Register the redirect URI `https://<your-domain>/api/ig/login/callback`
+   under this product's own "Valid OAuth Redirect URIs" (separate list from
+   the Facebook Login one).
+4. Set:
+   ```
+   INSTAGRAM_APP_ID=
+   INSTAGRAM_APP_SECRET=
+   INSTAGRAM_REDIRECT_URI=https://<your-domain>/api/ig/login/callback
+   ```
+5. On **Connections**, a "No Facebook Page? Connect directly via Instagram"
+   link appears under the Instagram card once the vars above are set.
+
+**Trade-off, not a bug:** this flow cannot do Business Discovery (ReelSpy's
+competitor-tracking feature reads *other* accounts' public reels, a field
+Meta doesn't expose on `graph.instagram.com`), and there's no Page for
+Auto-Reply's private-reply (DM) step. Publishing, the creator's own
+insights/reels sync, and public comment replies all work the same as the
+Facebook-Login flow. See `lib/instagram/login-api.ts` and
+`lib/meta/graph.ts` for how the app picks the right Graph host per
+connection.
+
 ---
 
 ## 3. TikTok

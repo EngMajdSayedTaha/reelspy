@@ -54,9 +54,14 @@ export async function POST(request: Request) {
   }
 
   // 1. Revoke Meta permissions so our token can no longer touch their account.
+  // graph.facebook.com/me/permissions is a Facebook-Login-only endpoint — an
+  // Instagram-Login token is a different OAuth audience and would just get an
+  // OAuthException here, so only attempt it for facebook_login connections.
+  // Either way clearIgToken (already run via the profiles cascade below) drops
+  // our copy of the token; this step only revokes Meta's server-side grant.
   try {
     const ig = await getIgCredentials(admin, user.id);
-    if (ig?.token) {
+    if (ig?.token && ig.authFlow === "facebook_login") {
       await fetch(
         `${GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(ig.token)}`,
         { method: "DELETE" }

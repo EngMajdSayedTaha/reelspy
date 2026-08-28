@@ -13,6 +13,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isInvalidTokenError, isMetaRateLimitMessage } from "@/lib/instagram/graph-api";
 import { getIgCredentials, getPageCredentials } from "@/lib/instagram/token-store";
+import { graphBaseForAuthFlow } from "@/lib/meta/graph";
 import { resolveOAuthAccessToken } from "./oauth-token";
 import { loadPublishMedia } from "./media";
 import { instagramAdapter } from "./adapters/instagram";
@@ -114,7 +115,13 @@ async function resolveCredentials(
     case "instagram": {
       const ig = await getIgCredentials(admin, userId);
       if (!ig) return { error: "Instagram is not connected." };
-      return { creds: { accessToken: ig.token, accountId: ig.igUserId } };
+      return {
+        creds: {
+          accessToken: ig.token,
+          accountId: ig.igUserId,
+          igGraphBase: graphBaseForAuthFlow(ig.authFlow),
+        },
+      };
     }
     case "facebook": {
       const page = await getPageCredentials(admin, userId);

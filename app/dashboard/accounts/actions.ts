@@ -115,6 +115,15 @@ export async function addInspirationAccount(
     };
   }
 
+  // Business Discovery isn't available on an Instagram-Login connection (no
+  // Facebook Page) — say so up front instead of a confusing Graph error from
+  // fetchBusinessDiscovery below. See lib/meta/graph.ts's header comment.
+  if (credentials.authFlow === "instagram_login") {
+    return {
+      error: d.accounts.actions.needsFacebookLoginForDiscovery,
+    };
+  }
+
   // Validate account exists on Instagram via Business Discovery. Routed through
   // the shared app-level guard so account-adds also respect Meta's rate limit.
   const { entitlements: limiterEntitlements } = await resolveUserEntitlements(supabase, user.id);

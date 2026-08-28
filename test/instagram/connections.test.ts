@@ -55,6 +55,7 @@ describe("getActiveIgCredentials (fail-open)", () => {
       token: "tok",
       status: "active",
       expiresAt: null,
+      authFlow: "facebook_login",
     });
   });
 
@@ -104,6 +105,7 @@ describe("listIgConnections", () => {
         avatarUrl: "a",
         tokenStatus: "active",
         isActive: true,
+        authFlow: "facebook_login",
       },
     ]);
   });

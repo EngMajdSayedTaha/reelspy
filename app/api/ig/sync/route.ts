@@ -94,6 +94,23 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as SyncBody;
   const syncLimit = resolveLimit(body.limit);
 
+  // Business Discovery (reading OTHER accounts' public reels — the whole point
+  // of this endpoint) isn't exposed on graph.instagram.com, and an
+  // Instagram-Login token isn't valid against graph.facebook.com anyway (a
+  // different OAuth audience). Say so up front instead of letting every
+  // tracked account fail with a confusing Graph error. "Sync All" for these
+  // users still serves the shared cache fine — only the inline/force fetch
+  // (which spends THIS user's own token) needs the Facebook-linked connection.
+  if (credentials.authFlow === "instagram_login" && (body.account_id || body.force)) {
+    return NextResponse.json(
+      {
+        error:
+          "Tracking other accounts' reels needs the Facebook-linked Instagram connection — reconnect via Instagram → Connect (Facebook) in Settings. Your own account's publishing and insights keep working either way.",
+      },
+      { status: 400 }
+    );
+  }
+
   // Build query for inspiration accounts to sync
   let accountsQuery = supabase
     .from("inspiration_accounts")

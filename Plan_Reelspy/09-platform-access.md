@@ -212,6 +212,21 @@ confirmation dialog states access is "auto-granted" again at the same level on r
 does **not** touch the P0/P1 submission plan below; it only clears dashboard clutter that
 made the real requested-permission list harder for a reviewer (or a future session) to read.
 
+> **Superseded — 2026-08-28.** "ReelSpy is Facebook-Login-only" is no longer true. A real
+> client hit the exact failure this decision predicted (Instagram with no Facebook Page →
+> hard error asking them to create one), so the app now ALSO supports "Instagram API with
+> Instagram Login" (`graph.instagram.com`) as a second connect path, alongside — not instead
+> of — the Facebook Login flow above. This needs the `*_business_manage_*` /
+> `*_business_content_*` permission family (or their current names, e.g.
+> `instagram_business_basic`, `instagram_business_content_publish`) re-requested in the App
+> Dashboard for the Instagram product specifically, plus a new Instagram App ID/Secret pair
+> (`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET` — see `.env.example` and
+> `docs/publishing-setup.md` §2b). [FOUNDER]: add the "Instagram API with Instagram Login"
+> product in the Meta App Dashboard and request those permissions before this path can go
+> live; the code ships disabled (no CTA shown) until the env vars are set. Business Discovery
+> (competitor tracking) stays Facebook-Login-only either way — Meta doesn't expose that field
+> on `graph.instagram.com`. See `lib/instagram/login-api.ts` and `lib/meta/graph.ts`.
+
 ### 1b. The ladder — climb in order, stop when one works
 
 #### Rung 1 [FOUNDER] — Verify as an unregistered / individual business (free, ~3–7 days)

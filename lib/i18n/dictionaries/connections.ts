@@ -23,9 +23,12 @@ const en = {
     profileUpdateFailed: "Connected, but we couldn't save your connection. Please retry.",
     accountLinkFailed: "Connected, but we couldn't link your account. Please retry.",
     noIgBusinessAccount:
-      "No Instagram Business account was found on that Facebook login. This means one of two things: (1) your Instagram is a Personal account — switch it to Business or Creator in the Instagram app first, or (2) it's already Business/Creator but isn't linked to a Facebook Page yet — link one in Instagram's account settings. Either way, once fixed, reconnect.",
+      "No Instagram Business account was found on that Facebook login. This means one of three things: (1) your Instagram is a Personal account — switch it to Business or Creator in the Instagram app first, (2) it's already Business/Creator but isn't linked to a Facebook Page yet — link one in Instagram's account settings, or (3) if your Instagram has no Facebook Page at all, skip Facebook entirely and use \"Connect directly via Instagram\" below instead.",
     connectionCancelled: "You cancelled before finishing. Nothing was connected — tap Connect whenever you're ready.",
     genericError: "Something went wrong.",
+    instagramLoginEnvMissing: "Direct Instagram sign-in isn't configured yet. Contact support.",
+    igLoginNeedsProfessionalAccount:
+      "That Instagram account isn't set to Business or Creator yet. In the Instagram app go to Settings → Account type and switch it, then try again.",
 
     connectedSuccess: "Account connected successfully.",
     disconnectedSuccess: "Account disconnected. You can reconnect below.",
@@ -37,6 +40,16 @@ const en = {
 
     igNote:
       "Powers reel syncing, insights, publishing & auto-reply. Requires an IG Business/Creator account linked to a Facebook Page.",
+
+    // Direct Instagram Login (no Facebook Page) — the alternate connect path
+    // for a creator whose Instagram Business/Creator account has no linked
+    // Facebook Page. Shown as a secondary CTA under the primary Instagram card.
+    igLoginCta: "No Facebook Page? Connect directly via Instagram",
+    igLoginNote:
+      "No Facebook Page needed — just a Business or Creator Instagram account. Publishing and your own insights work fully; tracking other accounts and DM auto-reply need the Facebook-linked connection above instead.",
+    connectedViaInstagramDirect: "Connected directly via Instagram — no Facebook Page.",
+    igLoginUpgradeNote:
+      "Want to track competitor accounts or use DM auto-reply? Press Reconnect above and sign in with Facebook to add a linked Page.",
 
     // Shown above the Instagram card while META_BETA_MODE=true (Meta app still
     // in Development mode, pre-Advanced-Access). A non-tester who clicks
@@ -132,9 +145,12 @@ export const connectionsAr: ConnectionsDict = {
     profileUpdateFailed: "تم الربط، لكن تعذّر حفظ الاتصال. يرجى إعادة المحاولة.",
     accountLinkFailed: "تم الربط، لكن تعذّر ربط حسابك. يرجى إعادة المحاولة.",
     noIgBusinessAccount:
-      "لم يتم العثور على حساب إنستغرام تجاري مرتبط بحساب فيسبوك هذا. هناك احتمالان: (1) حسابك على إنستغرام شخصي — حوّله إلى تجاري أو لصانع محتوى من تطبيق إنستغرام أولًا، أو (2) هو تجاري/لصانع محتوى بالفعل لكنه غير مرتبط بصفحة فيسبوك — اربط صفحة من إعدادات حساب إنستغرام. في الحالتين، أعد الربط بعد الإصلاح.",
+      "لم يتم العثور على حساب إنستغرام تجاري مرتبط بحساب فيسبوك هذا. هناك ثلاثة احتمالات: (1) حسابك على إنستغرام شخصي — حوّله إلى تجاري أو لصانع محتوى من تطبيق إنستغرام أولًا، (2) هو تجاري/لصانع محتوى بالفعل لكنه غير مرتبط بصفحة فيسبوك — اربط صفحة من إعدادات حساب إنستغرام، أو (3) إذا لم يكن لحسابك على إنستغرام أي صفحة فيسبوك أصلًا، تجاوز فيسبوك تمامًا واستخدم «الربط مباشرة عبر إنستغرام» أدناه بدلًا من ذلك.",
     connectionCancelled: "ألغيت العملية قبل إتمامها. لم يتم ربط أي شيء — اضغط «ربط» متى شئت.",
     genericError: "حدث خطأ ما.",
+    instagramLoginEnvMissing: "تسجيل الدخول المباشر عبر إنستغرام غير مهيأ بعد. يرجى التواصل مع الدعم.",
+    igLoginNeedsProfessionalAccount:
+      "حساب إنستغرام هذا ليس تجاريًا أو لصانع محتوى بعد. من تطبيق إنستغرام اذهب إلى الإعدادات ← نوع الحساب وحوّله، ثم أعد المحاولة.",
 
     connectedSuccess: "تم ربط الحساب بنجاح.",
     disconnectedSuccess: "تم قطع ربط الحساب. يمكنك إعادة الربط أدناه.",
@@ -146,6 +162,13 @@ export const connectionsAr: ConnectionsDict = {
 
     igNote:
       "يشغّل مزامنة الريلز والإحصاءات والنشر والرد الآلي. يتطلب حساب إنستغرام تجاري أو لصانع محتوى مرتبطًا بصفحة فيسبوك.",
+
+    igLoginCta: "ليس لديك صفحة فيسبوك؟ اربط مباشرة عبر إنستغرام",
+    igLoginNote:
+      "لا حاجة لصفحة فيسبوك — فقط حساب إنستغرام تجاري أو لصانع محتوى. النشر وإحصاءاتك الخاصة تعمل بالكامل؛ أما متابعة حسابات أخرى والرد الآلي عبر الرسائل الخاصة فيتطلبان الربط المرتبط بفيسبوك أعلاه.",
+    connectedViaInstagramDirect: "متصل مباشرة عبر إنستغرام — بدون صفحة فيسبوك.",
+    igLoginUpgradeNote:
+      "تريد متابعة حسابات منافسة أو استخدام الرد الآلي عبر الرسائل؟ اضغط «إعادة الربط» أعلاه وسجّل الدخول عبر فيسبوك لإضافة صفحة مرتبطة.",
 
     betaGate: {
       heading: "إنستغرام حاليًا في نسخة تجريبية مغلقة",

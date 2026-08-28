@@ -35,6 +35,8 @@ function errorMap(dict: Dict["connections"]): Record<string, string> {
     threads_env_missing: dict.threadsEnvMissing,
     unsupported_platform: dict.unsupportedPlatform,
     meta_env_missing: dict.metaEnvMissing,
+    instagram_login_env_missing: dict.instagramLoginEnvMissing,
+    ig_login_needs_professional_account: dict.igLoginNeedsProfessionalAccount,
     profile_update_failed: dict.profileUpdateFailed,
     account_link_failed: dict.accountLinkFailed,
     no_ig_business_account: dict.noIgBusinessAccount,
@@ -86,7 +88,7 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
     supabase
       .from("profiles")
       .select(
-        "ig_user_id, fb_page_id, username, ig_token_status, ig_token_expires_at, ig_token_refreshed_at"
+        "ig_user_id, fb_page_id, username, ig_token_status, ig_token_expires_at, ig_token_refreshed_at, ig_auth_flow"
       )
       .eq("id", user.id)
       .maybeSingle(),
@@ -108,15 +110,24 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   const igExpiresAt = profile?.ig_token_expires_at ?? null;
   const igNeedsReconnect =
     igConnected && (profile?.ig_token_status === "invalid" || isExpired(igExpiresAt));
+  const igConnectedDirect = igConnected && profile?.ig_auth_flow === "instagram_login";
 
   const igDetail = igNeedsReconnect
     ? dict.igExpired
-    : igExpiresAt
-      ? dict.igRenewsThrough(formatDate(igExpiresAt, bcp47) ?? "")
-      : dict.connectionActive;
+    : igConnectedDirect
+      ? dict.connectedViaInstagramDirect
+      : igExpiresAt
+        ? dict.igRenewsThrough(formatDate(igExpiresAt, bcp47) ?? "")
+        : dict.connectionActive;
 
   // Troubleshooting setup details only surface when there's a reason to look.
   const showSetupDetails = metaReady && (!igConnected || Boolean(errorMessage));
+
+  // Direct Instagram Login (no Facebook Page) — the fix for a creator whose IG
+  // Business/Creator account has no linked Page. A separate app/product from
+  // the Facebook Login flow above, so it's gated on its own env readiness.
+  const igLoginReady = Boolean(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET);
+  const showIgLoginCta = igLoginReady && !igConnected;
 
   // ── TikTok / YouTube (social_connections) ──────────────────────────────────
   const tiktok = conns?.find((c) => c.platform === "tiktok" && c.is_active);
@@ -223,31 +234,52 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
             description: dict.disconnectInstagramDescription,
           }}
         >
-          {!metaReady ? (
-            <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
-              {dict.igNotConfigured}
-            </p>
-          ) : showSetupDetails ? (
-            <details className="group rounded-xl border border-border bg-background p-4 text-sm">
-              <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
-                {dict.setupDetails}
-              </summary>
-              <div className="mt-3 space-y-1 text-muted-foreground">
-                <p>
-                  {dict.appIdLabel} <span className="font-mono text-xs">{igAppId ?? dict.notSet}</span>
-                </p>
-                <p>
-                  {dict.callbackUrlLabel}{" "}
-                  <span className="font-mono text-xs">{getMetaRedirectUri()}</span>
-                </p>
-                <p>
-                  {dict.permissionsLabel} <span className="font-medium">{scopes}</span>
-                </p>
-                <p className="pt-1 text-xs text-subtle">
-                  {dict.igBusinessRequirement}
-                </p>
+          {!metaReady || showSetupDetails || showIgLoginCta || igConnectedDirect ? (
+          <div className="space-y-3">
+            {!metaReady ? (
+              <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+                {dict.igNotConfigured}
+              </p>
+            ) : showSetupDetails ? (
+              <details className="group rounded-xl border border-border bg-background p-4 text-sm">
+                <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
+                  {dict.setupDetails}
+                </summary>
+                <div className="mt-3 space-y-1 text-muted-foreground">
+                  <p>
+                    {dict.appIdLabel} <span className="font-mono text-xs">{igAppId ?? dict.notSet}</span>
+                  </p>
+                  <p>
+                    {dict.callbackUrlLabel}{" "}
+                    <span className="font-mono text-xs">{getMetaRedirectUri()}</span>
+                  </p>
+                  <p>
+                    {dict.permissionsLabel} <span className="font-medium">{scopes}</span>
+                  </p>
+                  <p className="pt-1 text-xs text-subtle">
+                    {dict.igBusinessRequirement}
+                  </p>
+                </div>
+              </details>
+            ) : null}
+
+            {/* No Facebook Page? Direct Instagram Login skips Facebook entirely —
+                separate product/app from the Facebook Login flow above. */}
+            {showIgLoginCta ? (
+              <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+                <a href="/api/ig/login/connect" className="font-medium text-brand hover:underline">
+                  {dict.igLoginCta}
+                </a>
+                <p className="mt-1 text-xs text-muted-foreground">{dict.igLoginNote}</p>
               </div>
-            </details>
+            ) : null}
+
+            {igConnectedDirect ? (
+              <p className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                {dict.igLoginUpgradeNote}
+              </p>
+            ) : null}
+          </div>
           ) : null}
         </ConnectionCard>
         </div>

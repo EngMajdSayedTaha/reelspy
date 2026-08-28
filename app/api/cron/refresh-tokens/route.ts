@@ -5,6 +5,7 @@ import {
   getInstagramBusinessAccount,
   isInvalidTokenError,
 } from "@/lib/instagram/graph-api";
+import { refreshLongLivedInstagramToken } from "@/lib/instagram/login-api";
 import { storePageCredentials } from "@/lib/instagram/token-store";
 import {
   updateConnectionTokens,
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   // Active tokens that are expiring soon (or have no recorded expiry yet).
   const { data: profiles } = await admin
     .from("profiles")
-    .select("id, ig_access_token, ig_token_expires_at")
+    .select("id, ig_access_token, ig_token_expires_at, ig_auth_flow")
     .eq("ig_token_status", "active")
     .not("ig_access_token", "is", null)
     .or(`ig_token_expires_at.is.null,ig_token_expires_at.lte.${cutoffIso}`);
@@ -46,11 +47,16 @@ export async function GET(request: Request) {
 
   for (const profile of profiles ?? []) {
     if (!profile.ig_access_token) continue;
+    // Instagram-Login tokens are a different OAuth audience — refreshing them
+    // against graph.facebook.com's fb_exchange_token would fail with an
+    // OAuthException and wrongly flag a healthy connection 'invalid'. Route to
+    // the matching host instead. See lib/meta/graph.ts's header comment.
+    const isInstagramLogin = profile.ig_auth_flow === "instagram_login";
 
     try {
-      const { accessToken, expiresInSeconds } = await exchangeForLongLivedToken(
-        profile.ig_access_token
-      );
+      const { accessToken, expiresInSeconds } = isInstagramLogin
+        ? await refreshLongLivedInstagramToken(profile.ig_access_token)
+        : await exchangeForLongLivedToken(profile.ig_access_token);
       const expiresAt = expiresInSeconds
         ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
         : null;
@@ -68,18 +74,21 @@ export async function GET(request: Request) {
 
       // Keep the stored page token (Auto-Reply DMs) consistent with the fresh
       // user token. Best-effort: a miss here just means the old page token
-      // keeps working until the next run.
-      try {
-        const igAccount = await getInstagramBusinessAccount(accessToken);
-        if (igAccount?.pageId && igAccount.pageAccessToken) {
-          await storePageCredentials(admin, profile.id, {
-            pageId: igAccount.pageId,
-            pageName: igAccount.pageName ?? null,
-            pageToken: igAccount.pageAccessToken,
-          });
+      // keeps working until the next run. Instagram-Login connections have no
+      // Page at all, so there is nothing to re-derive.
+      if (!isInstagramLogin) {
+        try {
+          const igAccount = await getInstagramBusinessAccount(accessToken);
+          if (igAccount?.pageId && igAccount.pageAccessToken) {
+            await storePageCredentials(admin, profile.id, {
+              pageId: igAccount.pageId,
+              pageName: igAccount.pageName ?? null,
+              pageToken: igAccount.pageAccessToken,
+            });
+          }
+        } catch (pageError) {
+          console.error("Page token re-derivation failed", pageError);
         }
-      } catch (pageError) {
-        console.error("Page token re-derivation failed", pageError);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
