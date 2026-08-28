@@ -73,12 +73,18 @@ const en = {
     disconnectInstagramDescription:
       "ReelSpy will remove your saved Instagram connection. Your tracked reels stay, but syncing, publishing and auto-reply pause until you reconnect.",
     igNotConfigured: "Instagram connection isn't configured on the server yet.",
-    setupDetails: "Setup details",
-    appIdLabel: "App ID:",
-    notSet: "not set",
-    callbackUrlLabel: "Callback URL:",
-    permissionsLabel: "Permissions:",
-    igBusinessRequirement: "Your Instagram must be a Business or Creator account linked to a Facebook Page.",
+
+    // Plain-language explainer of the two Instagram connect paths. Collapsed by
+    // default under the Instagram card until an account is connected.
+    connectHelp: {
+      heading: "Not sure which to choose?",
+      facebookTitle: "Connect (with Facebook)",
+      facebookBody:
+        "The full connection. Adds competitor tracking and DM auto-reply on top of publishing and your own insights. Needs an Instagram Business or Creator account that's linked to a Facebook Page.",
+      instagramTitle: "Connect directly via Instagram",
+      instagramBody:
+        "For a Business or Creator account with no Facebook Page. Publishing and your own account's insights work fully — competitor tracking and DM auto-reply aren't available this way. You can switch to the Facebook option later to add them.",
+    },
     fbNote: "Posts to your linked Facebook Page (connected together with Instagram).",
     pageConnected: "Page connected",
     tiktokNote: "Posts via the TikTok Content Posting API.",
@@ -188,12 +194,16 @@ export const connectionsAr: ConnectionsDict = {
     disconnectInstagramDescription:
       "ستُزيل ReelSpy ربط إنستغرام المحفوظ. تبقى الريلز المتابَعة كما هي، لكن المزامنة والنشر والرد الآلي تتوقف حتى تعيد الربط.",
     igNotConfigured: "ربط إنستغرام غير مهيأ على الخادم بعد.",
-    setupDetails: "تفاصيل الإعداد",
-    appIdLabel: "معرّف التطبيق:",
-    notSet: "غير محدد",
-    callbackUrlLabel: "رابط الاستدعاء:",
-    permissionsLabel: "الصلاحيات:",
-    igBusinessRequirement: "يجب أن يكون حساب إنستغرام تجاريًا أو لصانع محتوى ومرتبطًا بصفحة فيسبوك.",
+
+    connectHelp: {
+      heading: "غير متأكد أيهما تختار؟",
+      facebookTitle: "الربط (عبر فيسبوك)",
+      facebookBody:
+        "الربط الكامل. يضيف متابعة الحسابات المنافسة والرد الآلي على الرسائل الخاصة إلى جانب النشر وإحصاءاتك الخاصة. يتطلب حساب إنستغرام تجاريًا أو لصانع محتوى مرتبطًا بصفحة فيسبوك.",
+      instagramTitle: "الربط مباشرة عبر إنستغرام",
+      instagramBody:
+        "لحساب تجاري أو لصانع محتوى بدون صفحة فيسبوك. النشر وإحصاءات حسابك الخاصة تعمل بالكامل — أما متابعة المنافسين والرد الآلي على الرسائل فغير متاحين بهذه الطريقة. يمكنك التبديل إلى خيار فيسبوك لاحقًا لإضافتهما.",
+    },
     fbNote: "ينشر على صفحة فيسبوك المرتبطة (تُربط مع إنستغرام معًا).",
     pageConnected: "الصفحة مرتبطة",
     tiktokNote: "ينشر عبر واجهة TikTok Content Posting API.",
