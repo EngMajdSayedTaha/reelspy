@@ -29,6 +29,8 @@ const en = {
     instagramLoginEnvMissing: "Direct Instagram sign-in isn't configured yet. Contact support.",
     igLoginNeedsProfessionalAccount:
       "That Instagram account isn't set to Business or Creator yet. In the Instagram app go to Settings → Account type and switch it, then try again.",
+    igLoginNotAvailable:
+      "This Instagram account isn't cleared for direct sign-in yet. While ReelSpy completes Instagram's review, only accounts we've added as testers can connect this way — contact support to add one. To connect right now, use an Instagram account linked to a Facebook Page with the Connect button above.",
 
     connectedSuccess: "Account connected successfully.",
     disconnectedSuccess: "Account disconnected. You can reconnect below.",
@@ -157,6 +159,8 @@ export const connectionsAr: ConnectionsDict = {
     instagramLoginEnvMissing: "تسجيل الدخول المباشر عبر إنستغرام غير مهيأ بعد. يرجى التواصل مع الدعم.",
     igLoginNeedsProfessionalAccount:
       "حساب إنستغرام هذا ليس تجاريًا أو لصانع محتوى بعد. من تطبيق إنستغرام اذهب إلى الإعدادات ← نوع الحساب وحوّله، ثم أعد المحاولة.",
+    igLoginNotAvailable:
+      "هذا الحساب على إنستغرام غير مُصرّح له بتسجيل الدخول المباشر بعد. ريثما تُكمل ReelSpy مراجعة إنستغرام، تستطيع الاتصال بهذه الطريقة فقط الحسابات التي أضفناها كمختبِرين — تواصل مع الدعم لإضافة حساب. وللاتصال الآن، استخدم حساب إنستغرام مرتبطًا بصفحة فيسبوك عبر زر «ربط» أعلاه.",
 
     connectedSuccess: "تم ربط الحساب بنجاح.",
     disconnectedSuccess: "تم قطع ربط الحساب. يمكنك إعادة الربط أدناه.",

@@ -17,6 +17,22 @@ import { oauthLog, oauthError, requestContext } from "@/lib/oauth/log";
 
 const OAUTH_STATE_COOKIE = "reelspy_ig_login_oauth_state";
 
+// The `instagram_business_*` permissions this flow requests are at Standard
+// Access until App Review grants Advanced Access, so Graph only serves them to
+// users who hold a role (admin / developer / tester) on the Meta app. A
+// role-less user's token exchange / profile read comes back not as a clean
+// "permission denied" but as Meta's catch-all
+//   IGApiException code 100 "Unsupported request - method type: get"
+// — deterministic, never transient, so "please try again" is the wrong copy.
+// Route it to a message that names the real fix instead.
+function isIgLoginAccessError(raw: string): boolean {
+  return (
+    (/"code":\s*100\b/.test(raw) && /IGApiException/i.test(raw)) ||
+    /unsupported request\b[^"]*method type/i.test(raw) ||
+    /does not have permission|has not been granted|requires .*permission/i.test(raw)
+  );
+}
+
 // Callback for the direct Instagram Login flow — no Facebook Page, no ASID,
 // no Page webhook subscription. See /api/ig/login/connect for the authorize
 // step and lib/instagram/login-api.ts for the Graph calls.
@@ -177,17 +193,25 @@ export async function GET(request: NextRequest) {
     console.error("Instagram Login callback failed", callbackError);
     const raw = callbackError instanceof Error ? callbackError.message : String(callbackError);
     const friendly = parseGraphError(raw);
+    const accessError = isIgLoginAccessError(raw);
     oauthError({
       flow: "ig_login",
       step: "callback:exchange-failed",
       metaMessage: friendly,
+      accessError,
       timedOut: /timed out|aborted|AbortError/i.test(raw),
       ...ctx,
     });
     const target = new URL("/dashboard/connections", request.url);
-    target.searchParams.set("error", "oauth_failed");
-    if (friendly) {
-      target.searchParams.set("detail", friendly.slice(0, 200));
+    if (accessError) {
+      // Not a retry situation and not something to paste Meta's raw string
+      // for — the account simply isn't allowed through this flow yet.
+      target.searchParams.set("error", "ig_login_not_available");
+    } else {
+      target.searchParams.set("error", "oauth_failed");
+      if (friendly) {
+        target.searchParams.set("detail", friendly.slice(0, 200));
+      }
     }
     const failureResponse = applyCookies(relativeRedirect(target));
     failureResponse.cookies.delete(OAUTH_STATE_COOKIE);

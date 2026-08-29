@@ -36,6 +36,7 @@ function errorMap(dict: Dict["connections"]): Record<string, string> {
     meta_env_missing: dict.metaEnvMissing,
     instagram_login_env_missing: dict.instagramLoginEnvMissing,
     ig_login_needs_professional_account: dict.igLoginNeedsProfessionalAccount,
+    ig_login_not_available: dict.igLoginNotAvailable,
     profile_update_failed: dict.profileUpdateFailed,
     account_link_failed: dict.accountLinkFailed,
     no_ig_business_account: dict.noIgBusinessAccount,
