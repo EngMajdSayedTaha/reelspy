@@ -94,6 +94,11 @@ const en = {
                 "instagram_manage_comments, instagram_manage_messages, pages_manage_metadata, pages_messaging",
               body: "Read comments on your Reels and send automated Instagram Direct Messages, to power the comment-to-DM auto-reply feature.",
             },
+            directInstagram: {
+              label:
+                "instagram_business_basic, instagram_business_content_publish, instagram_business_manage_comments, instagram_business_manage_messages",
+              body: "For Instagram Business or Creator accounts that connect directly, without a linked Facebook Page: read your own profile and media, publish Reels and posts, and read and reply to comments and Direct Messages on your own content. The same features as above, provided through Instagram's Login API instead of Facebook Login.",
+            },
           },
         },
         subprocessors: {
@@ -362,6 +367,11 @@ export const legalAr: LegalDict = {
               label:
                 "instagram_manage_comments وinstagram_manage_messages وpages_manage_metadata وpages_messaging",
               body: "لقراءة التعليقات على ريلزك وإرسال رسائل مباشرة تلقائية على إنستغرام، لتشغيل ميزة الرد التلقائي من التعليق إلى الرسالة المباشرة.",
+            },
+            directInstagram: {
+              label:
+                "instagram_business_basic وinstagram_business_content_publish وinstagram_business_manage_comments وinstagram_business_manage_messages",
+              body: "لحسابات إنستغرام التجارية أو حسابات صانعي المحتوى التي تتصل مباشرةً دون صفحة فيسبوك مرتبطة: قراءة ملفك الشخصي ومنشوراتك، ونشر الريلز والمنشورات، وقراءة التعليقات والرسائل المباشرة على محتواك والرد عليها. الميزات نفسها المذكورة أعلاه، لكن عبر واجهة تسجيل الدخول من إنستغرام بدلاً من تسجيل الدخول عبر فيسبوك.",
             },
           },
         },
