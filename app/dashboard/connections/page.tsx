@@ -7,7 +7,6 @@ import { ConnectionCard } from "@/components/publishing/ConnectionCard";
 import { WorkspaceSwitcher } from "@/components/connections/WorkspaceSwitcher";
 import { BetaTesterGate } from "@/components/connections/BetaTesterGate";
 import { listIgConnections } from "@/lib/instagram/connections";
-import { getMetaRedirectUri } from "@/lib/instagram/graph-api";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 import { limitOf } from "@/lib/billing/entitlements";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/prefs";
@@ -37,6 +36,7 @@ function errorMap(dict: Dict["connections"]): Record<string, string> {
     meta_env_missing: dict.metaEnvMissing,
     instagram_login_env_missing: dict.instagramLoginEnvMissing,
     ig_login_needs_professional_account: dict.igLoginNeedsProfessionalAccount,
+    ig_login_not_available: dict.igLoginNotAvailable,
     profile_update_failed: dict.profileUpdateFailed,
     account_link_failed: dict.accountLinkFailed,
     no_ig_business_account: dict.noIgBusinessAccount,
@@ -104,7 +104,6 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
   // site origin (see getMetaRedirectUri) — so readiness only needs the app
   // credentials, matching what /api/ig/connect actually requires.
   const metaReady = Boolean(igAppId && process.env.META_APP_SECRET);
-  const scopes = process.env.META_IG_SCOPES?.trim() || "instagram_business_basic";
 
   const igConnected = Boolean(profile?.ig_user_id);
   const igExpiresAt = profile?.ig_token_expires_at ?? null;
@@ -120,8 +119,9 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
         ? dict.igRenewsThrough(formatDate(igExpiresAt, bcp47) ?? "")
         : dict.connectionActive;
 
-  // Troubleshooting setup details only surface when there's a reason to look.
-  const showSetupDetails = metaReady && (!igConnected || Boolean(errorMessage));
+  // "Which option do I pick?" help — only while there's still a choice to make
+  // (Instagram configured, nothing connected yet).
+  const showConnectHelp = metaReady && !igConnected;
 
   // Direct Instagram Login (no Facebook Page) — the fix for a creator whose IG
   // Business/Creator account has no linked Page. A separate app/product from
@@ -234,33 +234,12 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
             description: dict.disconnectInstagramDescription,
           }}
         >
-          {!metaReady || showSetupDetails || showIgLoginCta || igConnectedDirect ? (
+          {!metaReady || showConnectHelp || showIgLoginCta || igConnectedDirect ? (
           <div className="space-y-3">
             {!metaReady ? (
               <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
                 {dict.igNotConfigured}
               </p>
-            ) : showSetupDetails ? (
-              <details className="group rounded-xl border border-border bg-background p-4 text-sm">
-                <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
-                  {dict.setupDetails}
-                </summary>
-                <div className="mt-3 space-y-1 text-muted-foreground">
-                  <p>
-                    {dict.appIdLabel} <span className="font-mono text-xs">{igAppId ?? dict.notSet}</span>
-                  </p>
-                  <p>
-                    {dict.callbackUrlLabel}{" "}
-                    <span className="font-mono text-xs">{getMetaRedirectUri()}</span>
-                  </p>
-                  <p>
-                    {dict.permissionsLabel} <span className="font-medium">{scopes}</span>
-                  </p>
-                  <p className="pt-1 text-xs text-subtle">
-                    {dict.igBusinessRequirement}
-                  </p>
-                </div>
-              </details>
             ) : null}
 
             {/* No Facebook Page? Direct Instagram Login skips Facebook entirely —
@@ -272,6 +251,27 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
                 </a>
                 <p className="mt-1 text-xs text-muted-foreground">{dict.igLoginNote}</p>
               </div>
+            ) : null}
+
+            {/* Plain-language "which one do I pick?" — replaces the old
+                developer-facing "Setup details" dump (App ID / callback URL /
+                raw scope strings), which meant nothing to end users. */}
+            {showConnectHelp ? (
+              <details className="group rounded-xl border border-border bg-background p-4 text-sm">
+                <summary className="cursor-pointer list-none font-medium text-muted-foreground hover:text-foreground">
+                  {dict.connectHelp.heading}
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="font-medium text-foreground">{dict.connectHelp.facebookTitle}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{dict.connectHelp.facebookBody}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">{dict.connectHelp.instagramTitle}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{dict.connectHelp.instagramBody}</p>
+                  </div>
+                </div>
+              </details>
             ) : null}
 
             {igConnectedDirect ? (

@@ -95,6 +95,12 @@ export default async function PrivacyPage({
             </span>{" "}
             — {t.sections.instagramPlatform.permissions.autoReply.body}
           </li>
+          <li>
+            <span className="font-medium text-foreground">
+              {t.sections.instagramPlatform.permissions.directInstagram.label}
+            </span>{" "}
+            — {t.sections.instagramPlatform.permissions.directInstagram.body}
+          </li>
         </ul>
       </LegalSection>
 
