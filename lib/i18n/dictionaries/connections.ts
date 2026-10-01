@@ -51,7 +51,8 @@ const en = {
       "No Facebook Page needed — just a Business or Creator Instagram account. Publishing and your own insights work fully; tracking other accounts and DM auto-reply need the Facebook-linked connection above instead.",
     connectedViaInstagramDirect: "Connected directly via Instagram — no Facebook Page.",
     igLoginUpgradeNote:
-      "Want to track competitor accounts or use DM auto-reply? Press Reconnect above and sign in with Facebook to add a linked Page.",
+      "Reel syncing is off on this connection: Instagram Login can't read other accounts, so your tracked accounts won't refresh (DM auto-reply needs Facebook too). Publishing and your own insights keep working.",
+    igLoginUpgradeCta: "Reconnect with Facebook to turn syncing on",
 
     // Shown above the Instagram card while META_BETA_MODE=true (Meta app still
     // in Development mode, pre-Advanced-Access). A non-tester who clicks
@@ -178,7 +179,8 @@ export const connectionsAr: ConnectionsDict = {
       "لا حاجة لصفحة فيسبوك — فقط حساب إنستغرام تجاري أو لصانع محتوى. النشر وإحصاءاتك الخاصة تعمل بالكامل؛ أما متابعة حسابات أخرى والرد الآلي عبر الرسائل الخاصة فيتطلبان الربط المرتبط بفيسبوك أعلاه.",
     connectedViaInstagramDirect: "متصل مباشرة عبر إنستغرام — بدون صفحة فيسبوك.",
     igLoginUpgradeNote:
-      "تريد متابعة حسابات منافسة أو استخدام الرد الآلي عبر الرسائل؟ اضغط «إعادة الربط» أعلاه وسجّل الدخول عبر فيسبوك لإضافة صفحة مرتبطة.",
+      "مزامنة الريلز متوقفة على هذا الربط: تسجيل الدخول بإنستغرام لا يسمح بقراءة الحسابات الأخرى، لذا لن تُحدَّث حساباتك المتابَعة (والرد الآلي عبر الرسائل يحتاج فيسبوك أيضًا). النشر وإحصاءاتك الخاصة تعمل كالمعتاد.",
+    igLoginUpgradeCta: "أعد الربط عبر فيسبوك لتشغيل المزامنة",
 
     betaGate: {
       heading: "إنستغرام حاليًا في نسخة تجريبية مغلقة",

@@ -10,6 +10,7 @@ import { refreshAccountSnapshot, pickHealthyToken } from "@/lib/instagram/snapsh
 import { enrichSeedAccounts } from "@/lib/instagram/enrich";
 import { mirrorShowcaseVideos } from "@/lib/instagram/showcase-video";
 import { cronAuthorized } from "@/lib/utils/cron";
+import { notifyIntegrationUnhealthy } from "@/lib/notifications/cron";
 import { numEnv } from "@/lib/utils/env";
 
 // Scheduled worker: keeps the GLOBAL snapshot cache warm so on-demand sync is
@@ -106,7 +107,29 @@ export async function GET(request: Request) {
   // account, and the rate limit is app-level.
   const caller = await pickHealthyToken(admin);
   if (!caller) {
-    return NextResponse.json({ ok: true, processed: 0, note: "No connected accounts yet." });
+    // This used to answer `ok: true, "No connected accounts yet."` — and the
+    // scheduler showed green for five weeks while every snapshot, every Sync
+    // All and the landing-page reel wall froze. With no Facebook-Login token
+    // NOTHING in the app can refresh, so fail the run (the GitHub Action goes
+    // red) and page the founder with the actual fix.
+    const { count: igLoginOnly } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("ig_auth_flow", "instagram_login")
+      .not("ig_access_token", "is", null);
+    const summary =
+      igLoginOnly && igLoginOnly > 0
+        ? `No healthy Facebook-Login Instagram token, so Business Discovery is down: snapshots, Sync All and the landing reel wall are frozen. ${igLoginOnly} profile(s) are connected via Instagram Login, which can't call Business Discovery — reconnect one via Facebook Login on /dashboard/connections.`
+        : "No healthy Facebook-Login Instagram token, so Business Discovery is down: snapshots, Sync All and the landing reel wall are frozen. Connect Instagram via Facebook Login on /dashboard/connections.";
+    await notifyIntegrationUnhealthy("Instagram Business Discovery", {
+      summary,
+      link: "/dashboard/connections",
+      admin,
+    });
+    return NextResponse.json(
+      { ok: false, processed: 0, code: "no_research_token", error: summary },
+      { status: 503 }
+    );
   }
 
   // Unique set of active tracked usernames across ALL users (the dedup payoff).

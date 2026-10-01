@@ -11,6 +11,11 @@ import { ApiError, notifyError, requestJson } from "@/lib/utils/api";
 import { formatCountdown } from "@/lib/utils/time";
 import { useDict } from "@/lib/i18n/I18nProvider";
 import type { Dict } from "@/lib/i18n/dictionaries";
+import {
+  isSyncBlockerCode,
+  SYNC_BLOCKER_FIX_HREF,
+  type SyncBlockerCode,
+} from "@/lib/instagram/sync-blocker";
 
 type SyncResult = {
   inserted?: number;
@@ -40,6 +45,14 @@ function formatWindow(dict: Dict["feed"]["sync"], seconds?: number): string {
 
 const LIMIT_OPTIONS = [25, 50, 100, 200];
 
+// The sync API answers with a `code` when the failure is something the user
+// has to fix (see lib/instagram/sync-blocker.ts) rather than a transient error.
+function blockerOf(error: unknown): SyncBlockerCode | null {
+  if (!(error instanceof ApiError)) return null;
+  const body = error.body as { code?: unknown } | null | undefined;
+  return isSyncBlockerCode(body?.code) ? body.code : null;
+}
+
 type Props = {
   /** Accounts eligible for sync — when provided, the button orchestrates a
    *  sequential per-account sync with live progress instead of one big
@@ -54,6 +67,7 @@ type Props = {
 
 export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
   const dict = useDict().feed.sync;
+  const blockedDict = useDict().feed.syncBlocked;
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
   const [limit, setLimit] = useState(25);
@@ -113,6 +127,17 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     return () => window.removeEventListener("reelspy:autoresume", onAutoResume);
   }, []);
 
+  // A blocker means every remaining account would fail the same way, so the
+  // toast names the cause and links straight to the fix instead of a count.
+  const showBlockerToast = (code: SyncBlockerCode, id?: string | number) => {
+    toast.error(blockedDict.reasons[code], {
+      id,
+      duration: 20000,
+      action: { label: blockedDict.action, onClick: () => router.push(SYNC_BLOCKER_FIX_HREF) },
+    });
+    window.dispatchEvent(new CustomEvent("reelspy:synced"));
+  };
+
   const startCooldown = (seconds?: number) => {
     const secs = Math.max(0, Math.floor(seconds ?? 0));
     setCooldownSeconds(secs);
@@ -136,6 +161,8 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     let rateLimited = false;
     let retryAfterSeconds: number | undefined;
     let stoppedByUser = false;
+    let blocker: SyncBlockerCode | null = null;
+    const failures: string[] = [];
     let i = startIndex;
 
     for (; i < items.length; i++) {
@@ -174,6 +201,17 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
           stoppedByUser = true;
           break;
         }
+        const code = blockerOf(error);
+        if (code) {
+          blocker = code;
+          setStatuses((prev) => {
+            const next = [...prev];
+            next[i] = "error";
+            for (let j = i + 1; j < items.length; j++) next[j] = "skipped";
+            return next;
+          });
+          break;
+        }
         if (error instanceof ApiError && error.status === 429) {
           rateLimited = true;
           retryAfterSeconds = error.retryAfterSeconds;
@@ -188,6 +226,9 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
           );
           break;
         }
+        failures.push(
+          error instanceof Error && error.message ? error.message : dict.syncFailed
+        );
         setStatuses((prev) => {
           const next = [...prev];
           next[i] = "error";
@@ -199,7 +240,12 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     abortRef.current = null;
     setIsSyncing(false);
 
-    if (rateLimited) {
+    // Accounts that actually got a request this run (a halt leaves the rest).
+    const attempted = Math.min(i, items.length - 1) - startIndex + 1;
+
+    if (blocker) {
+      showBlockerToast(blocker);
+    } else if (rateLimited) {
       const remaining = i + 1 < items.length;
       resumeRef.current = remaining ? { items, nextIndex: i + 1 } : null;
       const cooldown = Math.max(0, Math.floor(retryAfterSeconds ?? 0));
@@ -212,7 +258,16 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
           ? { label: dict.resumeAction, onClick: () => setAutoResumeArmed(true) }
           : undefined,
       });
+    } else if (!stoppedByUser && failures.length > 0 && failures.length >= attempted) {
+      // Every account failed — a "Synced: +0 new" success here is exactly the
+      // lie this used to tell. Show the first reason instead.
+      toast.error(dict.allFailedToast(failures[0]), { duration: 12000 });
     } else if (!stoppedByUser) {
+      if (failures.length > 0) {
+        toast.warning(dict.someFailedToast(failures.length, attempted, failures[0]), {
+          duration: 12000,
+        });
+      }
       toast.success(dict.syncedToast(totalInserted, totalUpdated));
       if (totalQueued > 0) {
         toast(dict.backgroundRefreshToast(totalQueued), { icon: "🔄", duration: 6000 });
@@ -222,9 +277,10 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
     }
 
     // Sync is over — the toast already reports the outcome, so retire the
-    // progress dots. They're only meaningful while a run is in flight or paused
-    // by a rate limit (kept below so the user can see where a resume picks up).
-    if (!rateLimited) {
+    // progress dots. They're only meaningful while a run is in flight, paused
+    // by a rate limit (kept so the user can see where a resume picks up), or
+    // when something failed (kept so the red dots match the error toast).
+    if (!rateLimited && !blocker && failures.length === 0) {
       setQueue([]);
       setStatuses([]);
       setCurrentIndex(-1);
@@ -270,7 +326,10 @@ export function SyncButton({ accounts, skipFreshSeconds = 1800 }: Props) {
       window.dispatchEvent(new CustomEvent("reelspy:synced"));
       router.refresh();
     } catch (error) {
-      if (error instanceof ApiError && error.status === 429) {
+      const code = blockerOf(error);
+      if (code) {
+        showBlockerToast(code, toastId);
+      } else if (error instanceof ApiError && error.status === 429) {
         toast.error(dict.hourlyLimitToast(formatWindow(dict, error.retryAfterSeconds)), {
           id: toastId,
           icon: "⏳",

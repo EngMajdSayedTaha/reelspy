@@ -85,6 +85,21 @@ const en = {
       quotaNotice: (n: number) => `${n} manual refresh${n === 1 ? "" : "es"} left this hour.`,
       quotaResets: (time: string) => `Resets in ${time}.`,
     },
+    // Shown when nothing can refresh reels at all (see lib/instagram/sync-blocker.ts).
+    // Keyed by SyncBlockerCode.
+    syncBlocked: {
+      label: "Sync blocked",
+      heading: "Your reels can't refresh right now",
+      action: "Fix on Connections",
+      reasons: {
+        needs_facebook_login:
+          "Your Instagram is connected via Instagram Login, which can't read other accounts' reels. Open Connections, press Reconnect on Instagram and sign in with Facebook — syncing resumes right after.",
+        reconnect_required:
+          "Your Instagram connection can no longer refresh reels. Open Connections and reconnect Instagram with Facebook — syncing resumes right after.",
+        not_connected:
+          "Syncing needs a Facebook-linked Instagram connection. Open Connections and connect Instagram with Facebook.",
+      },
+    },
     reelCard: {
       playAria: "Play reel inline",
       reelByAlt: (username: string) => `Reel by @${username}`,
@@ -154,6 +169,9 @@ const en = {
       resumeAction: "Resume when it resets",
       stoppedToast: "Sync stopped.",
       stopButton: "Stop",
+      allFailedToast: (reason: string) => `Sync failed for every account: ${reason}`,
+      someFailedToast: (failed: number, total: number, reason: string) =>
+        `${failed} of ${total} account${total === 1 ? "" : "s"} failed to sync: ${reason}`,
     },
     transcript: {
       heading: "Reel Transcript",
@@ -296,6 +314,19 @@ export const feedAr: FeedDict = {
         n === 1 ? "بقي تحديث يدوي واحد هذه الساعة." : `بقي ${n} تحديثات يدوية هذه الساعة.`,
       quotaResets: (time: string) => `يُعاد الضبط خلال ${time}.`,
     },
+    syncBlocked: {
+      label: "المزامنة متوقفة",
+      heading: "لا يمكن تحديث الريلز حاليًا",
+      action: "الإصلاح من صفحة الربط",
+      reasons: {
+        needs_facebook_login:
+          "حسابك على إنستغرام مربوط عبر تسجيل الدخول بإنستغرام، وهذا لا يسمح بقراءة ريلز الحسابات الأخرى. افتح صفحة الربط، واضغط «إعادة الربط» على إنستغرام وسجّل الدخول عبر فيسبوك — تُستأنف المزامنة مباشرة بعدها.",
+        reconnect_required:
+          "لم يعد ربط إنستغرام لديك قادرًا على تحديث الريلز. افتح صفحة الربط وأعد ربط إنستغرام عبر فيسبوك — تُستأنف المزامنة مباشرة بعدها.",
+        not_connected:
+          "تحتاج المزامنة إلى ربط إنستغرام عبر فيسبوك. افتح صفحة الربط واربط إنستغرام عبر فيسبوك.",
+      },
+    },
     reelCard: {
       playAria: "تشغيل الريل مباشرة",
       reelByAlt: (username: string) => `ريل بواسطة @${username}`,
@@ -363,6 +394,9 @@ export const feedAr: FeedDict = {
       resumeAction: "استئناف عند إعادة الضبط",
       stoppedToast: "تم إيقاف المزامنة.",
       stopButton: "إيقاف",
+      allFailedToast: (reason: string) => `فشلت مزامنة جميع الحسابات: ${reason}`,
+      someFailedToast: (failed: number, total: number, reason: string) =>
+        `فشلت مزامنة ${failed} من ${total} حساب: ${reason}`,
     },
     transcript: {
       heading: "نص الريل المفرَّغ",

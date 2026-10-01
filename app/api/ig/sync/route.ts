@@ -8,7 +8,9 @@ import {
   refreshAccountSnapshot,
   materializeForUser,
   normalizeUsername,
+  pickHealthyToken,
 } from "@/lib/instagram/snapshots";
+import { syncBlockerFor, type SyncBlocker } from "@/lib/instagram/sync-blocker";
 import { getIgCredentials } from "@/lib/instagram/token-store";
 import { enqueueTopReelTranscriptions } from "@/lib/media/auto-transcribe";
 import { enqueueJob } from "@/lib/jobs/queue";
@@ -76,23 +78,31 @@ export async function POST(request: Request) {
   }
 
   if (!credentials) {
-    return NextResponse.json(
-      { error: "Instagram account is not connected. Go to Settings → Instagram to connect." },
-      { status: 400 }
-    );
+    const blocker = syncBlockerFor(null, false);
+    return NextResponse.json({ error: blocker.message, code: blocker.code }, { status: 400 });
   }
 
   // Token was flagged dead by the refresh worker — tell the user to reconnect
   // instead of letting every sync fail silently.
   if (credentials.status === "invalid" || credentials.status === "expired") {
+    const blocker = syncBlockerFor(credentials.authFlow, true);
     return NextResponse.json(
-      { error: "Your Instagram connection expired. Go to Settings → Instagram to reconnect." },
+      { error: blocker.message, code: "reconnect_required" },
       { status: 400 }
     );
   }
 
   const body = (await request.json().catch(() => ({}))) as SyncBody;
   const syncLimit = resolveLimit(body.limit);
+
+  // "Sync All" — the whole-batch bulk request AND the dashboard's per-account
+  // orchestration (deferred: true) — takes the ASYNC path: serve the shared
+  // cache instantly, then refresh any stale account in the BACKGROUND via the
+  // durable job queue (deduped by username). It never calls Meta inline, so
+  // users never block on the shared pool or wait on each other's syncs. An
+  // explicit single-account sync (or `force`) still fetches inline for on-demand
+  // freshness.
+  const asyncMode = !body.force && (body.deferred === true || !body.account_id);
 
   // Business Discovery (reading OTHER accounts' public reels — the whole point
   // of this endpoint) isn't exposed on graph.instagram.com, and an
@@ -101,14 +111,13 @@ export async function POST(request: Request) {
   // tracked account fail with a confusing Graph error. "Sync All" for these
   // users still serves the shared cache fine — only the inline/force fetch
   // (which spends THIS user's own token) needs the Facebook-linked connection.
-  if (credentials.authFlow === "instagram_login" && (body.account_id || body.force)) {
-    return NextResponse.json(
-      {
-        error:
-          "Tracking other accounts' reels needs the Facebook-linked Instagram connection — reconnect via Instagram → Connect (Facebook) in Settings. Your own account's publishing and insights keep working either way.",
-      },
-      { status: 400 }
-    );
+  //
+  // Keyed on the inline path, not on `account_id`: the dashboard's Sync All
+  // sends one deferred request PER account, and gating on `account_id` used to
+  // 400 every one of them while the client still toasted "Synced: +0 new".
+  if (credentials.authFlow === "instagram_login" && !asyncMode) {
+    const blocker = syncBlockerFor("instagram_login", true);
+    return NextResponse.json({ error: blocker.message, code: blocker.code }, { status: 400 });
   }
 
   // Build query for inspiration accounts to sync
@@ -159,15 +168,6 @@ export async function POST(request: Request) {
     });
   }
 
-  // "Sync All" — the whole-batch bulk request AND the dashboard's per-account
-  // orchestration (deferred: true) — takes the ASYNC path: serve the shared
-  // cache instantly, then refresh any stale account in the BACKGROUND via the
-  // durable job queue (deduped by username). It never calls Meta inline, so
-  // users never block on the shared pool or wait on each other's syncs. An
-  // explicit single-account sync (or `force`) still fetches inline for on-demand
-  // freshness.
-  const asyncMode = !body.force && (body.deferred === true || !body.account_id);
-
   let totalInserted = 0;
   let totalUpdated = 0;
   let queued = 0;
@@ -175,8 +175,17 @@ export async function POST(request: Request) {
 
   let rateLimitHit = false;
   let retryAfterSeconds: number | undefined;
+  // Set when a stale account needed a refresh that nothing can perform.
+  let blocked: SyncBlocker | null = null;
+  let blockedAccounts = 0;
 
   if (asyncMode) {
+    // Background refreshes run on whichever healthy Facebook-Login token the
+    // app has. With none, an enqueued job only parks on `no_token` forever
+    // while the top bar claims "Updating…" — so don't enqueue; name the
+    // problem instead.
+    const researchAvailable = Boolean(await pickHealthyToken(admin));
+
     // Pull shared-snapshot freshness for the whole batch up front so we only
     // enqueue a refresh for accounts whose cache is actually stale or missing.
     const unames = accounts.map((a) => normalizeUsername(a.ig_username));
@@ -212,7 +221,10 @@ export async function POST(request: Request) {
       const fetchedAt = freshAt.get(uname);
       const needsRefresh = fetchedAt == null || fetchedAt <= staleBefore;
 
-      if (needsRefresh) {
+      if (needsRefresh && !researchAvailable) {
+        blocked ??= syncBlockerFor(credentials.authFlow, true);
+        blockedAccounts += 1;
+      } else if (needsRefresh) {
         const { skipped } = await enqueueJob(admin, {
           kind: "refresh_snapshot",
           payload: { ig_username: uname, max_reels: syncLimit },
@@ -369,6 +381,7 @@ export async function POST(request: Request) {
     inserted: totalInserted,
     updated: totalUpdated,
     rateLimited: rateLimitHit,
+    blocked: blocked?.code,
     // How much of this sync landed in the background queue vs. resolved inline —
     // the ratio that tells us whether the shared cache is doing its job.
     queued,
@@ -400,6 +413,17 @@ export async function POST(request: Request) {
   // with quota discipline; here we just fan out jobs after the response is sent.
   if (totalInserted > 0 || totalUpdated > 0) {
     after(() => enqueueTopReelTranscriptions(admin, user.id));
+  }
+
+  // Nothing could actually refresh: report a failure, not "Synced: +0 new".
+  // The cache was still served (that's what inserted/updated count), but the
+  // user needs to know their data is frozen and what unfreezes it. 409 so
+  // every caller's generic error path shows the message without opting in.
+  if (blocked) {
+    return NextResponse.json(
+      { ...payload, error: blocked.message, code: blocked.code, blockedAccounts },
+      { status: 409 }
+    );
   }
 
   // Surface throttling as 429 + Retry-After so clients (and proxies) can back off

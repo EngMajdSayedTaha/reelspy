@@ -20,10 +20,11 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAppPausedUntil, readUserQuota, userHourlyRefreshCap } from "@/lib/instagram/rate-limit";
-import { normalizeUsername } from "@/lib/instagram/snapshots";
+import { normalizeUsername, pickHealthyToken } from "@/lib/instagram/snapshots";
+import { syncBlockerFor, type SyncBlockerCode } from "@/lib/instagram/sync-blocker";
 import { resolveUserEntitlements } from "@/lib/billing/resolve";
 
-export type SyncState = "idle" | "refreshing" | "paused";
+export type SyncState = "idle" | "refreshing" | "paused" | "blocked";
 
 export type SyncStatus = {
   state: SyncState;
@@ -33,6 +34,11 @@ export type SyncStatus = {
   refreshingCount: number;
   /** Absolute instant the app-wide pause lifts; null when not paused. */
   pausedUntil: string | null;
+  /**
+   * Set when nothing in the app can refresh reels (no healthy Facebook-Login
+   * token), classified for THIS user so the chip can say what to fix.
+   */
+  blocked: SyncBlockerCode | null;
   quota: { used: number; limit: number; resetAt: string | null };
 };
 
@@ -41,6 +47,7 @@ export const NEUTRAL_SYNC_STATUS: SyncStatus = {
   lastSyncedAt: null,
   refreshingCount: 0,
   pausedUntil: null,
+  blocked: null,
   quota: { used: 0, limit: 0, resetAt: null },
 };
 
@@ -49,7 +56,7 @@ export async function readSyncStatus(
   admin: SupabaseClient,
   userId: string
 ): Promise<SyncStatus> {
-  const [{ entitlements }, { data: accounts }, pausedUntil] = await Promise.all([
+  const [{ entitlements }, { data: accounts }, pausedUntil, blocked] = await Promise.all([
     resolveUserEntitlements(supabase, userId),
     supabase
       .from("inspiration_accounts")
@@ -57,6 +64,7 @@ export async function readSyncStatus(
       .eq("user_id", userId)
       .eq("is_active", true),
     readAppPausedUntil(admin),
+    readBlocker(admin, userId),
   ]);
 
   const limit = userHourlyRefreshCap(entitlements.accounts);
@@ -86,10 +94,31 @@ export async function readSyncStatus(
     refreshingCount = count ?? 0;
   }
 
-  // Paused outranks refreshing: the refreshes are real but stalled, and telling
-  // someone work is in progress while Meta is blocking it is the sort of thing
-  // that reads as a lie once they notice nothing changed.
-  const state: SyncState = pausedUntil ? "paused" : refreshingCount > 0 ? "refreshing" : "idle";
+  // Blocked outranks everything: no refresh can run at all, so "Synced 47d ago"
+  // with a green tick would be a lie. Paused outranks refreshing: the
+  // refreshes are real but stalled, and telling someone work is in progress
+  // while Meta is blocking it reads as a lie once they notice nothing changed.
+  const state: SyncState = blocked
+    ? "blocked"
+    : pausedUntil
+      ? "paused"
+      : refreshingCount > 0
+        ? "refreshing"
+        : "idle";
 
-  return { state, lastSyncedAt, refreshingCount, pausedUntil, quota };
+  return { state, lastSyncedAt, refreshingCount, pausedUntil, blocked, quota };
+}
+
+// Null while any healthy research token exists — a background refresh can then
+// serve this user whatever way they connected. Only when there is none does it
+// matter how THIS user is connected, because that decides what they can fix.
+async function readBlocker(admin: SupabaseClient, userId: string): Promise<SyncBlockerCode | null> {
+  if (await pickHealthyToken(admin)) return null;
+  const { data } = await admin
+    .from("profiles")
+    .select("ig_user_id, ig_auth_flow")
+    .eq("id", userId)
+    .maybeSingle();
+  const authFlow = data?.ig_auth_flow === "instagram_login" ? "instagram_login" : "facebook_login";
+  return syncBlockerFor(authFlow, Boolean(data?.ig_user_id)).code;
 }
