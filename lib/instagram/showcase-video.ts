@@ -39,6 +39,8 @@ export type MirrorResult = {
   mirrored: number;
   failed: number;
   alreadyMirrored: number;
+  /** Stopped early because the caller's time budget ran out. */
+  timedOut?: boolean;
 };
 
 /**
@@ -48,7 +50,10 @@ export type MirrorResult = {
  * post, an oversized file) is simply left alone, and the card keeps showing
  * its still. Nothing here is allowed to fail the cron it rides on.
  */
-export async function mirrorShowcaseVideos(admin: SupabaseClient): Promise<MirrorResult> {
+export async function mirrorShowcaseVideos(
+  admin: SupabaseClient,
+  opts: { deadline?: number } = {}
+): Promise<MirrorResult> {
   const result: MirrorResult = { scanned: 0, mirrored: 0, failed: 0, alreadyMirrored: 0 };
 
   // Deduped across niches: a reel can rank in more than one, and downloading
@@ -84,6 +89,11 @@ export async function mirrorShowcaseVideos(admin: SupabaseClient): Promise<Mirro
   }
 
   for (const item of candidates) {
+    // Unmirrored reels keep showing their still and are picked up next run.
+    if (opts.deadline && Date.now() >= opts.deadline) {
+      result.timedOut = true;
+      break;
+    }
     const permanent = await cacheVideo(admin, item.videoUrl, `videos/${item.mediaId}.mp4`);
     if (!permanent) {
       result.failed += 1;

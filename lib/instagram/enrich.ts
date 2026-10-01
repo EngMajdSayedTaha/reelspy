@@ -24,13 +24,20 @@ export type SeedEnrichStats = {
   remaining: number;
   rateLimited?: boolean;
   invalidToken?: boolean;
+  /** Stopped early because the caller's time budget ran out. */
+  timedOut?: boolean;
 };
 
 export async function enrichSeedAccounts(
   admin: SupabaseClient,
   limiter: MetaRateLimiter,
   caller: HealthyToken,
-  opts: { batch: number; ttlSeconds?: number }
+  opts: {
+    batch: number;
+    ttlSeconds?: number;
+    /** Epoch ms; stop starting new fetches once it passes. */
+    deadline?: number;
+  }
 ): Promise<SeedEnrichStats> {
   const ttlSeconds = opts.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
@@ -117,8 +124,13 @@ export async function enrichSeedAccounts(
   let refreshed = 0;
   let rateLimited = false;
   let invalidToken = false;
+  let timedOut = false;
 
   for (const username of stale) {
+    if (opts.deadline && Date.now() >= opts.deadline) {
+      timedOut = true;
+      break; // the rest stay stale and lead the next run (oldest-first)
+    }
     const result = await refreshAccountSnapshot(
       admin,
       limiter,
@@ -149,5 +161,6 @@ export async function enrichSeedAccounts(
     remaining: Math.max(0, staleAll.length - processed),
     rateLimited: rateLimited || undefined,
     invalidToken: invalidToken || undefined,
+    timedOut: timedOut || undefined,
   };
 }

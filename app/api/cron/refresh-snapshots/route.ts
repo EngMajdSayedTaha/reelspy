@@ -25,6 +25,18 @@ const SEED_BATCH = numEnv("SEED_ENRICH_BATCH", 100);
 const TTL_SECONDS = numEnv("SNAPSHOT_TTL_SECONDS", 21600);
 const REQUEUE_BATCH = numEnv("REFRESH_REQUEUE_BATCH", 100);
 
+// Wall-clock budget, kept well inside maxDuration (300s). The three batches
+// below used to run unbounded and, on a backlog day (e.g. right after a
+// reconnect, with ~2,000 stale accounts), overran — Vercel killed the function
+// with FUNCTION_INVOCATION_TIMEOUT, the run reported nothing, and the GitHub
+// Action failed. Each phase now stops STARTING work at its deadline; whatever
+// is left stays stale and leads the next run, which is already oldest-first.
+// Meta fetches stop first so the video mirror (needs the freshly signed URLs)
+// still gets its slice; a download is capped at 45s (lib/instagram/media-cache),
+// which is why the mirror deadline leaves that much room before 300s.
+const FETCH_DEADLINE_MS = numEnv("SNAPSHOT_FETCH_DEADLINE_MS", 170_000);
+const MIRROR_DEADLINE_MS = numEnv("SNAPSHOT_MIRROR_DEADLINE_MS", 230_000);
+
 type Admin = ReturnType<typeof createAdminClient>;
 
 // Safety net for stranded background refreshes.
@@ -96,6 +108,10 @@ export async function GET(request: Request) {
   if (!cronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const startedAt = Date.now();
+  const fetchDeadline = startedAt + FETCH_DEADLINE_MS;
+  const mirrorDeadline = startedAt + MIRROR_DEADLINE_MS;
 
   const admin = createAdminClient();
 
@@ -188,8 +204,13 @@ export async function GET(request: Request) {
   let refreshed = 0;
   let rateLimited = false;
   let invalidToken = false;
+  let timedOut = false;
 
   for (const username of stale) {
+    if (Date.now() >= fetchDeadline) {
+      timedOut = true;
+      break;
+    }
     const result = await refreshAccountSnapshot(admin, limiter, caller.igUserId, caller.token, username);
     processed += 1;
     if (result.fetched) refreshed += 1;
@@ -214,10 +235,14 @@ export async function GET(request: Request) {
   // throttled. This is what keeps the seed suggestions warm daily without a
   // dedicated cron (the Hobby plan caps a project at 2 cron jobs).
   let seed = null;
-  if (!rateLimited && !invalidToken) {
-    seed = await enrichSeedAccounts(admin, limiter, caller, { batch: SEED_BATCH });
+  if (!rateLimited && !invalidToken && !timedOut) {
+    seed = await enrichSeedAccounts(admin, limiter, caller, {
+      batch: SEED_BATCH,
+      deadline: fetchDeadline,
+    });
     rateLimited = rateLimited || !!seed.rateLimited;
     invalidToken = invalidToken || !!seed.invalidToken;
+    timedOut = timedOut || !!seed.timedOut;
   }
 
   // Promote the showcase reels' mp4s into our own bucket so the marketing
@@ -231,7 +256,7 @@ export async function GET(request: Request) {
   // page degrades to stills, which is not worth failing a sync over.
   let videos = null;
   try {
-    videos = await mirrorShowcaseVideos(admin);
+    videos = await mirrorShowcaseVideos(admin, { deadline: mirrorDeadline });
   } catch (err) {
     console.warn(
       "[refresh-snapshots] showcase video mirror failed:",
@@ -261,5 +286,8 @@ export async function GET(request: Request) {
     videos: videos ?? undefined,
     rateLimited: rateLimited || undefined,
     invalidToken: invalidToken || undefined,
+    // Ran out of time budget; leftovers lead the next run. Not a failure.
+    timedOut: timedOut || videos?.timedOut || undefined,
+    elapsedMs: Date.now() - startedAt,
   });
 }
