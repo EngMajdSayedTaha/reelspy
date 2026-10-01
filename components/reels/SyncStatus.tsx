@@ -1,18 +1,25 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { Popover } from "radix-ui";
-import { CheckCircle2, PauseCircle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, PauseCircle, RefreshCw } from "lucide-react";
 import { useDict } from "@/lib/i18n/I18nProvider";
 import { formatCountdown } from "@/lib/utils/time";
+import {
+  isSyncBlockerCode,
+  SYNC_BLOCKER_FIX_HREF,
+  type SyncBlockerCode,
+} from "@/lib/instagram/sync-blocker";
 
-type SyncState = "idle" | "refreshing" | "paused";
+type SyncState = "idle" | "refreshing" | "paused" | "blocked";
 
 type Status = {
   state: SyncState;
   lastSyncedAt: string | null;
   refreshingCount: number;
   pausedUntil: string | null;
+  blocked?: SyncBlockerCode | null;
   quota: { used: number; limit: number; resetAt: string | null };
 };
 
@@ -39,6 +46,7 @@ const QUOTA_NOTICE_THRESHOLD = 0.75;
 // reason a cooldown looked like it never ended.
 export function SyncStatus() {
   const dict = useDict().feed.syncStatus;
+  const blockedDict = useDict().feed.syncBlocked;
   const [status, setStatus] = useState<Status | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const clearedRef = useRef(false);
@@ -70,6 +78,7 @@ export function SyncStatus() {
           lastSyncedAt: s?.lastSyncedAt ?? null,
           refreshingCount: s?.refreshingCount ?? 0,
           pausedUntil: new Date(Date.now() + secs * 1000).toISOString(),
+          blocked: s?.blocked ?? null,
           quota: s?.quota ?? { used: 0, limit: 0, resetAt: null },
         }));
       }
@@ -113,8 +122,12 @@ export function SyncStatus() {
 
   if (!status) return null;
 
-  const showPaused = paused && remainingSeconds > 0;
-  const refreshing = !showPaused && status.state === "refreshing" && status.refreshingCount > 0;
+  // Blocked outranks every other state: nothing can refresh, so a timestamp
+  // with a green tick would claim the data is fine when it's frozen.
+  const blocked = isSyncBlockerCode(status.blocked) ? status.blocked : null;
+  const showPaused = !blocked && paused && remainingSeconds > 0;
+  const refreshing =
+    !blocked && !showPaused && status.state === "refreshing" && status.refreshingCount > 0;
 
   const { used, limit, resetAt } = status.quota;
   const quotaTight = limit > 0 && used / limit >= QUOTA_NOTICE_THRESHOLD;
@@ -132,12 +145,16 @@ export function SyncStatus() {
         <button
           type="button"
           className={`flex min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition sm:px-3 ${
-            showPaused
+            blocked
+              ? "border-danger/40 bg-danger/10 text-danger hover:bg-danger/15"
+              : showPaused
               ? "border-warning/40 bg-warning/10 text-warning hover:bg-warning/15"
               : "border-border-strong bg-surface-2 text-muted-foreground hover:bg-secondary"
           }`}
         >
-          {showPaused ? (
+          {blocked ? (
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          ) : showPaused ? (
             <PauseCircle className="h-3.5 w-3.5 shrink-0" />
           ) : refreshing ? (
             <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
@@ -145,7 +162,9 @@ export function SyncStatus() {
             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
           )}
           {/* The countdown and the count never clip; the prose does. */}
-          {showPaused ? (
+          {blocked ? (
+            <span className="truncate">{blockedDict.label}</span>
+          ) : showPaused ? (
             <>
               <span className="hidden truncate sm:inline">{dict.pausedLabel}&nbsp;·&nbsp;</span>
               <span className="shrink-0 font-semibold tabular-nums">
@@ -166,7 +185,19 @@ export function SyncStatus() {
           sideOffset={8}
           className="z-50 w-[280px] space-y-2.5 rounded-xl border border-border bg-card p-4 text-sm shadow-2xl data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:zoom-in-95"
         >
-          {showPaused ? (
+          {blocked ? (
+            <>
+              <div className="text-xs font-medium text-danger">{blockedDict.heading}</div>
+              <p className="text-xs text-subtle">{blockedDict.reasons[blocked]}</p>
+              <p className="text-xs text-subtle">{syncedLabel}</p>
+              <Link
+                href={SYNC_BLOCKER_FIX_HREF}
+                className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                {blockedDict.action}
+              </Link>
+            </>
+          ) : showPaused ? (
             <>
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{dict.pausedHeading}</span>

@@ -274,10 +274,20 @@ export default async function ConnectionsPage({ searchParams }: PageProps) {
               </details>
             ) : null}
 
+            {/* Not a footnote: on this connection Sync All can't refresh a
+                single tracked account, so say so plainly and link the fix. */}
             {igConnectedDirect ? (
-              <p className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
-                {dict.igLoginUpgradeNote}
-              </p>
+              <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-warning">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-1">
+                  <p>{dict.igLoginUpgradeNote}</p>
+                  {metaReady ? (
+                    <a href="/api/ig/connect" className="inline-block font-medium underline hover:no-underline">
+                      {dict.igLoginUpgradeCta}
+                    </a>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
           ) : null}
