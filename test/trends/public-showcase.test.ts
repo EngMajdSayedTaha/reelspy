@@ -36,8 +36,9 @@ function reel(over: Partial<TrendReel> = {}): TrendReel {
 
 describe("showcase niche allowlist", () => {
   it("accepts allowlisted niches and rejects everything else", () => {
-    expect(isShowcaseNiche("fitness")).toBe(true);
     expect(isShowcaseNiche("real estate")).toBe(true);
+    expect(isShowcaseNiche("food")).toBe(true);
+    expect(isShowcaseNiche("fitness")).toBe(false); // replaced by real estate on the showcase
     expect(isShowcaseNiche("__all__")).toBe(false);
     expect(isShowcaseNiche("cybersecurity")).toBe(false); // a real seed niche, but not public
     expect(isShowcaseNiche("'; drop table --")).toBe(false);

@@ -49,7 +49,7 @@ flowchart LR
 ## 1 · Watch
 
 Add the accounts that inspire you.
-Group them — *Angular*, *Memes*, *Fitness*.
+Group them — *Angular*, *Memes*, *Real Estate*.
 
 ReelSpy imports their reels automatically and keeps them fresh.
 
