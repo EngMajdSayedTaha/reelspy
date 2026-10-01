@@ -36,6 +36,11 @@ export function isSelfHosted(url: string | null | undefined): boolean {
 // returning our permanent URL. Returns null on any failure so callers can
 // fall back to the (still valid, just temporary) source URL instead of
 // breaking the media entirely.
+// Bounds the whole download (headers AND body). Without it one stalled CDN
+// response held the refresh-snapshots function open until Vercel killed it at
+// 300s (FUNCTION_INVOCATION_TIMEOUT), failing the run and everything after it.
+const DOWNLOAD_TIMEOUT_MS = { image: 15_000, video: 45_000 } as const;
+
 async function cacheMedia(
   admin: SupabaseClient,
   sourceUrl: string,
@@ -45,7 +50,10 @@ async function cacheMedia(
   const maxBytes = kind === "video" ? MAX_VIDEO_BYTES : MAX_BYTES;
   const fallbackType = kind === "video" ? "video/mp4" : "image/jpeg";
   try {
-    const res = await fetch(sourceUrl, { headers: { "user-agent": "Mozilla/5.0" } });
+    const res = await fetch(sourceUrl, {
+      headers: { "user-agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS[kind]),
+    });
     if (!res.ok) return null;
 
     const contentType = res.headers.get("content-type") ?? fallbackType;
