@@ -10,7 +10,6 @@ import { listNiches } from "@/lib/trends/niche";
 // deployment, before any Niche Radar aggregate data exists (account_groups).
 const CURATED_NICHES = [
   "real estate",
-  "fitness",
   "beauty",
   "fashion",
   "food",

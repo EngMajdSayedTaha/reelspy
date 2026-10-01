@@ -12,9 +12,8 @@ import type { TrendReel } from "./shared";
 // Every slug here must exist in scripts/seed-data/seed-accounts.json (asserted
 // in test/trends/public-showcase.test.ts).
 export const SHOWCASE_NICHES = [
-  "fitness",
-  "food",
   "real estate",
+  "food",
   "travel",
   "tech",
   "beauty",
