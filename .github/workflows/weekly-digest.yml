@@ -15,9 +15,11 @@ name: Weekly digest
 # of repo inactivity.
 
 on:
-  schedule:
-    # Mondays 08:00 UTC — start-of-week nudge.
-    - cron: "0 8 * * 1"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   # Mondays 08:00 UTC — start-of-week nudge.
+  #   - cron: "0 8 * * 1"
   workflow_dispatch: {}
 
 jobs:
