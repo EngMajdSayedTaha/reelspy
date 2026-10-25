@@ -34,11 +34,17 @@ const DAYS = 21;
 // time budget alongside the other work in the same request.
 const MAX_PER_RUN = 24;
 
+// Ceiling on files removed per run. Listing is oldest-first and every run
+// deletes what it lists, so a backlog drains over successive runs.
+const MAX_PRUNE_PER_RUN = 100;
+
 export type MirrorResult = {
   scanned: number;
   mirrored: number;
   failed: number;
   alreadyMirrored: number;
+  /** Stale mirrored videos deleted from Storage this run. */
+  pruned: number;
   /** Stopped early because the caller's time budget ran out. */
   timedOut?: boolean;
 };
@@ -54,7 +60,15 @@ export async function mirrorShowcaseVideos(
   admin: SupabaseClient,
   opts: { deadline?: number } = {}
 ): Promise<MirrorResult> {
-  const result: MirrorResult = { scanned: 0, mirrored: 0, failed: 0, alreadyMirrored: 0 };
+  const result: MirrorResult = { scanned: 0, mirrored: 0, failed: 0, alreadyMirrored: 0, pruned: 0 };
+
+  // Free the space before spending it: an mp4 is ~10MB and the free-tier
+  // bucket cap is small, so reclaim videos the wall can no longer show first.
+  try {
+    result.pruned = await pruneStaleShowcaseVideos(admin);
+  } catch (err) {
+    console.warn("[showcase-video] prune failed", err);
+  }
 
   // Deduped across niches: a reel can rank in more than one, and downloading
   // the same file twice in a run would spend the cap on nothing.
@@ -126,6 +140,56 @@ export async function mirrorShowcaseVideos(
   }
 
   return result;
+}
+
+/**
+ * Deletes mirrored videos older than the wall's DAYS lookback.
+ *
+ * Mirrored files are never otherwise removed, and a reel is mirrored shortly
+ * after it posts, so a file created more than DAYS ago belongs to a reel the
+ * public endpoint can no longer select. Rows pointing at those files get
+ * video_url cleared first: if the delete then fails the file is simply listed
+ * again next run, whereas deleting first could leave a row pointing at a
+ * file that no longer exists.
+ *
+ * Returns the number of files removed.
+ */
+export async function pruneStaleShowcaseVideos(admin: SupabaseClient): Promise<number> {
+  const bucket = admin.storage.from("ig-media");
+  const cutoff = Date.now() - DAYS * 24 * 60 * 60 * 1000;
+
+  const { data: files, error } = await bucket.list("videos", {
+    limit: MAX_PRUNE_PER_RUN,
+    sortBy: { column: "created_at", order: "asc" },
+  });
+  if (error || !files) {
+    console.warn("[showcase-video] list failed", error);
+    return 0;
+  }
+
+  const stale = files.filter(
+    (f) => f.name.endsWith(".mp4") && f.created_at && Date.parse(f.created_at) < cutoff
+  );
+  if (stale.length === 0) return 0;
+
+  const paths = stale.map((f) => `videos/${f.name}`);
+  const urls = paths.map((p) => bucket.getPublicUrl(p).data.publicUrl);
+
+  const { error: clearError } = await admin
+    .from("ig_reel_snapshots")
+    .update({ video_url: null })
+    .in("video_url", urls);
+  if (clearError) {
+    console.warn("[showcase-video] clearing video_url failed", clearError);
+    return 0;
+  }
+
+  const { error: removeError } = await bucket.remove(paths);
+  if (removeError) {
+    console.warn("[showcase-video] remove failed", removeError);
+    return 0;
+  }
+  return paths.length;
 }
 
 // Instagram permalinks look like https://www.instagram.com/reel/<shortcode>/.
