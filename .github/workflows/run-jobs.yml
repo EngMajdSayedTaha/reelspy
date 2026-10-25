@@ -17,9 +17,11 @@ name: Run jobs
 # run on the default branch only and auto-pause after 60 days of repo inactivity.
 
 on:
-  schedule:
-    # Every 5 minutes — the publish cadence the roadmap (L8) targets.
-    - cron: "*/5 * * * *"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   # Every 5 minutes — the publish cadence the roadmap (L8) targets.
+  #   - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
