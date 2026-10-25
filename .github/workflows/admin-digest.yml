@@ -19,9 +19,11 @@ name: Admin alert digest
 # routed as immediate never wait for this.
 
 on:
-  schedule:
-    # Every hour at :20, away from the other workflows' :00/:15 starts.
-    - cron: "20 * * * *"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   # Every hour at :20, away from the other workflows' :00/:15 starts.
+  #   - cron: "20 * * * *"
   workflow_dispatch: {}
 
 jobs:

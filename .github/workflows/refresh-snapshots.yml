@@ -32,8 +32,10 @@ name: Refresh snapshots
 # days of repo inactivity.
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   - cron: "0 */6 * * *"
   workflow_dispatch: {}
 
 # The endpoint refreshes accounts, drains a seed batch and mirrors videos in

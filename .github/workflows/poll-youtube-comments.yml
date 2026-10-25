@@ -14,8 +14,10 @@ name: Poll YouTube comments
 # default branch only and auto-pause after 60 days of repo inactivity.
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:

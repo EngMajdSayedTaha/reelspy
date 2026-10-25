@@ -16,9 +16,11 @@ name: Prune event logs
 # of repo inactivity.
 
 on:
-  schedule:
-    # Sundays 04:00 UTC — off-peak, away from the Monday 08:00 digest.
-    - cron: "0 4 * * 0"
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore this block once login/API requests work again.
+  # schedule:
+  #   # Sundays 04:00 UTC — off-peak, away from the Monday 08:00 digest.
+  #   - cron: "0 4 * * 0"
   workflow_dispatch: {}
 
 jobs:

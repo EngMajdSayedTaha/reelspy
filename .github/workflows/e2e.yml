@@ -4,9 +4,11 @@ name: E2E
 # every push, while this one talks to a real Supabase project and Stripe in test
 # mode. Splitting them means a Stripe blip never masks a typecheck failure.
 on:
-  push:
-    branches: [master]
-  pull_request:
+  # TEMPORARILY PAUSED: the Supabase project is restricted (exceed_storage_size_quota),
+  # so every run fails. Restore these triggers once login/API requests work again.
+  # push:
+  #   branches: [master]
+  # pull_request:
   workflow_dispatch:
 
 jobs:
